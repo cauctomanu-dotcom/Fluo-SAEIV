@@ -1364,7 +1364,11 @@
   css.textContent=`
     .v16-inline-hint{display:block;margin-top:5px;color:#8fa5b3;font-size:.68rem;line-height:1.25}
     @media(min-width:681px){.service-choice-buttons{grid-template-columns:repeat(4,1fr)}}
-    .v16-calc-sheet{width:min(920px,100%)}.v16-calc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:13px}.v16-calc-grid input{width:100%;background:#091620;color:#fff;border:1px solid #2e4656;border-radius:12px;padding:12px;min-height:48px;font:inherit;color-scheme:dark}.v16-calc-grid small{color:#8295a3;font-size:.68rem}.v16-calc-results{margin-top:12px;overflow:auto;border:1px solid #2e4656;border-radius:13px;background:#08151e;max-height:46vh}.v16-calc-results table{width:100%;border-collapse:collapse;font-size:.78rem}.v16-calc-results th,.v16-calc-results td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;white-space:nowrap}.v16-calc-results th{position:sticky;top:0;background:#10202c;color:#a6b6c1;z-index:1}.v16-calc-results td:nth-child(2){font-weight:850;color:#fff;white-space:normal;min-width:180px}.v16-calc-results td:nth-child(3){font-weight:1000;color:#ffd000}.v16-calc-summary{padding:11px 12px;border-bottom:1px solid #2e4656;color:#d8eaf5;font-size:.78rem;line-height:1.4}
+    #v16CalcSheet{z-index:13050!important;overscroll-behavior:contain}
+    #v16CalcSheet:not(.hidden){display:flex!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;align-items:flex-end!important}
+    #v16CalcSheet .v16-calc-sheet{width:min(920px,100%);display:flex!important;flex-direction:column!important;max-height:min(92dvh,900px)!important;overflow:hidden!important}
+    #v16CalcSheet .v16-calc-results{flex:1 1 auto;min-height:0}
+    .v16-calc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:13px}.v16-calc-grid input{width:100%;background:#091620;color:#fff;border:1px solid #2e4656;border-radius:12px;padding:12px;min-height:48px;font:inherit;color-scheme:dark}.v16-calc-grid small{color:#8295a3;font-size:.68rem}.v16-calc-results{margin-top:12px;overflow:auto;border:1px solid #2e4656;border-radius:13px;background:#08151e;max-height:46vh}.v16-calc-results table{width:100%;border-collapse:collapse;font-size:.78rem}.v16-calc-results th,.v16-calc-results td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;white-space:nowrap}.v16-calc-results th{position:sticky;top:0;background:#10202c;color:#a6b6c1;z-index:1}.v16-calc-results td:nth-child(2){font-weight:850;color:#fff;white-space:normal;min-width:180px}.v16-calc-results td:nth-child(3){font-weight:1000;color:#ffd000}.v16-calc-summary{padding:11px 12px;border-bottom:1px solid #2e4656;color:#d8eaf5;font-size:.78rem;line-height:1.4}
     .v16-map3d{position:absolute;inset:0;z-index:2;background:#0a1822}.v16-map3d.failed{display:none}.v16-map-controls{position:absolute;z-index:900;right:8px;top:8px;display:flex;gap:6px;align-items:center}.v16-map-controls button{padding:7px 9px;border-radius:11px;background:rgba(7,18,27,.9);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:.69rem}.v16-speed-limit{min-width:48px;padding:5px 7px;text-align:center;border-radius:11px;border:2px solid #fff;background:#d8232a;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.35)}.v16-speed-limit span{display:block;font-size:.42rem;font-weight:950;letter-spacing:.05em}.v16-speed-limit b{display:block;font-size:1.05rem;line-height:1}.v16-bus-marker{width:40px;height:127px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.62));transform-origin:center center;pointer-events:none}.v16-bus-marker img{display:block;width:100%;height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none}
     .maplibregl-ctrl-bottom-right{z-index:5}.maplibregl-ctrl-attrib{font-size:8px!important;background:rgba(255,255,255,.72)!important}
     /* Leaflet reste vivant sous la carte 3D pour le recalage, mais n'est plus visible lorsque MapLibre est disponible. */
@@ -1372,7 +1376,7 @@
     #driver.v16-maplibre-active .leaflet-control-container{visibility:hidden}
     @media(max-width:680px){.v16-calc-grid{grid-template-columns:1fr 1fr}.v16-calc-grid label:nth-child(3),.v16-calc-grid label:nth-child(4){grid-column:1/-1}.v16-calc-sheet{max-height:92vh}.v16-map-controls{right:5px;top:5px}.v16-map-controls button{padding:5px 7px}.v16-speed-limit{min-width:43px;padding:4px 5px}}
     @media(max-width:470px){.v16-calc-grid{grid-template-columns:1fr}.v16-calc-grid label:nth-child(3),.v16-calc-grid label:nth-child(4){grid-column:auto}}
-    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){.v16-map-controls{right:7px;top:7px}.v16-speed-limit{transform:scale(.9);transform-origin:top right}.v15-map-guidance{z-index:920}.v16-map3d{border-radius:11px;overflow:hidden}.v16-bus-marker,.bus-pin-v16{width:36px;height:114px}}
+    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){.v16-map-controls{right:7px;top:7px}.v16-speed-limit{transform:scale(.9);transform-origin:top right}.v15-map-guidance{z-index:920}.v16-map3d{border-radius:11px;overflow:hidden}.v16-bus-marker,.bus-pin-v16{width:36px;height:114px}#v16CalcSheet:not(.hidden){align-items:center!important;padding:6px!important}#v16CalcSheet .v16-calc-sheet{max-height:96dvh!important;border-radius:16px!important}}
     /* Fallback Leaflet : Crossway blanc, plus long. */
     .bus-pin-v16{width:40px;height:127px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.62));transform-origin:50% 50%;pointer-events:none}.bus-pin-v16 img{width:100%;height:100%;display:block;object-fit:contain;user-select:none;-webkit-user-drag:none}
   `;
@@ -1565,9 +1569,20 @@
     }catch(e){setCalcStatus(`Calcul impossible : ${e.message||e}. Vérifie la connexion Internet puis réessaie.`,'err')}
     finally{q('v16CalcRun').disabled=false;q('v16CalcRun').textContent='CALCULER LES HORAIRES'}
   }
-  q('v16CalcOpen')?.addEventListener('click',()=>{q('v16CalcSheet').classList.remove('hidden');const t=q('v16CalcTime');if(t&&!t.value){const n=new Date();t.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`}});
-  q('v16CalcClose')?.addEventListener('click',()=>q('v16CalcSheet').classList.add('hidden'));
-  q('v16CalcSheet')?.addEventListener('click',e=>{if(e.target===q('v16CalcSheet'))q('v16CalcSheet').classList.add('hidden')});
+  function openScheduleCalculator(){
+    const sheet=q('v16CalcSheet'); if(!sheet) return;
+    const t=q('v16CalcTime');
+    if(t&&!t.value){const n=new Date();t.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`}
+    sheet.classList.remove('hidden');
+    // Reprendre automatiquement le département déjà choisi, sans forcer le focus/clavier sur smartphone.
+    const mainDept=q('dept')?.value, calcDept=q('v16CalcDept');
+    if(mainDept&&calcDept&&!calcDept.value){calcDept.value=mainDept;calcLoadDept(mainDept)}
+  }
+  function closeScheduleCalculator(){q('v16CalcSheet')?.classList.add('hidden')}
+  q('v16CalcOpen')?.addEventListener('click',openScheduleCalculator);
+  q('v16CalcClose')?.addEventListener('click',closeScheduleCalculator);
+  q('v16CalcSheet')?.addEventListener('click',e=>{if(e.target===q('v16CalcSheet'))closeScheduleCalculator()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!q('v16CalcSheet')?.classList.contains('hidden'))closeScheduleCalculator()});
   q('v16CalcDept')?.addEventListener('change',e=>calcLoadDept(e.target.value));q('v16CalcRoute')?.addEventListener('change',e=>calcLoadRoute(e.target.value));q('v16CalcPattern')?.addEventListener('change',e=>calcSelectPattern(e.target.value));q('v16CalcRun')?.addEventListener('click',runScheduleCalculation);
 
   // --- Carte GPS perspective / heading-up / north-up ---
@@ -1920,11 +1935,6 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const css=document.createElement('style');
   css.id='v23Style';
   css.textContent=`
-    /* Calcul horaires : la feuille doit toujours passer au-dessus du cockpit et rester visible sur iPhone. */
-    #v16CalcSheet.v23-calc-open{display:flex!important;z-index:13050!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;align-items:flex-end!important}
-    #v16CalcSheet.v23-calc-open .v16-calc-sheet{display:flex!important;visibility:visible!important;opacity:1!important;transform:none!important;max-height:min(94dvh,900px)!important;overflow:auto!important}
-    @media(orientation:landscape) and (max-height:650px){#v16CalcSheet.v23-calc-open{align-items:center!important;padding:6px!important}#v16CalcSheet.v23-calc-open .v16-calc-sheet{max-height:96dvh!important;border-radius:16px!important}}
-
     /* Journaux V23 */
     .v23-journal-help{margin-top:9px;padding:9px 10px;border:1px solid #355163;border-radius:12px;background:#091923;color:#b9cad5;font-size:.7rem;line-height:1.4}
     .v23-session{cursor:pointer;transition:background .14s ease}.v23-session:hover{background:#0b1e2a}.v23-session:active{background:#102837}
@@ -1945,21 +1955,10 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   `;
   document.head.appendChild(css);
 
-  // ---------- 1. Calcul horaires : correction d'ouverture / visibilité ----------
-  function openCalc23(){
-    const sheet=q('v16CalcSheet'); if(!sheet)return;
-    sheet.classList.remove('hidden');sheet.classList.add('v23-calc-open');sheet.style.setProperty('display','flex','important');
-    const t=q('v16CalcTime');if(t&&!t.value){const n=new Date();t.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`}
-    const mainDept=q('dept')?.value, calcDept=q('v16CalcDept');
-    if(calcDept&&mainDept&&!calcDept.value){calcDept.value=mainDept;calcDept.dispatchEvent(new Event('change',{bubbles:true}))}
-    setTimeout(()=>{sheet.classList.remove('hidden');sheet.classList.add('v23-calc-open');sheet.style.setProperty('display','flex','important');q('v16CalcDept')?.focus({preventScroll:true});},30);
-  }
-  function closeCalc23(){const sheet=q('v16CalcSheet');if(!sheet)return;sheet.classList.add('hidden');sheet.classList.remove('v23-calc-open');sheet.style.removeProperty('display')}
-  q('v16CalcOpen')?.addEventListener('click',openCalc23,true);
-  q('v16CalcClose')?.addEventListener('click',closeCalc23,true);
-  q('v16CalcSheet')?.addEventListener('click',e=>{if(e.target===q('v16CalcSheet'))closeCalc23()},true);
-  const calcSheet=q('v16CalcSheet');
-  if(calcSheet){new MutationObserver(()=>{if(!calcSheet.classList.contains('hidden')){calcSheet.classList.add('v23-calc-open');calcSheet.style.setProperty('display','flex','important')}}).observe(calcSheet,{attributes:true,attributeFilter:['class']})}
+  // ---------- 1. Calcul horaires ----------
+  // V23.2 : aucun second gestionnaire ici. Le calculateur est géré une seule fois dans le module V16.
+  // Le MutationObserver V23.1 a été supprimé : sur Safari/iOS il pouvait boucler sur la classe du panneau
+  // et laisser le fond modal au-dessus de toute l'application, ce qui donnait l'impression que tout était bloqué.
 
   // ---------- 2. Accès IndexedDB indépendant du module V13 ----------
   function db23(){
@@ -2129,8 +2128,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   try{const baseEnter23=enterDriver;enterDriver=function(mode){const r=baseEnter23(mode);[350,1800,6000].forEach(ms=>setTimeout(snapshotOpenSession23,ms));return r}}catch(e){console.warn('V23 journal snapshot patch',e)}
 
-  document.title='Fluo SAEIV V23.1 · Horaires + journaux cartographiques';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V23.1 HORAIRES + JOURNAUX';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.1 horaires + journaux cartographiques'},2000)});
+  document.title='Fluo SAEIV V23.2 · Calcul horaires corrigé + journaux';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V23.2 CALCUL HORAIRES CORRIGÉ';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
 })();
 
 </script>

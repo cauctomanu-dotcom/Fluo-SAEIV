@@ -1,4 +1,4 @@
-const C='fluo-saeiv-v23-1-force-refresh';
+const C='fluo-saeiv-v23-2-calcul-horaires-stable';
 const CORE=['./','index.html','styles.css','app.js','manifest.webmanifest'];
 self.addEventListener('install',e=>{
   self.skipWaiting();
