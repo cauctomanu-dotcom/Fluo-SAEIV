@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Fluo SAEIV V17 · Crossway Fluo réel</title>
+  <title>Fluo SAEIV V18 · Filtre lignes + Crossway ajusté</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 </head>
 <body>
@@ -1619,6 +1619,113 @@
 
   window.addEventListener('resize',()=>setTimeout(()=>V16.map3d?.resize(),150),{passive:true});window.addEventListener('orientationchange',()=>setTimeout(()=>{V16.map3d?.resize();sync3dMapFromState(true)},220),{passive:true});
   setTimeout(()=>{const b=q('buildInfo');if(b&&!/V17/.test(b.textContent))b.textContent+=' · V17 Crossway Fluo réel';},1500);
+})();
+</script>
+
+<script>
+'use strict';
+/* Fluo SAEIV V18 — bus à l'échelle + filtre lignes régulières / scolaires */
+(() => {
+  const q=id=>document.getElementById(id);
+  document.title='Fluo SAEIV V18 · Filtre lignes + Crossway ajusté';
+  const eyebrow=document.querySelector('.top .eyebrow');
+  if(eyebrow) eyebrow.textContent='SAEIV CONDUCTEUR · V18 SMARTPHONE';
+
+  // --- Taille du Crossway : environ 45 % de V17 pour rester à l'échelle de la carte. ---
+  const style=document.createElement('style');
+  style.id='v18Style';
+  style.textContent=`
+    .v16-bus-marker,.bus-pin-v16{width:20px!important;height:64px!important;filter:drop-shadow(0 2px 5px rgba(0,0,0,.58))!important}
+    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){.v16-bus-marker,.bus-pin-v16{width:18px!important;height:57px!important}}
+    .v18-line-grid{grid-template-columns:minmax(150px,.8fr) minmax(170px,.85fr) minmax(230px,1.5fr)!important;align-items:end}
+    .v18-line-type small{display:block;color:#8295a3;font-size:.66rem;line-height:1.25;margin-top:2px}
+    @media(max-width:680px){.v18-line-grid{grid-template-columns:1fr!important}.v18-line-grid label{grid-column:auto!important}}
+    .v18-filter-count{color:#8fa5b3;font-size:.66rem;font-weight:700;margin-top:2px;min-height:1em}
+  `;
+  document.head.appendChild(style);
+
+  // --- Détection scolaire à partir des noms GTFS. "Toutes" reste toujours disponible. ---
+  function norm(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim()}
+  function isSchoolText(text){
+    const s=norm(text), short=norm(String(text||'').split('—')[0]);
+    if(/\b(SCOLAIRE|SCOLAIRES|SCOL|ECOLE|ECOLES|COLLEGE|COLLEGES|LYCEE|LYCEES|ELEVES|RAMASSAGE|RPI)\b/.test(s)) return true;
+    if(/^(S|SC|SCO)[ ._\/-]*[0-9]{1,4}[A-Z]?\b/.test(short)) return true;
+    if(/^S[0-9]{1,4}[A-Z]?\b/.test(short)) return true;
+    return false;
+  }
+  function categoryMatches(text,cat){return cat==='all'||(cat==='school'?isSchoolText(text):!isSchoolText(text))}
+  function makeOption(rec){const o=document.createElement('option');o.value=rec.value;o.textContent=rec.text;o.disabled=!!rec.disabled;return o}
+
+  // --- Sélecteur principal : Département > Type de ligne > Ligne. ---
+  const dept=q('dept'), route=q('route');
+  if(dept&&route&&!q('lineTypeFilter')){
+    const grid=dept.closest('.grid');
+    grid?.classList.add('v18-line-grid');
+    const label=document.createElement('label');
+    label.className='v18-line-type';
+    label.innerHTML=`Type de ligne
+      <select id="lineTypeFilter">
+        <option value="regular">Lignes régulières</option>
+        <option value="school">Lignes scolaires</option>
+        <option value="all">Toutes les lignes</option>
+      </select>
+      <small>Filtre d'affichage ; « Toutes » permet de retrouver une ligne non classée.</small>
+      <span id="lineTypeCount" class="v18-filter-count"></span>`;
+    route.closest('label')?.before(label);
+  }
+
+  const typeSel=q('lineTypeFilter'), typeCount=q('lineTypeCount');
+  let routeMaster=[], applyingRoute=false;
+  const routeObserver=new MutationObserver(()=>{
+    if(applyingRoute) return;
+    const opts=[...route.options];
+    // Une vraie liste chargée contient au moins une option avec une value non vide.
+    if(!opts.some(o=>o.value)) return;
+    routeMaster=opts.map(o=>({value:o.value,text:o.textContent||'',disabled:o.disabled}));
+    applyRouteFilter(false);
+  });
+  function observeRoute(){routeObserver.observe(route,{childList:true})}
+  function applyRouteFilter(resetIfHidden=true){
+    if(!routeMaster.length||!route) return;
+    const cat=typeSel?.value||'regular', current=route.value;
+    const kept=routeMaster.filter((r,i)=>i===0||!r.value||categoryMatches(r.text,cat));
+    applyingRoute=true;routeObserver.disconnect();route.innerHTML='';kept.forEach(r=>route.appendChild(makeOption(r)));observeRoute();applyingRoute=false;
+    const canKeep=current&&kept.some(r=>r.value===current);
+    if(canKeep) route.value=current;
+    else if(current&&resetIfHidden){route.value='';route.dispatchEvent(new Event('change',{bubbles:true}))}
+    const n=kept.filter(r=>r.value).length;
+    if(typeCount) typeCount.textContent=`${n} ligne${n>1?'s':''} affichée${n>1?'s':''}`;
+  }
+  if(route){observeRoute();if([...route.options].some(o=>o.value)){routeMaster=[...route.options].map(o=>({value:o.value,text:o.textContent||'',disabled:o.disabled}));applyRouteFilter(false)}}
+  if(typeSel){const saved=localStorage.getItem('fluo_line_type_filter');if(['regular','school','all'].includes(saved))typeSel.value=saved;typeSel.addEventListener('change',()=>{localStorage.setItem('fluo_line_type_filter',typeSel.value);applyRouteFilter(true)})}
+
+  // --- Même filtre dans Calcul horaires V16. On conserve les value=index d'origine. ---
+  const calcGrid=q('v16CalcDept')?.closest('.v16-calc-grid');
+  const calcRoute=q('v16CalcRoute');
+  if(calcGrid&&calcRoute&&!q('v18CalcLineType')){
+    const calcRouteLabel=calcRoute.closest('label');
+    const l=document.createElement('label');l.className='v18-line-type';
+    l.innerHTML=`Type de ligne<select id="v18CalcLineType"><option value="regular">Lignes régulières</option><option value="school">Lignes scolaires</option><option value="all">Toutes les lignes</option></select><small>Filtre identique à la prise de service.</small><span id="v18CalcLineCount" class="v18-filter-count"></span>`;
+    calcRouteLabel?.before(l);
+  }
+  const calcType=q('v18CalcLineType'), calcCount=q('v18CalcLineCount');
+  let calcMaster=[], applyingCalc=false;
+  const calcObserver=calcRoute?new MutationObserver(()=>{
+    if(applyingCalc)return;const opts=[...calcRoute.options];if(!opts.some(o=>o.value))return;
+    calcMaster=opts.map(o=>({value:o.value,text:o.textContent||'',disabled:o.disabled}));applyCalcFilter(false);
+  }):null;
+  function observeCalc(){calcObserver?.observe(calcRoute,{childList:true})}
+  function applyCalcFilter(resetIfHidden=true){
+    if(!calcRoute||!calcMaster.length)return;const cat=calcType?.value||'regular',current=calcRoute.value;
+    const kept=calcMaster.filter((r,i)=>i===0||!r.value||categoryMatches(r.text,cat));
+    applyingCalc=true;calcObserver?.disconnect();calcRoute.innerHTML='';kept.forEach(r=>calcRoute.appendChild(makeOption(r)));observeCalc();applyingCalc=false;
+    const canKeep=current&&kept.some(r=>r.value===current);if(canKeep)calcRoute.value=current;else if(current&&resetIfHidden){calcRoute.value='';calcRoute.dispatchEvent(new Event('change',{bubbles:true}))}
+    const n=kept.filter(r=>r.value).length;if(calcCount)calcCount.textContent=`${n} ligne${n>1?'s':''} affichée${n>1?'s':''}`;
+  }
+  if(calcRoute){observeCalc();if([...calcRoute.options].some(o=>o.value)){calcMaster=[...calcRoute.options].map(o=>({value:o.value,text:o.textContent||'',disabled:o.disabled}));applyCalcFilter(false)}}
+  if(calcType){const saved=localStorage.getItem('fluo_calc_line_type_filter')||localStorage.getItem('fluo_line_type_filter');if(['regular','school','all'].includes(saved))calcType.value=saved;calcType.addEventListener('change',()=>{localStorage.setItem('fluo_calc_line_type_filter',calcType.value);applyCalcFilter(true)})}
+
+  setTimeout(()=>{const b=q('buildInfo');if(b&&!/V18/.test(b.textContent))b.textContent+=' · V18 filtre lignes + Crossway ajusté';},1600);
 })();
 </script>
 
