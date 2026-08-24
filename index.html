@@ -1247,16 +1247,7 @@
     if(V15.audioCtx.state==='suspended') V15.audioCtx.resume().catch(()=>{});
     return V15.audioCtx;
   }
-  function requestReminderChime(){
-    const ctx=audioContext(); if(!ctx) return;
-    // "ding-dong" conducteur, volontairement bref et distinct des annonces voyageurs.
-    const notes=[784,622,784], t0=ctx.currentTime+.02;
-    notes.forEach((freq,i)=>{
-      const o=ctx.createOscillator(),g=ctx.createGain(),t=t0+i*.19;o.type='sine';o.frequency.value=freq;
-      g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.23,t+.025);g.gain.exponentialRampToValueAtTime(.0001,t+.17);
-      o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.19);
-    });
-  }
+  function requestReminderChime(){ /* V21 : le ding-dong est joué par le moteur central exactement quand l'alerte apparaît. */ return; }
   function clearRequestTimer(){ if(V15.departureTimer){clearTimeout(V15.departureTimer);V15.departureTimer=null;} }
   function armRequestedTarget(){
     clearRequestTimer(); V15.pendingRequest=null;
@@ -1857,6 +1848,21 @@
   const n=document.querySelector('.fusion-note');
   if(n){n.querySelector('b').textContent='🧭 Géométrie V20';const s=n.querySelector('span');if(s)s.textContent='La course suit le shape_id officiel Fluo complet, sans simplification. Si un shape est réellement absent, le SAEIV calcule une géométrie routière ; il ne relie plus jamais deux arrêts par une ligne droite.';}
   setTimeout(()=>{const b=document.getElementById('buildInfo');if(b&&!/V20/.test(b.textContent))b.textContent+=' · V20 tracés exacts';},1800);
+})();
+</script>
+
+<script>
+'use strict';
+/* V21 — arrêt demandé sonore synchronisé, écran éveillé, prononciation des codes Fluo. */
+(() => {
+  document.title='Fluo SAEIV V21 · Ding-dong + écran actif';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='SAEIV CONDUCTEUR · V21 ÉCRAN ACTIF';
+  const n=document.querySelector('.audio-note');
+  if(n){
+    const b=n.querySelector('b'); if(b)b.textContent='🔊 Annonces V21';
+    const s=n.querySelector('span'); if(s)s.textContent='Le ding-dong retentit exactement lorsque l’alerte ARRÊT DEMANDÉ apparaît. Pendant une prise de service, le SAEIV demande à iOS/Android de maintenir l’écran éveillé. Les codes comme 57R026 sont annoncés « 57 R 26 ».';
+  }
+  setTimeout(()=>{const b=document.getElementById('buildInfo');if(b&&!/V21/.test(b.textContent))b.textContent+=' · V21 ding-dong + écran actif';},1900);
 })();
 </script>
 

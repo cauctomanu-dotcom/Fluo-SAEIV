@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-// Fluo SAEIV V20 — géométrie officielle complète + aucun fallback en ligne droite.
+// Fluo SAEIV V21 — tracés exacts + ding-dong demande + écran actif + prononciation lignes.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),
   status:$('status'), start:$('start'), simulate:$('simulate'), simSpeed:$('simSpeed'), simScale:$('simScale'), simDelay:$('simDelay'), simDelayWrap:$('simDelayWrap'),
@@ -22,10 +22,10 @@ const state = {
   announced:false, arrivalAnnounced:false, nextStopDueAt:null, firstLegDepartureSeen:false, reached:false, minDist:Infinity, lastAdvance:0, midpointAnnounced:false, departed:true, departureTimers:[], departureTicker:null,
   sim:{raf:null, playing:false, segmentFrom:0, segmentTo:1, fraction:0, holdUntil:0, speedMps:13.89, scale:10, delaySeconds:0, lastTs:0, path:[], pathIndex:0, pathFraction:0, heldTarget:-1},
   nav:{map:null,routeLine:null,busMarker:null,stopMarkers:[],follow:true,lastHeading:0},
-  wakeLock:null,
+  wakeLock:null, wakeLockTimer:null,
   fusion:{shape:[],cum:[],stopAlong:[],lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity},
-  audio:{queue:[],current:null,token:0},
-  service:{mode:'regular',tadStops:new Set(),requestedStops:new Set(),requestAlertIndex:null},
+  audio:{queue:[],current:null,token:0,requestChimeCtx:null,lastRequestChimeAt:0},
+  service:{mode:'regular',tadStops:new Set(),requestedStops:new Set(),requestAlertIndex:null,requestChimedStops:new Set()},
   punctuality:{ticker:null,deltaSeconds:null,plannedTime:null,status:'unknown'}
 };
 
@@ -55,6 +55,44 @@ function say(text,opts={}){
   state.audio.queue.push(item); pumpSpeech();
 }
 function spoken(s){ return String(s).replace(/\s+-\s+/g,', ').replace(/GARE ROUTIERE/gi,'Gare routière').trim(); }
+// Prononciation des codes Fluo : 57R026 -> « 57 R 26 », R033 -> « R 33 », R361 -> « R 361 ».
+// Seuls les zéros placés au début du bloc numérique APRES la/les lettre(s) sont supprimés.
+function spokenLineCode(value){
+  const raw=String(value??'').trim().toUpperCase();
+  const compact=raw.replace(/[^0-9A-ZÀ-ÖØ-Þ]/g,'');
+  const m=compact.match(/^(\d+)?([A-ZÀ-ÖØ-Þ]+)(\d+)$/);
+  if(!m) return spoken(raw);
+  const prefix=m[1]||'';
+  const letters=[...m[2]].join(' ');
+  const digits=(m[3].replace(/^0+(?=\d)/,'')||'0');
+  return [prefix,letters,digits].filter(Boolean).join(' ');
+}
+
+function requestChimeContext(){
+  const C=window.AudioContext||window.webkitAudioContext; if(!C) return null;
+  if(!state.audio.requestChimeCtx){
+    try{ state.audio.requestChimeCtx=new C({latencyHint:'interactive'}); }catch{ state.audio.requestChimeCtx=new C(); }
+  }
+  if(state.audio.requestChimeCtx.state==='suspended') state.audio.requestChimeCtx.resume().catch(()=>{});
+  return state.audio.requestChimeCtx;
+}
+function primeRequestChime(){ requestChimeContext(); }
+function playRequestChime(index){
+  const now=Date.now();
+  if(now-state.audio.lastRequestChimeAt<900) return;
+  state.audio.lastRequestChimeAt=now;
+  const ctx=requestChimeContext(); if(!ctx) return;
+  // Deux notes descendantes, type bouton arrêt demandé : « ding-dong ».
+  const notes=[880,659], t0=ctx.currentTime+.025;
+  notes.forEach((freq,i)=>{
+    const o=ctx.createOscillator(), g=ctx.createGain(), t=t0+i*.22;
+    o.type='sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(.28,t+.025);
+    g.gain.exponentialRampToValueAtTime(.0001,t+.20);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+.22);
+  });
+}
 async function jget(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 
 
@@ -304,7 +342,7 @@ function updateNavigation(p,snap=null){
 // V8 — modes de service TAD et demandes clients
 function setServiceMode(mode){
   state.service.mode=['tad','formation'].includes(mode)?mode:'regular';
-  state.service.requestedStops.clear(); state.service.requestAlertIndex=null;
+  state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.requestChimedStops.clear();
   ui.regularMode?.classList.toggle('active',state.service.mode==='regular');
   ui.tadMode?.classList.toggle('active',state.service.mode==='tad');
   ui.formationMode?.classList.toggle('active',state.service.mode==='formation');
@@ -398,19 +436,35 @@ function renderRequestSheet(){
 }
 function openRequests(){ if(state.service.mode==='tad'||!state.pattern) return; renderRequestSheet(); ui.requestsSheet?.classList.remove('hidden'); }
 function closeRequests(){ ui.requestsSheet?.classList.add('hidden'); }
-function clearRequests(){ state.service.requestedStops.clear(); state.service.requestAlertIndex=null; renderRequestSheet(); renderRequestsButton(); updateRequestAlert(false); updateStopMarkers(); }
+function clearRequests(){
+  state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.requestChimedStops.clear();
+  renderRequestSheet(); renderRequestsButton(); updateRequestAlert(false); updateStopMarkers();
+}
 function updateRequestAlert(showForTarget=false){
   if(!ui.requestAlert) return;
   const idx=state.target, requested=state.service.mode!=='tad'&&Number.isInteger(idx)&&state.service.requestedStops.has(idx);
   if(requested&&showForTarget){
-    state.service.requestAlertIndex=idx; ui.requestAlertStop.textContent=state.pattern?.stops?.[idx]?.name||'—'; ui.requestAlert.classList.remove('hidden');
+    const wasVisible=!ui.requestAlert.classList.contains('hidden')&&state.service.requestAlertIndex===idx;
+    state.service.requestAlertIndex=idx;
+    ui.requestAlertStop.textContent=state.pattern?.stops?.[idx]?.name||'—';
+    ui.requestAlert.classList.remove('hidden');
+    // V21 : le signal sonore est synchronisé avec l'apparition visuelle de l'arrêt demandé.
+    if(!wasVisible&&!state.service.requestChimedStops.has(idx)){
+      state.service.requestChimedStops.add(idx); playRequestChime(idx);
+    }
   }else if(!requested||state.service.requestAlertIndex!==idx){
     state.service.requestAlertIndex=null; ui.requestAlert.classList.add('hidden');
   }
 }
 function requestStop(index,checked){
   if(!state.pattern||index<=state.current) return;
-  if(checked) state.service.requestedStops.add(index); else state.service.requestedStops.delete(index);
+  // Ce geste utilisateur sert aussi à armer Web Audio pour que le ding-dong puisse jouer plus tard sur iPhone.
+  primeRequestChime();
+  if(checked){
+    state.service.requestedStops.add(index); state.service.requestChimedStops.delete(index);
+  }else{
+    state.service.requestedStops.delete(index); state.service.requestChimedStops.delete(index);
+  }
   if(!checked&&state.service.requestAlertIndex===index) state.service.requestAlertIndex=null;
   renderRequestsButton(); renderRequestSheet(); updateStopMarkers();
   if(index===state.target){
@@ -431,7 +485,7 @@ function resetSelections(level='dept'){
     if(ui.formationPattern){ ui.formationPattern.disabled=true; ui.formationPattern.innerHTML='<option>Choisir d’abord une ligne</option>'; }
     ui.startStop.disabled=true; ui.startStop.innerHTML='<option>Choisir d’abord une course/parcours</option>';
     ui.start.disabled=true; ui.simulate.disabled=true;
-    state.service.tadStops.clear(); state.service.requestedStops.clear(); state.service.requestAlertIndex=null;
+    state.service.tadStops.clear(); state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.requestChimedStops.clear();
     renderTadStopList(); renderRequestsButton(); updateRequestAlert(false);
     if(ui.courseInfo) ui.courseInfo.textContent='Aucune course sélectionnée.';
   }
@@ -485,7 +539,7 @@ function arrivalFor(trip,index,serviceDate){
   const pair=trip?.times?.[index], raw=pair?.[0]||pair?.[1], sec=gtfsSeconds(raw); if(sec===null) return null;
   return new Date(serviceMidnight(serviceDate).getTime()+sec*1000);
 }
-function lineIdentity(){ return `Ligne ${spoken(state.route?.short||'')}, à destination de ${spoken(state.pattern?.headsign||state.pattern?.stops?.at(-1)?.name||'')}.`; }
+function lineIdentity(){ return `Ligne ${spokenLineCode(state.route?.short||'')}, à destination de ${spoken(state.pattern?.headsign||state.pattern?.stops?.at(-1)?.name||'')}.`; }
 function formatClock(d){ return d?d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'—'; }
 function signedDuration(seconds){
   if(!Number.isFinite(seconds)) return '—';
@@ -580,7 +634,7 @@ async function selectFormationPattern(i){
   if(!p){ ui.startStop.disabled=true; ui.startStop.innerHTML='<option>Choisir d’abord un parcours</option>'; ui.start.disabled=true; ui.simulate.disabled=true; if(ui.courseInfo) ui.courseInfo.textContent='Aucun parcours de formation sélectionné.'; return; }
   ui.startStop.innerHTML=p.stops.map((s,n)=>`<option value="${n}">${n+1}. ${esc(s.name)}</option>`).join('');
   ui.startStop.disabled=false; ui.startStop.value='0';
-  state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.tadStops.clear();
+  state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.requestChimedStops.clear(); state.service.tadStops.clear();
   prepareCourseGeometry(); renderRequestsButton();
   const ok=await ensureExactPatternGeometry(p); if(p!==state.pattern) return;
   if(ok) refreshStartAvailability(); else {ui.start.disabled=true;ui.simulate.disabled=true;}
@@ -605,7 +659,7 @@ function populateRuns(){
     return `<option value="${i}">${esc(formatClock(r.originDeparture))} · ${esc(origin)} → ${esc(dest)} · ${r.pattern.stops.length} arrêts${esc(variantHint(r.pattern))}</option>`;
   }).join(''):'<option value="">Aucune course ce jour</option>';
   ui.trip.disabled=!candidates.length;
-  state.run=null; state.pattern=null; state.service.tadStops.clear(); state.service.requestedStops.clear(); state.service.requestAlertIndex=null; ui.startStop.disabled=true; ui.startStop.innerHTML='<option>Choisir d’abord une course</option>'; ui.start.disabled=true; ui.simulate.disabled=true; renderTadStopList(); renderRequestsButton();
+  state.run=null; state.pattern=null; state.service.tadStops.clear(); state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.requestChimedStops.clear(); ui.startStop.disabled=true; ui.startStop.innerHTML='<option>Choisir d’abord une course</option>'; ui.start.disabled=true; ui.simulate.disabled=true; renderTadStopList(); renderRequestsButton();
   if(ui.courseInfo) ui.courseInfo.textContent=candidates.length?`${candidates.length} départs trouvés pour cette date.`:'Aucune course active à cette date.';
   if(candidates.length){
     const now=new Date(), same=ymd(serviceDate)===ymd(now);
@@ -616,14 +670,14 @@ function populateRuns(){
 async function selectRun(i){
   const r=Number.isInteger(i)?state.runOptions[i]||null:null;
   state.run=r; state.pattern=r?.pattern||null; V20Geometry.token++;
-  if(!r){ state.pattern=null; state.service.tadStops.clear(); state.service.requestedStops.clear(); state.service.requestAlertIndex=null; ui.startStop.disabled=true; ui.startStop.innerHTML='<option>Choisir d’abord une course</option>'; ui.start.disabled=true; ui.simulate.disabled=true; renderTadStopList(); renderRequestsButton(); updateDepartureDisplay(); return; }
+  if(!r){ state.pattern=null; state.service.tadStops.clear(); state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.requestChimedStops.clear(); ui.startStop.disabled=true; ui.startStop.innerHTML='<option>Choisir d’abord une course</option>'; ui.start.disabled=true; ui.simulate.disabled=true; renderTadStopList(); renderRequestsButton(); updateDepartureDisplay(); return; }
   ui.startStop.innerHTML=state.pattern.stops.map((s,n)=>{
     const d=departureFor(r.trip,n,r.serviceDate), t=d?` · ${formatClock(d)}`:'';
     return `<option value="${n}">${n+1}. ${esc(s.name)}${esc(t)}</option>`;
   }).join('');
   ui.startStop.disabled=false; ui.startStop.value='0';
   prepareCourseGeometry();
-  state.service.requestedStops.clear(); state.service.requestAlertIndex=null;
+  state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.requestChimedStops.clear();
   if(state.service.mode==='tad') renderTadStopList(true); else state.service.tadStops.clear();
   renderRequestsButton(); ui.start.disabled=true; ui.simulate.disabled=true;
   const ok=await ensureExactPatternGeometry(state.pattern); if(r!==state.run) return;
@@ -639,12 +693,33 @@ function selectedDepartureDate(){ return state.run?departureFor(state.run.trip,N
 function secureMessage(){ if(window.isSecureContext) return null; return `Cette page n’est pas dans un contexte sécurisé (${location.protocol}). Le GPS réel exige HTTPS. La simulation, elle, fonctionne sans GPS.`; }
 
 async function keepScreenAwake(){
-  try{ if('wakeLock' in navigator && !state.wakeLock) state.wakeLock=await navigator.wakeLock.request('screen'); }catch{}
+  if(!state.running||document.visibilityState!=='visible'||!('wakeLock' in navigator)) return;
+  try{
+    if(state.wakeLock&&!state.wakeLock.released) return;
+    const sentinel=await navigator.wakeLock.request('screen');
+    state.wakeLock=sentinel;
+    sentinel.addEventListener('release',()=>{
+      if(state.wakeLock===sentinel) state.wakeLock=null;
+      // iOS peut relâcher le verrou pendant une rotation/changement d'état : on le reprend tant que le service est actif.
+      if(state.running&&document.visibilityState==='visible') setTimeout(()=>keepScreenAwake(),250);
+    },{once:true});
+  }catch(e){ console.warn('Wake Lock indisponible',e?.name||e); }
+  if(!state.wakeLockTimer){
+    state.wakeLockTimer=setInterval(()=>{
+      if(state.running&&document.visibilityState==='visible'&&(!state.wakeLock||state.wakeLock.released)) keepScreenAwake();
+    },12000);
+  }
 }
 async function releaseScreenAwake(){
-  try{ await state.wakeLock?.release(); }catch{} state.wakeLock=null;
+  if(state.wakeLockTimer){ clearInterval(state.wakeLockTimer); state.wakeLockTimer=null; }
+  const lock=state.wakeLock; state.wakeLock=null;
+  try{ if(lock&&!lock.released) await lock.release(); }catch{}
 }
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&state.running) keepScreenAwake(); });
+function restoreScreenWake(){ if(state.running&&document.visibilityState==='visible') keepScreenAwake(); }
+document.addEventListener('visibilitychange',restoreScreenWake);
+window.addEventListener('focus',restoreScreenWake,{passive:true});
+window.addEventListener('pageshow',restoreScreenWake,{passive:true});
+window.addEventListener('orientationchange',()=>setTimeout(restoreScreenWake,250),{passive:true});
 function gpsOnce(){ return new Promise((ok,ko)=>{ if(!navigator.geolocation) return ko(new Error('Géolocalisation absente du navigateur.')); navigator.geolocation.getCurrentPosition(ok,ko,{enableHighAccuracy:true,timeout:15000,maximumAge:1000}); }); }
 async function testGps(){
   const sec=secureMessage();
@@ -729,7 +804,7 @@ function advance(manual=false){
   if(!state.pattern||state.target>=state.pattern.stops.length) return;
   const reachedIndex=state.target;
   state.current=reachedIndex;
-  if(state.service.mode!=='tad') state.service.requestedStops.delete(reachedIndex);
+  if(state.service.mode!=='tad'){ state.service.requestedStops.delete(reachedIndex); state.service.requestChimedStops.delete(reachedIndex); }
   const nx=nextOperationalStop(state.current); state.target=nx===null?state.pattern.stops.length:nx;
   state.announced=false; state.arrivalAnnounced=false; state.midpointAnnounced=false; state.reached=false; state.minDist=Infinity; state.lastAdvance=Date.now(); state.firstLegDepartureSeen=true; armNextStopAnnouncement(); labels(); renderRequestsButton();
   // Dès que l'arrêt précédent vient d'être franchi, une éventuelle demande sur le prochain arrêt devient prioritaire visuellement.
