@@ -157,8 +157,9 @@ def build(dept, cfg):
             return []
         if shape_id not in shape_cache:
             ordered = [(lat, lon) for _, lat, lon in sorted(shapes[shape_id], key=lambda x:x[0])]
-            # V7: on conserve davantage de points que la V6 pour un map-matching plus fin.
-            shape_cache[shape_id] = [[round(lat,6), round(lon,6)] for lat,lon in simplify(ordered, 6.0)]
+            # V20 : aucune simplification. On conserve tous les points officiels shapes.txt
+            # afin que la polyligne épouse les virages et la voirie au lieu de couper les courbes.
+            shape_cache[shape_id] = [[round(lat,7), round(lon,7)] for lat,lon in ordered]
         return shape_cache[shape_id]
 
     # Calendriers de service : nécessaires pour proposer la bonne course et déclencher
@@ -254,15 +255,20 @@ def build(dept, cfg):
                 if arr: s['arrival'] = arr
                 if dep: s['departure'] = dep
             shp = get_shape(g['shape_id'])
-            if not shp:
-                shp = [[round(s['lat'],6), round(s['lon'],6)] for s in stop_objs]
+            # V20 : si le producteur n'a pas fourni de shape, on laisse volontairement
+            # le tracé vide. Le client reconstruira alors une géométrie routière ;
+            # on ne relie plus jamais les arrêts par des segments droits.
+            trace_source = ('fusion_override' if g['shape_id'] in trace_overrides
+                            else 'fluo_gtfs_full' if shp
+                            else 'stops_fallback')
             patterns.append({
                 'headsign': g['headsign'],
                 'direction': g['direction'],
                 'examples': g['examples'],
                 'trips': g['trips'],
                 'shape_id': g['shape_id'],
-                'trace_source': 'fusion_override' if g['shape_id'] in trace_overrides else 'fluo_gtfs',
+                'trace_source': trace_source,
+                'shape_points': len(shp),
                 'shape': shp,
                 'stops': stop_objs,
             })
@@ -294,7 +300,7 @@ def main():
         build(dept, cfg)
     with open(DATA / 'build.json', 'w', encoding='utf-8') as f:
         import datetime
-        json.dump({'generated_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'version': 'V11 ANNONCES ARRIVÉE + PROCHAIN ARRÊT 15S + FORMATION + RÉGULATION + TAD + DEMANDES'}, f)
+        json.dump({'generated_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'version': 'V20 TRACÉS EXACTS FLUO SHAPES COMPLETS + ROUTAGE ROUTIER SANS LIGNES DROITES'}, f)
 
 if __name__ == '__main__':
     main()

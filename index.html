@@ -1844,5 +1844,21 @@
 })();
 </script>
 
+<script>
+'use strict';
+/* V20 — l'affichage utilise uniquement state.fusion.shape produit par le moteur réécrit dans app.js. */
+(() => {
+  document.title='Fluo SAEIV V20 · Tracés exacts Fluo';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='SAEIV CONDUCTEUR · V20 TRACÉS EXACTS';
+  const css=document.createElement('style');css.textContent=`
+    .route-state.v20-source{max-width:72%}
+    .v20-source-note{margin-top:8px;font-size:.69rem;color:#91a8b6;line-height:1.35}
+  `;document.head.appendChild(css);
+  const n=document.querySelector('.fusion-note');
+  if(n){n.querySelector('b').textContent='🧭 Géométrie V20';const s=n.querySelector('span');if(s)s.textContent='La course suit le shape_id officiel Fluo complet, sans simplification. Si un shape est réellement absent, le SAEIV calcule une géométrie routière ; il ne relie plus jamais deux arrêts par une ligne droite.';}
+  setTimeout(()=>{const b=document.getElementById('buildInfo');if(b&&!/V20/.test(b.textContent))b.textContent+=' · V20 tracés exacts';},1800);
+})();
+</script>
+
 </body>
 </html>

@@ -1,6 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
+// Fluo SAEIV V20 — géométrie officielle complète + aucun fallback en ligne droite.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),
   status:$('status'), start:$('start'), simulate:$('simulate'), simSpeed:$('simSpeed'), simScale:$('simScale'), simDelay:$('simDelay'), simDelayWrap:$('simDelayWrap'),
@@ -75,32 +76,127 @@ function pointSegmentProjection(lat,lon,a,b){
   return {d:Math.hypot(p[0]-qx,p[1]-qy),t,lat:a[0]+(b[0]-a[0])*t,lon:a[1]+(b[1]-a[1])*t};
 }
 function angleDiff(a,b){ const d=Math.abs((a-b)%360); return d>180?360-d:d; }
+// V20 — moteur de géométrie : jamais de ligne droite entre les arrêts.
+// 1) shapes.txt Fluo complet = source de référence.
+// 2) si une course ne possède réellement aucun shape, routage routier OSM/OSRM entre les arrêts.
+const V20Geometry = {
+  token: 0,
+  cacheKey: 'fluo_v20_road_geometry_cache',
+  cache: new Map(),
+  maxCached: 24,
+};
+function loadV20GeometryCache(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(V20Geometry.cacheKey)||'{}');
+    for(const [k,v] of Object.entries(raw)) if(Array.isArray(v?.shape)&&v.shape.length>=2) V20Geometry.cache.set(k,v);
+  }catch{}
+}
+function saveV20GeometryCache(){
+  try{
+    const xs=[...V20Geometry.cache.entries()].sort((a,b)=>(b[1]?.savedAt||0)-(a[1]?.savedAt||0)).slice(0,V20Geometry.maxCached);
+    localStorage.setItem(V20Geometry.cacheKey,JSON.stringify(Object.fromEntries(xs)));
+  }catch{}
+}
+loadV20GeometryCache();
 function courseShape(){
   const p=state.pattern; if(!p) return [];
-  return p.shape?.length>=2?p.shape:p.stops.map(s=>[s.lat,s.lon]);
+  // V20: on ne fabrique plus JAMAIS un pseudo-tracé en reliant les arrêts par des segments droits.
+  return Array.isArray(p.shape)&&p.shape.length>=2?p.shape:[];
 }
 function prepareCourseGeometry(){
-  let shape=courseShape().map(p=>[Number(p[0]),Number(p[1])]);
+  let shape=courseShape().map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
   const stops=state.pattern?.stops||[];
   if(shape.length>=2&&stops.length>=2){
     const direct=dist(shape[0][0],shape[0][1],stops[0].lat,stops[0].lon)+dist(shape.at(-1)[0],shape.at(-1)[1],stops.at(-1).lat,stops.at(-1).lon);
     const reverse=dist(shape.at(-1)[0],shape.at(-1)[1],stops[0].lat,stops[0].lon)+dist(shape[0][0],shape[0][1],stops.at(-1).lat,stops.at(-1).lon);
     if(reverse+30<direct) shape.reverse();
   }
+  if(shape.length<2){
+    state.fusion={shape:[],cum:[],stopAlong:new Array(stops.length).fill(null),lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity};
+    return;
+  }
   const cum=[0]; for(let i=1;i<shape.length;i++) cum.push(cum[i-1]+dist(shape[i-1][0],shape[i-1][1],shape[i][0],shape[i][1]));
   const stopAlong=[]; let searchFrom=0;
   for(const st of stops){
-    let best={d:Infinity,along:0,seg:searchFrom};
+    let best={d:Infinity,along:null,seg:searchFrom};
     for(let i=searchFrom;i<shape.length-1;i++){
       const q=pointSegmentProjection(st.lat,st.lon,shape[i],shape[i+1]);
       const along=cum[i]+q.t*(cum[i+1]-cum[i]);
       if(q.d<best.d) best={d:q.d,along,seg:i};
-      // Une fois qu'on a trouvé un passage très proche, inutile de parcourir des milliers de points.
-      if(best.d<8&&i>searchFrom+120) break;
+      if(best.d<6&&i>searchFrom+180) break;
     }
     stopAlong.push(best.along); searchFrom=Math.max(searchFrom,best.seg);
   }
   state.fusion={shape,cum,stopAlong,lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity};
+}
+function v20PatternKey(pattern=state.pattern){
+  const stops=pattern?.stops||[];
+  return [state.dept||'',state.route?.id||state.route?.short||'',pattern?.shape_id||'',stops.map(s=>s.id||`${s.lat},${s.lon}`).join('>')].join('|');
+}
+function mergeGeometry(target,coords){
+  for(const c of coords||[]){
+    const p=[Number(c[1]),Number(c[0])]; if(!Number.isFinite(p[0])||!Number.isFinite(p[1])) continue;
+    const z=target.at(-1); if(!z||dist(z[0],z[1],p[0],p[1])>.8) target.push(p);
+  }
+}
+async function routeRoadChunk(stops){
+  const coords=stops.map(s=>`${Number(s.lon).toFixed(7)},${Number(s.lat).toFixed(7)}`).join(';');
+  const url=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=false&continue_straight=true`;
+  const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(`routage HTTP ${r.status}`);
+  const data=await r.json(), route=data?.routes?.[0], geometry=route?.geometry?.coordinates;
+  if(data?.code!=='Ok'||!Array.isArray(geometry)||geometry.length<2) throw new Error('aucune géométrie routière');
+  return geometry;
+}
+async function roadGeometryForStops(stops){
+  if(!Array.isArray(stops)||stops.length<2) throw new Error('pas assez d’arrêts');
+  const all=[];
+  // Le serveur public accepte un nombre limité de via-points : on travaille par blocs avec chevauchement.
+  const max=45;
+  for(let i=0;i<stops.length-1;){
+    const end=Math.min(stops.length,i+max), chunk=stops.slice(i,end);
+    const geometry=await routeRoadChunk(chunk); mergeGeometry(all,geometry);
+    if(end>=stops.length) break;
+    i=end-1;
+  }
+  if(all.length<2) throw new Error('tracé routier vide');
+  return all;
+}
+function geometrySourceLabel(pattern=state.pattern){
+  const src=pattern?.trace_source||'';
+  if(src==='fluo_gtfs_full') return `tracé officiel Fluo complet (${pattern.shape?.length||0} points)`;
+  if(src==='fluo_gtfs') return `tracé officiel Fluo (${pattern.shape?.length||0} points)`;
+  if(src==='fusion_override') return 'tracé Fluo corrigé';
+  if(src==='road_fallback_osm') return 'tracé routier OSM (shape Fluo absent)';
+  return src||'tracé en préparation';
+}
+async function ensureExactPatternGeometry(pattern=state.pattern){
+  if(!pattern) return false;
+  if(Array.isArray(pattern.shape)&&pattern.shape.length>=2 && pattern.trace_source!=='stops_fallback'){
+    prepareCourseGeometry(); return true;
+  }
+  const token=++V20Geometry.token, key=v20PatternKey(pattern), hit=V20Geometry.cache.get(key);
+  ui.start.disabled=true; ui.simulate.disabled=true;
+  if(hit?.shape?.length>=2){
+    pattern.shape=hit.shape.map(p=>[Number(p[0]),Number(p[1])]); pattern.trace_source='road_fallback_osm';
+    if(token===V20Geometry.token&&pattern===state.pattern){ prepareCourseGeometry(); refreshStartAvailability(); }
+    return true;
+  }
+  status('Cette course n’a pas de shape Fluo exploitable : reconstruction du tracé routier exact…');
+  try{
+    const shape=await roadGeometryForStops(pattern.stops||[]);
+    if(token!==V20Geometry.token||pattern!==state.pattern) return false;
+    pattern.shape=shape; pattern.trace_source='road_fallback_osm';
+    V20Geometry.cache.set(key,{shape,savedAt:Date.now()}); saveV20GeometryCache();
+    prepareCourseGeometry(); refreshStartAvailability();
+    if(state.nav?.map) drawRoute();
+    status('Tracé routier reconstruit : la ligne suit désormais la voirie.','ok');
+    return true;
+  }catch(e){
+    if(token!==V20Geometry.token||pattern!==state.pattern) return false;
+    prepareCourseGeometry(); ui.start.disabled=true; ui.simulate.disabled=true;
+    status(`Impossible de reconstruire le tracé routier (${e.message}). Le SAEIV ne dessinera pas de lignes droites entre les arrêts.`,'err');
+    return false;
+  }
 }
 function snapToCourse(c){
   const f=state.fusion, shape=f.shape; if(!shape?.length||shape.length<2) return {lat:c.latitude,lon:c.longitude,along:null,off:Infinity,confidence:0,segment:null};
@@ -163,17 +259,21 @@ function stopIcon(index){
 }
 function drawRoute(){
   ensureMap(); if(!state.nav.map||!state.pattern) return;
-  if(state.nav.routeLine) state.nav.map.removeLayer(state.nav.routeLine);
+  if(state.nav.routeLine){ state.nav.map.removeLayer(state.nav.routeLine); state.nav.routeLine=null; }
   state.nav.stopMarkers.forEach(m=>state.nav.map.removeLayer(m)); state.nav.stopMarkers=[];
-  const shape=state.fusion.shape?.length>=2?state.fusion.shape:(state.pattern.shape?.length>=2?state.pattern.shape:state.pattern.stops.map(s=>[s.lat,s.lon]));
-  state.nav.routeLine=L.polyline(shape,{color:cssColor(state.route?.color,'#ffd000'),weight:6,opacity:.9}).addTo(state.nav.map);
+  const shape=state.fusion.shape?.length>=2?state.fusion.shape:[];
+  if(shape.length>=2){
+    // V20: la polyligne ne vient que de la géométrie officielle/routée, jamais des seuls arrêts.
+    state.nav.routeLine=L.polyline(shape,{color:cssColor(state.route?.color,'#ffd000'),weight:6,opacity:.92,lineJoin:'round',lineCap:'round'}).addTo(state.nav.map);
+  }
   state.pattern.stops.forEach((s,i)=>{
     const m=L.marker([s.lat,s.lon],{icon:stopIcon(i),keyboard:false})
       .bindTooltip(`${i+1}. ${s.name}`,{direction:'top',offset:[0,-5]})
       .addTo(state.nav.map);
     state.nav.stopMarkers.push(m);
   });
-  const b=state.nav.routeLine.getBounds(); if(b.isValid()) state.nav.map.fitBounds(b,{padding:[24,24]});
+  if(state.nav.routeLine){ const b=state.nav.routeLine.getBounds(); if(b.isValid()) state.nav.map.fitBounds(b,{padding:[24,24]}); }
+  else if(state.pattern.stops.length){ const b=L.latLngBounds(state.pattern.stops.map(s=>[s.lat,s.lon])); if(b.isValid()) state.nav.map.fitBounds(b,{padding:[24,24]}); }
   setTimeout(()=>state.nav.map?.invalidateSize(),80);
 }
 function updateStopMarkers(){
@@ -474,16 +574,17 @@ function populateFormationPatterns(){
   if(ui.courseInfo) ui.courseInfo.textContent=`${state.patterns.length} parcours disponibles en mode Formation. Aucun horaire n’est utilisé.`;
   status(`Mode Formation : choisis un sens/parcours pour ${state.route.short}.`, 'ok');
 }
-function selectFormationPattern(i){
+async function selectFormationPattern(i){
   const p=Number.isInteger(i)?state.patterns[i]||null:null;
-  state.run=null; state.pattern=p;
+  state.run=null; state.pattern=p; V20Geometry.token++;
   if(!p){ ui.startStop.disabled=true; ui.startStop.innerHTML='<option>Choisir d’abord un parcours</option>'; ui.start.disabled=true; ui.simulate.disabled=true; if(ui.courseInfo) ui.courseInfo.textContent='Aucun parcours de formation sélectionné.'; return; }
   ui.startStop.innerHTML=p.stops.map((s,n)=>`<option value="${n}">${n+1}. ${esc(s.name)}</option>`).join('');
   ui.startStop.disabled=false; ui.startStop.value='0';
-  prepareCourseGeometry(); state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.tadStops.clear();
-  renderRequestsButton(); refreshStartAvailability();
-  const src=p.trace_source==='fusion_override'?'tracé fusion corrigé':'tracé Fluo GTFS';
-  if(ui.courseInfo) ui.courseInfo.textContent=`FORMATION · ${p.stops.length} arrêts · ${src} · sens/parcours sans horaire`;
+  state.service.requestedStops.clear(); state.service.requestAlertIndex=null; state.service.tadStops.clear();
+  prepareCourseGeometry(); renderRequestsButton();
+  const ok=await ensureExactPatternGeometry(p); if(p!==state.pattern) return;
+  if(ok) refreshStartAvailability(); else {ui.start.disabled=true;ui.simulate.disabled=true;}
+  if(ui.courseInfo) ui.courseInfo.textContent=`FORMATION · ${p.stops.length} arrêts · ${geometrySourceLabel(p)} · sens/parcours sans horaire`;
   updateDepartureDisplay();
 }
 function populateRuns(){
@@ -512,9 +613,9 @@ function populateRuns(){
     if(pick>=0){ ui.trip.value=String(pick); selectRun(pick); }
   }
 }
-function selectRun(i){
+async function selectRun(i){
   const r=Number.isInteger(i)?state.runOptions[i]||null:null;
-  state.run=r; state.pattern=r?.pattern||null;
+  state.run=r; state.pattern=r?.pattern||null; V20Geometry.token++;
   if(!r){ state.pattern=null; state.service.tadStops.clear(); state.service.requestedStops.clear(); state.service.requestAlertIndex=null; ui.startStop.disabled=true; ui.startStop.innerHTML='<option>Choisir d’abord une course</option>'; ui.start.disabled=true; ui.simulate.disabled=true; renderTadStopList(); renderRequestsButton(); updateDepartureDisplay(); return; }
   ui.startStop.innerHTML=state.pattern.stops.map((s,n)=>{
     const d=departureFor(r.trip,n,r.serviceDate), t=d?` · ${formatClock(d)}`:'';
@@ -524,11 +625,13 @@ function selectRun(i){
   prepareCourseGeometry();
   state.service.requestedStops.clear(); state.service.requestAlertIndex=null;
   if(state.service.mode==='tad') renderTadStopList(true); else state.service.tadStops.clear();
-  renderRequestsButton(); refreshStartAvailability();
+  renderRequestsButton(); ui.start.disabled=true; ui.simulate.disabled=true;
+  const ok=await ensureExactPatternGeometry(state.pattern); if(r!==state.run) return;
+  if(state.service.mode==='tad') renderTadStopList(false);
+  if(ok) refreshStartAvailability(); else {ui.start.disabled=true;ui.simulate.disabled=true;}
   if(ui.courseInfo){
     const end=arrivalFor(r.trip,state.pattern.stops.length-1,r.serviceDate);
-    const src=state.pattern.trace_source==='fusion_override'?'tracé fusion corrigé':'tracé Fluo GTFS';
-    ui.courseInfo.textContent=`Course exacte ${formatClock(r.originDeparture)} → ${formatClock(end)} · ${state.pattern.stops.length} arrêts · ${src} · trip_id ${r.trip.id}`;
+    ui.courseInfo.textContent=`Course exacte ${formatClock(r.originDeparture)} → ${formatClock(end)} · ${state.pattern.stops.length} arrêts · ${geometrySourceLabel(state.pattern)} · trip_id ${r.trip.id}`;
   }
   updateDepartureDisplay();
 }
