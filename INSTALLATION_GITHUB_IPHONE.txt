@@ -1,0 +1,38 @@
+FLUO SAEIV V11 — INSTALLATION SUR IPHONE VIA GITHUB PAGES
+
+1. Sur ton PC, décompresse ce ZIP.
+2. Sur github.com, crée un nouveau dépôt (par exemple fluo-saeiv).
+3. Envoie TOUT le contenu du dossier décompressé, y compris le dossier .github.
+4. Dans le dépôt : Settings > Pages > Source : GitHub Actions.
+5. Ouvre Actions > Build and deploy Fluo Annonceur > Run workflow.
+6. Quand le workflow est vert, l'adresse du site apparaît dans Settings > Pages.
+7. Ouvre cette adresse HTTPS dans Safari sur l'iPhone.
+8. Autorise la localisation précise lorsque Safari la demande.
+9. Safari > Partager > Sur l'écran d'accueil.
+
+TEST CONSEILLÉ
+- Choisis Moselle (57).
+- Choisis une ligne.
+- Vérifie la date de service.
+- Choisis UNE HEURE DE DÉPART EXACTE : la V11 choisit automatiquement le trip_id et la variante correspondante.
+- Lance d'abord SIMULER CETTE COURSE.
+- Une fois les arrêts et annonces vérifiés, teste PRISE DE SERVICE GPS.
+
+IMPORTANT
+La sélection de l'heure n'est pas seulement un compte à rebours : elle détermine réellement la liste d'arrêts et le tracé de cette course.
+
+
+NOUVEAUTÉS V11
+- Avant la prise de service, choisir Ligne régulière ou TAD.
+- En TAD, sélectionner les arrêts à desservir avant de démarrer.
+- En ligne régulière, le bouton « Demandes clients » permet de mémoriser les arrêts de descente demandés.
+- Le bandeau « ARRÊT DEMANDÉ » apparaît après le franchissement de l'arrêt précédent.
+- Un grand indicateur de régulation affiche en continu AVANCE / À L’HEURE / RETARD.
+- Codes : rouge avance, bleu à l’heure (±1 min), vert retard <5 min, jaune 5–10 min, orange à partir de 10 min.
+- En simulation, le menu « Écart horaire simulé » permet de tester chaque couleur.
+
+
+ANNONCES V11
+- Environ 15 secondes après avoir quitté un arrêt : « Prochain arrêt, … »
+- À l’arrivée dans la zone GPS du poteau : « Arrêt, … »
+- Au terminus : « Arrêt, … Terminus. »

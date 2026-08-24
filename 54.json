@@ -1,0 +1,1 @@
+{"description":"Corrections de tracé validées manuellement. Clé = shape_id GTFS ; valeur = [[lat,lon],...]. Laisser vide tant qu'aucune correction n'est vérifiée.","shapes":{}}

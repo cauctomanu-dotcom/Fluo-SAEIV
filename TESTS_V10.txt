@@ -1,0 +1,8 @@
+Fluo SAEIV V10 — contrôles à effectuer
+
+1. Ligne régulière : date + course exacte + régulation horaire toujours actives.
+2. TAD : date + course exacte + sélection des arrêts TAD toujours actives.
+3. Formation : la date et la course horaire disparaissent ; choix Ligne -> Sens/parcours -> Arrêt de départ.
+4. Formation : aucun bandeau avance/retard, aucune heure prévue, aucune annonce T-5/T-1.
+5. Formation : GPS, carte, shape, annonces Prochain arrêt, rappel ligne/destination à mi-inter-arrêt, demandes clients, précédent/suivant, recalage et simulation restent actifs.
+6. Retour Formation -> Régulier/TAD : les courses horaires réapparaissent et sont recalculées.

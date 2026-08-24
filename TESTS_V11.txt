@@ -1,0 +1,12 @@
+FLUO SAEIV V11 — CONTRÔLES
+
+[OK] Syntaxe JavaScript vérifiée avec node --check.
+[OK] Générateur GTFS Python compilé avec py_compile.
+[OK] Etat distinct pour annonce « Prochain arrêt » et annonce d’arrivée.
+[OK] Délai « Prochain arrêt » = 15 s après départ réel d’un poteau.
+[OK] En simulation, le délai est divisé par le facteur d’accélération.
+[OK] Annonce arrivée prioritaire : « Arrêt, [nom]. »
+[OK] Terminus : « Arrêt, [nom]. Terminus. » sans double annonce générique « Terminus ».
+[OK] Un inter-arrêt trop court supprime un « Prochain arrêt » qui arriverait après l’arrivée.
+[OK] Remise à zéro des annonces lors d’un changement d’arrêt, précédent/suivant et recalage GPS.
+[OK] Mode Formation, TAD et ligne régulière utilisent le même moteur d’annonces d’arrêt.

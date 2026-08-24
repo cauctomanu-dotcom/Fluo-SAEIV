@@ -1,0 +1,12 @@
+Tests V9
+
+- Syntaxe JavaScript : node --check site/app.js
+- Syntaxe Python : python -m py_compile scripts/build_gtfs.py
+- Classes de régulation attendues :
+  - -61 s => AVANCE / rouge
+  - -60 s, 0 s, +60 s => À L’HEURE / bleu
+  - +61 s, +299 s => RETARD / vert
+  - +300 s, +599 s => RETARD / jaune
+  - +600 s et plus => RETARD / orange
+- Le simulateur expose : -3, 0, +3, +7, +12 et +20 minutes.
+- La régulation utilise les temps du trip_id exact et le stopAlong du shape courant.

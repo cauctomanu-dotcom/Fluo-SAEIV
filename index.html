@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07121b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="styles.css">
+  <title>Fluo SAEIV V11 Annonces arrêt</title>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div><div class="eyebrow">SAEIV CONDUCTEUR · V11 ANNONCES ARRÊT</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · Moselle 57 + Meurthe-et-Moselle 54</div></div>
+    <div id="gpsPill" class="pill">GPS non testé</div>
+  </header>
+
+  <section id="setup" class="panel">
+    <div class="gps-test"><button id="gpsTest" class="primary">📍 Tester le GPS maintenant</button><span id="gpsTestResult">Le test GPS est indépendant du choix de ligne.</span></div>
+
+    <div class="service-choice">
+      <div class="service-choice-title">TYPE DE SERVICE</div>
+      <div class="service-choice-buttons">
+        <button id="regularMode" class="service-mode active">🚌 Ligne régulière</button>
+        <button id="tadMode" class="service-mode">📞 TAD</button>
+        <button id="formationMode" class="service-mode">🎓 Formation</button>
+      </div>
+      <div id="serviceModeHelp" class="service-mode-help">Ligne régulière : tous les arrêts de la course restent desservis. Les demandes clients peuvent être ajoutées pendant le service.</div>
+    </div>
+
+    <div class="grid two">
+      <label>Département
+        <select id="dept"><option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option></select>
+      </label>
+      <label>Ligne
+        <select id="route" disabled><option>Choisir d’abord un département</option></select>
+      </label>
+    </div>
+
+    <div id="scheduleSetup" class="grid two" style="margin-top:12px">
+      <label>Date de service
+        <input id="serviceDate" type="date">
+      </label>
+      <label>Course / départ exact
+        <select id="trip" disabled><option>Choisir d’abord une ligne</option></select>
+      </label>
+    </div>
+
+    <div id="formationSetup" class="hidden" style="margin-top:12px">
+      <label>Sens / parcours de formation
+        <select id="formationPattern" disabled><option>Choisir d’abord une ligne</option></select>
+      </label>
+    </div>
+
+    <label style="margin-top:12px">Arrêt de prise de service
+      <select id="startStop" disabled><option>Choisir d’abord une course</option></select>
+    </label>
+    <div id="courseInfo" class="course-info">Aucune course sélectionnée.</div>
+
+    <div id="tadPanel" class="tad-panel hidden">
+      <div class="tad-panel-head">
+        <div><b>📞 Arrêts TAD à desservir</b><span>Coche uniquement les arrêts où une montée ou une descente est prévue.</span></div>
+        <div class="tad-actions"><button id="tadAll" type="button">Tout cocher</button><button id="tadNone" type="button">Tout retirer</button></div>
+      </div>
+      <div id="tadStopList" class="stop-check-list"></div>
+      <div id="tadSummary" class="tad-summary">Choisis d’abord une course.</div>
+    </div>
+
+    <div id="status" class="status">Choisis le type de service. En ligne régulière/TAD, la course exacte et ses horaires sont verrouillés. En Formation, tu choisis uniquement la ligne et le sens/parcours : aucune régulation horaire n’est appliquée.</div>
+
+    <div class="start-actions">
+      <button id="start" class="primary full" disabled>🛰 PRISE DE SERVICE GPS</button>
+      <button id="simulate" class="sim full" disabled>▶︎ SIMULER CETTE COURSE</button>
+    </div>
+    <div class="sim-config">
+      <label>Vitesse du bus simulé<select id="simSpeed"><option value="30">30 km/h</option><option value="50" selected>50 km/h</option><option value="70">70 km/h</option><option value="90">90 km/h</option></select></label>
+      <label>Accélération du temps<select id="simScale"><option value="1">x1</option><option value="5">x5</option><option value="10" selected>x10</option><option value="20">x20</option><option value="40">x40</option></select></label>
+      <label id="simDelayWrap">Écart horaire simulé<select id="simDelay"><option value="-180">Avance 3 min</option><option value="0" selected>À l’heure</option><option value="180">Retard 3 min</option><option value="420">Retard 7 min</option><option value="720">Retard 12 min</option><option value="1200">Retard 20 min</option></select></label>
+    </div>
+    <div id="buildInfo" class="install"></div>
+    <div class="audio-note"><b>🔊 Annonces</b><span>Après chaque départ, « Prochain arrêt » est annoncé environ 15 secondes plus tard. À l’arrivée au poteau, une seconde annonce dit « Arrêt : [nom] ». T−5/T−1 restent actifs en service horaire, et le rappel ligne/destination reste à mi-inter-arrêt. En Formation, seules les annonces liées aux horaires sont désactivées.</span></div>
+    <div class="fusion-note"><b>🧭 Fusion V11</b><span>Fluo fournit la course officielle. Le GPS iPhone fournit la position réelle. Le moteur recale ensuite cette position sur l’unique tracé de la course sélectionnée en tenant compte de la progression et du sens, afin d’éviter les sauts sur une rue ou une variante voisine.</span></div>
+    <div class="note">Les données de course viennent de <code>trips.txt</code> + <code>stop_times.txt</code> + <code>calendar*.txt</code>. Les poteaux viennent de <code>stops.txt</code> et le tracé officiel de <code>shapes.txt</code>. Manipule l’interface uniquement véhicule immobilisé.</div>
+  </section>
+
+  <section id="driver" class="panel hidden">
+    <div class="driverTop">
+      <div>
+        <div class="badge-row"><div id="routeBadge" class="routebadge">—</div><div id="serviceBadge" class="servicebadge">RÉGULIER</div><div id="modeBadge" class="modebadge">GPS</div></div>
+        <div id="headsign" class="headsign">—</div>
+        <div id="departureStrip" class="departure-strip"><span>Départ prévu</span><b id="departureTime">—</b><em id="departureCountdown">—</em></div>
+      </div>
+      <button id="finish" class="danger">FIN DE SERVICE</button>
+    </div>
+
+    <div id="schedulePanel" class="schedule-panel ontime">
+      <div><span id="scheduleLabel">À L’HEURE</span><small id="scheduleReference">Référence horaire de la course</small></div>
+      <strong id="scheduleDelta">0:00</strong>
+    </div>
+
+    <div id="requestAlert" class="request-alert hidden"><span>🔔 ARRÊT DEMANDÉ</span><strong id="requestAlertStop">—</strong></div>
+
+    <div class="current"><div class="lbl">ARRÊT ACTUEL</div><strong id="current">—</strong></div>
+    <div class="next">
+      <div class="lbl">PROCHAIN ARRÊT</div><strong id="next">—</strong>
+      <div id="nextScheduledWrap" class="next-meta"><span id="nextScheduled">—</span></div>
+      <div class="distance"><b id="distance">—</b><span id="announceState">En attente du GPS</span></div>
+    </div>
+
+    <div class="navmap-wrap"><div id="map" class="navmap"></div><div class="maphud"><button id="followMap" class="mapbtn">🎯 Suivre le bus</button><span id="routeState" class="route-state">Course chargée</span></div></div>
+
+    <div class="grid six">
+      <div id="scheduleMetricBox" class="metric"><span>Écart horaire</span><b id="scheduleMetric">—</b></div>
+      <div class="metric"><span>Précision GPS</span><b id="accuracy">—</b></div>
+      <div class="metric"><span>Fusion</span><b id="fusionQuality">—</b></div>
+      <div class="metric"><span>Vitesse</span><b id="speed">—</b></div>
+      <div class="metric"><span>Prochain arrêt vocal</span><b id="threshold">—</b></div>
+      <div class="metric"><span>Arrêts restants</span><b id="remaining">—</b></div>
+    </div>
+
+    <div class="grid three controls"><button id="prev">← Précédent</button><button id="speak" class="primary speak">🔊 ANNONCER</button><button id="nextBtn">Suivant →</button></div>
+    <button id="requestsBtn" class="request-button full">🔔 Demandes clients <span id="requestsCount">0</span></button>
+    <div id="simControls" class="sim-controls hidden"><button id="simPlayPause" class="sim">⏸ Pause simulation</button><button id="simSkip">⏭ Prochain arrêt</button></div>
+    <button id="recenter" class="full">Recaler sur le poteau le plus proche</button>
+  </section>
+</div>
+
+<div id="requestsSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="requestsTitle">
+  <div class="sheet">
+    <div class="sheet-head"><div><div class="eyebrow">LIGNE RÉGULIÈRE</div><h2 id="requestsTitle">🔔 Demandes clients</h2><p>Coche les arrêts demandés par les voyageurs. L’alerte « ARRÊT DEMANDÉ » s’affichera lorsque l’arrêt précédent aura été franchi.</p></div><button id="requestsClose" class="sheet-close">Fermer</button></div>
+    <div id="requestsList" class="stop-check-list request-list"></div>
+    <div class="sheet-foot"><button id="requestsClear" class="danger">Effacer toutes les demandes</button><button id="requestsDone" class="primary">Terminé</button></div>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="app.js"></script>
+</body>
+</html>
