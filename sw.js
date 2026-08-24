@@ -1,4 +1,4 @@
-const C='fluo-saeiv-v14-tad-dynamique';
+const C='fluo-saeiv-v16-vitesse-horaires-gps3d';
 const CORE=['./','index.html','styles.css','app.js','manifest.webmanifest'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(C))));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k))))));
