@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-// Fluo SAEIV V22 — TAD départ/terminus explicites + suivi GPS/pictogramme stabilisé.
+// Fluo SAEIV V23.1 — calcul horaires + journaux cartographiques/effaçables + déploiement forcé.
 // Le moteur de suivi utilise la progression le long du shape, le cap tangent au parcours et un lissage circulaire.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),

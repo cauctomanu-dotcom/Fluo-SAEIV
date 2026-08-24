@@ -1894,5 +1894,245 @@
 // V22 — étiquette de version après chargement de tous les modules.
 window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V22 TAD + SUIVI STABLE';});
 </script>
+
+<script>
+'use strict';
+/* Fluo SAEIV V23 — calcul horaires réparé + journaux cartographiques + nettoyage local. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const DB_NAME='fluo-saeiv-journal-v13';
+  const ACCOUNT_KEY='fluoSaeivAccountV13';
+  const V23={dbPromise:null,rendering:false,detailMap:null,currentDetail:null,observer:null};
+
+  function esc23(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function account23(){try{return JSON.parse(localStorage.getItem(ACCOUNT_KEY)||'null')}catch{return null}}
+  function matricule23(){return account23()?.matricule||null}
+  function iso23(d=new Date()){return d.toISOString()}
+  function fmtDate23(v){try{return new Date(v).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'medium'})}catch{return v||'—'}}
+  function fmtTime23(v){try{return new Date(v).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}catch{return v||'—'}}
+  function fmtDelay23(sec){if(!Number.isFinite(Number(sec)))return '—';sec=Math.round(Number(sec));const sign=sec<0?'−':'+';sec=Math.abs(sec);return `${sign}${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`}
+  function safeFile23(v){return String(v||'service').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9_-]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,70)||'service'}
+  function download23(name,content,type='text/html;charset=utf-8'){
+    const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800);
+  }
+
+  const css=document.createElement('style');
+  css.id='v23Style';
+  css.textContent=`
+    /* Calcul horaires : la feuille doit toujours passer au-dessus du cockpit et rester visible sur iPhone. */
+    #v16CalcSheet.v23-calc-open{display:flex!important;z-index:13050!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;align-items:flex-end!important}
+    #v16CalcSheet.v23-calc-open .v16-calc-sheet{display:flex!important;visibility:visible!important;opacity:1!important;transform:none!important;max-height:min(94dvh,900px)!important;overflow:auto!important}
+    @media(orientation:landscape) and (max-height:650px){#v16CalcSheet.v23-calc-open{align-items:center!important;padding:6px!important}#v16CalcSheet.v23-calc-open .v16-calc-sheet{max-height:96dvh!important;border-radius:16px!important}}
+
+    /* Journaux V23 */
+    .v23-journal-help{margin-top:9px;padding:9px 10px;border:1px solid #355163;border-radius:12px;background:#091923;color:#b9cad5;font-size:.7rem;line-height:1.4}
+    .v23-session{cursor:pointer;transition:background .14s ease}.v23-session:hover{background:#0b1e2a}.v23-session:active{background:#102837}
+    .v23-session-row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}.v23-select{width:20px;height:20px;accent-color:#ffd000}
+    .v23-session-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;padding-left:30px}.v23-session-actions button{min-height:38px;padding:7px 9px;font-size:.72rem}.v23-session-actions .v23-delete{background:#3a1d20;color:#ffd6d3;border-color:#7a3b40}
+    .v23-status-interrupted{background:#4b3515!important;color:#ffe0a6!important}.v23-status-open{background:#153b28!important;color:#caffd8!important}
+    .v23-clean-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.v23-clean-actions button{min-height:44px}.v23-clean-actions .danger{background:#402024;color:#ffd4d0;border-color:#743c43}
+    .v23-empty{padding:20px;text-align:center;color:#9fb0bb}
+
+    .v23-detail-backdrop{position:fixed;z-index:13150;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;padding:12px}.v23-detail-backdrop.hidden{display:none!important}
+    .v23-detail{width:min(980px,100%);max-height:94dvh;display:flex;flex-direction:column;background:#0d202c;border:1px solid rgba(255,255,255,.15);border-radius:22px;padding:14px;box-shadow:0 -20px 60px rgba(0,0,0,.55)}
+    .v23-detail-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v23-detail-head h2{margin:3px 0 4px;font-size:1.3rem}.v23-detail-head p{margin:0;color:#9fb0bb;font-size:.74rem}.v23-detail-close{padding:9px 11px}
+    .v23-detail-scroll{overflow:auto;padding-right:2px}.v23-detail-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:11px 0}.v23-detail-metric{padding:9px;border:1px solid #2e4656;border-radius:12px;background:#081720}.v23-detail-metric span{display:block;color:#8fa5b3;font-size:.64rem}.v23-detail-metric b{display:block;margin-top:2px;font-size:.9rem}
+    #v23JournalMap{height:330px;border:1px solid #355163;border-radius:15px;overflow:hidden;background:#10202a}.v23-map-note{margin:6px 2px 0;color:#8295a3;font-size:.66rem}
+    .v23-stop-table{margin-top:11px;border:1px solid #2e4656;border-radius:13px;overflow:auto}.v23-stop-table table{width:100%;border-collapse:collapse;font-size:.74rem}.v23-stop-table th,.v23-stop-table td{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;white-space:nowrap}.v23-stop-table th{position:sticky;top:0;background:#10202c;color:#a6b6c1;z-index:2}.v23-stop-table td:nth-child(2){font-weight:850;white-space:normal;min-width:190px}
+    .v23-detail-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px}.v23-detail-actions button{min-height:46px}
+    @media(max-width:680px){.v23-session-actions{padding-left:0}.v23-detail-backdrop{padding:0}.v23-detail{border-radius:22px 22px 0 0;max-height:96dvh;padding-bottom:calc(12px + env(safe-area-inset-bottom))}.v23-detail-summary{grid-template-columns:1fr 1fr}#v23JournalMap{height:310px}.v23-detail-actions,.v23-clean-actions{grid-template-columns:1fr}}
+  `;
+  document.head.appendChild(css);
+
+  // ---------- 1. Calcul horaires : correction d'ouverture / visibilité ----------
+  function openCalc23(){
+    const sheet=q('v16CalcSheet'); if(!sheet)return;
+    sheet.classList.remove('hidden');sheet.classList.add('v23-calc-open');sheet.style.setProperty('display','flex','important');
+    const t=q('v16CalcTime');if(t&&!t.value){const n=new Date();t.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`}
+    const mainDept=q('dept')?.value, calcDept=q('v16CalcDept');
+    if(calcDept&&mainDept&&!calcDept.value){calcDept.value=mainDept;calcDept.dispatchEvent(new Event('change',{bubbles:true}))}
+    setTimeout(()=>{sheet.classList.remove('hidden');sheet.classList.add('v23-calc-open');sheet.style.setProperty('display','flex','important');q('v16CalcDept')?.focus({preventScroll:true});},30);
+  }
+  function closeCalc23(){const sheet=q('v16CalcSheet');if(!sheet)return;sheet.classList.add('hidden');sheet.classList.remove('v23-calc-open');sheet.style.removeProperty('display')}
+  q('v16CalcOpen')?.addEventListener('click',openCalc23,true);
+  q('v16CalcClose')?.addEventListener('click',closeCalc23,true);
+  q('v16CalcSheet')?.addEventListener('click',e=>{if(e.target===q('v16CalcSheet'))closeCalc23()},true);
+  const calcSheet=q('v16CalcSheet');
+  if(calcSheet){new MutationObserver(()=>{if(!calcSheet.classList.contains('hidden')){calcSheet.classList.add('v23-calc-open');calcSheet.style.setProperty('display','flex','important')}}).observe(calcSheet,{attributes:true,attributeFilter:['class']})}
+
+  // ---------- 2. Accès IndexedDB indépendant du module V13 ----------
+  function db23(){
+    if(V23.dbPromise)return V23.dbPromise;
+    V23.dbPromise=new Promise((resolve,reject)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('sessions')){const s=d.createObjectStore('sessions',{keyPath:'id'});s.createIndex('startedAt','startedAt');s.createIndex('matricule','matricule')}if(!d.objectStoreNames.contains('events')){const e=d.createObjectStore('events',{keyPath:'id',autoIncrement:true});e.createIndex('sessionId','sessionId');e.createIndex('ts','ts');e.createIndex('type','type')}};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+    return V23.dbPromise;
+  }
+  async function sessions23(){
+    const d=await db23();return new Promise((res,rej)=>{const r=d.transaction('sessions').objectStore('sessions').getAll();r.onsuccess=()=>res((r.result||[]).sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt))));r.onerror=()=>rej(r.error)})
+  }
+  async function session23(id){const d=await db23();return new Promise((res,rej)=>{const r=d.transaction('sessions').objectStore('sessions').get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+  async function events23(id){const d=await db23();return new Promise((res,rej)=>{const r=d.transaction('events').objectStore('events').index('sessionId').getAll(id);r.onsuccess=()=>res((r.result||[]).sort((a,b)=>String(a.ts).localeCompare(String(b.ts))));r.onerror=()=>rej(r.error)})}
+  async function putSession23(s){const d=await db23();return new Promise((res,rej)=>{const tx=d.transaction('sessions','readwrite');tx.objectStore('sessions').put(s);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+  async function deleteSession23(id){
+    const d=await db23();
+    return new Promise((res,rej)=>{
+      const tx=d.transaction(['sessions','events'],'readwrite'),ss=tx.objectStore('sessions'),ee=tx.objectStore('events'),idx=ee.index('sessionId');
+      ss.delete(id);const range=IDBKeyRange.only(id),cur=idx.openKeyCursor(range);cur.onsuccess=()=>{const c=cur.result;if(c){ee.delete(c.primaryKey);c.continue()}};
+      tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error||new Error('Suppression annulée'));
+    });
+  }
+
+  function statusLabel23(s){if(s.status==='open')return ['EN COURS','v23-status-open'];if(s.status==='interrupted')return ['INTERROMPU','v23-status-interrupted'];return ['TERMINÉ','']}
+  async function storage23(){
+    const el=q('v13Storage');if(!el)return;
+    try{const est=await navigator.storage?.estimate?.();if(est)el.textContent=`Stockage local utilisé : ${(est.usage/1024/1024).toFixed(1)} Mo sur cet appareil. Tu peux supprimer les anciens essais ci-dessus.`}catch{}
+  }
+  async function renderJournals23(){
+    const box=q('v13JournalList'),mat=matricule23();if(!box||!mat||V23.rendering)return;
+    V23.rendering=true;
+    try{
+      const xs=(await sessions23()).filter(s=>String(s.matricule||'').toLowerCase()===String(mat).toLowerCase());
+      box.dataset.v23Rendered='1';
+      box.innerHTML=xs.length?xs.map(s=>{const [lab,cl]=statusLabel23(s);return `<div class="v13-session v23-session" data-session-id="${esc23(s.id)}">
+        <div class="v23-session-row"><input class="v23-select" type="checkbox" data-select-id="${esc23(s.id)}" ${s.status==='open'?'disabled title="Le service en cours ne peut pas être supprimé"':''}>
+          <div class="v23-session-main"><strong>${esc23(s.route||'—')} · ${esc23(s.destination||'')}</strong><span>${fmtDate23(s.startedAt)} · ${esc23(s.serviceMode||'')} · ${s.tripId?`trip ${esc23(s.tripId)}`:'sans horaire'}</span><span>${s.stopEvents||0} arrêts · ${s.samples||0} points GPS · max ${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh:'—'} km/h · ${Number.isFinite(s.distanceKm)?s.distanceKm:'—'} km</span></div>
+          <span class="v13-session-badge ${cl}">${lab}</span></div>
+        <div class="v23-session-actions"><button type="button" data-v23-action="view">🗺 Voir le journal</button><button type="button" data-v23-action="download">⬇ Télécharger le rapport</button>${s.status==='open'?'':`<button type="button" class="v23-delete" data-v23-action="delete">🗑 Supprimer</button>`}</div>
+      </div>`}).join(''):'<div class="v23-empty"><strong>Aucun service enregistré</strong><br>Les journaux apparaîtront ici après une prise de service.</div>';
+      await storage23();
+    }catch(e){box.innerHTML=`<div class="v23-empty"><strong>Journal indisponible</strong><br>${esc23(e.message||e)}</div>`}
+    finally{V23.rendering=false}
+  }
+
+  function ensureJournalControls23(){
+    const sheet=q('v13JournalSheet')?.querySelector('.v13-sheet');if(!sheet)return;
+    if(!q('v23JournalHelp')){
+      const list=q('v13JournalList');list?.insertAdjacentHTML('beforebegin','<div id="v23JournalHelp" class="v23-journal-help">Clique sur un service pour revoir la carte, les arrêts et les heures de passage. Coche plusieurs services pour faire le ménage dans les essais.</div>');
+    }
+    if(!q('v23CleanActions')){
+      const actions=sheet.querySelector('.v13-sheet-actions');actions?.insertAdjacentHTML('afterend','<div id="v23CleanActions" class="v23-clean-actions"><button id="v23SelectAll" type="button">☑ Tout sélectionner</button><button id="v23DeleteSelected" class="danger" type="button">🗑 Supprimer la sélection</button><button id="v23DeleteCompleted" class="danger" type="button">🧹 Effacer tous les journaux terminés</button></div>');
+    }
+  }
+
+  function addDetailUi23(){
+    if(q('v23JournalDetail'))return;
+    document.body.insertAdjacentHTML('beforeend',`<div id="v23JournalDetail" class="v23-detail-backdrop hidden" role="dialog" aria-modal="true">
+      <div class="v23-detail"><div class="v23-detail-head"><div><div class="v13-logo">JOURNAL DE SERVICE · V23</div><h2 id="v23DetailTitle">Détail du service</h2><p id="v23DetailSubtitle"></p></div><button id="v23DetailClose" class="v23-detail-close" type="button">Fermer</button></div>
+      <div class="v23-detail-scroll"><div id="v23DetailSummary" class="v23-detail-summary"></div><div id="v23JournalMap"></div><div class="v23-map-note">Carte reconstruite avec le tracé du service enregistré et les positions GPS/fusion disponibles. Fond de carte © OpenStreetMap.</div><div id="v23StopTable" class="v23-stop-table"></div></div>
+      <div class="v23-detail-actions"><button id="v23DetailDownload" class="primary" type="button">⬇ Télécharger ce rapport</button><button id="v23DetailDelete" class="danger" type="button">🗑 Supprimer ce journal</button></div></div></div>`);
+    q('v23DetailClose')?.addEventListener('click',closeDetail23);
+    q('v23JournalDetail')?.addEventListener('click',e=>{if(e.target===q('v23JournalDetail'))closeDetail23()});
+    q('v23DetailDownload')?.addEventListener('click',()=>{if(V23.currentDetail)downloadReport23(V23.currentDetail.session,V23.currentDetail.events)});
+    q('v23DetailDelete')?.addEventListener('click',async()=>{const s=V23.currentDetail?.session;if(!s||s.status==='open')return;if(!confirm(`Supprimer définitivement le journal ${s.route||''} du ${fmtDate23(s.startedAt)} ?`))return;await deleteSession23(s.id);closeDetail23();await renderJournals23()});
+  }
+
+  function usablePoint23(e){
+    const lat=Number.isFinite(Number(e.fusedLat))?Number(e.fusedLat):Number(e.lat),lon=Number.isFinite(Number(e.fusedLon))?Number(e.fusedLon):Number(e.lon);
+    return Number.isFinite(lat)&&Number.isFinite(lon)?[lat,lon]:null;
+  }
+  function routePoints23(s,ev){
+    if(Array.isArray(s.routeShape)&&s.routeShape.length>=2)return s.routeShape.map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
+    return ev.filter(e=>e.type==='GPS_SAMPLE').map(usablePoint23).filter(Boolean);
+  }
+  function stopRows23(s,ev){
+    const by=new Map();
+    for(const e of ev){
+      if(e.type!=='STOP_ARRIVAL'&&e.type!=='STOP_PASSED')continue;
+      const key=Number.isInteger(e.stopIndex)?`i${e.stopIndex}`:`n${e.stopName||''}`;
+      const old=by.get(key);if(!old||e.type==='STOP_ARRIVAL')by.set(key,e);
+    }
+    const rows=[...by.values()].sort((a,b)=>Number(a.stopIndex??9999)-Number(b.stopIndex??9999)||String(a.ts).localeCompare(String(b.ts)));
+    // Le départ est utile même si l'ancien journal V13 ne générait pas STOP_ARRIVAL au premier arrêt.
+    if(s.startStop){
+      const already=rows.some(r=>Number(r.stopIndex)===Number(s.startStopIndex));
+      if(!already){
+        const first=ev.find(e=>e.type==='GPS_SAMPLE'),p=first?usablePoint23(first):null;
+        rows.unshift({type:'SERVICE_START',stopIndex:Number(s.startStopIndex||0),stopName:s.startStop,ts:s.startedAt,scheduledTime:s.scheduledDeparture||null,scheduleDeltaSec:s.scheduledDeparture?Math.round((new Date(s.startedAt)-new Date(s.scheduledDeparture))/1000):null,lat:p?.[0]??null,lon:p?.[1]??null,speedKmh:0});
+      }
+    }
+    return rows;
+  }
+  function rowPoint23(row,s){
+    if(Number.isFinite(Number(row.lat))&&Number.isFinite(Number(row.lon)))return [Number(row.lat),Number(row.lon)];
+    const stop=Array.isArray(s.routeStops)?s.routeStops.find(x=>Number(x.index)===Number(row.stopIndex)):null;
+    return stop&&Number.isFinite(Number(stop.lat))&&Number.isFinite(Number(stop.lon))?[Number(stop.lat),Number(stop.lon)]:null;
+  }
+
+  function renderDetailMap23(s,ev,rows){
+    const el=q('v23JournalMap');if(!el)return;
+    if(V23.detailMap){try{V23.detailMap.remove()}catch{}V23.detailMap=null}
+    if(typeof L==='undefined'){el.innerHTML='<div class="v23-empty">Carte indisponible sur cet appareil.</div>';return}
+    const route=routePoints23(s,ev),markers=rows.map(r=>({r,p:rowPoint23(r,s)})).filter(x=>x.p);
+    let center=route[0]||markers[0]?.p||[48.7,6.2];
+    const map=L.map(el,{zoomControl:true,attributionControl:true}).setView(center,13);V23.detailMap=map;
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+    const bounds=[];
+    if(route.length>=2){L.polyline(route,{color:'#ffd000',weight:6,opacity:.88}).addTo(map);bounds.push(...route)}
+    markers.forEach((x,i)=>{const r=x.r,p=x.p;bounds.push(p);const m=L.circleMarker(p,{radius:i===0?7:6,color:'#173447',weight:2,fillColor:i===rows.length-1?'#ffb000':i===0?'#55d981':'#ffffff',fillOpacity:1}).addTo(map);m.bindPopup(`<b>${esc23(r.stopName||'Arrêt')}</b><br>Passage : ${esc23(fmtTime23(r.ts))}<br>Prévu : ${esc23(r.scheduledTime?fmtTime23(r.scheduledTime):'—')}<br>Écart : ${esc23(fmtDelay23(r.scheduleDeltaSec))}`);m.bindTooltip(`${i+1}. ${esc23(r.stopName||'Arrêt')} · ${esc23(fmtTime23(r.ts))}`,{direction:'top'})});
+    if(bounds.length>=2){try{map.fitBounds(bounds,{padding:[28,28],maxZoom:16})}catch{}}
+    setTimeout(()=>map.invalidateSize(),80);
+  }
+
+  async function openDetail23(id){
+    addDetailUi23();
+    const [s,ev]=await Promise.all([session23(id),events23(id)]);if(!s)return;
+    V23.currentDetail={session:s,events:ev};const rows=stopRows23(s,ev),gps=ev.filter(e=>e.type==='GPS_SAMPLE').length;
+    q('v23DetailTitle').textContent=`${s.route||'Ligne'} · ${s.destination||''}`;
+    q('v23DetailSubtitle').textContent=`${fmtDate23(s.startedAt)} · ${s.serviceMode||''}${s.tripId?` · trip ${s.tripId}`:''}`;
+    q('v23DetailSummary').innerHTML=`<div class="v23-detail-metric"><span>ARRÊTS PASSÉS</span><b>${rows.length}</b></div><div class="v23-detail-metric"><span>DISTANCE</span><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="v23-detail-metric"><span>VITESSE MAX</span><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="v23-detail-metric"><span>POINTS GPS</span><b>${gps}</b></div>`;
+    q('v23StopTable').innerHTML=rows.length?`<table><thead><tr><th>#</th><th>Arrêt</th><th>Passage réel</th><th>Prévu</th><th>Écart</th><th>Vitesse</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc23(r.stopName||'—')}</td><td>${esc23(fmtTime23(r.ts))}</td><td>${esc23(r.scheduledTime?fmtTime23(r.scheduledTime):'—')}</td><td>${esc23(fmtDelay23(r.scheduleDeltaSec))}</td><td>${Number.isFinite(Number(r.speedKmh))?Number(r.speedKmh).toFixed(1).replace('.',',')+' km/h':'—'}</td></tr>`).join('')}</tbody></table>`:'<div class="v23-empty">Aucun passage d’arrêt enregistré dans ce service.</div>';
+    const del=q('v23DetailDelete');if(del){del.disabled=s.status==='open';del.textContent=s.status==='open'?'Service en cours — suppression impossible':'🗑 Supprimer ce journal'}
+    q('v23JournalDetail').classList.remove('hidden');setTimeout(()=>renderDetailMap23(s,ev,rows),30);
+  }
+  function closeDetail23(){q('v23JournalDetail')?.classList.add('hidden');if(V23.detailMap){try{V23.detailMap.remove()}catch{}V23.detailMap=null}V23.currentDetail=null}
+
+  function reportHtml23(s,ev){
+    const rows=stopRows23(s,ev),route=routePoints23(s,ev),markers=rows.map((r,i)=>({i,name:r.stopName||'Arrêt',actual:r.ts,scheduled:r.scheduledTime||null,delay:r.scheduleDeltaSec,p:rowPoint23(r,s)})).filter(x=>x.p);
+    const data=JSON.stringify({route,markers}).replace(/</g,'\\u003c');
+    const rowHtml=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc23(r.stopName||'—')}</td><td>${esc23(fmtDate23(r.ts))}</td><td>${esc23(r.scheduledTime?fmtTime23(r.scheduledTime):'—')}</td><td>${esc23(fmtDelay23(r.scheduleDeltaSec))}</td><td>${Number.isFinite(Number(r.speedKmh))?Number(r.speedKmh).toFixed(1).replace('.',',')+' km/h':'—'}</td></tr>`).join('');
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal ${esc23(s.route||'Fluo SAEIV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1100px;margin:auto;padding:18px}h1{margin-bottom:4px}.muted{color:#9fb0bb}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:15px 0}.card{background:#0d202c;border:1px solid #355163;border-radius:12px;padding:10px}.card small{display:block;color:#8fa5b3}.card b{font-size:1.05rem}#map{height:440px;border-radius:15px;overflow:hidden;border:1px solid #355163;background:#10202a}table{width:100%;border-collapse:collapse;margin-top:15px;background:#0d202c}th,td{padding:9px;border-bottom:1px solid #28404e;text-align:left}th{color:#b9cad5}footer{margin-top:15px;color:#8295a3;font-size:.8rem}@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}#map{height:360px}table{font-size:.8rem;display:block;overflow:auto}}</style></head><body><main><div class="muted">FLUO SAEIV · RAPPORT DE JOURNAL</div><h1>${esc23(s.route||'—')} · ${esc23(s.destination||'')}</h1><div class="muted">${esc23(fmtDate23(s.startedAt))} · ${esc23(s.serviceMode||'')} ${s.tripId?`· trip ${esc23(s.tripId)}`:''}</div><div class="cards"><div class="card"><small>ARRÊTS</small><b>${rows.length}</b></div><div class="card"><small>DISTANCE</small><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="card"><small>VITESSE MAX</small><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="card"><small>CONDUCTEUR</small><b>${esc23(s.matricule||'—')}</b></div></div><div id="map"></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Passage réel</th><th>Prévu</th><th>Écart</th><th>Vitesse</th></tr></thead><tbody>${rowHtml}</tbody></table><footer>Rapport généré le ${esc23(fmtDate23(iso23()))}. Le fond de carte nécessite une connexion Internet. Les positions proviennent du journal local du SAEIV.</footer></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const DATA=${data};const c=DATA.route[0]||(DATA.markers[0]&&DATA.markers[0].p)||[48.7,6.2];const map=L.map('map').setView(c,13);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(DATA.route.length>1){L.polyline(DATA.route,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...DATA.route)}DATA.markers.forEach((x,i)=>{b.push(x.p);L.circleMarker(x.p,{radius:i===0?7:6,color:'#173447',weight:2,fillColor:i===DATA.markers.length-1?'#ffb000':i===0?'#55d981':'#fff',fillOpacity:1}).addTo(map).bindPopup('<b>'+x.name.replace(/[<>&]/g,'')+'</b><br>Passage : '+new Date(x.actual).toLocaleTimeString('fr-FR')+'<br>Prévu : '+(x.scheduled?new Date(x.scheduled).toLocaleTimeString('fr-FR'):'—'))});if(b.length>1)map.fitBounds(b,{padding:[28,28],maxZoom:16});<\/script></body></html>`;
+  }
+  async function downloadReport23(s,ev){
+    if(!s||!ev)return;const d=new Date(s.startedAt||Date.now()),stamp=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}-${String(d.getMinutes()).padStart(2,'0')}`;
+    download23(`journal-${safeFile23(s.route)}-${stamp}.html`,reportHtml23(s,ev));
+  }
+
+  async function deleteMany23(ids){for(const id of ids)await deleteSession23(id);await renderJournals23()}
+  function selected23(){return [...document.querySelectorAll('#v13JournalList .v23-select:checked')].map(x=>x.dataset.selectId).filter(Boolean)}
+
+  ensureJournalControls23();addDetailUi23();
+  q('v13JournalBtn')?.addEventListener('click',()=>setTimeout(renderJournals23,50));
+  q('v13JournalList')?.addEventListener('click',async e=>{
+    const item=e.target.closest('.v23-session');if(!item)return;const id=item.dataset.sessionId;if(!id)return;
+    if(e.target.matches('.v23-select')){e.stopPropagation();return}
+    const action=e.target.closest('[data-v23-action]')?.dataset.v23Action;
+    if(action==='delete'){e.stopPropagation();const s=await session23(id);if(!s||s.status==='open')return;if(confirm(`Supprimer définitivement ce journal ${s.route||''} du ${fmtDate23(s.startedAt)} ?`)){await deleteSession23(id);await renderJournals23()}return}
+    if(action==='download'){e.stopPropagation();const [s,ev]=await Promise.all([session23(id),events23(id)]);if(s)downloadReport23(s,ev);return}
+    await openDetail23(id);
+  });
+  q('v23SelectAll')?.addEventListener('click',()=>{const xs=[...document.querySelectorAll('#v13JournalList .v23-select:not(:disabled)')],all=xs.length&&xs.every(x=>x.checked);xs.forEach(x=>x.checked=!all)});
+  q('v23DeleteSelected')?.addEventListener('click',async()=>{const ids=selected23();if(!ids.length)return alert('Coche au moins un journal à supprimer.');if(!confirm(`Supprimer définitivement ${ids.length} journal${ids.length>1?'x':''} sélectionné${ids.length>1?'s':''} ?`))return;await deleteMany23(ids)});
+  q('v23DeleteCompleted')?.addEventListener('click',async()=>{const mat=matricule23(),xs=(await sessions23()).filter(s=>String(s.matricule||'').toLowerCase()===String(mat||'').toLowerCase()&&s.status!=='open');if(!xs.length)return alert('Aucun journal terminé à supprimer.');if(!confirm(`Effacer définitivement les ${xs.length} journaux terminés/interrompus ? Le service en cours, s’il existe, sera conservé.`))return;await deleteMany23(xs.map(s=>s.id))});
+
+  const list=q('v13JournalList');
+  if(list){V23.observer=new MutationObserver(()=>{if(V23.rendering)return;if(!list.dataset.v23Rendered||list.querySelector('.v13-session:not(.v23-session)'))setTimeout(renderJournals23,20)});V23.observer.observe(list,{childList:true})}
+
+  // ---------- 3. Enrichit les nouvelles sessions avec le tracé officiel courant ----------
+  async function snapshotOpenSession23(){
+    const mat=matricule23();if(!mat||typeof state==='undefined'||!state?.pattern)return;
+    try{
+      const xs=(await sessions23()).filter(s=>s.status==='open'&&String(s.matricule||'').toLowerCase()===String(mat).toLowerCase());const s=xs[0];if(!s)return;
+      const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
+      const stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)}));
+      s.appVersion='V23';s.routeShape=shape;s.routeStops=stops;s.v23SnapshotAt=iso23();await putSession23(s);
+    }catch(e){console.warn('V23 snapshot journal',e)}
+  }
+  try{const baseEnter23=enterDriver;enterDriver=function(mode){const r=baseEnter23(mode);[350,1800,6000].forEach(ms=>setTimeout(snapshotOpenSession23,ms));return r}}catch(e){console.warn('V23 journal snapshot patch',e)}
+
+  document.title='Fluo SAEIV V23.1 · Horaires + journaux cartographiques';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V23.1 HORAIRES + JOURNAUX';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.1 horaires + journaux cartographiques'},2000)});
+})();
+
+</script>
 </body>
 </html>
