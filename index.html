@@ -10,8 +10,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Fluo SAEIV V19 · Smartphone + Crossway + lignes</title>
+  <title>Fluo SAEIV V22 · TAD + suivi stable</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style id="v22CoreStyle">
+.stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
+</style>
 </head>
 <body>
 <div class="app">
@@ -64,7 +67,7 @@
 
     <div id="tadPanel" class="tad-panel hidden">
       <div class="tad-panel-head">
-        <div><b>📞 Arrêts TAD à desservir</b><span>Coche uniquement les arrêts où une montée ou une descente est prévue.</span></div>
+        <div><b>📞 Parcours TAD</b><span>Choisis l’arrêt de départ ci-dessus, puis coche uniquement les arrêts à desservir. Le dernier arrêt coché devient automatiquement le terminus.</span></div>
         <div class="tad-actions"><button id="tadAll" type="button">Tout cocher</button><button id="tadNone" type="button">Tout retirer</button></div>
       </div>
       <div id="tadStopList" class="stop-check-list"></div>
@@ -961,7 +964,7 @@
       if(state?.nav?.map){ drawRoute(); updateStopMarkers(); }
       const km=(distanceM/1000).toFixed(distanceM>=10000?0:1).replace('.',',');
       const mins=Math.max(1,Math.round(durationS/60));
-      setRouteUi('ok',`${ids.length} arrêts opérationnels · ${km} km · env. ${mins} min de routage routier. Les autres arrêts ne sont pas des points de passage imposés.`);
+      setRouteUi('ok',`Départ + ${Math.max(1,ids.length-1)} arrêt${ids.length>2?'s':''} desservi${ids.length>2?'s':''} · terminus ${stops[ids.at(-1)]?.name||'—'} · ${km} km · env. ${mins} min. Les autres arrêts ne sont pas imposés.`);
       try { refreshStartAvailability(); } catch {}
       return true;
     }catch(e){
@@ -1051,7 +1054,7 @@
       if(state?.service?.mode==='tad' && mode!=='tad' && state?.pattern?.__v14OriginalShape) restorePattern(state.pattern,false);
       const r=baseSetMode(mode);
       if(mode==='tad'){
-        if(ui?.serviceModeHelp) ui.serviceModeHelp.textContent='TAD : coche uniquement les arrêts réellement à desservir. Le SAEIV recalcule un trajet routier qui relie ces arrêts dans l’ordre de la course ; les autres ne sont plus des points de passage imposés.';
+        if(ui?.serviceModeHelp) ui.serviceModeHelp.textContent='TAD : choisis l’arrêt de départ, puis les seuls arrêts à desservir. Le dernier sélectionné devient le terminus. Le SAEIV recalcule uniquement ce parcours routier.';
         if(state?.pattern){ rememberOriginal(); scheduleRebuild(180); } else setRouteUi('idle','Choisis une course puis les arrêts TAD à desservir.');
       } else {
         V14.ready=false; V14.busy=false; V14.signature=''; V14.pattern=null; clearTimeout(V14.timer);
@@ -1309,7 +1312,7 @@
   const V16={
     profileCache:new Map(), simLegs:new Map(), simReady:false, simLoading:false,
     currentRoadLimit:50, simCurrentMps:0,
-    map3d:null,mapLoaded:false,busMarker:null,mapMode:localStorage.getItem('fluo_v16_map_mode')||'3d',last3dHeading:0,
+    map3d:null,mapLoaded:false,busMarker:null,mapMode:localStorage.getItem('fluo_v16_map_mode')||'3d',last3dHeading:0,lastCameraAt:0,
     calc:{routes:[],patterns:[],route:null,pattern:null,dept:null}
   };
 
@@ -1587,20 +1590,41 @@
     if(!m.getSource('v16-stops')){m.addSource('v16-stops',{type:'geojson',data:points});m.addLayer({id:'v16-stops',type:'circle',source:'v16-stops',paint:{'circle-color':['match',['get','kind'],'next','#ffd000','current','#55d981','#ffffff'],'circle-radius':['match',['get','kind'],'next',7,'current',6,3.5],'circle-stroke-color':'#173447','circle-stroke-width':2}})}else m.getSource('v16-stops').setData(points);
   }
   function ensureBusMarker(lon,lat){
-    if(V16.busMarker)return V16.busMarker;const el=document.createElement('div');el.className='v16-bus-marker';el.innerHTML=busSvg();V16.busMarker=new maplibregl.Marker({element:el,anchor:'center',rotationAlignment:'viewport',pitchAlignment:'viewport'}).setLngLat([lon,lat]).addTo(V16.map3d);return V16.busMarker;
+    if(V16.busMarker)return V16.busMarker;const el=document.createElement('div');el.className='v16-bus-marker';el.innerHTML=busSvg();V16.busMarker=new maplibregl.Marker({element:el,anchor:'center',rotationAlignment:'map',pitchAlignment:'viewport'}).setLngLat([lon,lat]).addTo(V16.map3d);return V16.busMarker;
   }
   function mapModeLabel(){return V16.mapMode==='3d'?'🧭 3D':V16.mapMode==='heading'?'🧭 SENS':'🧭 NORD'}
   function syncMapModeButton(){const b=q('v16MapMode');if(b)b.textContent=mapModeLabel()}
   function setMapMode(next){V16.mapMode=next;localStorage.setItem('fluo_v16_map_mode',next);syncMapModeButton();sync3dMapFromState(true)}
   q('v16MapMode')?.addEventListener('click',()=>setMapMode(V16.mapMode==='3d'?'heading':V16.mapMode==='heading'?'north':'3d'));syncMapModeButton();
   function sync3dMapFromState(force=false){
-    const m=ensure3dMap();if(!m||!V16.mapLoaded||!state?.running||!state?.pos)return;const c=state.pos.coords,snap=state.fusion?.snapped;const lat=Number(snap?.lat??c.latitude),lon=Number(snap?.lon??c.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
-    let h=Number.isFinite(c.heading)&&c.heading>=0?c.heading:Number(state.nav?.lastHeading||V16.last3dHeading||0);V16.last3dHeading=h;
-    const marker=ensureBusMarker(lon,lat);marker.setLngLat([lon,lat]);try{marker.setRotation(V16.mapMode==='north'?h:0)}catch{}
-    const opts=V16.mapMode==='3d'?{center:[lon,lat],zoom:16.7,pitch:55,bearing:h,offset:[0,Math.min(115,window.innerHeight*.18)],duration:force?0:280}:{center:[lon,lat],zoom:16.1,pitch:0,bearing:V16.mapMode==='heading'?h:0,offset:[0,V16.mapMode==='heading'?Math.min(75,window.innerHeight*.12):0],duration:force?0:260};
-    try{m.easeTo(opts)}catch{}
-    draw3dRoute();const lim=q('v16SpeedLimit')?.querySelector('b');if(lim)lim.textContent=state.mode==='simulation'?String(Math.round(V16.currentRoadLimit||50)):'GPS';
+    const m=ensure3dMap();
+    if(!m||!V16.mapLoaded||!state?.running||!state?.pos)return;
+    const c=state.pos.coords,snap=state.fusion?.snapped;
+    const lat=Number(snap?.lat??c.latitude),lon=Number(snap?.lon??c.longitude);
+    if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
+    // V22 : le cap canonique est celui calculé sur le tracé stabilisé dans app.js.
+    // On n'utilise plus directement le heading brut de l'iPhone pour faire tourner la caméra.
+    const h=Number.isFinite(snap?.heading)?snap.heading:Number(state.nav?.lastHeading||V16.last3dHeading||0);
+    V16.last3dHeading=h;
+    const marker=ensureBusMarker(lon,lat);
+    marker.setLngLat([lon,lat]);
+    try{marker.setRotation(h)}catch{}
+
+    // La simulation peut produire plusieurs positions par frame. On ne laisse plus les easeTo s'empiler :
+    // un seul mouvement caméra est appliqué, avec arrêt de l'animation précédente.
+    const now=performance.now();
+    if(!force && now-(V16.lastCameraAt||0)<65) return;
+    V16.lastCameraAt=now;
+    const common=V16.mapMode==='3d'
+      ? {center:[lon,lat],zoom:16.7,pitch:55,bearing:h,offset:[0,Math.min(115,window.innerHeight*.18)]}
+      : {center:[lon,lat],zoom:16.1,pitch:0,bearing:V16.mapMode==='heading'?h:0,offset:[0,V16.mapMode==='heading'?Math.min(75,window.innerHeight*.12):0]};
+    try{
+      m.stop();
+      if(force||state.mode==='simulation') m.jumpTo(common);
+      else m.easeTo({...common,duration:110,easing:t=>t});
+    }catch{}
   }
+
   try{
     const baseEnter16=enterDriver;enterDriver=function(mode){const r=baseEnter16(mode);setTimeout(()=>{ensure3dMap();draw3dRoute();sync3dMapFromState(true)},120);return r};
     const baseProcess16=processPos;processPos=function(p){const r=baseProcess16(p);sync3dMapFromState(false);return r};
@@ -1866,5 +1890,9 @@
 })();
 </script>
 
+<script>
+// V22 — étiquette de version après chargement de tous les modules.
+window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V22 TAD + SUIVI STABLE';});
+</script>
 </body>
 </html>

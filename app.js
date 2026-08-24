@@ -1,7 +1,8 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-// Fluo SAEIV V21 — tracés exacts + ding-dong demande + écran actif + prononciation lignes.
+// Fluo SAEIV V22 — TAD départ/terminus explicites + suivi GPS/pictogramme stabilisé.
+// Le moteur de suivi utilise la progression le long du shape, le cap tangent au parcours et un lissage circulaire.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),
   status:$('status'), start:$('start'), simulate:$('simulate'), simSpeed:$('simSpeed'), simScale:$('simScale'), simDelay:$('simDelay'), simDelayWrap:$('simDelayWrap'),
@@ -21,9 +22,9 @@ const state = {
   current:0, target:1, watch:null, pos:null, running:false, mode:null,
   announced:false, arrivalAnnounced:false, nextStopDueAt:null, firstLegDepartureSeen:false, reached:false, minDist:Infinity, lastAdvance:0, midpointAnnounced:false, departed:true, departureTimers:[], departureTicker:null,
   sim:{raf:null, playing:false, segmentFrom:0, segmentTo:1, fraction:0, holdUntil:0, speedMps:13.89, scale:10, delaySeconds:0, lastTs:0, path:[], pathIndex:0, pathFraction:0, heldTarget:-1},
-  nav:{map:null,routeLine:null,busMarker:null,stopMarkers:[],follow:true,lastHeading:0},
+  nav:{map:null,routeLine:null,busMarker:null,stopMarkers:[],follow:true,lastHeading:0,lastDisplayLat:null,lastDisplayLon:null,lastDisplayAt:0},
   wakeLock:null, wakeLockTimer:null,
-  fusion:{shape:[],cum:[],stopAlong:[],lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity},
+  fusion:{shape:[],cum:[],stopAlong:[],lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null},
   audio:{queue:[],current:null,token:0,requestChimeCtx:null,lastRequestChimeAt:0},
   service:{mode:'regular',tadStops:new Set(),requestedStops:new Set(),requestAlertIndex:null,requestChimedStops:new Set()},
   punctuality:{ticker:null,deltaSeconds:null,plannedTime:null,status:'unknown'}
@@ -150,7 +151,7 @@ function prepareCourseGeometry(){
     if(reverse+30<direct) shape.reverse();
   }
   if(shape.length<2){
-    state.fusion={shape:[],cum:[],stopAlong:new Array(stops.length).fill(null),lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity};
+    state.fusion={shape:[],cum:[],stopAlong:new Array(stops.length).fill(null),lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null};
     return;
   }
   const cum=[0]; for(let i=1;i<shape.length;i++) cum.push(cum[i-1]+dist(shape[i-1][0],shape[i-1][1],shape[i][0],shape[i][1]));
@@ -165,7 +166,7 @@ function prepareCourseGeometry(){
     }
     stopAlong.push(best.along); searchFrom=Math.max(searchFrom,best.seg);
   }
-  state.fusion={shape,cum,stopAlong,lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity};
+  state.fusion={shape,cum,stopAlong,lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null};
 }
 function v20PatternKey(pattern=state.pattern){
   const stops=pattern?.stops||[];
@@ -236,38 +237,89 @@ async function ensureExactPatternGeometry(pattern=state.pattern){
     return false;
   }
 }
-function snapToCourse(c){
-  const f=state.fusion, shape=f.shape; if(!shape?.length||shape.length<2) return {lat:c.latitude,lon:c.longitude,along:null,off:Infinity,confidence:0,segment:null};
-  const acc=Math.max(3,Number(c.accuracy)||35), sp=Number.isFinite(c.speed)&&c.speed>=0?c.speed:0, hd=Number.isFinite(c.heading)&&c.heading>=0?c.heading:null;
+function pointAtRouteAlong(along){
+  const f=state.fusion, shape=f.shape||[], cum=f.cum||[];
+  if(shape.length<2||cum.length!==shape.length||!Number.isFinite(along)) return null;
+  const total=cum[cum.length-1]||0, x=Math.max(0,Math.min(total,along));
+  let lo=0,hi=cum.length-1;
+  while(lo<hi){ const mid=Math.floor((lo+hi+1)/2); if(cum[mid]<=x) lo=mid; else hi=mid-1; }
+  const i=Math.min(shape.length-2,lo), a=cum[i], b=cum[i+1], t=b>a?(x-a)/(b-a):0;
+  return {lat:shape[i][0]+(shape[i+1][0]-shape[i][0])*t,lon:shape[i][1]+(shape[i+1][1]-shape[i][1])*t,segment:i};
+}
+function routeHeadingAtAlong(along){
+  const f=state.fusion, total=f.cum?.at(-1)||0;
+  if(!Number.isFinite(along)||total<=0) return Number(state.nav.lastHeading||0);
+  // Une fenêtre de plusieurs dizaines de mètres évite les oscillations de cap sur chaque micro-segment du GTFS.
+  const behind=pointAtRouteAlong(Math.max(0,along-8));
+  const ahead=pointAtRouteAlong(Math.min(total,along+32));
+  if(!behind||!ahead) return Number(state.nav.lastHeading||0);
+  return bearing(behind.lat,behind.lon,ahead.lat,ahead.lon);
+}
+function smoothHeading(prev,next,alpha=.3){
+  if(!Number.isFinite(next)) return Number.isFinite(prev)?prev:0;
+  if(!Number.isFinite(prev)) return next;
+  const delta=((next-prev+540)%360)-180;
+  return (prev+delta*Math.max(0,Math.min(1,alpha))+360)%360;
+}
+function snapToCourse(c,timestamp=Date.now()){
+  const f=state.fusion, shape=f.shape;
+  if(!shape?.length||shape.length<2) return {lat:c.latitude,lon:c.longitude,along:null,off:Infinity,confidence:0,segment:null,heading:state.nav.lastHeading||0};
+  const acc=Math.max(3,Number(c.accuracy)||35), sp=Number.isFinite(c.speed)&&c.speed>=0?c.speed:0;
+  const rawHeading=Number.isFinite(c.heading)&&c.heading>=0?c.heading:null;
+  const raw={lat:Number(c.latitude),lon:Number(c.longitude)};
+  const rawTravel=f.lastRaw?dist(f.lastRaw.lat,f.lastRaw.lon,raw.lat,raw.lon):0;
+  const elapsed=f.lastSnapAt?Math.max(.02,Math.min(5,(Number(timestamp||Date.now())-f.lastSnapAt)/1000)):1;
+  // Fenêtre plausible de progression. Elle empêche un croisement ou deux tronçons proches de téléporter le bus loin devant.
+  const plausibleForward=Math.max(95,rawTravel*4.2,sp*elapsed*5+acc*2.2);
+  const plausibleBack=Math.max(35,acc*1.3,rawTravel*1.8);
   let lo=0,hi=shape.length-2;
-  if(Number.isInteger(f.lastSegment)&&f.offRoute<180){ lo=Math.max(0,f.lastSegment-55); hi=Math.min(shape.length-2,f.lastSegment+140); }
+  if(Number.isInteger(f.lastSegment)&&f.offRoute<220){ lo=Math.max(0,f.lastSegment-70); hi=Math.min(shape.length-2,f.lastSegment+190); }
   let best=null;
-  for(let i=lo;i<=hi;i++){
-    const q=pointSegmentProjection(c.latitude,c.longitude,shape[i],shape[i+1]);
+  const inspect=(i)=>{
+    const q=pointSegmentProjection(raw.lat,raw.lon,shape[i],shape[i+1]);
     const along=f.cum[i]+q.t*(f.cum[i+1]-f.cum[i]);
+    const tangent=bearing(shape[i][0],shape[i][1],shape[i+1][0],shape[i+1][1]);
     let score=q.d;
-    if(hd!==null&&sp>2){ score+=Math.min(55,angleDiff(hd,bearing(shape[i][0],shape[i][1],shape[i+1][0],shape[i+1][1]))*.28); }
-    if(f.lastAlong!==null&&along<f.lastAlong-120) score+=450+Math.min(1000,(f.lastAlong-along)*.5);
-    if(!best||score<best.score) best={...q,along,segment:i,score};
-  }
-  // Si la recherche locale n'est pas crédible, on refait une recherche globale : utile après une déviation/reprise de service.
-  if(!best||best.d>Math.max(180,acc*4)){
-    best=null;
-    for(let i=0;i<shape.length-1;i++){
-      const q=pointSegmentProjection(c.latitude,c.longitude,shape[i],shape[i+1]);
-      const along=f.cum[i]+q.t*(f.cum[i+1]-f.cum[i]);
-      let score=q.d;
-      if(hd!==null&&sp>2) score+=Math.min(55,angleDiff(hd,bearing(shape[i][0],shape[i][1],shape[i+1][0],shape[i+1][1]))*.28);
-      if(!best||score<best.score) best={...q,along,segment:i,score};
+    // Le cap GPS ne sert que comme aide. Le tracé officiel reste l'autorité.
+    if(rawHeading!==null&&sp>2.2) score+=Math.min(35,angleDiff(rawHeading,tangent)*.16);
+    if(Number.isFinite(f.lastAlong)){
+      const delta=along-f.lastAlong;
+      if(delta < -plausibleBack) score+=700+(-delta-plausibleBack)*1.7;
+      if(delta > plausibleForward) score+=650+(delta-plausibleForward)*1.25;
     }
+    if(!best||score<best.score) best={...q,along,segment:i,score,tangent};
+  };
+  for(let i=lo;i<=hi;i++) inspect(i);
+  if(!best||best.d>Math.max(170,acc*3.8)){
+    best=null;
+    for(let i=0;i<shape.length-1;i++) inspect(i);
   }
-  const accept=best&&best.d<=Math.max(90,acc*2.8);
-  if(!accept){ f.offRoute=best?.d??Infinity; f.confidence=0; return {lat:c.latitude,lon:c.longitude,along:null,off:f.offRoute,confidence:0,segment:null}; }
-  f.lastSegment=best.segment;
-  if(f.lastAlong===null||best.along>=f.lastAlong-80||sp<1.5) f.lastAlong=best.along;
-  f.offRoute=best.d;
+  const accept=best&&best.d<=Math.max(95,acc*2.9);
+  f.lastRaw=raw; f.lastSnapAt=Number(timestamp||Date.now());
+  if(!accept){
+    f.offRoute=best?.d??Infinity; f.confidence=0;
+    const h=smoothHeading(f.displayHeading,rawHeading??f.displayHeading,.18); f.displayHeading=h;
+    return {lat:raw.lat,lon:raw.lon,along:null,off:f.offRoute,confidence:0,segment:null,heading:h};
+  }
+  // Progression monotone souple : on tolère un petit recul GPS, jamais un saut important vers une branche voisine.
+  let acceptedAlong=best.along;
+  if(Number.isFinite(f.lastAlong)) acceptedAlong=Math.max(f.lastAlong-plausibleBack,Math.min(f.lastAlong+plausibleForward,acceptedAlong));
+  f.lastAlong=acceptedAlong; f.lastSegment=best.segment; f.offRoute=best.d;
   f.confidence=Math.max(5,Math.min(99,Math.round(100-best.d/Math.max(1,acc)*18-Math.max(0,acc-8)*.55)));
-  return {lat:best.lat,lon:best.lon,along:best.along,off:best.d,confidence:f.confidence,segment:best.segment};
+  // Le point affiché est recalculé SUR le shape avec l'along accepté, donc le pictogramme ne zigzague pas entre deux segments.
+  if(!Number.isFinite(f.displayAlong)) f.displayAlong=acceptedAlong;
+  const maxLag=Math.max(24,rawTravel*1.7,sp*elapsed*1.7);
+  const diff=acceptedAlong-f.displayAlong;
+  f.displayAlong += Math.max(-maxLag,Math.min(maxLag,diff)) * (sp>2?0.72:0.48);
+  if(Math.abs(diff)<1.2) f.displayAlong=acceptedAlong;
+  const display=pointAtRouteAlong(f.displayAlong)||{lat:best.lat,lon:best.lon,segment:best.segment};
+  const routeH=routeHeadingAtAlong(f.displayAlong);
+  // Si le cap matériel est cohérent avec la route, on en garde une petite part; sinon on privilégie le cap tangent au parcours.
+  let targetH=routeH;
+  if(rawHeading!==null&&sp>3&&angleDiff(rawHeading,routeH)<38) targetH=smoothHeading(routeH,rawHeading,.22);
+  const alpha=sp>12?0.42:sp>4?0.32:0.2;
+  f.displayHeading=smoothHeading(f.displayHeading,targetH,alpha);
+  return {lat:display.lat,lon:display.lon,along:f.displayAlong,rawAlong:best.along,off:best.d,confidence:f.confidence,segment:display.segment??best.segment,heading:f.displayHeading};
 }
 function routeDistanceToStop(targetIndex,c){
   const snap=state.fusion.snapped, sa=state.fusion.stopAlong?.[targetIndex];
@@ -321,12 +373,12 @@ function updateStopMarkers(){
 function updateNavigation(p,snap=null){
   if(!state.running||!state.pattern||typeof L==='undefined') return;
   ensureMap(); if(!state.nav.map) return;
-  const c=p.coords, fused=snap||state.fusion.snapped||{lat:c.latitude,lon:c.longitude,off:Infinity,confidence:0};
-  const lat=fused.lat, lon=fused.lon;
-  let h=Number.isFinite(c.heading)&&c.heading>=0?c.heading:state.nav.lastHeading;
-  const next=state.pattern.stops[state.target];
-  if((!Number.isFinite(c.heading)||c.heading<0)&&next) h=bearing(lat,lon,next.lat,next.lon);
-  state.nav.lastHeading=h||0;
+  const c=p.coords, fused=snap||state.fusion.snapped||{lat:c.latitude,lon:c.longitude,off:Infinity,confidence:0,heading:state.nav.lastHeading||0};
+  const lat=Number(fused.lat), lon=Number(fused.lon);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)) return;
+  const h=Number.isFinite(fused.heading)?fused.heading:(Number.isFinite(state.fusion.displayHeading)?state.fusion.displayHeading:state.nav.lastHeading||0);
+  state.nav.lastHeading=h;
+  // Leaflet est le moteur de secours. La position et le cap proviennent exactement du même état stabilisé que MapLibre.
   if(!state.nav.busMarker) state.nav.busMarker=L.marker([lat,lon],{icon:busIcon(h),zIndexOffset:1000,keyboard:false}).addTo(state.nav.map);
   else{ state.nav.busMarker.setLatLng([lat,lon]); state.nav.busMarker.setIcon(busIcon(h)); }
   const off=Number.isFinite(fused.off)?fused.off:Infinity;
@@ -336,7 +388,10 @@ function updateNavigation(p,snap=null){
     else{ ui.routeState.textContent=`HORS PARCOURS · ${fmt(off)}`; ui.routeState.className='route-state bad'; }
   }
   if(ui.fusionQuality) ui.fusionQuality.textContent=fused.confidence?`${fused.confidence}%`:'BRUT';
-  if(state.nav.follow){ const z=Math.max(state.nav.map.getZoom(),15); state.nav.map.setView([lat,lon],z,{animate:true,duration:.35}); }
+  if(state.nav.follow){
+    const z=Math.max(state.nav.map.getZoom(),15);
+    state.nav.map.setView([lat,lon],z,{animate:false});
+  }
 }
 
 // V8 — modes de service TAD et demandes clients
@@ -352,7 +407,7 @@ function setServiceMode(mode){
   ui.simDelayWrap?.classList.toggle('hidden',state.service.mode==='formation');
   if(ui.serviceModeHelp){
     ui.serviceModeHelp.textContent=state.service.mode==='tad'
-      ? 'TAD : choisis la course et coche uniquement les arrêts où une montée ou une descente est prévue. Les autres arrêts restent sur le tracé mais sont traversés.'
+      ? 'TAD : choisis d’abord ton arrêt de départ, puis uniquement les arrêts à desservir. Le dernier arrêt sélectionné devient le terminus et les autres arrêts n’imposent aucun détour.'
       : state.service.mode==='formation'
       ? 'Formation : choisis la ligne puis le sens/parcours. GPS, carte, annonces, demandes clients et simulation restent actifs, mais aucun horaire, départ T−5/T−1 ni calcul avance/retard n’est utilisé.'
       : 'Ligne régulière : tous les arrêts de la course restent desservis. Les demandes clients peuvent être ajoutées pendant le service.';
@@ -367,6 +422,10 @@ function stopScheduleLabel(index){
   const x=d||a; return x?formatClock(x):'';
 }
 function tadSelectedIndices(){ return [...state.service.tadStops].filter(i=>Number.isInteger(i)).sort((a,b)=>a-b); }
+function tadTerminusIndex(){
+  const start=Number(ui.startStop?.value||0), future=tadSelectedIndices().filter(i=>i>start);
+  return future.length?future[future.length-1]:null;
+}
 function nextOperationalStop(fromIndex){
   if(!state.pattern) return null;
   if(state.service.mode!=='tad') return fromIndex+1<state.pattern.stops.length?fromIndex+1:null;
@@ -397,18 +456,23 @@ function renderTadStopList(reset=false){
   const start=Math.max(0,Number(ui.startStop.value||0));
   if(reset) state.service.tadStops.clear();
   for(const i of [...state.service.tadStops]) if(i<start||i>=state.pattern.stops.length) state.service.tadStops.delete(i);
+  // L'arrêt choisi dans « Arrêt de prise de service » est toujours le départ TAD, mais n'impose aucun autre arrêt.
   state.service.tadStops.add(start);
+  const terminus=tadTerminusIndex();
   ui.tadStopList.innerHTML=state.pattern.stops.map((st,i)=>{
-    const before=i<start, origin=i===start, checked=state.service.tadStops.has(i);
-    const meta=[stopScheduleLabel(i),before?'avant la prise de service':origin?'arrêt de départ':''].filter(Boolean).join(' · ');
-    return `<label class="stop-check ${checked?'tad-selected':''}"><input class="tad-stop-checkbox" type="checkbox" data-index="${i}" ${checked?'checked':''} ${(before||origin)?'disabled':''}><span class="stop-check-main"><span class="stop-check-name">${i+1}. ${esc(st.name)}</span><span class="stop-check-meta">${esc(meta)}</span></span><span class="stop-check-tag">${origin?'DÉPART':checked?'TAD':'PASSAGE'}</span></label>`;
+    const before=i<start, origin=i===start, checked=state.service.tadStops.has(i), isTerminus=i===terminus;
+    const meta=[stopScheduleLabel(i),before?'avant le départ TAD':origin?'DÉPART TAD':isTerminus?'TERMINUS TAD':checked?'arrêt à desservir':'non desservi'].filter(Boolean).join(' · ');
+    const tag=origin?'DÉPART':isTerminus?'TERMINUS':checked?'TAD':'IGNORÉ';
+    return `<label class="stop-check ${checked?'tad-selected':''} ${isTerminus?'tad-terminus':''}"><input class="tad-stop-checkbox" type="checkbox" data-index="${i}" ${checked?'checked':''} ${(before||origin)?'disabled':''}><span class="stop-check-main"><span class="stop-check-name">${i+1}. ${esc(st.name)}</span><span class="stop-check-meta">${esc(meta)}</span></span><span class="stop-check-tag">${tag}</span></label>`;
   }).join('');
   updateTadSummary();
 }
 function updateTadSummary(){
   if(!ui.tadSummary||!state.pattern) return;
-  const start=Number(ui.startStop.value||0), future=tadSelectedIndices().filter(i=>i>start);
-  ui.tadSummary.textContent=future.length?`${future.length} arrêt${future.length>1?'s':''} TAD à desservir après la prise de service.`:'Sélectionne au moins un arrêt TAD après le départ.';
+  const start=Number(ui.startStop.value||0), future=tadSelectedIndices().filter(i=>i>start), origin=state.pattern.stops[start], term=future.length?state.pattern.stops[future[future.length-1]]:null;
+  ui.tadSummary.textContent=term
+    ? `Départ : ${origin?.name||'—'} · ${future.length} arrêt${future.length>1?'s':''} à desservir · Terminus : ${term.name}. Le tracé s'arrête à ce dernier arrêt.`
+    : `Départ : ${origin?.name||'—'} · sélectionne au moins un arrêt à desservir ; le dernier sélectionné deviendra automatiquement le terminus.`;
   refreshStartAvailability(); updateStopMarkers();
 }
 function refreshStartAvailability(){
@@ -818,7 +882,7 @@ function previous(){
 
 function processPos(p){
   state.pos=p;
-  const c=p.coords, snap=snapToCourse(c); state.fusion.snapped=snap;
+  const c=p.coords, snap=snapToCourse(c,p.timestamp||Date.now()); state.fusion.snapped=snap;
   updateNavigation(p,snap);
   if(state.running) updateScheduleAdherence();
   if(state.mode==='simulation'){
