@@ -9,12 +9,12 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="styles.css">
-  <title>Fluo SAEIV V11 Annonces arrêt</title>
+  <title>Fluo SAEIV V13 Traçabilité</title>
 </head>
 <body>
 <div class="app">
   <header class="top">
-    <div><div class="eyebrow">SAEIV CONDUCTEUR · V11 ANNONCES ARRÊT</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · Moselle 57 + Meurthe-et-Moselle 54</div></div>
+    <div><div class="eyebrow">SAEIV CONDUCTEUR · V13 TRAÇABILITÉ</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · Moselle 57 + Meurthe-et-Moselle 54</div></div>
     <div id="gpsPill" class="pill">GPS non testé</div>
   </header>
 
@@ -137,5 +137,955 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="app.js"></script>
+<script>
+'use strict';
+
+/* Fluo SAEIV V12 — ergonomie mobile, guidage conducteur, bus orienté, choix de voix, ding-dong */
+(() => {
+  const q = id => document.getElementById(id);
+
+  // --- Injection de l'interface V12 dans la V11 existante ---
+  document.title = 'Fluo SAEIV V12 Mobile + Navigation';
+  const eyebrow = document.querySelector('.top .eyebrow');
+  if (eyebrow) eyebrow.textContent = 'SAEIV CONDUCTEUR · V12 MOBILE + NAVIGATION';
+
+  const serviceChoice = document.querySelector('.service-choice');
+  if (serviceChoice && !q('v12Preferences')) {
+    serviceChoice.insertAdjacentHTML('afterend', `
+      <div id="v12Preferences" class="v12-preferences">
+        <div class="v12-pref-title">RÉGLAGES CONDUCTEUR</div>
+        <div class="v12-pref-grid">
+          <label>Voix annonces voyageurs
+            <select id="passengerVoiceGender">
+              <option value="female">Voix femme</option>
+              <option value="male">Voix homme</option>
+            </select>
+            <small id="voiceActual">Recherche de la voix française…</small>
+          </label>
+          <div class="v12-pref-actions">
+            <button id="voiceTest" type="button">🔊 Tester la voix</button>
+            <label class="v12-switch"><input id="navVoiceSetup" type="checkbox" checked><span>Navigation vocale conducteur</span></label>
+          </div>
+        </div>
+      </div>`);
+  }
+
+  const requestAlert = q('requestAlert');
+  if (requestAlert && !q('turnCard')) {
+    requestAlert.insertAdjacentHTML('afterend', `
+      <div id="turnCard" class="turn-card">
+        <div id="turnArrow" class="turn-arrow">↑</div>
+        <div class="turn-copy">
+          <span>GUIDAGE CONDUCTEUR</span>
+          <strong id="turnInstruction">Continuer sur le parcours</strong>
+        </div>
+        <div id="turnDistance" class="turn-distance">—</div>
+        <button id="navVoiceBtn" class="nav-voice-btn" type="button">🔊 GPS vocal</button>
+      </div>`);
+  }
+
+  const css = document.createElement('style');
+  css.id = 'v12Style';
+  css.textContent = `
+    .v12-preferences{margin:0 0 14px;padding:12px;border:1px solid #355163;border-radius:15px;background:#0a1923}
+    .v12-pref-title{font-size:.7rem;letter-spacing:.13em;font-weight:950;color:#a6b6c1;margin-bottom:9px}
+    .v12-pref-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
+    .v12-pref-grid small{display:block;color:#8295a3;font-size:.68rem;line-height:1.25;margin-top:2px}
+    .v12-pref-actions{display:flex;gap:8px;align-items:center}
+    .v12-pref-actions button{flex:0 0 auto}
+    .v12-switch{display:flex;flex-direction:row;gap:8px;align-items:center;background:#091620;border:1px solid #2e4656;border-radius:12px;padding:10px 11px;min-height:48px;color:#d8eaf5}
+    .v12-switch input{width:21px;height:21px;accent-color:#ffd000;flex:0 0 auto}
+
+    .turn-card{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;margin:12px 0;padding:12px 13px;border:1px solid #42687e;border-radius:18px;background:linear-gradient(135deg,#102b3a,#0a1d28);box-shadow:0 10px 26px rgba(0,0,0,.24)}
+    .turn-arrow{width:58px;height:58px;display:flex;align-items:center;justify-content:center;border-radius:15px;background:#ffd000;color:#101820;font-size:2.35rem;font-weight:1000;line-height:1}
+    .turn-copy{min-width:0}.turn-copy span{display:block;color:#94aab8;font-size:.64rem;letter-spacing:.11em;font-weight:950}.turn-copy strong{display:block;margin-top:4px;font-size:1.1rem;line-height:1.08}
+    .turn-distance{font-size:1.25rem;font-weight:1000;color:#ffd000;white-space:nowrap}
+    .nav-voice-btn{padding:9px 10px;font-size:.72rem;white-space:nowrap}.nav-voice-btn.off{background:#342426;color:#ffd9d7;border-color:#704040}
+
+    .bus-pin-v12{width:38px;height:48px;filter:drop-shadow(0 3px 7px rgba(0,0,0,.5));transform-origin:50% 50%}
+    .bus-pin-v12 svg{display:block;width:100%;height:100%}
+    .bus-body{fill:#ffd000;stroke:#fff;stroke-width:1.6}.bus-glass{fill:#1b4052}.bus-roof{fill:#fff1a0;opacity:.85}.bus-wheel{fill:#111}.bus-front{fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+    @media(max-width:680px){
+      html,body{overscroll-behavior-y:none}
+      .app{max-width:none;padding:calc(8px + env(safe-area-inset-top)) 7px calc(14px + env(safe-area-inset-bottom))}
+      .panel{border-radius:15px;padding:9px}
+      .top{margin-bottom:8px;align-items:center}.top h1{font-size:1.35rem}.top .sub{display:none}.top .eyebrow{font-size:.58rem}.pill{padding:6px 8px}
+      #driver{display:flex;flex-direction:column;gap:0}
+      #driver.hidden{display:none!important}
+      #driver .driverTop{order:1}.schedule-panel{order:2;margin:7px 0;min-height:70px;padding:10px 12px}.request-alert{order:3;margin:7px 0}.turn-card{order:4;margin:7px 0}.next{order:5;margin:7px 0;padding:12px}.current{order:6;margin:5px 0;padding:9px 11px}.navmap-wrap{order:7;margin:7px 0}.request-button{order:8}.grid.six{order:9}.controls{order:10}.sim-controls{order:11}#recenter{order:12}
+      .driverTop{align-items:center}.driverTop .danger{font-size:.66rem;padding:8px 9px}.headsign{font-size:.94rem;margin-top:3px}.badge-row{gap:5px;flex-wrap:wrap}.routebadge,.servicebadge,.modebadge{padding:4px 7px;font-size:.66rem}
+      .departure-strip{font-size:.68rem;margin-top:5px}.departure-strip b{font-size:.82rem}
+      .schedule-panel strong{font-size:1.5rem!important}.schedule-panel span{font-size:.78rem!important}
+      .next .lbl{font-size:.62rem}.next strong{font-size:clamp(1.55rem,8vw,2.15rem);margin-top:4px}.next-meta{font-size:.72rem}.distance{margin-top:10px}.distance b{font-size:1.35rem}.distance span{font-size:.7rem;text-align:right}
+      .current .lbl{font-size:.58rem}.current strong{font-size:.93rem}
+      .turn-card{grid-template-columns:52px 1fr auto;grid-template-areas:"arrow copy dist" "voice voice voice";padding:9px;gap:8px}
+      .turn-arrow{grid-area:arrow;width:52px;height:52px;font-size:2.1rem}.turn-copy{grid-area:copy}.turn-copy strong{font-size:1rem}.turn-distance{grid-area:dist;font-size:1.08rem}.nav-voice-btn{grid-area:voice;width:100%;min-height:36px;padding:7px}
+      .navmap{height:34vh;min-height:225px}.maphud{left:6px;right:6px;bottom:6px}.mapbtn,.route-state{font-size:.64rem;padding:6px 8px}
+      .six{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.metric{padding:7px}.metric span{font-size:.62rem}.metric b{font-size:.82rem}
+      .controls.three{grid-template-columns:1fr 1fr;gap:6px}.controls button{padding:9px;font-size:.75rem}.controls .speak{grid-column:1/-1}
+      .request-button{min-height:45px;margin-top:7px}
+      .v12-pref-grid{grid-template-columns:1fr}.v12-pref-actions{display:grid;grid-template-columns:1fr}.v12-pref-actions button{width:100%}
+      .service-choice-buttons{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.service-mode{padding:9px 5px;font-size:.68rem}.service-mode-help{font-size:.68rem}
+    }
+    @media(max-width:390px){
+      .turn-copy span{display:none}.turn-card{grid-template-columns:48px 1fr auto}.turn-arrow{width:48px;height:48px}
+      .schedule-panel{min-height:64px}.navmap{min-height:205px}
+    }
+    @media(max-height:520px) and (orientation:landscape){
+      .navmap{height:58vh;min-height:190px}.top{display:none}.app{padding-top:5px}
+    }
+  `;
+  document.head.appendChild(css);
+
+  const V12 = {
+    passengerVoice: localStorage.getItem('fluoPassengerVoice') || 'female',
+    navVoice: localStorage.getItem('fluoNavVoice') !== 'off',
+    maneuvers: [],
+    spokenNav: new Set(),
+    lastChimeAt: 0,
+    audioCtx: null,
+    lastRequestAlert: null
+  };
+
+  const vx = {
+    passengerVoice: q('passengerVoiceGender'),
+    voiceTest: q('voiceTest'),
+    voiceActual: q('voiceActual'),
+    navVoiceSetup: q('navVoiceSetup'),
+    navVoiceBtn: q('navVoiceBtn'),
+    turnCard: q('turnCard'),
+    turnArrow: q('turnArrow'),
+    turnInstruction: q('turnInstruction'),
+    turnDistance: q('turnDistance')
+  };
+
+  function frVoices(){
+    if(!('speechSynthesis' in window)) return [];
+    return speechSynthesis.getVoices().filter(v => /^fr([_-]|$)/i.test(v.lang || ''));
+  }
+  function pickVoice(pref=V12.passengerVoice){
+    const voices = frVoices();
+    if(!voices.length) return null;
+    const female = /(audrey|aur[eé]lie|am[eé]lie|marie|virginie|hortense|c[eé]line|samantha|victoria|ava|zo[eé]|female|femme)/i;
+    const male = /(thomas|daniel|nicolas|henri|paul|jacques|olivier|male|homme)/i;
+    let v = null;
+    if(pref === 'female') v = voices.find(x => female.test(x.name));
+    if(pref === 'male') v = voices.find(x => male.test(x.name));
+    v ||= voices.find(x => /fr[-_]FR/i.test(x.lang || '')) || voices[0];
+    return v;
+  }
+  function refreshVoiceLabel(){
+    if(!vx.voiceActual) return;
+    const v = pickVoice();
+    vx.voiceActual.textContent = v ? `Voix utilisée : ${v.name}` : 'Voix française système (le nom apparaîtra après chargement iOS)';
+  }
+
+  if(vx.passengerVoice){
+    vx.passengerVoice.value = V12.passengerVoice;
+    vx.passengerVoice.addEventListener('change', () => {
+      V12.passengerVoice = vx.passengerVoice.value;
+      localStorage.setItem('fluoPassengerVoice', V12.passengerVoice);
+      refreshVoiceLabel();
+    });
+  }
+  if('speechSynthesis' in window){
+    if(typeof speechSynthesis.addEventListener === 'function') speechSynthesis.addEventListener('voiceschanged', refreshVoiceLabel);
+    else speechSynthesis.onvoiceschanged = refreshVoiceLabel;
+  }
+  setTimeout(refreshVoiceLabel, 150);
+
+  // Garde toutes les priorités audio V11, mais applique la voix choisie.
+  try{
+    pumpSpeech = function(){
+      if(!('speechSynthesis' in window) || state.audio.current || !state.audio.queue.length) return;
+      state.audio.queue.sort((a,b)=>b.priority-a.priority || a.seq-b.seq);
+      const item = state.audio.queue.shift(), token = ++state.audio.token;
+      const u = new SpeechSynthesisUtterance(item.text);
+      u.lang = 'fr-FR'; u.rate = item.kind === 'navigation' ? .98 : .92; u.volume = 1;
+      const v = pickVoice(V12.passengerVoice); if(v) u.voice = v;
+      state.audio.current = {priority:item.priority,kind:item.kind,token};
+      const done = () => { if(state.audio.current?.token === token) state.audio.current = null; setTimeout(pumpSpeech,20); };
+      u.onend = done; u.onerror = done; speechSynthesis.speak(u);
+    };
+  }catch(e){ console.warn('V12 voice patch', e); }
+
+  vx.voiceTest?.addEventListener('click', () => {
+    window.speechSynthesis?.cancel();
+    if(typeof state !== 'undefined' && state.audio){ state.audio.current = null; state.audio.queue = []; }
+    say(V12.passengerVoice === 'male'
+      ? 'Test de la voix homme. Prochain arrêt, Delme République.'
+      : 'Test de la voix femme. Prochain arrêt, Delme République.',
+      {priority:140,kind:'stop'});
+  });
+
+  function setNavVoice(on){
+    V12.navVoice = !!on;
+    localStorage.setItem('fluoNavVoice', V12.navVoice ? 'on' : 'off');
+    if(vx.navVoiceSetup) vx.navVoiceSetup.checked = V12.navVoice;
+    if(vx.navVoiceBtn){
+      vx.navVoiceBtn.textContent = V12.navVoice ? '🔊 GPS vocal' : '🔇 GPS muet';
+      vx.navVoiceBtn.classList.toggle('off', !V12.navVoice);
+    }
+  }
+  setNavVoice(V12.navVoice);
+  vx.navVoiceSetup?.addEventListener('change', () => setNavVoice(vx.navVoiceSetup.checked));
+  vx.navVoiceBtn?.addEventListener('click', () => setNavVoice(!V12.navVoice));
+
+  function signedTurn(a,b){ return ((b-a+540)%360)-180; }
+  function pointAtAlong(along){
+    const cum = state.fusion?.cum || [], shape = state.fusion?.shape || [];
+    if(!cum.length || !shape.length) return null;
+    along = Math.max(0, Math.min(cum[cum.length-1], along));
+    let lo=0, hi=cum.length-1;
+    while(lo<hi){ const m=Math.floor((lo+hi+1)/2); if(cum[m]<=along) lo=m; else hi=m-1; }
+    const i=Math.min(lo,shape.length-2), a=cum[i], b=cum[i+1] ?? a;
+    const f=b>a?(along-a)/(b-a):0;
+    return [shape[i][0]+(shape[i+1][0]-shape[i][0])*f, shape[i][1]+(shape[i+1][1]-shape[i][1])*f];
+  }
+  function smoothBearing(a,b){
+    const p=pointAtAlong(a), z=pointAtAlong(b); if(!p||!z) return null;
+    return bearing(p[0],p[1],z[0],z[1]);
+  }
+  function buildManeuvers(){
+    V12.maneuvers=[]; V12.spokenNav.clear();
+    const cum=state.fusion?.cum||[]; if(cum.length<3) return;
+    const total=cum[cum.length-1]; if(total<160) return;
+    const raw=[];
+    for(let a=80;a<total-80;a+=22){
+      const b1=smoothBearing(a-65,a-12), b2=smoothBearing(a+12,a+65); if(b1===null||b2===null) continue;
+      const delta=signedTurn(b1,b2), abs=Math.abs(delta);
+      if(abs>=52) raw.push({along:a,delta,abs});
+    }
+    for(const r of raw){
+      const last=V12.maneuvers[V12.maneuvers.length-1];
+      if(last && r.along-last.along<105){ if(r.abs>last.abs) Object.assign(last,r); continue; }
+      V12.maneuvers.push({...r});
+    }
+    V12.maneuvers.forEach((m,i)=>m.key=`${i}-${Math.round(m.along)}`);
+  }
+  function maneuverText(m){
+    const right=m.delta>0, abs=Math.abs(m.delta);
+    if(abs>=145) return 'Faire demi-tour';
+    if(abs<72) return right?'Tourner légèrement à droite':'Tourner légèrement à gauche';
+    return right?'Tourner à droite':'Tourner à gauche';
+  }
+  function maneuverArrow(m){
+    const abs=Math.abs(m.delta), right=m.delta>0;
+    if(abs>=145) return '↶';
+    if(abs<72) return right?'↗':'↖';
+    return right?'↱':'↰';
+  }
+  function roundedMeters(d){ if(d<100) return Math.max(10,Math.round(d/10)*10); if(d<500) return Math.round(d/50)*50; return Math.round(d/100)*100; }
+  function currentManeuver(){
+    const along=state.fusion?.snapped?.along; if(!Number.isFinite(along)) return null;
+    return V12.maneuvers.find(m => m.along > along + 8 && m.along-along < 1600) || null;
+  }
+  function updateTurnGuidance(){
+    if(!vx.turnCard) return;
+    if(!V12.maneuvers.length && state.fusion?.cum?.length) buildManeuvers();
+    const along=state.fusion?.snapped?.along, m=currentManeuver();
+    if(!Number.isFinite(along) || !m){
+      vx.turnArrow.textContent='↑'; vx.turnInstruction.textContent='Continuer sur le parcours'; vx.turnDistance.textContent='—';
+      return;
+    }
+    const d=Math.max(0,m.along-along), rm=roundedMeters(d);
+    vx.turnArrow.textContent=maneuverArrow(m);
+    vx.turnInstruction.textContent=maneuverText(m);
+    vx.turnDistance.textContent=d<18?'MAINTENANT':`${Math.round(d)} m`;
+    if(!V12.navVoice) return;
+    const farKey=`${m.key}-far`, nearKey=`${m.key}-near`;
+    if(d<=320 && d>95 && !V12.spokenNav.has(farKey)){
+      V12.spokenNav.add(farKey);
+      say(`Dans ${rm} mètres, ${maneuverText(m).toLowerCase()}.`,{priority:24,kind:'navigation',ephemeral:true});
+    }
+    if(d<=85 && !V12.spokenNav.has(nearKey)){
+      V12.spokenNav.add(nearKey);
+      say(`${maneuverText(m)}.`,{priority:26,kind:'navigation',ephemeral:true});
+    }
+  }
+
+  try{
+    const basePrepare = prepareCourseGeometry;
+    prepareCourseGeometry = function(){ const r=basePrepare(); buildManeuvers(); return r; };
+    const baseEnter = enterDriver;
+    enterDriver = function(mode){ V12.spokenNav.clear(); const r=baseEnter(mode); buildManeuvers(); updateTurnGuidance(); return r; };
+    const baseProcess = processPos;
+    processPos = function(p){ const r=baseProcess(p); updateTurnGuidance(); return r; };
+  }catch(e){ console.warn('V12 navigation patch', e); }
+
+  // Remplace la flèche par un bus vu du dessus, orienté sur le cap.
+  try{
+    busIcon = function(heading=0){
+      const h=Math.round(Number(heading)||0);
+      return L.divIcon({
+        className:'',
+        html:`<div class="bus-pin-v12" style="transform:rotate(${h}deg)" aria-label="bus">
+          <svg viewBox="0 0 28 42" role="img">
+            <rect x="4" y="2" width="20" height="36" rx="5" class="bus-body"/>
+            <path d="M7 7 Q14 3 21 7 L21 13 L7 13 Z" class="bus-glass"/>
+            <rect x="7" y="17" width="14" height="12" rx="2" class="bus-roof"/>
+            <rect x="2" y="9" width="3" height="8" rx="1.5" class="bus-wheel"/>
+            <rect x="23" y="9" width="3" height="8" rx="1.5" class="bus-wheel"/>
+            <rect x="2" y="26" width="3" height="8" rx="1.5" class="bus-wheel"/>
+            <rect x="23" y="26" width="3" height="8" rx="1.5" class="bus-wheel"/>
+            <path d="M10 5 L14 1 L18 5" class="bus-front"/>
+          </svg></div>`,
+        iconSize:[38,48],iconAnchor:[19,24]
+      });
+    };
+  }catch(e){ console.warn('V12 bus icon patch', e); }
+
+  function audioContext(){
+    const Ctx=window.AudioContext||window.webkitAudioContext; if(!Ctx) return null;
+    if(!V12.audioCtx) V12.audioCtx=new Ctx();
+    if(V12.audioCtx.state==='suspended') V12.audioCtx.resume().catch(()=>{});
+    return V12.audioCtx;
+  }
+  function chime(reminder=false){
+    const now=Date.now(); if(now-V12.lastChimeAt<1100) return; V12.lastChimeAt=now;
+    const ctx=audioContext(); if(!ctx) return;
+    const notes=reminder?[784,659]:[659,880,659];
+    const t0=ctx.currentTime+.02;
+    notes.forEach((freq,i)=>{
+      const o=ctx.createOscillator(), g=ctx.createGain(); o.type='sine'; o.frequency.value=freq;
+      const t=t0+i*.16;
+      g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.18,t+.025); g.gain.exponentialRampToValueAtTime(.0001,t+.14);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+.16);
+    });
+  }
+  q('requestsList')?.addEventListener('change', e => {
+    const cb=e.target.closest('.request-stop-checkbox'); if(cb?.checked) chime(false);
+  });
+  if(q('requestAlert')){
+    const obs=new MutationObserver(()=>{
+      const el=q('requestAlert'), visible=el&&!el.classList.contains('hidden');
+      const idx=visible?state.service?.requestAlertIndex:null;
+      if(visible && idx!==V12.lastRequestAlert){ V12.lastRequestAlert=idx; chime(true); }
+      if(!visible) V12.lastRequestAlert=null;
+    });
+    obs.observe(q('requestAlert'),{attributes:true,attributeFilter:['class']});
+  }
+
+  setTimeout(()=>{
+    const b=q('buildInfo'); if(b && !/V12/.test(b.textContent)) b.textContent += ' · Interface V12';
+  },900);
+})();
+
+</script>
+<script>
+'use strict';
+
+/* Fluo SAEIV V13 — identification conducteur + journal de service local */
+(() => {
+  const $v13 = id => document.getElementById(id);
+  const APP_VERSION = 'V13 TRAÇABILITÉ';
+  const DB_NAME = 'fluo-saeiv-journal-v13';
+  const DB_VERSION = 1;
+  const ACCOUNT_KEY = 'fluoSaeivAccountV13';
+  const SAMPLE_INTERVAL_MS = 2000;
+  const SAMPLE_MOVE_M = 12;
+
+  document.title = 'Fluo SAEIV V13 Traçabilité';
+  const eyebrow = document.querySelector('.top .eyebrow');
+  if (eyebrow) eyebrow.textContent = 'SAEIV CONDUCTEUR · V13 TRAÇABILITÉ';
+
+  const V13 = {
+    unlocked: false,
+    matricule: null,
+    activeSessionId: null,
+    lastSampleAt: 0,
+    lastSample: null,
+    lastArrivalKey: null,
+    lastPassKey: null,
+    sessionStats: null,
+    dbPromise: null
+  };
+
+  const css = document.createElement('style');
+  css.id = 'v13Style';
+  css.textContent = `
+    .v13-auth{position:fixed;z-index:12000;inset:0;background:radial-gradient(circle at top right,#18394d 0,#07121b 45%,#04090d 100%);display:flex;align-items:center;justify-content:center;padding:18px;color:#f7fbfe;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .v13-auth.hidden{display:none!important}.v13-auth-card{width:min(480px,100%);background:linear-gradient(180deg,#132633,#0a1822);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:20px;box-shadow:0 26px 70px rgba(0,0,0,.48)}
+    .v13-logo{font-size:.72rem;color:#ffd000;letter-spacing:.14em;font-weight:950}.v13-auth h2{margin:5px 0 4px;font-size:1.65rem}.v13-auth p{color:#a6b6c1;font-size:.82rem;line-height:1.45;margin:0 0 15px}.v13-auth label{display:flex;flex-direction:column;gap:6px;margin-top:11px;color:#b9cad5;font-size:.78rem;font-weight:800}
+    .v13-auth input{width:100%;background:#07141e;color:#fff;border:1px solid #355163;border-radius:13px;padding:13px 12px;min-height:49px;font:inherit}.v13-auth button{width:100%;margin-top:14px;min-height:52px;border:0;border-radius:13px;font-weight:950;background:linear-gradient(135deg,#ffd000,#ffaf00);color:#171717}.v13-auth .secondary{background:#173142;color:#fff;border:1px solid #355163}
+    .v13-auth-msg{min-height:20px;margin-top:10px!important;color:#ffd2d0!important}.v13-auth-note{margin-top:13px!important;font-size:.7rem!important;color:#8295a3!important}
+    .v13-userbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:7px}.v13-user-chip{font-size:.68rem;font-weight:900;border:1px solid #355163;border-radius:999px;padding:6px 9px;color:#dcebf3;background:#091620}.v13-log-btn{padding:6px 9px;border-radius:999px;font-size:.68rem;background:#173142;color:#fff;border:1px solid #355163}
+    .v13-recording{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;background:#103421;border:1px solid #2e8051;color:#caffd8;font-size:.65rem;font-weight:900}.v13-recording::before{content:"";width:7px;height:7px;border-radius:50%;background:#55d981;box-shadow:0 0 0 4px rgba(85,217,129,.13)}
+    .v13-recording.off{background:#301c1d;border-color:#704040;color:#ffd0cd}.v13-recording.off::before{background:#ff6860}
+    .v13-sheet-backdrop{position:fixed;z-index:11000;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;padding:14px}.v13-sheet-backdrop.hidden{display:none!important}.v13-sheet{width:min(820px,100%);max-height:88vh;background:#0d202c;border:1px solid rgba(255,255,255,.14);border-radius:22px;display:flex;flex-direction:column;padding:15px;box-shadow:0 -20px 60px rgba(0,0,0,.5)}
+    .v13-sheet-head{display:flex;justify-content:space-between;gap:12px;align-items:start}.v13-sheet h2{margin:2px 0 4px}.v13-sheet p{margin:0;color:#a6b6c1;font-size:.75rem;line-height:1.4}.v13-sheet-close{padding:9px 11px}.v13-journal-list{overflow:auto;margin-top:12px;border:1px solid #2e4656;border-radius:13px;background:#07141e;min-height:150px}.v13-session{padding:11px;border-bottom:1px solid rgba(255,255,255,.07)}.v13-session:last-child{border-bottom:0}.v13-session strong{display:block}.v13-session span{display:block;color:#9fb0bb;font-size:.7rem;margin-top:3px}.v13-session-grid{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.v13-session-badge{font-size:.62rem;font-weight:950;border-radius:999px;padding:4px 7px;background:#173142;color:#d9edf6}.v13-sheet-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.v13-sheet-actions button{min-height:46px}.v13-storage{margin-top:8px;color:#8295a3;font-size:.68rem}
+    .v13-service-meta{margin:6px 0 0;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    @media(max-width:680px){.v13-auth{padding:9px}.v13-auth-card{border-radius:18px;padding:15px}.v13-auth h2{font-size:1.4rem}.v13-sheet-backdrop{padding:0}.v13-sheet{border-radius:22px 22px 0 0;max-height:92vh;padding-bottom:calc(14px + env(safe-area-inset-bottom))}.v13-sheet-actions{grid-template-columns:1fr}.v13-userbar{margin-top:4px}.v13-user-chip,.v13-log-btn{font-size:.62rem;padding:5px 7px}}
+  `;
+  document.head.appendChild(css);
+
+  // --- UI connexion / inscription ---
+  document.body.insertAdjacentHTML('beforeend', `
+    <div id="v13Auth" class="v13-auth">
+      <div class="v13-auth-card">
+        <div class="v13-logo">FLUO SAEIV · ${APP_VERSION}</div>
+        <h2 id="v13AuthTitle">Identification conducteur</h2>
+        <p id="v13AuthIntro">Connexion requise pour accéder au SAEIV et associer les journaux au conducteur.</p>
+        <form id="v13AuthForm" autocomplete="off">
+          <label>Matricule<input id="v13Matricule" type="text" inputmode="text" autocapitalize="characters" autocomplete="username" maxlength="40" required></label>
+          <label>Mot de passe<input id="v13Password" type="password" autocomplete="current-password" minlength="6" required></label>
+          <label id="v13ConfirmWrap" class="hidden">Confirmer le mot de passe<input id="v13Confirm" type="password" autocomplete="new-password" minlength="6"></label>
+          <button id="v13AuthSubmit" type="submit">SE CONNECTER</button>
+        </form>
+        <p id="v13AuthMsg" class="v13-auth-msg"></p>
+        <p class="v13-auth-note">Le compte et les journaux sont stockés uniquement sur cet appareil. Le mot de passe n'est pas enregistré en clair.</p>
+      </div>
+    </div>
+
+    <div id="v13JournalSheet" class="v13-sheet-backdrop hidden" role="dialog" aria-modal="true">
+      <div class="v13-sheet">
+        <div class="v13-sheet-head"><div><div class="v13-logo">JOURNAL CONDUCTEUR</div><h2>Historique des services</h2><p>Passages arrêts, horaires, écarts, positions GPS et vitesses estimées par l’iPhone.</p></div><button id="v13JournalClose" class="v13-sheet-close">Fermer</button></div>
+        <div id="v13JournalList" class="v13-journal-list"></div>
+        <div class="v13-sheet-actions"><button id="v13ExportCsv" class="primary">Exporter CSV</button><button id="v13ExportJson">Exporter JSON complet</button></div>
+        <div id="v13Storage" class="v13-storage"></div>
+      </div>
+    </div>
+  `);
+
+  const auth = {
+    root:$v13('v13Auth'), title:$v13('v13AuthTitle'), intro:$v13('v13AuthIntro'), form:$v13('v13AuthForm'), matricule:$v13('v13Matricule'), password:$v13('v13Password'), confirmWrap:$v13('v13ConfirmWrap'), confirm:$v13('v13Confirm'), submit:$v13('v13AuthSubmit'), msg:$v13('v13AuthMsg')
+  };
+
+  const topMain = document.querySelector('.top > div:first-child');
+  if (topMain && !$v13('v13Userbar')) {
+    topMain.insertAdjacentHTML('beforeend', `<div id="v13Userbar" class="v13-userbar"><span id="v13UserChip" class="v13-user-chip">Conducteur —</span><button id="v13JournalBtn" class="v13-log-btn" type="button">📁 Journaux</button><span id="v13Recording" class="v13-recording off">Journal en attente</span></div>`);
+  }
+
+  // --- Crypto local ---
+  function bytesToB64(bytes){ let s=''; bytes.forEach(b=>s+=String.fromCharCode(b)); return btoa(s); }
+  function b64ToBytes(s){ const raw=atob(s), a=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++) a[i]=raw.charCodeAt(i); return a; }
+  async function derivePassword(password,salt,iterations=220000){
+    const enc=new TextEncoder();
+    const base=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);
+    const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations,hash:'SHA-256'},base,256);
+    return new Uint8Array(bits);
+  }
+  async function makeAccount(matricule,password){
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const hash=await derivePassword(password,salt);
+    return {matricule:matricule.trim(),salt:bytesToB64(salt),hash:bytesToB64(hash),iterations:220000,createdAt:new Date().toISOString()};
+  }
+  async function verifyPassword(account,password){
+    const hash=await derivePassword(password,b64ToBytes(account.salt),account.iterations||220000);
+    return bytesToB64(hash)===account.hash;
+  }
+  function loadAccount(){ try{return JSON.parse(localStorage.getItem(ACCOUNT_KEY)||'null');}catch{return null;} }
+  function saveAccount(a){ localStorage.setItem(ACCOUNT_KEY,JSON.stringify(a)); }
+  function authMode(){
+    const a=loadAccount(), registering=!a;
+    auth.title.textContent=registering?'Créer le profil conducteur':'Connexion conducteur';
+    auth.intro.textContent=registering?'Première ouverture : enregistre ton matricule et choisis un mot de passe.':'Saisis ton matricule et ton mot de passe pour ouvrir le SAEIV.';
+    auth.confirmWrap.classList.toggle('hidden',!registering); auth.confirm.required=registering;
+    auth.submit.textContent=registering?'CRÉER LE PROFIL':'SE CONNECTER';
+    if(a) auth.matricule.value=a.matricule||'';
+  }
+  function setUnlocked(matricule){
+    V13.unlocked=true; V13.matricule=matricule; auth.root.classList.add('hidden');
+    const chip=$v13('v13UserChip'); if(chip) chip.textContent=`Matricule ${matricule}`;
+    requestPersistentStorage(); refreshStorageInfo();
+    markInterruptedSessions().catch(console.warn);
+  }
+  auth.form.addEventListener('submit',async e=>{
+    e.preventDefault(); auth.msg.textContent=''; auth.submit.disabled=true;
+    try{
+      const matricule=auth.matricule.value.trim(), pwd=auth.password.value;
+      if(!matricule) throw new Error('Matricule obligatoire.');
+      if(pwd.length<6) throw new Error('Mot de passe : 6 caractères minimum.');
+      let account=loadAccount();
+      if(!account){
+        if(pwd!==auth.confirm.value) throw new Error('Les deux mots de passe ne correspondent pas.');
+        account=await makeAccount(matricule,pwd); saveAccount(account); setUnlocked(account.matricule);
+      }else{
+        if(matricule.toLowerCase()!==String(account.matricule).toLowerCase()) throw new Error('Matricule incorrect.');
+        if(!(await verifyPassword(account,pwd))) throw new Error('Mot de passe incorrect.');
+        setUnlocked(account.matricule);
+      }
+      auth.password.value=''; auth.confirm.value='';
+    }catch(err){ auth.msg.textContent=err.message||'Connexion impossible.'; }
+    finally{ auth.submit.disabled=false; }
+  });
+  authMode();
+
+  // --- IndexedDB ---
+  function db(){
+    if(V13.dbPromise) return V13.dbPromise;
+    V13.dbPromise=new Promise((resolve,reject)=>{
+      const req=indexedDB.open(DB_NAME,DB_VERSION);
+      req.onupgradeneeded=()=>{
+        const d=req.result;
+        if(!d.objectStoreNames.contains('sessions')){ const s=d.createObjectStore('sessions',{keyPath:'id'}); s.createIndex('startedAt','startedAt'); s.createIndex('matricule','matricule'); }
+        if(!d.objectStoreNames.contains('events')){ const e=d.createObjectStore('events',{keyPath:'id',autoIncrement:true}); e.createIndex('sessionId','sessionId'); e.createIndex('ts','ts'); e.createIndex('type','type'); }
+      };
+      req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+    });
+    return V13.dbPromise;
+  }
+  async function putSession(record){ const d=await db(); return new Promise((res,rej)=>{const tx=d.transaction('sessions','readwrite');tx.objectStore('sessions').put(record);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);}); }
+  async function getSession(id){ const d=await db(); return new Promise((res,rej)=>{const r=d.transaction('sessions').objectStore('sessions').get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error);}); }
+  async function addEvent(record){ const d=await db(); return new Promise((res,rej)=>{const tx=d.transaction('events','readwrite');tx.objectStore('events').add(record);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);}); }
+  async function allSessions(){ const d=await db(); return new Promise((res,rej)=>{const r=d.transaction('sessions').objectStore('sessions').getAll();r.onsuccess=()=>res((r.result||[]).sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt))));r.onerror=()=>rej(r.error);}); }
+  async function allEvents(){ const d=await db(); return new Promise((res,rej)=>{const r=d.transaction('events').objectStore('events').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);}); }
+  async function eventsForSession(id){ const d=await db(); return new Promise((res,rej)=>{const r=d.transaction('events').objectStore('events').index('sessionId').getAll(id);r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);}); }
+
+  async function markInterruptedSessions(){
+    const xs=await allSessions(), now=iso();
+    for(const s of xs){
+      if(s.status==='open' && s.matricule===V13.matricule && s.id!==V13.activeSessionId){ s.status='interrupted'; s.endedAt=s.endedAt||now; await putSession(s); await addEvent({sessionId:s.id,ts:now,type:'SERVICE_INTERRUPTED',reason:'application reopened'}); }
+    }
+  }
+
+  function sessionUuid(){ return crypto.randomUUID?crypto.randomUUID():`svc-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
+  function iso(d=new Date()){ return d.toISOString(); }
+  function currentRouteMeta(){
+    const startIndex=Number(ui?.startStop?.value||0), startStop=state?.pattern?.stops?.[startIndex];
+    const scheduled=state?.run?departureFor(state.run.trip,startIndex,state.run.serviceDate):null;
+    return {
+      dept:state?.dept||null, routeId:state?.route?.id||null, route:state?.route?.short||null,
+      destination:state?.pattern?.headsign||state?.pattern?.stops?.at(-1)?.name||null,
+      tripId:state?.run?.trip?.id||null, serviceMode:state?.service?.mode||null,
+      runMode:state?.mode||null, startStopIndex:startIndex, startStop:startStop?.name||null,
+      scheduledDeparture:scheduled?iso(scheduled):null, patternStops:state?.pattern?.stops?.length||0
+    };
+  }
+  function recordingUi(active){
+    const el=$v13('v13Recording'); if(!el) return;
+    el.classList.toggle('off',!active); el.textContent=active?'Journal actif':'Journal en attente';
+  }
+  async function startJournal(mode){
+    if(!V13.unlocked||!state?.pattern) return;
+    const id=sessionUuid(), meta=currentRouteMeta(); V13.activeSessionId=id;
+    V13.sessionStats={samples:0,stops:0,maxSpeed:0,sumSpeed:0,speedCount:0,distance:0,lastLat:null,lastLon:null,lastTs:null};
+    V13.lastSampleAt=0; V13.lastSample=null; V13.lastArrivalKey=null; V13.lastPassKey=null;
+    const rec={id,matricule:V13.matricule,appVersion:APP_VERSION,startedAt:iso(),endedAt:null,status:'open',...meta,runMode:mode};
+    await putSession(rec).catch(console.warn); recordingUi(true);
+    await addEvent({sessionId:id,ts:iso(),type:'SERVICE_START',matricule:V13.matricule,...meta,runMode:mode}).catch(console.warn);
+  }
+  async function closeJournal(reason='normal'){
+    const id=V13.activeSessionId; if(!id) return;
+    try{
+      const s=await getSession(id); if(s){ const st=V13.sessionStats||{}; s.endedAt=iso(); s.status=reason; s.samples=st.samples||0; s.stopEvents=st.stops||0; s.maxSpeedKmh=Number((st.maxSpeed||0).toFixed(1)); s.avgSpeedKmh=st.speedCount?Number((st.sumSpeed/st.speedCount).toFixed(1)):null; s.distanceKm=Number(((st.distance||0)/1000).toFixed(2)); await putSession(s); }
+      await addEvent({sessionId:id,ts:iso(),type:'SERVICE_END',reason,stats:V13.sessionStats||null});
+    }catch(e){ console.warn('Journal fin service',e); }
+    V13.activeSessionId=null; V13.sessionStats=null; recordingUi(false); refreshJournalList();
+  }
+
+  async function checkpointSession(){
+    const id=V13.activeSessionId, st=V13.sessionStats; if(!id||!st) return;
+    try{ const s=await getSession(id); if(!s) return; s.samples=st.samples||0; s.stopEvents=st.stops||0; s.maxSpeedKmh=Number((st.maxSpeed||0).toFixed(1)); s.avgSpeedKmh=st.speedCount?Number((st.sumSpeed/st.speedCount).toFixed(1)):null; s.distanceKm=Number(((st.distance||0)/1000).toFixed(2)); s.lastCheckpointAt=iso(); await putSession(s); }catch(e){ console.warn('Checkpoint journal',e); }
+  }
+
+  function safeSpeedKmh(p){
+    const c=p.coords||{}, gps=Number.isFinite(c.speed)&&c.speed>=0?c.speed*3.6:null;
+    let derived=null; const now=p.timestamp||Date.now();
+    if(V13.lastSample){ const dt=(now-V13.lastSample.ts)/1000; if(dt>.4&&dt<12){ const dm=dist(V13.lastSample.lat,V13.lastSample.lon,c.latitude,c.longitude); derived=dm/dt*3.6; } }
+    const chosen=gps!==null?gps:derived;
+    return {gps,derived,chosen:chosen!==null&&chosen<220?chosen:null};
+  }
+  async function logPosition(p){
+    const id=V13.activeSessionId; if(!id||!p?.coords) return;
+    const c=p.coords, now=p.timestamp||Date.now();
+    const move=V13.lastSample?dist(V13.lastSample.lat,V13.lastSample.lon,c.latitude,c.longitude):Infinity;
+    if(now-V13.lastSampleAt<SAMPLE_INTERVAL_MS && move<SAMPLE_MOVE_M) return;
+    const speeds=safeSpeedKmh(p), snap=state?.fusion?.snapped, delta=state?.punctuality?.deltaSeconds;
+    const planned=state?.punctuality?.plannedTime;
+    const rec={sessionId:id,ts:new Date(now).toISOString(),type:'GPS_SAMPLE',lat:c.latitude,lon:c.longitude,accuracyM:Number(c.accuracy||0),headingDeg:Number.isFinite(c.heading)?c.heading:null,gpsSpeedKmh:speeds.gps===null?null:Number(speeds.gps.toFixed(1)),derivedSpeedKmh:speeds.derived===null?null:Number(speeds.derived.toFixed(1)),speedKmh:speeds.chosen===null?null:Number(speeds.chosen.toFixed(1)),fusedLat:Number.isFinite(snap?.lat)?snap.lat:null,fusedLon:Number.isFinite(snap?.lon)?snap.lon:null,routeAlongM:Number.isFinite(snap?.along)?Number(snap.along.toFixed(1)):null,fusionConfidence:state?.fusion?.confidence??null,scheduleDeltaSec:Number.isFinite(delta)?Math.round(delta):null,plannedTime:planned?iso(planned):null,currentStop:state?.pattern?.stops?.[state.current]?.name||null,nextStop:state?.pattern?.stops?.[state.target]?.name||null};
+    addEvent(rec).catch(console.warn);
+    const st=V13.sessionStats;
+    if(st){ st.samples++; if(speeds.chosen!==null){st.maxSpeed=Math.max(st.maxSpeed,speeds.chosen);st.sumSpeed+=speeds.chosen;st.speedCount++;} if(st.lastLat!==null){const dd=dist(st.lastLat,st.lastLon,c.latitude,c.longitude);if(dd<500)st.distance+=dd;} st.lastLat=c.latitude;st.lastLon=c.longitude;st.lastTs=now; if(st.samples%15===0) checkpointSession(); }
+    V13.lastSampleAt=now; V13.lastSample={lat:c.latitude,lon:c.longitude,ts:now};
+  }
+  async function logStop(type,index){
+    const id=V13.activeSessionId, st=state?.pattern?.stops?.[index]; if(!id||!st) return;
+    const key=`${type}-${index}`; if(type==='STOP_ARRIVAL'&&V13.lastArrivalKey===key)return; if(type==='STOP_PASSED'&&V13.lastPassKey===key)return;
+    if(type==='STOP_ARRIVAL')V13.lastArrivalKey=key; else V13.lastPassKey=key;
+    const p=state?.pos, c=p?.coords||{}, scheduled=state?.run?arrivalFor(state.run.trip,index,state.run.serviceDate):null, actual=new Date();
+    const delta=scheduled?Math.round((actual-scheduled)/1000):(Number.isFinite(state?.punctuality?.deltaSeconds)?Math.round(state.punctuality.deltaSeconds):null);
+    const speeds=p?safeSpeedKmh(p):{gps:null,derived:null,chosen:null};
+    await addEvent({sessionId:id,ts:iso(actual),type,stopIndex:index,stopName:st.name,scheduledTime:scheduled?iso(scheduled):null,scheduleDeltaSec:delta,lat:Number.isFinite(c.latitude)?c.latitude:null,lon:Number.isFinite(c.longitude)?c.longitude:null,accuracyM:Number.isFinite(c.accuracy)?c.accuracy:null,speedKmh:speeds.chosen===null?null:Number(speeds.chosen.toFixed(1))}).catch(console.warn);
+    if(V13.sessionStats&&type==='STOP_ARRIVAL') V13.sessionStats.stops++;
+  }
+
+  // --- Accrochage au moteur existant ---
+  try{
+    const baseEnter=enterDriver;
+    enterDriver=function(mode){ const r=baseEnter(mode); startJournal(mode).catch(console.warn); return r; };
+    const baseProcess=processPos;
+    processPos=function(p){ const r=baseProcess(p); logPosition(p).catch(console.warn); return r; };
+    const baseArrival=announceArrival;
+    announceArrival=function(){ const idx=state?.target, was=state?.arrivalAnnounced; const r=baseArrival(); if(!was&&state?.arrivalAnnounced&&Number.isInteger(idx)) logStop('STOP_ARRIVAL',idx); return r; };
+    const baseAdvance=advance;
+    advance=function(manual=false){ const idx=state?.target; const r=baseAdvance(manual); if(Number.isInteger(idx)&&idx<(state?.pattern?.stops?.length||0)) logStop('STOP_PASSED',idx); return r; };
+    const baseFinish=finish;
+    finish=function(){ closeJournal('normal').catch(console.warn); return baseFinish(); };
+  }catch(e){ console.warn('V13 journal patch',e); }
+
+  // --- Historique / exports ---
+  function fmtDate(s){ try{return new Date(s).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'});}catch{return s||'—';} }
+  function fmtDelay(sec){ if(!Number.isFinite(sec))return '—';const sign=sec<0?'−':'+';sec=Math.abs(Math.round(sec));return `${sign}${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`; }
+  async function refreshJournalList(){
+    const box=$v13('v13JournalList'); if(!box)return;
+    try{
+      const xs=(await allSessions()).filter(s=>s.matricule===V13.matricule);
+      box.innerHTML=xs.length?xs.map(s=>`<div class="v13-session"><div class="v13-session-grid"><div><strong>${esc(s.route||'—')} · ${esc(s.destination||'')}</strong><span>${fmtDate(s.startedAt)} · ${esc(s.serviceMode||'')} · ${s.tripId?`trip ${esc(s.tripId)}`:'sans horaire'}</span><span>${s.stopEvents||0} arrêts journalisés · ${s.samples||0} points GPS · max ${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh:'—'} km/h · ${Number.isFinite(s.distanceKm)?s.distanceKm:'—'} km</span></div><span class="v13-session-badge">${s.status==='open'?'EN COURS':'TERMINÉ'}</span></div></div>`).join(''):'<div class="v13-session"><strong>Aucun service enregistré</strong><span>Les journaux apparaîtront ici après une prise de service.</span></div>';
+    }catch(e){ box.innerHTML=`<div class="v13-session"><strong>Journal indisponible</strong><span>${esc(e.message||e)}</span></div>`; }
+  }
+  function csvCell(v){ if(v===null||v===undefined)return '';const s=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n;]/.test(s)?`"${s.replaceAll('"','""')}"`:s; }
+  function downloadBlob(name,content,type){ const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500); }
+  async function exportJson(){
+    const [allS,allE]=await Promise.all([allSessions(),allEvents()]);
+    const sessions=allS.filter(s=>s.matricule===V13.matricule), ids=new Set(sessions.map(s=>s.id)), events=allE.filter(e=>ids.has(e.sessionId));
+    const payload={exportedAt:iso(),appVersion:APP_VERSION,matricule:V13.matricule,sessions,events};
+    downloadBlob(`fluo-saeiv-${V13.matricule}-${ymd(new Date())}.json`,JSON.stringify(payload,null,2),'application/json');
+  }
+  async function exportCsv(){
+    const [allS,allE]=await Promise.all([allSessions(),allEvents()]), sessions=allS.filter(s=>s.matricule===V13.matricule), ids=new Set(sessions.map(s=>s.id)), events=allE.filter(e=>ids.has(e.sessionId)), map=new Map(sessions.map(s=>[s.id,s]));
+    const cols=['session_id','matricule','ligne','destination','trip_id','service','type','date_heure','arret','heure_prevue','ecart_secondes','ecart','latitude','longitude','precision_m','vitesse_kmh','vitesse_gps_kmh','vitesse_calculee_kmh','confiance_fusion'];
+    const rows=events.map(e=>{const s=map.get(e.sessionId)||{};return [e.sessionId,s.matricule||V13.matricule,s.route,s.destination,s.tripId,s.serviceMode,e.type,e.ts,e.stopName||e.currentStop||'',e.scheduledTime||e.plannedTime||'',e.scheduleDeltaSec,fmtDelay(e.scheduleDeltaSec),e.lat,e.lon,e.accuracyM,e.speedKmh,e.gpsSpeedKmh,e.derivedSpeedKmh,e.fusionConfidence];});
+    const csv='\uFEFF'+[cols,...rows].map(r=>r.map(csvCell).join(';')).join('\r\n');
+    downloadBlob(`fluo-saeiv-${V13.matricule}-${ymd(new Date())}.csv`,csv,'text/csv;charset=utf-8');
+  }
+  function openJournal(){ refreshJournalList(); refreshStorageInfo(); $v13('v13JournalSheet')?.classList.remove('hidden'); }
+  function closeJournalSheet(){ $v13('v13JournalSheet')?.classList.add('hidden'); }
+  $v13('v13JournalBtn')?.addEventListener('click',openJournal);
+  $v13('v13JournalClose')?.addEventListener('click',closeJournalSheet);
+  $v13('v13JournalSheet')?.addEventListener('click',e=>{if(e.target===$v13('v13JournalSheet'))closeJournalSheet();});
+  $v13('v13ExportCsv')?.addEventListener('click',()=>exportCsv().catch(e=>alert(`Export CSV impossible : ${e.message}`)));
+  $v13('v13ExportJson')?.addEventListener('click',()=>exportJson().catch(e=>alert(`Export JSON impossible : ${e.message}`)));
+
+  async function requestPersistentStorage(){ try{ if(navigator.storage?.persist) await navigator.storage.persist(); }catch{} }
+  async function refreshStorageInfo(){
+    const el=$v13('v13Storage'); if(!el)return;
+    try{ const est=await navigator.storage?.estimate?.(); if(est){el.textContent=`Stockage local utilisé : ${(est.usage/1024/1024).toFixed(1)} Mo. Les données restent sur cet appareil tant qu’elles ne sont pas supprimées par l’utilisateur/le navigateur.`;} }
+    catch{}
+  }
+
+  // Ferme seulement le journal visuel : une fermeture brutale de la PWA laisse la session en statut "open", ce qui est volontairement visible au prochain export.
+  window.addEventListener('pagehide',()=>{ if(V13.activeSessionId) addEvent({sessionId:V13.activeSessionId,ts:iso(),type:'APP_BACKGROUND_OR_CLOSE'}).catch(()=>{}); });
+
+  // Met à jour le label de version sans dépendre du fichier build.json.
+  setTimeout(()=>{ const b=$v13('buildInfo'); if(b&&!/V13/.test(b.textContent)) b.textContent += ' · V13 Traçabilité'; },1100);
+})();
+
+</script>
+
+<script>
+'use strict';
+
+/* Fluo SAEIV V14 — TAD dynamique : seuls les arrêts sélectionnés structurent le trajet */
+(() => {
+  const q = id => document.getElementById(id);
+  const V14_CACHE_KEY = 'fluoV14TadRouteCache';
+  const V14 = {
+    serial: 0,
+    timer: null,
+    busy: false,
+    ready: false,
+    signature: '',
+    pattern: null,
+    distanceM: 0,
+    durationS: 0,
+    cache: new Map()
+  };
+
+  document.title = 'Fluo SAEIV V14 · TAD dynamique';
+  const eyebrow = document.querySelector('.top .eyebrow');
+  if (eyebrow) eyebrow.textContent = 'SAEIV CONDUCTEUR · V14 TAD DYNAMIQUE + TRAÇABILITÉ';
+
+  // --- Information TAD dynamique ---
+  const tadHeadText = document.querySelector('.tad-panel-head > div:first-child span');
+  if (tadHeadText) tadHeadText.textContent = 'Coche uniquement les arrêts réellement à desservir. Le trajet routier est recalculé entre ces seuls arrêts.';
+  const tadSummary = q('tadSummary');
+  if (tadSummary && !q('v14TadRouteBox')) {
+    tadSummary.insertAdjacentHTML('afterend', `
+      <div id="v14TadRouteBox" class="v14-tad-route idle">
+        <div><b>🧭 Tracé TAD dynamique</b><span id="v14TadRouteStatus">Sélectionne la course et les arrêts à desservir.</span></div>
+        <button id="v14TadRetry" type="button">↻ Recalculer</button>
+      </div>
+    `);
+  }
+
+  const css = document.createElement('style');
+  css.id = 'v14Style';
+  css.textContent = `
+    .v14-tad-route{margin-top:10px;padding:11px 12px;border:1px solid #355163;border-radius:13px;background:#081821;display:flex;gap:10px;align-items:center;justify-content:space-between}
+    .v14-tad-route>div{min-width:0;display:flex;flex-direction:column;gap:4px}.v14-tad-route b{font-size:.78rem}.v14-tad-route span{font-size:.72rem;color:#a9bbc6;line-height:1.35}
+    .v14-tad-route button{flex:0 0 auto;padding:8px 9px;font-size:.68rem}.v14-tad-route.loading{border-color:#79651f;background:#201b08}.v14-tad-route.loading span{color:#ffe69a}
+    .v14-tad-route.ok{border-color:#2f7e50;background:#0b2719}.v14-tad-route.ok span{color:#c9ffda}.v14-tad-route.err{border-color:#8c3b3f;background:#2b1719}.v14-tad-route.err span{color:#ffd0cd}
+    .stop-pin.v14-skipped-stop{width:6px;height:6px;background:#7c8d98;border:1px solid #52636d;opacity:.22;box-shadow:none}
+    #driver.v14-tad-running .route-state.good::before{content:"TAD · ";font-weight:1000}
+    @media(max-width:680px){.v14-tad-route{padding:9px}.v14-tad-route button{padding:7px 8px}.v14-tad-route span{font-size:.67rem}}
+  `;
+  document.head.appendChild(css);
+
+  const routeBox = q('v14TadRouteBox');
+  const routeStatus = q('v14TadRouteStatus');
+  const retryBtn = q('v14TadRetry');
+
+  function cloneShape(shape){
+    return Array.isArray(shape) ? shape.map(p => [Number(p[0]), Number(p[1])]) : [];
+  }
+  function rememberOriginal(pattern=state?.pattern){
+    if (!pattern || pattern.__v14OriginalShape) return;
+    pattern.__v14OriginalShape = cloneShape(pattern.shape || []);
+  }
+  function restorePattern(pattern=state?.pattern, redraw=false){
+    if (!pattern?.__v14OriginalShape) return;
+    pattern.shape = cloneShape(pattern.__v14OriginalShape);
+    if (pattern === state?.pattern) {
+      V14.ready = false; V14.signature = ''; V14.pattern = null;
+      try { prepareCourseGeometry(); } catch {}
+      if (redraw && state?.nav?.map) { try { drawRoute(); } catch {} }
+    }
+  }
+  function selectedIndices(){
+    if (!state?.pattern) return [];
+    if (typeof tadSelectedIndices === 'function') return tadSelectedIndices();
+    return [...(state?.service?.tadStops || [])].filter(Number.isInteger).sort((a,b)=>a-b);
+  }
+  function signature(){
+    if (!state?.pattern || state?.service?.mode !== 'tad') return '';
+    const ids = selectedIndices();
+    return `${state.dept||''}|${state.route?.id||state.route?.short||''}|${state.run?.trip?.id||''}|${ids.join(',')}`;
+  }
+  function routeReady(){
+    return state?.service?.mode === 'tad' && V14.ready && !V14.busy && V14.pattern === state.pattern && V14.signature === signature();
+  }
+  function setRouteUi(kind, text){
+    if (routeBox) routeBox.className = `v14-tad-route ${kind||'idle'}`;
+    if (routeStatus) routeStatus.textContent = text;
+    if (retryBtn) retryBtn.disabled = V14.busy;
+  }
+  function invalidateRoute(message='Modification des arrêts : recalcul du trajet…'){
+    V14.ready = false; V14.signature = ''; V14.pattern = state?.pattern || null;
+    setRouteUi('loading', message);
+    try { refreshStartAvailability(); } catch {}
+  }
+
+  function loadCache(){
+    try {
+      const raw = JSON.parse(localStorage.getItem(V14_CACHE_KEY)||'{}');
+      for (const [k,v] of Object.entries(raw)) if (v?.shape?.length>=2) V14.cache.set(k,v);
+    } catch {}
+  }
+  function saveCache(){
+    try {
+      const xs=[...V14.cache.entries()].sort((a,b)=>(b[1].savedAt||0)-(a[1].savedAt||0)).slice(0,120);
+      localStorage.setItem(V14_CACHE_KEY, JSON.stringify(Object.fromEntries(xs)));
+    } catch {}
+  }
+  loadCache();
+
+  function pathKey(points){
+    return points.map(p=>`${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join('>');
+  }
+  async function roadPath(points){
+    if(!Array.isArray(points)||points.length<2) throw new Error('pas assez de points TAD');
+    const key=pathKey(points), cached=V14.cache.get(key);
+    if (cached?.shape?.length>=2) return cached;
+    const coords=points.map(p=>`${p.lon},${p.lat}`).join(';');
+    const url=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=false`;
+    const r=await fetch(url,{cache:'no-store'});
+    if(!r.ok) throw new Error(`routage HTTP ${r.status}`);
+    const data=await r.json();
+    const route=data?.routes?.[0], geometry=route?.geometry?.coordinates;
+    if(data?.code!=='Ok'||!Array.isArray(geometry)||geometry.length<2) throw new Error('aucun itinéraire routier trouvé');
+    const result={shape:geometry.map(p=>[Number(p[1]),Number(p[0])]),distanceM:Number(route.distance||0),durationS:Number(route.duration||0),savedAt:Date.now()};
+    V14.cache.set(key,result); saveCache(); return result;
+  }
+
+  function rebuildTadStopAlong(){
+    if(!routeReady() || !state?.fusion?.shape?.length) return;
+    const shape=state.fusion.shape, cum=state.fusion.cum||[], stops=state.pattern.stops||[], ids=selectedIndices();
+    const out=new Array(stops.length).fill(null); let searchFrom=0;
+    for(const idx of ids){
+      const st=stops[idx]; if(!st) continue;
+      let best={d:Infinity,along:null,seg:searchFrom};
+      for(let i=searchFrom;i<shape.length-1;i++){
+        const z=pointSegmentProjection(st.lat,st.lon,shape[i],shape[i+1]);
+        const along=(cum[i]||0)+z.t*((cum[i+1]||cum[i]||0)-(cum[i]||0));
+        if(z.d<best.d) best={d:z.d,along,seg:i};
+        if(best.d<8 && i>searchFrom+160) break;
+      }
+      if(Number.isFinite(best.along)){ out[idx]=best.along; searchFrom=Math.max(searchFrom,best.seg); }
+    }
+    state.fusion.stopAlong=out;
+  }
+
+  async function rebuildTadRoute(reason='selection'){
+    if(state?.service?.mode!=='tad' || !state?.pattern){
+      setRouteUi('idle','Le tracé dynamique s’active uniquement en mode TAD.');
+      return false;
+    }
+    rememberOriginal();
+    const ids=selectedIndices(), stops=state.pattern.stops||[];
+    if(ids.length<2){
+      V14.busy=false; V14.ready=false; V14.signature=''; V14.pattern=state.pattern;
+      setRouteUi('idle','Sélectionne au moins un arrêt TAD après l’arrêt de prise de service.');
+      try { refreshStartAvailability(); } catch {}
+      return false;
+    }
+    const my=++V14.serial; V14.busy=true; V14.ready=false; V14.signature=''; V14.pattern=state.pattern;
+    setRouteUi('loading',`Calcul du trajet entre ${ids.length} arrêts sélectionnés…`);
+    try { refreshStartAvailability(); } catch {}
+    try{
+      let shape=[], distanceM=0, durationS=0;
+      const waypoints=ids.map(i=>{const s=stops[i]; if(!s) throw new Error('arrêt TAD invalide'); return {lat:Number(s.lat),lon:Number(s.lon),name:s.name};});
+      // On limite chaque requête à 20 points pour rester léger sur le service public ; les blocs se chevauchent d'un point.
+      const chunks=[]; let at=0;
+      while(at<waypoints.length-1){ const end=Math.min(waypoints.length,at+20); chunks.push(waypoints.slice(at,end)); at=end-1; }
+      for(let k=0;k<chunks.length;k++){
+        if(my!==V14.serial) return false;
+        const pts=chunks[k], A=pts[0], B=pts[pts.length-1];
+        setRouteUi('loading',`Calcul ${k+1}/${chunks.length} · ${A.name} → ${B.name}`);
+        const leg=await roadPath(pts);
+        if(shape.length && leg.shape.length) shape.push(...leg.shape.slice(1)); else shape.push(...leg.shape);
+        distanceM+=leg.distanceM||0; durationS+=leg.durationS||0;
+      }
+      if(my!==V14.serial) return false;
+      if(shape.length<2) throw new Error('tracé routier vide');
+      state.pattern.shape=shape;
+      V14.busy=false; V14.ready=true; V14.signature=signature(); V14.pattern=state.pattern; V14.distanceM=distanceM; V14.durationS=durationS;
+      prepareCourseGeometry();
+      rebuildTadStopAlong();
+      if(state?.nav?.map){ drawRoute(); updateStopMarkers(); }
+      const km=(distanceM/1000).toFixed(distanceM>=10000?0:1).replace('.',',');
+      const mins=Math.max(1,Math.round(durationS/60));
+      setRouteUi('ok',`${ids.length} arrêts opérationnels · ${km} km · env. ${mins} min de routage routier. Les autres arrêts ne sont pas des points de passage imposés.`);
+      try { refreshStartAvailability(); } catch {}
+      return true;
+    }catch(e){
+      if(my!==V14.serial) return false;
+      V14.busy=false; V14.ready=false; V14.signature=''; V14.pattern=state.pattern;
+      // On refuse de lancer un TAD sur l'ancien tracé complet : mieux vaut signaler l'échec qu'afficher une route fausse.
+      setRouteUi('err',`Trajet TAD non calculé : ${e.message||e}. Vérifie la connexion Internet puis touche « Recalculer »; le service TAD reste volontairement bloqué tant que le nouveau tracé n’est pas prêt.`);
+      try { refreshStartAvailability(); } catch {}
+      return false;
+    }
+  }
+
+  function scheduleRebuild(delay=260){
+    clearTimeout(V14.timer);
+    if(state?.service?.mode!=='tad' || !state?.pattern){ return; }
+    invalidateRoute();
+    const expected=signature();
+    V14.timer=setTimeout(()=>{ if(state?.service?.mode==='tad' && state?.pattern && signature()===expected) rebuildTadRoute('auto'); },delay);
+  }
+
+  // --- Le démarrage n'est autorisé que si le tracé correspond exactement à la sélection actuelle ---
+  try{
+    const baseRefresh=refreshStartAvailability;
+    refreshStartAvailability=function(){
+      const r=baseRefresh();
+      if(state?.service?.mode==='tad' && state?.pattern){
+        const ok=routeReady();
+        ui.start.disabled = ui.start.disabled || !ok;
+        ui.simulate.disabled = ui.simulate.disabled || !ok;
+        if(!ok && !V14.busy && selectedIndices().length>=2 && routeStatus && !routeBox?.classList.contains('err')) setRouteUi('idle','Trajet TAD à recalculer avant la prise de service.');
+      }
+      return r;
+    };
+  }catch(e){ console.warn('V14 disponibilité TAD',e); }
+
+  // --- Recalage des seuls arrêts TAD sélectionnés sur le nouveau tracé ---
+  try{
+    const basePrepare=prepareCourseGeometry;
+    prepareCourseGeometry=function(){ const r=basePrepare(); if(routeReady()) rebuildTadStopAlong(); return r; };
+  }catch(e){ console.warn('V14 géométrie TAD',e); }
+
+  // --- Régulation horaire : interpolation uniquement entre arrêts TAD retenus ---
+  try{
+    const basePlanned=plannedTimeAtPosition;
+    plannedTimeAtPosition=function(){
+      if(state?.service?.mode!=='tad' || !routeReady() || !state.run) return basePlanned();
+      const along=state.fusion?.snapped?.along, ids=selectedIndices(), sa=state.fusion?.stopAlong||[];
+      if(!Number.isFinite(along)||ids.length<2) return basePlanned();
+      const timeAt=(idx,departure=false)=>departure?(departureFor(state.run.trip,idx,state.run.serviceDate)||arrivalFor(state.run.trip,idx,state.run.serviceDate)):(arrivalFor(state.run.trip,idx,state.run.serviceDate)||departureFor(state.run.trip,idx,state.run.serviceDate));
+      const first=ids[0], last=ids[ids.length-1];
+      if(Number.isFinite(sa[first]) && along<=sa[first]+1) return timeAt(first,true);
+      for(let k=0;k<ids.length-1;k++){
+        const a=ids[k], b=ids[k+1], xa=sa[a], xb=sa[b];
+        if(!Number.isFinite(xa)||!Number.isFinite(xb)||along>xb+1) continue;
+        const ta=timeAt(a,true), tb=timeAt(b,false); if(!ta||!tb) return ta||tb||null;
+        const f=xb>xa?Math.max(0,Math.min(1,(along-xa)/(xb-xa))):0;
+        return new Date(ta.getTime()+(tb.getTime()-ta.getTime())*f);
+      }
+      return timeAt(last,false);
+    };
+  }catch(e){ console.warn('V14 horaire TAD',e); }
+
+  // --- Les arrêts non retenus restent informatifs mais visuellement secondaires ---
+  try{
+    const baseStopIcon=stopIcon;
+    stopIcon=function(index){
+      if(state?.service?.mode==='tad' && state?.pattern && !state.service.tadStops.has(index) && typeof L!=='undefined'){
+        return L.divIcon({className:'',html:'<div class="stop-pin v14-skipped-stop"></div>',iconSize:[6,6],iconAnchor:[3,3]});
+      }
+      return baseStopIcon(index);
+    };
+  }catch(e){ console.warn('V14 arrêts TAD secondaires',e); }
+
+  // --- Quand on change de course/mode, on ne laisse jamais le tracé TAD contaminer une ligne régulière ---
+  try{
+    const baseSelectRun=selectRun;
+    selectRun=function(i){
+      if(state?.pattern?.__v14OriginalShape) restorePattern(state.pattern,false);
+      const r=baseSelectRun(i);
+      if(state?.pattern){ rememberOriginal(); if(state.service.mode==='tad') scheduleRebuild(180); }
+      return r;
+    };
+  }catch(e){ console.warn('V14 sélection course',e); }
+  try{
+    const baseSetMode=setServiceMode;
+    setServiceMode=function(mode){
+      if(state?.service?.mode==='tad' && mode!=='tad' && state?.pattern?.__v14OriginalShape) restorePattern(state.pattern,false);
+      const r=baseSetMode(mode);
+      if(mode==='tad'){
+        if(ui?.serviceModeHelp) ui.serviceModeHelp.textContent='TAD : coche uniquement les arrêts réellement à desservir. Le SAEIV recalcule un trajet routier qui relie ces arrêts dans l’ordre de la course ; les autres ne sont plus des points de passage imposés.';
+        if(state?.pattern){ rememberOriginal(); scheduleRebuild(180); } else setRouteUi('idle','Choisis une course puis les arrêts TAD à desservir.');
+      } else {
+        V14.ready=false; V14.busy=false; V14.signature=''; V14.pattern=null; clearTimeout(V14.timer);
+      }
+      return r;
+    };
+  }catch(e){ console.warn('V14 mode TAD',e); }
+
+  // --- Les changements de sélection déclenchent le reroutage automatiquement ---
+  q('tadStopList')?.addEventListener('change',()=>scheduleRebuild());
+  q('tadAll')?.addEventListener('click',()=>setTimeout(()=>scheduleRebuild(80),0));
+  q('tadNone')?.addEventListener('click',()=>setTimeout(()=>scheduleRebuild(80),0));
+  q('startStop')?.addEventListener('change',()=>{ if(state?.service?.mode==='tad') scheduleRebuild(); });
+  retryBtn?.addEventListener('click',()=>rebuildTadRoute('manual'));
+
+  // Lorsque le conducteur entre en service TAD, le badge/map signalent le caractère dynamique.
+  try{
+    const baseEnter=enterDriver;
+    enterDriver=function(mode){
+      const r=baseEnter(mode);
+      ui.driver?.classList.toggle('v14-tad-running',state?.service?.mode==='tad');
+      if(state?.service?.mode==='tad' && ui.routeState) ui.routeState.textContent='TAD · tracé dynamique';
+      return r;
+    };
+  }catch(e){ console.warn('V14 entrée service',e); }
+  try{
+    const baseFinish=finish;
+    finish=function(){ const r=baseFinish(); ui.driver?.classList.remove('v14-tad-running'); return r; };
+  }catch(e){ console.warn('V14 fin service',e); }
+
+  // Si la V13 a déjà chargé une course TAD au moment où ce patch s'initialise.
+  if(state?.service?.mode==='tad' && state?.pattern){ rememberOriginal(); scheduleRebuild(180); }
+  else setRouteUi('idle','Choisis le mode TAD, une course et les arrêts réellement à desservir.');
+
+  setTimeout(()=>{
+    const b=q('buildInfo'); if(b&&!/V14/.test(b.textContent)) b.textContent += ' · V14 TAD dynamique';
+  },1250);
+})();
+</script>
+
 </body>
 </html>
