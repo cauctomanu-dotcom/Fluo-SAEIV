@@ -1,4 +1,4 @@
-const C='fluo-saeiv-v18-lignes-bus-ajuste';
+const C='fluo-saeiv-v19-smartphone-bus-lignes-audio';
 const CORE=['./','index.html','styles.css','app.js','manifest.webmanifest'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(C))));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k))))));
