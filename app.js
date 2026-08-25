@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-// Fluo SAEIV V23.2 — calcul horaires stabilisé + journaux cartographiques/effaçables.
+// Fluo SAEIV V26 — base V25 + TAD préparés et annonces vocales en module cumulatif.
 // Le moteur de suivi utilise la progression le long du shape, le cap tangent au parcours et un lissage circulaire.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),

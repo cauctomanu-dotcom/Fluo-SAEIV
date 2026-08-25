@@ -291,6 +291,17 @@ def build(dept, cfg):
         }, f, ensure_ascii=False, separators=(',', ':'))
     with open(outdir / 'services.json', 'w', encoding='utf-8') as f:
         json.dump({'services': service_rules}, f, ensure_ascii=False, separators=(',', ':'))
+
+    # V25 : catalogue léger de tous les poteaux réellement utilisés par les courses GTFS.
+    # Il alimente le module de création de lignes exceptionnelles sans charger toutes les lignes une à une.
+    used_stop_ids = {x['stop_id'] for rows in stop_times.values() for x in rows if x.get('stop_id') in stops}
+    stop_catalog = [
+        {**stops[sid], 'dept': dept}
+        for sid in used_stop_ids
+    ]
+    stop_catalog.sort(key=lambda s: (s['name'].casefold(), s.get('code',''), s['id']))
+    with open(outdir / 'stops.json', 'w', encoding='utf-8') as f:
+        json.dump({'department': dept, 'stops': stop_catalog}, f, ensure_ascii=False, separators=(',', ':'))
     print(f'{dept}: {len(index)} lignes, {len(stops)} points d’arrêt, {sum(r["patterns"] for r in index)} parcours.')
 
 
@@ -300,7 +311,7 @@ def main():
         build(dept, cfg)
     with open(DATA / 'build.json', 'w', encoding='utf-8') as f:
         import datetime
-        json.dump({'generated_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'version': 'V20 TRACÉS EXACTS FLUO SHAPES COMPLETS + ROUTAGE ROUTIER SANS LIGNES DROITES'}, f)
+        json.dump({'generated_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'version': 'V25 TRACÉS EXACTS + CATALOGUE ARRÊTS 54/57 + LIGNES PERSONNALISÉES'}, f)
 
 if __name__ == '__main__':
     main()

@@ -1329,14 +1329,14 @@
     ui.simSpeed.disabled=true;
   }
 
-  // --- Onglet / feuille Calcul des horaires ---
+  // --- Création / génération de fiches horaires ---
   const serviceButtons=document.querySelector('.service-choice-buttons');
-  if(serviceButtons && !q('v16CalcOpen')) serviceButtons.insertAdjacentHTML('beforeend','<button id="v16CalcOpen" class="service-mode" type="button">🧮 Calcul horaires</button>');
+  if(serviceButtons && !q('v16CalcOpen')) serviceButtons.insertAdjacentHTML('beforeend','<button id="v16CalcOpen" class="service-mode" type="button">📄 Création fiche horaire</button>');
   if(!q('v16CalcSheet')) document.body.insertAdjacentHTML('beforeend',`
     <div id="v16CalcSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="v16CalcTitle">
       <div class="sheet v16-calc-sheet">
         <div class="sheet-head">
-          <div><div class="eyebrow">OUTIL CONDUCTEUR</div><h2 id="v16CalcTitle">🧮 Calcul des horaires</h2><p>Calcule un horaire théorique à chaque arrêt à partir du profil routier OpenStreetMap, avec un bus limité à 100 km/h. Le trafic réel n'est pas inclus.</p></div>
+          <div><div class="eyebrow">OUTIL CONDUCTEUR</div><h2 id="v16CalcTitle">📄 Création fiche horaire</h2><p>Crée une fiche horaire complète à partir de la ligne, du parcours et de l’heure de départ. Le calcul utilise le profil routier, un bus plafonné à 100 km/h et 30 secondes d’arrêt aux arrêts intermédiaires.</p></div>
           <button id="v16CalcClose" class="sheet-close" type="button">Fermer</button>
         </div>
         <div class="v16-calc-grid">
@@ -1345,10 +1345,10 @@
           <label>Sens / parcours<select id="v16CalcPattern" disabled><option>Choisir la ligne</option></select></label>
           <label>Arrêt de départ<select id="v16CalcStart" disabled><option>Choisir le parcours</option></select></label>
           <label>Heure de départ<input id="v16CalcTime" type="time" step="60"></label>
-          <label>Temps d'arrêt moyen<input id="v16CalcDwell" type="number" inputmode="numeric" min="0" max="180" step="5" value="20"><small>secondes aux arrêts intermédiaires</small></label>
+          <label>Temps d’arrêt aux arrêts<input id="v16CalcDwell" type="number" value="30" disabled><small>30 secondes fixes aux arrêts intermédiaires</small></label>
         </div>
-        <button id="v16CalcRun" class="primary full" type="button" disabled>CALCULER LES HORAIRES</button>
-        <div id="v16CalcStatus" class="status">Choisis un département, une ligne et un parcours.</div>
+        <button id="v16CalcRun" class="primary full" type="button" disabled>CRÉER LA FICHE HORAIRE</button>
+        <div id="v16CalcStatus" class="status">Choisis un département, une ligne, un parcours et l’heure de départ.</div>
         <div id="v16CalcResults" class="v16-calc-results hidden"></div>
       </div>
     </div>`);
@@ -1550,24 +1550,39 @@
   function calcSelectPattern(i){
     const p=V16.calc.patterns[Number(i)];V16.calc.pattern=p||null;const ss=q('v16CalcStart');q('v16CalcResults').classList.add('hidden');
     if(!p){ss.disabled=true;ss.innerHTML='<option>Choisir le parcours</option>';q('v16CalcRun').disabled=true;return}
-    ss.innerHTML=p.stops.map((s,n)=>`<option value="${n}">${n+1}. ${esc(s.name)}</option>`).join('');ss.disabled=false;q('v16CalcRun').disabled=false;setCalcStatus('Renseigne l’heure de départ puis lance le calcul.','ok');
+    ss.innerHTML=p.stops.map((s,n)=>`<option value="${n}">${n+1}. ${esc(s.name)}</option>`).join('');ss.disabled=false;q('v16CalcRun').disabled=false;setCalcStatus('Renseigne l’heure de départ puis crée la fiche horaire.','ok');
   }
   async function runScheduleCalculation(){
-    const p=V16.calc.pattern,start=Math.max(0,Number(q('v16CalcStart').value||0)),raw=q('v16CalcTime').value,dwell=Math.max(0,Number(q('v16CalcDwell').value||0));
+    const p=V16.calc.pattern,start=Math.max(0,Number(q('v16CalcStart').value||0)),raw=q('v16CalcTime').value,dwell=30;
     if(!p||!raw) return setCalcStatus('Choisis le parcours, l’arrêt de départ et une heure de départ.','err');
-    const m=raw.match(/^(\d{1,2}):(\d{2})$/);if(!m)return;const baseMinutes=(+m[1])*60+(+m[2]);const stops=p.stops.slice(start);if(stops.length<2)return setCalcStatus('Il faut au moins un arrêt après le départ.','err');
-    q('v16CalcRun').disabled=true;q('v16CalcRun').textContent='⏳ CALCUL ROUTIER…';setCalcStatus(`Calcul de ${stops.length-1} inter-arrêts…`);
+    const m=raw.match(/^(\d{1,2}):(\d{2})$/);if(!m)return setCalcStatus('Heure de départ invalide.','err');
+    const baseMinutes=(+m[1])*60+(+m[2]),stops=p.stops.slice(start);if(stops.length<2)return setCalcStatus('Il faut au moins un arrêt après le départ.','err');
+    q('v16CalcRun').disabled=true;q('v16CalcRun').textContent='⏳ CRÉATION DE LA FICHE…';setCalcStatus(`Calcul de ${stops.length-1} inter-arrêts…`);
     try{
       const legs=await roadProfilesForStops(stops);let elapsed=0,km=0;const rows=[];
       rows.push({i:start,name:stops[0].name,time:calcClock(baseMinutes,0),leg:'Départ',km:0});
       for(let k=0;k<legs.length&&k<stops.length-1;k++){
-        const leg=legs[k];elapsed+=leg.seconds;km+=leg.distance/1000;rows.push({i:start+k+1,name:stops[k+1].name,time:calcClock(baseMinutes,elapsed),leg:`${Math.round(leg.avgKmh)} km/h moy.`,km});if(k<legs.length-1)elapsed+=dwell;
+        const leg=legs[k];elapsed+=leg.seconds;km+=leg.distance/1000;
+        rows.push({i:start+k+1,name:stops[k+1].name,time:calcClock(baseMinutes,elapsed),leg:`${Math.round(leg.avgKmh)} km/h moy.`,km});
+        if(k<legs.length-1)elapsed+=dwell;
       }
-      const end=calcClock(baseMinutes,elapsed), totalMin=Math.round(elapsed/60),res=q('v16CalcResults');
-      res.innerHTML=`<div class="v16-calc-summary"><b>${esc(V16.calc.route?.short||'')} · ${esc(calcVariantHint(p))}</b><br>Départ ${raw} · arrivée calculée ${end} · ${km.toFixed(1).replace('.',',')} km · ${totalMin} min · arrêt moyen ${dwell} s.<br><small>Profil routier OSM/OSRM, bus plafonné à 100 km/h, sans trafic ni aléas d’exploitation.</small></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Horaire calculé</th><th>Profil inter-arrêt</th><th>Distance</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.i+1}</td><td>${esc(r.name)}</td><td>${r.time}</td><td>${r.leg}</td><td>${r.km.toFixed(1).replace('.',',')} km</td></tr>`).join('')}</tbody></table>`;
-      res.classList.remove('hidden');setCalcStatus('Calcul terminé.','ok');
-    }catch(e){setCalcStatus(`Calcul impossible : ${e.message||e}. Vérifie la connexion Internet puis réessaie.`,'err')}
-    finally{q('v16CalcRun').disabled=false;q('v16CalcRun').textContent='CALCULER LES HORAIRES'}
+      const end=calcClock(baseMinutes,elapsed),totalMin=Math.round(elapsed/60),res=q('v16CalcResults');
+      const sheet={
+        id:crypto.randomUUID?crypto.randomUUID():`fh-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        createdAt:new Date().toISOString(),dept:V16.calc.dept||null,
+        routeId:V16.calc.route?.id||null,routeShort:V16.calc.route?.short||'',routeLong:V16.calc.route?.long||'',
+        headsign:p?.headsign||stops.at(-1)?.name||'Terminus',variant:calcVariantHint(p),
+        startStopIndex:start,startStopName:stops[0]?.name||'',departureTime:raw,arrivalTime:end,dwellSeconds:dwell,
+        distanceKm:Number(km.toFixed(2)),totalMinutes:totalMin,
+        shape:(p?.shape||[]).map(z=>[Number(z[0]),Number(z[1])]).filter(z=>Number.isFinite(z[0])&&Number.isFinite(z[1])),
+        stops:rows.map((r,n)=>({order:n+1,sourceIndex:r.i,name:r.name,time:r.time,profile:r.leg,cumulativeKm:Number(r.km.toFixed(2)),lat:Number(stops[n]?.lat),lon:Number(stops[n]?.lon)}))
+      };
+      if(!window.FluoScheduleSheets?.save)throw new Error('bibliothèque des fiches horaires indisponible');
+      await window.FluoScheduleSheets.save(sheet);
+      res.innerHTML=`<div class="v16-calc-summary"><b>✅ Fiche horaire enregistrée · ${esc(V16.calc.route?.short||'')} · ${esc(calcVariantHint(p))}</b><br>Départ ${raw} · arrivée ${end} · ${km.toFixed(1).replace('.',',')} km · ${totalMin} min · 30 s aux arrêts intermédiaires.<br><small>Retrouve cette fiche avec le bouton « Fiches horaires » à côté des Journaux. Profil routier OSM/OSRM, bus plafonné à 100 km/h, sans trafic ni aléas d’exploitation.</small></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Horaire</th><th>Profil inter-arrêt</th><th>Distance</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.i+1}</td><td>${esc(r.name)}</td><td>${r.time}</td><td>${r.leg}</td><td>${r.km.toFixed(1).replace('.',',')} km</td></tr>`).join('')}</tbody></table>`;
+      res.classList.remove('hidden');setCalcStatus('Fiche horaire créée et enregistrée sur cet appareil.','ok');
+    }catch(e){setCalcStatus(`Création impossible : ${e.message||e}. Vérifie la connexion Internet puis réessaie.`,'err')}
+    finally{q('v16CalcRun').disabled=false;q('v16CalcRun').textContent='CRÉER LA FICHE HORAIRE'}
   }
   function openScheduleCalculator(){
     const sheet=q('v16CalcSheet'); if(!sheet) return;
@@ -1723,6 +1738,7 @@
         <option value="regular">Lignes régulières</option>
         <option value="school">Lignes scolaires</option>
         <option value="all">Toutes les lignes</option>
+        <option value="custom">Lignes personnalisées</option>
       </select>
       <small>57 : régulières 57R… · 54 : régulières R…/numériques, scolaires S… · « Toutes » affiche aussi les codes atypiques.</small>
       <span id="lineTypeCount" class="v18-filter-count"></span>`;
@@ -1732,7 +1748,7 @@
   const typeSel=q('lineTypeFilter'), typeCount=q('lineTypeCount');
   let routeMaster=[], applyingRoute=false;
   const routeObserver=new MutationObserver(()=>{
-    if(applyingRoute) return;
+    if(applyingRoute||typeSel?.value==='custom') return;
     const opts=[...route.options];
     // Une vraie liste chargée contient au moins une option avec une value non vide.
     if(!opts.some(o=>o.value)) return;
@@ -1741,8 +1757,18 @@
   });
   function observeRoute(){routeObserver.observe(route,{childList:true})}
   function applyRouteFilter(resetIfHidden=true){
-    if(!routeMaster.length||!route) return;
+    if(!route) return;
     const cat=typeSel?.value||'regular', current=route.value;
+    if(cat==='custom'){
+      applyingRoute=true;routeObserver.disconnect();
+      route.disabled=false;route.innerHTML='<option value="">Chargement des lignes personnalisées…</option>';
+      applyingRoute=false;
+      window.dispatchEvent(new CustomEvent('fluo:custom-lines-request'));
+      setTimeout(observeRoute,0);
+      if(typeCount)typeCount.textContent='Lignes créées localement';
+      return;
+    }
+    if(!routeMaster.length) return;
     const kept=routeMaster.filter((r,i)=>i===0||!r.value||categoryMatches(r.text,cat,dept?.value));
     applyingRoute=true;routeObserver.disconnect();route.innerHTML='';kept.forEach(r=>route.appendChild(makeOption(r)));observeRoute();applyingRoute=false;
     const canKeep=current&&kept.some(r=>r.value===current);
@@ -1752,7 +1778,7 @@
     if(typeCount) typeCount.textContent=`${n} ligne${n>1?'s':''} affichée${n>1?'s':''}`;
   }
   if(route){observeRoute();if([...route.options].some(o=>o.value)){routeMaster=[...route.options].map(o=>({value:o.value,text:o.textContent||'',disabled:o.disabled}));applyRouteFilter(false)}}
-  if(typeSel){const saved=localStorage.getItem('fluo_line_type_filter');if(['regular','school','all'].includes(saved))typeSel.value=saved;typeSel.addEventListener('change',()=>{localStorage.setItem('fluo_line_type_filter',typeSel.value);applyRouteFilter(true)})}
+  if(typeSel){const saved=localStorage.getItem('fluo_line_type_filter');if(['regular','school','all','custom'].includes(saved))typeSel.value=saved;typeSel.addEventListener('change',()=>{localStorage.setItem('fluo_line_type_filter',typeSel.value);applyRouteFilter(true)})}
 
   // --- Même filtre dans Calcul horaires V16. On conserve les value=index d'origine. ---
   const calcGrid=q('v16CalcDept')?.closest('.v16-calc-grid');
@@ -2133,5 +2159,500 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 
 </script>
+<script>
+'use strict';
+/* Fluo SAEIV V24 — création et bibliothèque de fiches horaires. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const DB_NAME='fluo-saeiv-fiches-horaires-v24';
+  const DB_VERSION=1;
+  const STORE='sheets';
+  const V24={dbPromise:null,map:null,current:null};
+
+  function esc24(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function fmtDate24(v){try{return new Date(v).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}catch{return v||'—'}}
+  function safeName24(v){return String(v||'fiche-horaire').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9_-]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,80)||'fiche-horaire'}
+  function uuid24(){return crypto.randomUUID?crypto.randomUUID():`fh-${Date.now()}-${Math.random().toString(36).slice(2)}`}
+
+  function db24(){
+    if(V24.dbPromise)return V24.dbPromise;
+    V24.dbPromise=new Promise((resolve,reject)=>{
+      const r=indexedDB.open(DB_NAME,DB_VERSION);
+      r.onupgradeneeded=()=>{
+        const d=r.result;
+        if(!d.objectStoreNames.contains(STORE)){
+          const s=d.createObjectStore(STORE,{keyPath:'id'});
+          s.createIndex('createdAt','createdAt');
+          s.createIndex('routeShort','routeShort');
+        }
+      };
+      r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
+    });
+    return V24.dbPromise;
+  }
+  async function save24(sheet){
+    const d=await db24();
+    const record={...sheet,id:sheet.id||uuid24(),createdAt:sheet.createdAt||new Date().toISOString(),appVersion:'V24'};
+    await new Promise((resolve,reject)=>{const tx=d.transaction(STORE,'readwrite');tx.objectStore(STORE).put(record);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+    if(!q('v24Library')?.classList.contains('hidden'))await renderList24();
+    return record;
+  }
+  async function all24(){const d=await db24();return new Promise((resolve,reject)=>{const r=d.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>resolve((r.result||[]).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))));r.onerror=()=>reject(r.error)})}
+  async function get24(id){const d=await db24();return new Promise((resolve,reject)=>{const r=d.transaction(STORE).objectStore(STORE).get(id);r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error)})}
+  async function del24(id){const d=await db24();return new Promise((resolve,reject)=>{const tx=d.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}
+  async function clear24(){const d=await db24();return new Promise((resolve,reject)=>{const tx=d.transaction(STORE,'readwrite');tx.objectStore(STORE).clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}
+
+  const css=document.createElement('style');
+  css.id='v24Style';
+  css.textContent=`
+    .v24-sheet-list{overflow:auto;margin-top:12px;border:1px solid #2e4656;border-radius:13px;background:#07141e;min-height:150px}
+    .v24-sheet-item{padding:11px;border-bottom:1px solid rgba(255,255,255,.07);cursor:pointer}.v24-sheet-item:last-child{border-bottom:0}.v24-sheet-item:active{background:#102837}
+    .v24-sheet-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.v24-sheet-item strong{display:block}.v24-sheet-item span{display:block;color:#9fb0bb;font-size:.7rem;margin-top:3px}.v24-sheet-badge{font-size:.62rem;font-weight:950;border-radius:999px;padding:5px 8px;background:#173142;color:#d9edf6;white-space:nowrap}
+    .v24-sheet-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.v24-sheet-actions button{min-height:36px;padding:7px 9px;font-size:.7rem}.v24-sheet-actions .danger{background:#402024;color:#ffd4d0;border-color:#743c43}
+    .v24-empty{padding:22px;text-align:center;color:#9fb0bb}.v24-library-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.v24-library-actions button{min-height:46px}
+    .v24-detail-backdrop{position:fixed;z-index:13250;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;padding:12px}.v24-detail-backdrop.hidden{display:none!important}.v24-detail{width:min(980px,100%);max-height:94dvh;display:flex;flex-direction:column;background:#0d202c;border:1px solid rgba(255,255,255,.15);border-radius:22px;padding:14px;box-shadow:0 -20px 60px rgba(0,0,0,.55)}
+    .v24-detail-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v24-detail-head h2{margin:3px 0 4px;font-size:1.3rem}.v24-detail-head p{margin:0;color:#9fb0bb;font-size:.74rem}.v24-detail-scroll{overflow:auto;padding-right:2px}.v24-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:11px 0}.v24-card{padding:9px;border:1px solid #2e4656;border-radius:12px;background:#081720}.v24-card span{display:block;color:#8fa5b3;font-size:.64rem}.v24-card b{display:block;margin-top:2px;font-size:.9rem}
+    #v24Map{height:300px;border:1px solid #355163;border-radius:15px;overflow:hidden;background:#10202a}.v24-note{margin:6px 2px 0;color:#8295a3;font-size:.66rem}.v24-table{margin-top:11px;border:1px solid #2e4656;border-radius:13px;overflow:auto}.v24-table table{width:100%;border-collapse:collapse;font-size:.76rem}.v24-table th,.v24-table td{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;white-space:nowrap}.v24-table th{position:sticky;top:0;background:#10202c;color:#a6b6c1;z-index:2}.v24-table td:nth-child(2){font-weight:850;white-space:normal;min-width:190px}.v24-table td:nth-child(3){font-weight:1000;color:#ffd000}
+    .v24-detail-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px}.v24-detail-actions button{min-height:46px}
+    @media(max-width:680px){.v24-detail-backdrop{padding:0}.v24-detail{border-radius:22px 22px 0 0;max-height:96dvh;padding-bottom:calc(12px + env(safe-area-inset-bottom))}.v24-summary{grid-template-columns:1fr 1fr}.v24-library-actions,.v24-detail-actions{grid-template-columns:1fr}#v24Map{height:280px}}
+  `;
+  document.head.appendChild(css);
+
+  function addUi24(){
+    const journal=q('v13JournalBtn');
+    if(journal&&!q('v24SheetsBtn')){
+      const b=document.createElement('button');b.id='v24SheetsBtn';b.className='v13-log-btn';b.type='button';b.textContent='📄 Fiches horaires';journal.insertAdjacentElement('afterend',b);
+    }
+    if(!q('v24Library'))document.body.insertAdjacentHTML('beforeend',`
+      <div id="v24Library" class="v13-sheet-backdrop hidden" role="dialog" aria-modal="true">
+        <div class="v13-sheet">
+          <div class="v13-sheet-head"><div><div class="v13-logo">FICHES HORAIRES</div><h2>Fiches horaires créées</h2><p>Les fiches générées sont conservées sur cet appareil. Touche une fiche pour afficher son parcours et ses horaires.</p></div><button id="v24LibraryClose" class="v13-sheet-close" type="button">Fermer</button></div>
+          <div id="v24SheetList" class="v24-sheet-list"></div>
+          <div class="v24-library-actions"><button id="v24Refresh" type="button">↻ Actualiser</button><button id="v24ClearAll" class="danger" type="button">🧹 Effacer toutes les fiches</button></div>
+        </div>
+      </div>`);
+    if(!q('v24Detail'))document.body.insertAdjacentHTML('beforeend',`
+      <div id="v24Detail" class="v24-detail-backdrop hidden" role="dialog" aria-modal="true">
+        <div class="v24-detail">
+          <div class="v24-detail-head"><div><div class="v13-logo">FICHE HORAIRE · V24</div><h2 id="v24Title">Fiche horaire</h2><p id="v24Subtitle"></p></div><button id="v24DetailClose" type="button">Fermer</button></div>
+          <div class="v24-detail-scroll"><div id="v24Summary" class="v24-summary"></div><div id="v24Map"></div><div class="v24-note">Parcours de la variante sélectionnée. Calcul basé sur le profil routier OSM/OSRM, le plafond bus à 100 km/h et 30 secondes d'arrêt aux arrêts intermédiaires.</div><div id="v24Table" class="v24-table"></div></div>
+          <div class="v24-detail-actions"><button id="v24Download" class="primary" type="button">⬇ Télécharger la fiche</button><button id="v24Delete" class="danger" type="button">🗑 Supprimer cette fiche</button></div>
+        </div>
+      </div>`);
+  }
+
+  async function renderList24(){
+    const box=q('v24SheetList');if(!box)return;
+    try{
+      const xs=await all24();
+      box.innerHTML=xs.length?xs.map(s=>`<div class="v24-sheet-item" data-v24-id="${esc24(s.id)}"><div class="v24-sheet-row"><div><strong>${esc24(s.routeShort||'Ligne')} · ${esc24(s.headsign||s.destination||'')}</strong><span>Départ ${esc24(s.departureTime||'—')} · ${esc24(s.startStopName||'—')} · arrivée ${esc24(s.arrivalTime||'—')}</span><span>Créée le ${esc24(fmtDate24(s.createdAt))} · ${Number(s.distanceKm||0).toFixed(1).replace('.',',')} km · ${esc24(s.totalMinutes??'—')} min</span></div><span class="v24-sheet-badge">${esc24(s.dept||'')}</span></div><div class="v24-sheet-actions"><button type="button" data-v24-action="view">📄 Ouvrir</button><button type="button" data-v24-action="download">⬇ Télécharger</button><button type="button" class="danger" data-v24-action="delete">🗑 Supprimer</button></div></div>`).join(''):'<div class="v24-empty"><strong>Aucune fiche horaire</strong><br>Crée une fiche avec le bouton « Création fiche horaire ».</div>';
+    }catch(e){box.innerHTML=`<div class="v24-empty"><strong>Fiches indisponibles</strong><br>${esc24(e.message||e)}</div>`}
+  }
+
+  function renderMap24(sheet){
+    const el=q('v24Map');if(!el)return;
+    if(V24.map){try{V24.map.remove()}catch{}V24.map=null}
+    if(typeof L==='undefined'){el.innerHTML='<div class="v24-empty">Carte indisponible.</div>';return}
+    const shape=(sheet.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
+    const stops=(sheet.stops||[]).map(s=>({s,p:[Number(s.lat),Number(s.lon)]})).filter(x=>Number.isFinite(x.p[0])&&Number.isFinite(x.p[1]));
+    const center=shape[0]||stops[0]?.p||[48.7,6.2];
+    const map=L.map(el,{zoomControl:true,attributionControl:true}).setView(center,12);V24.map=map;
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+    const bounds=[];
+    if(shape.length>1){L.polyline(shape,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);bounds.push(...shape)}
+    stops.forEach((x,i)=>{bounds.push(x.p);L.circleMarker(x.p,{radius:i===0?7:i===stops.length-1?7:5,color:'#173447',weight:2,fillColor:i===0?'#55d981':i===stops.length-1?'#ffb000':'#fff',fillOpacity:1}).addTo(map).bindPopup(`<b>${esc24(x.s.name)}</b><br>Horaire : ${esc24(x.s.time)}`)});
+    if(bounds.length>1)try{map.fitBounds(bounds,{padding:[28,28],maxZoom:15})}catch{}
+    setTimeout(()=>map.invalidateSize(),80);
+  }
+
+  async function openDetail24(id){
+    const s=await get24(id);if(!s)return;V24.current=s;
+    q('v24Title').textContent=`${s.routeShort||'Ligne'} · ${s.headsign||''}`;
+    q('v24Subtitle').textContent=`${s.startStopName||'Départ'} à ${s.departureTime||'—'} · créée le ${fmtDate24(s.createdAt)}`;
+    q('v24Summary').innerHTML=`<div class="v24-card"><span>DÉPART</span><b>${esc24(s.departureTime||'—')}</b></div><div class="v24-card"><span>ARRIVÉE</span><b>${esc24(s.arrivalTime||'—')}</b></div><div class="v24-card"><span>DISTANCE</span><b>${Number(s.distanceKm||0).toFixed(1).replace('.',',')} km</b></div><div class="v24-card"><span>DURÉE</span><b>${esc24(s.totalMinutes??'—')} min</b></div>`;
+    const rows=s.stops||[];
+    q('v24Table').innerHTML=rows.length?`<table><thead><tr><th>#</th><th>Arrêt</th><th>Horaire</th><th>Profil inter-arrêt</th><th>Distance cumulée</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc24(r.name)}</td><td>${esc24(r.time)}</td><td>${esc24(r.profile||'—')}</td><td>${Number(r.cumulativeKm||0).toFixed(1).replace('.',',')} km</td></tr>`).join('')}</tbody></table>`:'<div class="v24-empty">Aucun arrêt enregistré.</div>';
+    q('v24Detail').classList.remove('hidden');setTimeout(()=>renderMap24(s),30);
+  }
+  function closeDetail24(){q('v24Detail')?.classList.add('hidden');if(V24.map){try{V24.map.remove()}catch{}V24.map=null}V24.current=null}
+
+  function report24(s){
+    const data=JSON.stringify({shape:s.shape||[],stops:s.stops||[]}).replace(/</g,'\\u003c');
+    const rows=(s.stops||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${esc24(r.name)}</td><td><b>${esc24(r.time)}</b></td><td>${esc24(r.profile||'—')}</td><td>${Number(r.cumulativeKm||0).toFixed(1).replace('.',',')} km</td></tr>`).join('');
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fiche horaire ${esc24(s.routeShort||'')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1100px;margin:auto;padding:18px}.muted{color:#9fb0bb}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:15px 0}.card{background:#0d202c;border:1px solid #355163;border-radius:12px;padding:10px}.card small{display:block;color:#8fa5b3}.card b{font-size:1.05rem}#map{height:420px;border-radius:15px;overflow:hidden;border:1px solid #355163;background:#10202a}table{width:100%;border-collapse:collapse;margin-top:15px;background:#0d202c}th,td{padding:9px;border-bottom:1px solid #28404e;text-align:left}th{color:#b9cad5}td:nth-child(3){color:#ffd000;font-weight:bold}footer{margin-top:15px;color:#8295a3;font-size:.8rem}@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}#map{height:340px}table{font-size:.8rem;display:block;overflow:auto}}</style></head><body><main><div class="muted">FLUO SAEIV · FICHE HORAIRE</div><h1>${esc24(s.routeShort||'—')} · ${esc24(s.headsign||'')}</h1><div class="muted">Départ ${esc24(s.startStopName||'—')} à ${esc24(s.departureTime||'—')} · 30 secondes aux arrêts intermédiaires</div><div class="cards"><div class="card"><small>DÉPART</small><b>${esc24(s.departureTime||'—')}</b></div><div class="card"><small>ARRIVÉE</small><b>${esc24(s.arrivalTime||'—')}</b></div><div class="card"><small>DISTANCE</small><b>${Number(s.distanceKm||0).toFixed(1).replace('.',',')} km</b></div><div class="card"><small>DURÉE</small><b>${esc24(s.totalMinutes??'—')} min</b></div></div><div id="map"></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Horaire</th><th>Profil inter-arrêt</th><th>Distance</th></tr></thead><tbody>${rows}</tbody></table><footer>Créée le ${esc24(fmtDate24(s.createdAt))}. Calcul indicatif fondé sur OSM/OSRM, plafond bus 100 km/h et 30 secondes d'arrêt. Le trafic et les aléas réels ne sont pas inclus.</footer></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const D=${data};const shape=(D.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));const stops=(D.stops||[]).map(s=>({s,p:[Number(s.lat),Number(s.lon)]})).filter(x=>Number.isFinite(x.p[0])&&Number.isFinite(x.p[1]));const c=shape[0]||(stops[0]&&stops[0].p)||[48.7,6.2];const map=L.map('map').setView(c,12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(shape.length>1){L.polyline(shape,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...shape)}stops.forEach((x,i)=>{b.push(x.p);L.circleMarker(x.p,{radius:i===0||i===stops.length-1?7:5,color:'#173447',weight:2,fillColor:i===0?'#55d981':i===stops.length-1?'#ffb000':'#fff',fillOpacity:1}).addTo(map).bindPopup('<b>'+String(x.s.name||'').replace(/[<>&]/g,'')+'</b><br>Horaire : '+String(x.s.time||''))});if(b.length>1)map.fitBounds(b,{padding:[28,28],maxZoom:15});<\/script></body></html>`;
+  }
+  function download24(s){const blob=new Blob([report24(s)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`fiche-horaire-${safeName24(s.routeShort)}-${safeName24(s.departureTime)}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
+
+  addUi24();
+  q('v24SheetsBtn')?.addEventListener('click',async()=>{await renderList24();q('v24Library')?.classList.remove('hidden')});
+  q('v24LibraryClose')?.addEventListener('click',()=>q('v24Library')?.classList.add('hidden'));
+  q('v24Library')?.addEventListener('click',e=>{if(e.target===q('v24Library'))q('v24Library').classList.add('hidden')});
+  q('v24Refresh')?.addEventListener('click',renderList24);
+  q('v24ClearAll')?.addEventListener('click',async()=>{const xs=await all24();if(!xs.length)return alert('Aucune fiche à supprimer.');if(confirm(`Effacer définitivement les ${xs.length} fiches horaires enregistrées sur cet appareil ?`)){await clear24();await renderList24()}});
+  q('v24SheetList')?.addEventListener('click',async e=>{const item=e.target.closest('.v24-sheet-item');if(!item)return;const id=item.dataset.v24Id,action=e.target.closest('[data-v24-action]')?.dataset.v24Action;if(action==='delete'){e.stopPropagation();const s=await get24(id);if(s&&confirm(`Supprimer la fiche ${s.routeShort||''} départ ${s.departureTime||''} ?`)){await del24(id);await renderList24()}return}if(action==='download'){e.stopPropagation();const s=await get24(id);if(s)download24(s);return}await openDetail24(id)});
+  q('v24DetailClose')?.addEventListener('click',closeDetail24);q('v24Detail')?.addEventListener('click',e=>{if(e.target===q('v24Detail'))closeDetail24()});
+  q('v24Download')?.addEventListener('click',()=>{if(V24.current)download24(V24.current)});
+  q('v24Delete')?.addEventListener('click',async()=>{const s=V24.current;if(!s)return;if(confirm(`Supprimer la fiche ${s.routeShort||''} départ ${s.departureTime||''} ?`)){await del24(s.id);closeDetail24();await renderList24()}});
+
+  window.FluoScheduleSheets={save:save24,open:async()=>{await renderList24();q('v24Library')?.classList.remove('hidden')},refresh:renderList24};
+  document.title='Fluo SAEIV V24 · Création fiches horaires + journaux';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V24 FICHES HORAIRES';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
+})();
+</script>
+
+<script>
+'use strict';
+/* Fluo SAEIV V25 — création protégée de lignes exceptionnelles/personnalisées. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const DB_NAME='fluo-saeiv-custom-lines-v25', DB_VERSION=1, STORE='lines';
+  const PASSWORD_HASH='479dc31071bdffa690fcedb5fc32904a4198a253439b890186ccedbace33c71f'; // SHA-256 de la clé locale
+  const V25={dbPromise:null,stops:null,origin:null,terminus:null,current:null,busy:false,map:null,unlocked:sessionStorage.getItem('fluoV25CreatorUnlocked')==='1'};
+
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  const uuid=()=>crypto.randomUUID?crypto.randomUUID():`custom-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const fmtDate=v=>{try{return new Date(v).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}catch{return v||'—'}};
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+
+  function db(){
+    if(V25.dbPromise)return V25.dbPromise;
+    V25.dbPromise=new Promise((resolve,reject)=>{
+      const r=indexedDB.open(DB_NAME,DB_VERSION);
+      r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(STORE)){const s=d.createObjectStore(STORE,{keyPath:'id'});s.createIndex('createdAt','createdAt');s.createIndex('code','code')}};
+      r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
+    });
+    return V25.dbPromise;
+  }
+  async function saveLine(line){const d=await db();const rec={...line,id:line.id||uuid(),createdAt:line.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),appVersion:'V25'};await new Promise((res,rej)=>{const tx=d.transaction(STORE,'readwrite');tx.objectStore(STORE).put(rec);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});return rec}
+  async function allLines(){const d=await db();return new Promise((res,rej)=>{const r=d.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res((r.result||[]).sort((a,b)=>String(b.updatedAt||b.createdAt).localeCompare(String(a.updatedAt||a.createdAt))));r.onerror=()=>rej(r.error)})}
+  async function getLine(id){const d=await db();return new Promise((res,rej)=>{const r=d.transaction(STORE).objectStore(STORE).get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+  async function deleteLine(id){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+
+  async function sha256(text){
+    if(!crypto?.subtle)return null;
+    const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+    return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }
+
+  const css=document.createElement('style');css.id='v25Style';css.textContent=`
+    .v25-backdrop{position:fixed;z-index:13400;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center;padding:12px}.v25-backdrop.hidden{display:none!important}
+    .v25-sheet{width:min(980px,100%);max-height:95dvh;display:flex;flex-direction:column;background:#0d202c;border:1px solid rgba(255,255,255,.15);border-radius:22px;padding:14px;box-shadow:0 -20px 70px rgba(0,0,0,.6)}
+    .v25-head{display:flex;gap:12px;justify-content:space-between;align-items:flex-start}.v25-head h2{margin:3px 0 5px}.v25-head p{margin:0;color:#9fb0bb;font-size:.75rem;line-height:1.4}.v25-scroll{overflow:auto;padding-right:2px}
+    .v25-lock{max-width:430px;margin:18px auto;padding:16px;border:1px solid #355163;border-radius:16px;background:#081720}.v25-lock label{margin-top:10px}.v25-lock input,.v25-grid input{width:100%;background:#07141e;color:#fff;border:1px solid #355163;border-radius:12px;min-height:48px;padding:11px 12px;font:inherit}.v25-lock-msg{min-height:20px;margin-top:8px;color:#ffd0cd;font-size:.74rem}
+    .v25-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.v25-grid .wide{grid-column:1/-1}.v25-check{display:flex;flex-direction:row;align-items:center;gap:9px;padding:11px;border:1px solid #355163;border-radius:12px;background:#081720}.v25-check input{width:21px;height:21px;min-height:0;accent-color:#ffd000}
+    .v25-stop-picker{position:relative}.v25-stop-picker input{width:100%;background:#07141e;color:#fff;border:1px solid #355163;border-radius:12px;min-height:48px;padding:11px 12px;font:inherit}.v25-results{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);max-height:260px;overflow:auto;border:1px solid #355163;border-radius:12px;background:#07141e;box-shadow:0 16px 40px rgba(0,0,0,.55)}.v25-results.hidden{display:none!important}.v25-result{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.07);cursor:pointer}.v25-result:last-child{border-bottom:0}.v25-result strong{display:block}.v25-result span{display:block;color:#91a8b6;font-size:.68rem;margin-top:2px}.v25-result:active{background:#123044}.v25-selected{margin-top:6px;color:#cfe0e8;font-size:.7rem;min-height:1.2em}
+    .v25-status{margin:11px 0;padding:10px 11px;border:1px solid #355163;border-radius:12px;background:#081720;color:#c0d0da;font-size:.75rem;line-height:1.4}.v25-status.ok{border-color:#34764c;color:#d1ffdc}.v25-status.err{border-color:#7d3638;color:#ffd6d4}.v25-status.busy{border-color:#79651f;color:#ffe69a}
+    .v25-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.v25-actions button{min-height:48px}.v25-actions .wide{grid-column:1/-1}
+    .v25-preview{margin-top:13px}.v25-preview.hidden{display:none!important}.v25-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.v25-card{padding:9px;border:1px solid #2e4656;border-radius:12px;background:#081720}.v25-card span{display:block;color:#8fa5b3;font-size:.62rem}.v25-card b{display:block;margin-top:3px;font-size:.88rem}.v25-map{height:300px;margin-top:10px;border:1px solid #355163;border-radius:14px;overflow:hidden;background:#10202a}.v25-table{margin-top:10px;max-height:310px;overflow:auto;border:1px solid #2e4656;border-radius:12px}.v25-table table{width:100%;border-collapse:collapse;font-size:.74rem}.v25-table th,.v25-table td{padding:8px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;white-space:nowrap}.v25-table th{position:sticky;top:0;background:#10202c;color:#a6b6c1;z-index:2}.v25-table td:nth-child(2){white-space:normal;min-width:190px;font-weight:800}.v25-table td:nth-child(3){color:#ffd000;font-weight:950}
+    .v25-saved{margin-top:14px;padding-top:12px;border-top:1px solid #2e4656}.v25-saved h3{margin:0 0 7px;font-size:.95rem}.v25-saved-item{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px;border:1px solid #2e4656;border-radius:11px;background:#081720;margin-top:6px}.v25-saved-item span{display:block;color:#91a8b6;font-size:.68rem;margin-top:2px}.v25-saved-item .buttons{display:flex;gap:5px;align-items:center}.v25-saved-item button{padding:7px 8px;font-size:.68rem}
+    @media(max-width:680px){.v25-backdrop{padding:0}.v25-sheet{border-radius:22px 22px 0 0;max-height:97dvh;padding-bottom:calc(12px + env(safe-area-inset-bottom))}.v25-grid,.v25-actions{grid-template-columns:1fr}.v25-grid .wide,.v25-actions .wide{grid-column:auto}.v25-summary{grid-template-columns:1fr 1fr}.v25-map{height:260px}.v25-saved-item{grid-template-columns:1fr}.v25-saved-item .buttons{justify-content:flex-start}}
+  `;document.head.appendChild(css);
+
+  function addUi(){
+    const sheets=q('v24SheetsBtn')||q('v13JournalBtn');
+    if(sheets&&!q('v25CreatorBtn')){const b=document.createElement('button');b.id='v25CreatorBtn';b.className='v13-log-btn';b.type='button';b.textContent='🛠 Création ligne';sheets.insertAdjacentElement('afterend',b)}
+    const type=q('lineTypeFilter');if(type&&![...type.options].some(o=>o.value==='custom')){const o=document.createElement('option');o.value='custom';o.textContent='Lignes personnalisées';type.appendChild(o)}
+    if(!q('v25Creator'))document.body.insertAdjacentHTML('beforeend',`
+      <div id="v25Creator" class="v25-backdrop hidden" role="dialog" aria-modal="true">
+        <div class="v25-sheet">
+          <div class="v25-head"><div><div class="v13-logo">MODULE PROTÉGÉ · V25</div><h2>🛠 Création de ligne exceptionnelle</h2><p>Choisis un départ et un terminus parmi les arrêts Fluo 54/57. Le SAEIV construit le parcours routier, repère les arrêts sur l’itinéraire et calcule les horaires.</p></div><button id="v25Close" type="button">Fermer</button></div>
+          <div class="v25-scroll">
+            <div id="v25Lock" class="v25-lock">
+              <strong>Accès protégé</strong><div style="color:#91a8b6;font-size:.72rem;margin-top:4px">Saisis le mot de passe du module de création.</div>
+              <label>Mot de passe<input id="v25Password" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></label>
+              <button id="v25Unlock" class="primary full" type="button">DÉVERROUILLER</button><div id="v25LockMsg" class="v25-lock-msg"></div>
+            </div>
+            <div id="v25Body" class="hidden">
+              <div class="v25-grid">
+                <label>Numéro / nom de ligne<input id="v25Code" type="text" value="EX" maxlength="20" placeholder="Ex. EX, NAVETTE, 57X…"></label>
+                <label>Heure de départ<input id="v25DepartureTime" type="time" step="60"></label>
+                <label class="wide">Arrêt de départ<div class="v25-stop-picker"><input id="v25OriginSearch" type="search" autocomplete="off" placeholder="Rechercher un arrêt du 54 ou du 57…"><div id="v25OriginResults" class="v25-results hidden"></div></div><span id="v25OriginSelected" class="v25-selected">Aucun départ sélectionné.</span></label>
+                <label class="wide">Terminus<div class="v25-stop-picker"><input id="v25TerminusSearch" type="search" autocomplete="off" placeholder="Rechercher le terminus…"><div id="v25TerminusResults" class="v25-results hidden"></div></div><span id="v25TerminusSelected" class="v25-selected">Aucun terminus sélectionné.</span></label>
+                <label class="v25-check wide"><input id="v25Save" type="checkbox" checked><span>Enregistrer la ligne après génération pour la retrouver dans <b>Type de ligne → Lignes personnalisées</b>.</span></label>
+              </div>
+              <div id="v25Status" class="v25-status">Chargement de la liste des arrêts à l’ouverture du module.</div>
+              <div class="v25-actions"><button id="v25Generate" class="primary wide" type="button">GÉNÉRER LA LIGNE ET LES HORAIRES</button></div>
+              <div id="v25Preview" class="v25-preview hidden"><div id="v25Summary" class="v25-summary"></div><div id="v25Map" class="v25-map"></div><div id="v25Table" class="v25-table"></div><div class="v25-actions"><button id="v25StartGps" class="primary" type="button">🛰 LANCER EN GPS RÉEL</button><button id="v25StartSim" class="sim" type="button">▶︎ LANCER EN SIMULATION</button></div></div>
+              <div class="v25-saved"><h3>Lignes personnalisées enregistrées</h3><div id="v25SavedList"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>`)
+  }
+
+  function status(text,kind=''){const e=q('v25Status');if(e){e.textContent=text;e.className=`v25-status ${kind}`}}
+  function selectedText(s){return s?`${s.name}${s.code?` · ${s.code}`:''} · ${s.dept}`:'—'}
+
+  async function loadStops(){
+    if(V25.stops)return V25.stops;
+    status('Chargement des arrêts Fluo 54 et 57…','busy');
+    const out=[];
+    for(const dept of ['54','57']){
+      try{
+        const d=await jget(`data/${dept}/stops.json`);
+        for(const s of d.stops||[])out.push({...s,dept:String(s.dept||dept)});
+      }catch(e){
+        // Secours pour une publication qui n'aurait pas encore le nouveau stops.json :
+        // on reconstruit la liste depuis les fichiers de lignes. Plus lent, mais le module reste utilisable.
+        const idx=await jget(`data/${dept}/routes.json`), seen=new Map();
+        for(const r of idx.routes||[]){
+          try{const data=await jget(`data/${dept}/${r.file}`);for(const p of data.patterns||[])for(const s of p.stops||[]){const k=s.id||`${s.name}|${s.lat}|${s.lon}`;if(!seen.has(k))seen.set(k,{id:s.id||k,name:s.name||s.id||'Arrêt',lat:Number(s.lat),lon:Number(s.lon),code:s.code||'',dept})}}catch{}
+        }
+        out.push(...seen.values());
+      }
+    }
+    const dedup=new Map();for(const s of out){if(!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))continue;const k=`${s.dept}|${s.id||''}|${Number(s.lat).toFixed(6)}|${Number(s.lon).toFixed(6)}`;if(!dedup.has(k))dedup.set(k,{...s,lat:Number(s.lat),lon:Number(s.lon)})}
+    V25.stops=[...dedup.values()].sort((a,b)=>a.name.localeCompare(b.name,'fr',{sensitivity:'base'}));
+    status(`${V25.stops.length} arrêts opérationnels chargés pour le 54 et le 57.`,'ok');return V25.stops;
+  }
+
+  function findStops(text){
+    const s=norm(text);if(!s||!V25.stops)return [];
+    const bits=s.split(' ').filter(Boolean);
+    return V25.stops.map(x=>{const hay=norm(`${x.name} ${x.code||''} ${x.dept}`);let score=0;if(hay.startsWith(s))score+=20;if(norm(x.name).startsWith(s))score+=30;if(bits.every(b=>hay.includes(b)))score+=10;return {x,score}}).filter(z=>z.score>0).sort((a,b)=>b.score-a.score||a.x.name.localeCompare(b.x.name,'fr')).slice(0,40).map(z=>z.x);
+  }
+  function bindPicker(inputId,resultsId,selectedId,key){
+    const input=q(inputId),box=q(resultsId),sel=q(selectedId);if(!input||!box)return;
+    const render=()=>{const xs=findStops(input.value);box.innerHTML=xs.length?xs.map((s,i)=>`<div class="v25-result" data-i="${i}"><strong>${esc(s.name)}</strong><span>${esc(s.code||'sans code')} · département ${esc(s.dept)}</span></div>`).join(''):'<div class="v25-result"><span>Aucun arrêt trouvé.</span></div>';box._v25=xs;box.classList.remove('hidden')};
+    input.addEventListener('input',()=>{V25[key]=null;sel.textContent=key==='origin'?'Aucun départ sélectionné.':'Aucun terminus sélectionné.';if(input.value.trim().length>=2)render();else box.classList.add('hidden')});
+    input.addEventListener('focus',()=>{if(input.value.trim().length>=2)render()});
+    box.addEventListener('click',e=>{const r=e.target.closest('[data-i]');if(!r)return;const s=box._v25?.[Number(r.dataset.i)];if(!s)return;V25[key]=s;input.value=s.name;sel.textContent=selectedText(s);box.classList.add('hidden')});
+  }
+
+  function pointToSegmentMeters(lat,lon,a,b){return pointSegmentProjection(lat,lon,a,b)}
+  function geometryCum(shape){const c=[0];for(let i=1;i<shape.length;i++)c.push(c[i-1]+dist(shape[i-1][0],shape[i-1][1],shape[i][0],shape[i][1]));return c}
+  function projectOnShape(st,shape,cum){
+    let best={d:Infinity,along:0};
+    for(let i=0;i<shape.length-1;i++){
+      const z=pointToSegmentMeters(st.lat,st.lon,shape[i],shape[i+1]);
+      if(z.d<best.d)best={d:z.d,along:(cum[i]||0)+z.t*((cum[i+1]||cum[i]||0)-(cum[i]||0))};
+    }
+    return best;
+  }
+  function mergeShape(target,coords){for(const c of coords||[]){const p=[Number(c[1]),Number(c[0])];if(!Number.isFinite(p[0])||!Number.isFinite(p[1]))continue;const z=target.at(-1);if(!z||dist(z[0],z[1],p[0],p[1])>.8)target.push(p)}}
+  function normalizeLimit(rawKmh){if(!Number.isFinite(rawKmh)||rawKmh<=0)return 50;const estimated=rawKmh>=28?rawKmh/.8:rawKmh,standards=[20,30,50,70,80,90,100,110,130];let best=50,bd=Infinity;for(const x of standards){const d=Math.abs(x-estimated);if(d<bd){bd=d;best=x}}return Math.min(100,best)}
+  function legProfile(leg){const a=leg?.annotation||{},ds=a.distance||[],ss=a.speed||[],ts=a.duration||[];let meters=0,seconds=0;for(let i=0;i<Math.max(ds.length,ss.length,ts.length);i++){const d=Math.max(.1,Number(ds[i])||0),raw=Number(ss[i])||((Number(ts[i])>0)?d/Number(ts[i]):0),limit=normalizeLimit(raw*3.6);meters+=d;seconds+=d/(limit/3.6)}if(!meters){meters=Number(leg?.distance||0)||1;seconds=Number(leg?.duration||0)||meters/(50/3.6)}return {distance:meters,seconds,avgKmh:meters/Math.max(1,seconds)*3.6}}
+  async function routeRequest(stops,annotations=true){
+    const coords=stops.map(s=>`${Number(s.lon).toFixed(7)},${Number(s.lat).toFixed(7)}`).join(';');
+    const ann=annotations?'&annotations=speed,distance,duration':'';
+    const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=false&continue_straight=true${ann}`,{cache:'no-store'});if(!r.ok)throw new Error(`routage HTTP ${r.status}`);
+    const d=await r.json(),route=d?.routes?.[0],geometry=route?.geometry?.coordinates;if(d?.code!=='Ok'||!route||!Array.isArray(geometry)||geometry.length<2)throw new Error('aucun itinéraire routier trouvé');
+    return {geometry,legs:route.legs||[],distance:Number(route.distance||0),duration:Number(route.duration||0)};
+  }
+  async function routeThroughStops(stops){
+    const shape=[],legs=[];let distance=0,duration=0;
+    for(let i=0;i<stops.length-1;){const end=Math.min(stops.length,i+38),chunk=stops.slice(i,end),r=await routeRequest(chunk,true);mergeShape(shape,r.geometry);legs.push(...r.legs.map(legProfile));distance+=r.distance;duration+=r.duration;if(end>=stops.length)break;i=end-1}
+    if(shape.length<2)throw new Error('tracé routier vide');return {shape,legs,distance,duration};
+  }
+  function dedupeCandidates(xs){
+    const out=[];
+    for(const x of xs){const n=norm(x.stop.name),prev=[...out].reverse().find(y=>norm(y.stop.name)===n&&Math.abs(y.along-x.along)<180);if(prev){if(x.d<prev.d){const i=out.indexOf(prev);out[i]=x}}else out.push(x)}
+    return out.sort((a,b)=>a.along-b.along);
+  }
+  async function discoverStops(origin,terminus){
+    const r=await routeRequest([origin,terminus],false),shape=[];mergeShape(shape,r.geometry);const cum=geometryCum(shape),total=cum.at(-1)||0;
+    const minLat=Math.min(...shape.map(p=>p[0]))-.012,maxLat=Math.max(...shape.map(p=>p[0]))+.012,minLon=Math.min(...shape.map(p=>p[1]))-.018,maxLon=Math.max(...shape.map(p=>p[1]))+.018;
+    const candidates=[];
+    for(const st of V25.stops||[]){if(st.lat<minLat||st.lat>maxLat||st.lon<minLon||st.lon>maxLon)continue;const p=projectOnShape(st,shape,cum);if(p.d<=68&&p.along>25&&p.along<total-25)candidates.push({stop:st,d:p.d,along:p.along})}
+    const picked=dedupeCandidates(candidates).map(x=>x.stop).filter(s=>s.id!==origin.id&&s.id!==terminus.id);
+    return [origin,...picked,terminus];
+  }
+  function gtfsTime(total){total=Math.max(0,Math.round(total));const h=Math.floor(total/3600),m=Math.floor(total%3600/60),s=total%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`}
+  function displayTime(total){total=((Math.round(total)%86400)+86400)%86400;return `${String(Math.floor(total/3600)).padStart(2,'0')}:${String(Math.floor(total%3600/60)).padStart(2,'0')}`}
+  function baseSeconds(raw){const m=String(raw||'').match(/^(\d{1,2}):(\d{2})$/);return m?Number(m[1])*3600+Number(m[2])*60:null}
+  function buildSchedule(stops,legs,raw){
+    const start=baseSeconds(raw);if(start===null)throw new Error('heure de départ invalide');let t=start,km=0;const rows=[],times=[];
+    rows.push({name:stops[0].name,time:displayTime(t),gtfs:gtfsTime(t),profile:'Départ',km:0,lat:stops[0].lat,lon:stops[0].lon,id:stops[0].id,dept:stops[0].dept});times.push([gtfsTime(t),gtfsTime(t)]);
+    for(let i=0;i<stops.length-1;i++){
+      const leg=legs[i]||{seconds:Math.max(60,dist(stops[i].lat,stops[i].lon,stops[i+1].lat,stops[i+1].lon)/(50/3.6)),distance:dist(stops[i].lat,stops[i].lon,stops[i+1].lat,stops[i+1].lon),avgKmh:50};
+      t+=leg.seconds;km+=leg.distance/1000;const arr=gtfsTime(t),last=i===stops.length-2,dep=last?arr:gtfsTime(t+30);
+      rows.push({name:stops[i+1].name,time:displayTime(t),gtfs:arr,profile:`${Math.round(leg.avgKmh)} km/h moy.`,km:Number(km.toFixed(2)),lat:stops[i+1].lat,lon:stops[i+1].lon,id:stops[i+1].id,dept:stops[i+1].dept});times.push([arr,dep]);if(!last)t+=30;
+    }
+    return {rows,times,arrivalDisplay:displayTime(t),totalMinutes:Math.round((t-start)/60),distanceKm:Number(km.toFixed(2))};
+  }
+
+  function renderMap(line){const el=q('v25Map');if(!el)return;if(V25.map){try{V25.map.remove()}catch{}V25.map=null}if(typeof L==='undefined'){el.textContent='Carte indisponible.';return}const shape=line.shape||[],stops=line.stops||[],center=shape[0]||[stops[0]?.lat||48.7,stops[0]?.lon||6.2],map=L.map(el).setView(center,12);V25.map=map;L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(shape.length>1){L.polyline(shape,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...shape)}stops.forEach((s,i)=>{const p=[s.lat,s.lon];b.push(p);L.circleMarker(p,{radius:i===0||i===stops.length-1?7:4.5,color:'#173447',weight:2,fillColor:i===0?'#55d981':i===stops.length-1?'#ffb000':'#fff',fillOpacity:1}).addTo(map).bindPopup(`<b>${esc(s.name)}</b><br>${esc(s.time)}`)});if(b.length>1)try{map.fitBounds(b,{padding:[25,25],maxZoom:15})}catch{}setTimeout(()=>map.invalidateSize(),80)}
+  function renderPreview(line){V25.current=line;q('v25Preview')?.classList.remove('hidden');q('v25Summary').innerHTML=`<div class="v25-card"><span>LIGNE</span><b>${esc(line.code)}</b></div><div class="v25-card"><span>ARRÊTS</span><b>${line.stops.length}</b></div><div class="v25-card"><span>DISTANCE</span><b>${line.distanceKm.toFixed(1).replace('.',',')} km</b></div><div class="v25-card"><span>ARRIVÉE</span><b>${esc(line.arrivalTime)}</b></div>`;q('v25Table').innerHTML=`<table><thead><tr><th>#</th><th>Arrêt</th><th>Horaire</th><th>Profil</th><th>Distance</th></tr></thead><tbody>${line.stops.map((s,i)=>`<tr><td>${i+1}</td><td>${esc(s.name)} <small>${esc(s.dept||'')}</small></td><td>${esc(s.time)}</td><td>${esc(s.profile)}</td><td>${Number(s.km||0).toFixed(1).replace('.',',')} km</td></tr>`).join('')}</tbody></table>`;setTimeout(()=>renderMap(line),30)}
+
+  async function generate(){
+    if(V25.busy)return;if(!V25.origin||!V25.terminus)return status('Choisis d’abord un arrêt de départ et un terminus.','err');if(V25.origin.id===V25.terminus.id&&V25.origin.dept===V25.terminus.dept)return status('Le départ et le terminus doivent être différents.','err');
+    const raw=q('v25DepartureTime')?.value;if(baseSeconds(raw)===null)return status('Choisis une heure de départ.','err');const code=(q('v25Code')?.value||'EX').trim()||'EX';
+    V25.busy=true;q('v25Generate').disabled=true;q('v25Preview').classList.add('hidden');status('Étape 1/3 · Calcul du parcours et recherche des arrêts Fluo situés sur l’itinéraire…','busy');
+    try{
+      const stops=await discoverStops(V25.origin,V25.terminus);status(`Étape 2/3 · ${stops.length} arrêts retenus. Calcul routier précis et profils de vitesse…`,'busy');
+      const routed=await routeThroughStops(stops);status('Étape 3/3 · Construction des horaires avec 30 secondes aux arrêts…','busy');
+      const sched=buildSchedule(stops,routed.legs,raw),line={id:uuid(),code,name:code,createdAt:new Date().toISOString(),origin:{...V25.origin},terminus:{...V25.terminus},departureTime:raw,arrivalTime:sched.arrivalDisplay,totalMinutes:sched.totalMinutes,distanceKm:sched.distanceKm,dwellSeconds:30,shape:routed.shape,stops:sched.rows,times:sched.times,headsign:V25.terminus.name,trace_source:'custom_osrm_v25'};
+      if(q('v25Save')?.checked){const saved=await saveLine(line);V25.current=saved;status(`Ligne ${code} créée et enregistrée · ${line.stops.length} arrêts · ${line.distanceKm.toFixed(1).replace('.',',')} km · arrivée ${line.arrivalTime}.`,'ok');await renderSaved()}else{V25.current=line;status(`Ligne temporaire ${code} créée · ${line.stops.length} arrêts · ${line.distanceKm.toFixed(1).replace('.',',')} km · arrivée ${line.arrivalTime}. Elle ne sera pas conservée après fermeture/rechargement.`,'ok')}
+      renderPreview(V25.current);
+    }catch(e){status(`Création impossible : ${e.message||e}. Vérifie la connexion Internet puis réessaie.`,'err')}
+    finally{V25.busy=false;q('v25Generate').disabled=false}
+  }
+
+  function serviceDateNow(){const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate(),0,0,0,0)}
+  function activateLine(line){
+    if(!line?.stops?.length||line.stops.length<2)throw new Error('ligne personnalisée invalide');
+    setServiceMode('regular');
+    state.dept='CUSTOM';state.services={};state.route={id:`custom:${line.id}`,short:line.code||'EX',long:`${line.origin?.name||line.stops[0].name} → ${line.terminus?.name||line.stops.at(-1).name}`,custom:true};
+    const stops=line.stops.map((s,i)=>({id:s.id||`custom-stop-${i}`,name:s.name,lat:Number(s.lat),lon:Number(s.lon),code:'',arrival:line.times?.[i]?.[0]||'',departure:line.times?.[i]?.[1]||''}));
+    const pattern={headsign:line.headsign||stops.at(-1).name,direction:'custom',shape_id:`custom-${line.id}`,trace_source:'custom_osrm_v25',shape:(line.shape||[]).map(p=>[Number(p[0]),Number(p[1])]),stops,trips:[]};
+    const trip={id:`CUSTOM-${line.id}`,service:'CUSTOM',headsign:pattern.headsign,trip_short_name:line.code||'EX',block_id:'',times:line.times||stops.map((_,i)=>[line.stops[i]?.gtfs||'',line.stops[i]?.gtfs||''])};
+    const depSec=baseSeconds(line.departureTime||'00:00'),originDeparture=new Date(serviceDateNow().getTime()+depSec*1000),run={pattern,trip,serviceDate:serviceDateNow(),originDeparture};
+    state.patterns=[pattern];state.pattern=pattern;state.runOptions=[run];state.run=run;state.service.tadStops.clear();state.service.requestedStops.clear();state.service.requestAlertIndex=null;state.service.requestChimedStops.clear();
+    if(ui.serviceDate)ui.serviceDate.value=`${run.serviceDate.getFullYear()}-${String(run.serviceDate.getMonth()+1).padStart(2,'0')}-${String(run.serviceDate.getDate()).padStart(2,'0')}`;
+    ui.trip.innerHTML=`<option value="0" selected>${esc(line.departureTime)} · ligne personnalisée ${esc(line.code||'EX')}</option>`;ui.trip.disabled=true;
+    ui.startStop.innerHTML=stops.map((s,i)=>`<option value="${i}">${i+1}. ${esc(s.name)} · ${esc(line.stops[i]?.time||'')}</option>`).join('');ui.startStop.disabled=false;ui.startStop.value='0';
+    prepareCourseGeometry();renderRequestsButton();refreshStartAvailability();updateDepartureDisplay();labels();
+    if(ui.courseInfo)ui.courseInfo.textContent=`Ligne personnalisée ${line.code||'EX'} · ${stops[0].name} → ${pattern.headsign} · ${stops.length} arrêts · ${line.distanceKm?.toFixed?.(1)||line.distanceKm||'—'} km · horaires générés V25`;
+    const type=q('lineTypeFilter'),routeEl=q('route');if(type)type.value='custom';
+    if(routeEl){const val=`custom:${line.id}`;routeEl.disabled=false;if(![...routeEl.options].some(o=>o.value===val)){const o=document.createElement('option');o.value=val;o.textContent=`${line.code||'EX'} — ${line.origin?.name||stops[0].name} → ${line.terminus?.name||pattern.headsign}`;routeEl.appendChild(o)}routeEl.value=val}
+    return true;
+  }
+  async function launchCurrent(mode){const line=V25.current;if(!line)return status('Génère ou charge une ligne avant de la lancer.','err');try{activateLine(line);closeCreator();setTimeout(()=>mode==='gps'?startGps():startSimulation(),100)}catch(e){status(`Impossible de charger la ligne : ${e.message||e}`,'err')}}
+
+  async function populateCustomDropdown(){
+    const route=q('route'),type=q('lineTypeFilter');if(!route||type?.value!=='custom')return;const xs=await allLines();route.disabled=false;route.innerHTML=xs.length?'<option value="">Choisir une ligne personnalisée…</option>'+xs.map(x=>`<option value="custom:${esc(x.id)}">${esc(x.code||'EX')} — ${esc(x.origin?.name||x.stops?.[0]?.name||'Départ')} → ${esc(x.terminus?.name||x.headsign||'Terminus')}</option>`).join(''):'<option value="">Aucune ligne personnalisée enregistrée</option>';
+    if(ui.courseInfo)ui.courseInfo.textContent=xs.length?`${xs.length} ligne${xs.length>1?'s':''} personnalisée${xs.length>1?'s':''} enregistrée${xs.length>1?'s':''}.`:'Aucune ligne personnalisée. Utilise « Création ligne ».';
+  }
+  async function renderSaved(){const box=q('v25SavedList');if(!box)return;const xs=await allLines();box.innerHTML=xs.length?xs.map(x=>`<div class="v25-saved-item" data-id="${esc(x.id)}"><div><strong>${esc(x.code||'EX')} · ${esc(x.origin?.name||'Départ')} → ${esc(x.terminus?.name||x.headsign||'Terminus')}</strong><span>${x.stops?.length||0} arrêts · ${Number(x.distanceKm||0).toFixed(1).replace('.',',')} km · départ ${esc(x.departureTime||'—')} · ${esc(fmtDate(x.updatedAt||x.createdAt))}</span></div><div class="buttons"><button data-action="load" type="button">Charger</button><button data-action="delete" class="danger" type="button">Supprimer</button></div></div>`).join(''):'<div style="color:#91a8b6;font-size:.72rem">Aucune ligne enregistrée.</div>'}
+
+  function unlockView(){q('v25Lock')?.classList.toggle('hidden',V25.unlocked);q('v25Body')?.classList.toggle('hidden',!V25.unlocked);if(V25.unlocked){loadStops().catch(e=>status(`Arrêts indisponibles : ${e.message||e}`,'err'));renderSaved()}}
+  async function unlock(){const raw=(q('v25Password')?.value||'').replace(/\s+/g,'');let ok=false;const h=await sha256(raw);ok=h?h===PASSWORD_HASH:raw==='6044';if(!ok){q('v25LockMsg').textContent='Mot de passe incorrect.';return}V25.unlocked=true;sessionStorage.setItem('fluoV25CreatorUnlocked','1');q('v25Password').value='';q('v25LockMsg').textContent='';unlockView()}
+  function openCreator(){q('v25Creator')?.classList.remove('hidden');unlockView();const t=q('v25DepartureTime');if(t&&!t.value){const n=new Date();t.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`}}
+  function closeCreator(){q('v25Creator')?.classList.add('hidden');q('v25OriginResults')?.classList.add('hidden');q('v25TerminusResults')?.classList.add('hidden')}
+
+  addUi();bindPicker('v25OriginSearch','v25OriginResults','v25OriginSelected','origin');bindPicker('v25TerminusSearch','v25TerminusResults','v25TerminusSelected','terminus');
+  q('v25CreatorBtn')?.addEventListener('click',openCreator);q('v25Close')?.addEventListener('click',closeCreator);q('v25Creator')?.addEventListener('click',e=>{if(e.target===q('v25Creator'))closeCreator()});q('v25Unlock')?.addEventListener('click',unlock);q('v25Password')?.addEventListener('keydown',e=>{if(e.key==='Enter')unlock()});q('v25Generate')?.addEventListener('click',generate);q('v25StartGps')?.addEventListener('click',()=>launchCurrent('gps'));q('v25StartSim')?.addEventListener('click',()=>launchCurrent('simulation'));
+  q('v25SavedList')?.addEventListener('click',async e=>{const item=e.target.closest('[data-id]'),act=e.target.closest('[data-action]')?.dataset.action;if(!item||!act)return;const id=item.dataset.id;if(act==='delete'){const l=await getLine(id);if(l&&confirm(`Supprimer la ligne personnalisée ${l.code||'EX'} ?`)){await deleteLine(id);await renderSaved();if(q('lineTypeFilter')?.value==='custom')populateCustomDropdown()}return}if(act==='load'){const l=await getLine(id);if(l){V25.current=l;V25.origin=l.origin;V25.terminus=l.terminus;q('v25Code').value=l.code||'EX';q('v25DepartureTime').value=l.departureTime||'';q('v25OriginSearch').value=l.origin?.name||'';q('v25TerminusSearch').value=l.terminus?.name||'';q('v25OriginSelected').textContent=selectedText(l.origin);q('v25TerminusSelected').textContent=selectedText(l.terminus);renderPreview(l);status(`Ligne ${l.code||'EX'} chargée. Tu peux la lancer ou la régénérer.`,'ok')}}});
+
+  window.addEventListener('fluo:custom-lines-request',()=>populateCustomDropdown());
+  q('lineTypeFilter')?.addEventListener('change',()=>{if(q('lineTypeFilter').value==='custom')setTimeout(populateCustomDropdown,0)});
+  q('route')?.addEventListener('change',async e=>{if(q('lineTypeFilter')?.value!=='custom'||!String(e.target.value).startsWith('custom:'))return;e.stopImmediatePropagation();const id=String(e.target.value).slice(7),line=await getLine(id);if(!line)return;V25.current=line;activateLine(line)},true);
+
+  if(q('lineTypeFilter')?.value==='custom')setTimeout(populateCustomDropdown,0);
+  window.FluoCustomLines={all:allLines,get:getLine,save:saveLine,open:openCreator,populate:populateCustomDropdown,activate:activateLine};
+  document.title='Fluo SAEIV V25 · Fiches horaires + lignes personnalisées';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V25 LIGNES PERSONNALISÉES';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
+})();
+</script>
+
+
+<script id="v26Module">
+'use strict';
+/* Fluo SAEIV V26 — TAD préparés + bibliothèque d'annonces voyageurs manuelles. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const TAD_DB='fluo-saeiv-prepared-tad-v26', TAD_STORE='tads', ACCOUNT_KEY='fluoSaeivAccountV13';
+  const V26={dbPromise:null,selectedAnnouncement:null,loadingTad:false};
+  const esc26=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const uuid26=()=>crypto.randomUUID?crypto.randomUUID():`tad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const account26=()=>{try{return JSON.parse(localStorage.getItem(ACCOUNT_KEY)||'null')}catch{return null}};
+  const matricule26=()=>account26()?.matricule||'local';
+  const localYmd26=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const dateInputValue=()=>q('serviceDate')?.value||localYmd26();
+  const fmtDate26=v=>{try{return new Date(`${v}T12:00:00`).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}catch{return v||'—'}};
+  const fmtCreated26=v=>{try{return new Date(v).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}catch{return v||'—'}};
+
+  const css=document.createElement('style');css.id='v26Style';css.textContent=`
+    .v26-tad-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.v26-tad-actions button{min-height:44px}
+    .v26-backdrop{position:fixed;z-index:13550;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;padding:12px}.v26-backdrop.hidden{display:none!important}
+    .v26-sheet{width:min(900px,100%);max-height:94dvh;display:flex;flex-direction:column;background:#0d202c;border:1px solid rgba(255,255,255,.15);border-radius:22px;padding:14px;box-shadow:0 -20px 70px rgba(0,0,0,.58)}
+    .v26-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.v26-head h2{margin:3px 0 5px}.v26-head p{margin:0;color:#9fb0bb;font-size:.75rem;line-height:1.4}.v26-close{padding:9px 11px;flex:0 0 auto}.v26-scroll{overflow:auto;margin-top:10px}
+    .v26-tad-item{padding:11px;border:1px solid #2e4656;border-radius:13px;background:#081720;margin-bottom:8px}.v26-tad-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}.v26-tad-item strong{display:block}.v26-tad-item span{display:block;color:#91a8b6;font-size:.7rem;margin-top:3px;line-height:1.35}.v26-date-badge{display:inline-flex!important;padding:5px 7px;border-radius:999px;background:#173142;color:#d9edf6!important;font-size:.62rem!important;font-weight:950;white-space:nowrap;margin:0!important}.v26-date-badge.today{background:#123a22;color:#caffd8!important}.v26-date-badge.future{background:#10284a;color:#cde4ff!important}.v26-date-badge.past{background:#3a2525;color:#ffd5d2!important}.v26-tad-buttons{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.v26-tad-buttons button{padding:8px 9px;font-size:.72rem}.v26-empty{padding:22px;text-align:center;color:#9fb0bb}.v26-library-foot{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.v26-library-foot button{min-height:44px}
+    .v26-ann-btn{width:100%;min-height:44px;background:#183b51;border-color:#35647d;color:#e9f8ff}.v26-ann-side{width:100%;min-height:34px!important;padding:6px 8px!important;border-radius:9px!important;font-size:.62rem!important;background:#183b51!important;border-color:#35647d!important;color:#e9f8ff!important}
+    .v26-ann-backdrop{z-index:13600}.v26-ann-sheet{width:min(860px,100%)}.v26-ann-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}.v26-ann-choice{display:block;text-align:left;padding:11px;border:1px solid #2e4656;border-radius:13px;background:#081720;color:#fff}.v26-ann-choice b{display:block;font-size:.82rem}.v26-ann-choice span{display:block;margin-top:4px;color:#9fb0bb;font-size:.68rem;line-height:1.35;font-weight:600}.v26-ann-choice.selected{border-color:#ffd000;background:#2c270d;box-shadow:inset 3px 0 0 #ffd000}.v26-ann-preview{margin-top:11px;padding:11px;border:1px solid #355163;border-radius:13px;background:#07141e}.v26-ann-preview label{display:block}.v26-ann-preview textarea{width:100%;min-height:88px;margin-top:7px;resize:vertical;background:#091620;color:#fff;border:1px solid #355163;border-radius:12px;padding:10px;font:inherit;line-height:1.4}.v26-ann-actions{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:9px}.v26-ann-actions button{min-height:46px}.v26-ann-note{margin-top:7px;color:#8295a3;font-size:.67rem;line-height:1.35}
+    @media(max-width:680px){.v26-backdrop{padding:0}.v26-sheet{max-height:97dvh;border-radius:22px 22px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom))}.v26-ann-list,.v26-library-foot,.v26-tad-actions{grid-template-columns:1fr}.v26-ann-actions{grid-template-columns:1fr}.v26-tad-row{grid-template-columns:1fr}.v26-date-badge{width:max-content}#v26AnnounceBtn{order:9!important}#driver .grid.six{order:10!important}#driver .controls{order:11!important}#driver .sim-controls{order:12!important}#driver #recenter{order:13!important}}
+    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){#v26AnnounceBtn{display:none!important}.v26-ann-list{grid-template-columns:repeat(2,1fr)}.v26-sheet{max-height:96dvh}.v26-ann-sheet{width:min(920px,98vw)}}
+  `;document.head.appendChild(css);
+
+  function db26(){
+    if(V26.dbPromise)return V26.dbPromise;
+    V26.dbPromise=new Promise((resolve,reject)=>{const r=indexedDB.open(TAD_DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(TAD_STORE)){const s=d.createObjectStore(TAD_STORE,{keyPath:'id'});s.createIndex('date','serviceDate');s.createIndex('matricule','matricule')}};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+    return V26.dbPromise;
+  }
+  async function allTads26(){const d=await db26();return new Promise((res,rej)=>{const r=d.transaction(TAD_STORE).objectStore(TAD_STORE).getAll();r.onsuccess=()=>res((r.result||[]).filter(x=>String(x.matricule||'')===String(matricule26())).sort((a,b)=>String(a.serviceDate).localeCompare(String(b.serviceDate))||String(a.departureClock||'').localeCompare(String(b.departureClock||''))));r.onerror=()=>rej(r.error)})}
+  async function getTad26(id){const d=await db26();return new Promise((res,rej)=>{const r=d.transaction(TAD_STORE).objectStore(TAD_STORE).get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+  async function putTad26(x){const d=await db26();return new Promise((res,rej)=>{const tx=d.transaction(TAD_STORE,'readwrite');tx.objectStore(TAD_STORE).put(x);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+  async function deleteTad26(id){const d=await db26();return new Promise((res,rej)=>{const tx=d.transaction(TAD_STORE,'readwrite');tx.objectStore(TAD_STORE).delete(id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+
+  function addTadUi26(){
+    const userbar=q('v13Userbar');
+    if(userbar&&!q('v26MyTadsBtn')){const anchor=q('v25CreatorBtn')||q('v24SheetsBtn')||q('v13JournalBtn');const b=document.createElement('button');b.id='v26MyTadsBtn';b.className='v13-log-btn';b.type='button';b.textContent='📞 Mes TAD';anchor?.insertAdjacentElement('afterend',b)}
+    const summary=q('tadSummary');
+    if(summary&&!q('v26TadActions'))summary.insertAdjacentHTML('afterend','<div id="v26TadActions" class="v26-tad-actions"><button id="v26SaveTad" class="primary" type="button">💾 Enregistrer ce TAD</button><button id="v26OpenTads" type="button">📞 Mes TAD</button></div>');
+    if(!q('v26TadLibrary'))document.body.insertAdjacentHTML('beforeend',`<div id="v26TadLibrary" class="v26-backdrop hidden" role="dialog" aria-modal="true"><div class="v26-sheet"><div class="v26-head"><div><div class="v13-logo">TAD PRÉPARÉS · V26</div><h2>📞 Mes TAD</h2><p>Prépare une course TAD à l'avance pour une date précise. Le jour J, touche simplement « Charger » : la course, le départ et les arrêts à desservir seront restaurés.</p></div><button id="v26TadClose" class="v26-close" type="button">Fermer</button></div><div id="v26TadList" class="v26-scroll"></div><div class="v26-library-foot"><button id="v26DeletePast" class="danger" type="button">🧹 Supprimer les TAD passés</button><button id="v26TadDone" type="button">Fermer</button></div></div></div>`);
+  }
+  function tadDateClass26(date){const today=localYmd26();return date===today?'today':date>today?'future':'past'}
+  function tadDateLabel26(date){const c=tadDateClass26(date);return c==='today'?'AUJOURD’HUI':c==='future'?'À VENIR':'PASSÉ'}
+  async function renderTads26(){const box=q('v26TadList');if(!box)return;try{const xs=await allTads26();box.innerHTML=xs.length?xs.map(x=>`<div class="v26-tad-item" data-v26-tad="${esc26(x.id)}"><div class="v26-tad-row"><div><strong>${esc26(x.routeShort||'Ligne')} · ${esc26(x.originName||'Départ')} → ${esc26(x.terminusName||'Terminus')}</strong><span>${esc26(fmtDate26(x.serviceDate))} · départ prévu ${esc26(x.departureClock||'—')} · ${Number(x.selectedStops?.length||0)} arrêt${Number(x.selectedStops?.length||0)>1?'s':''} opérationnel${Number(x.selectedStops?.length||0)>1?'s':''}</span><span>Course ${esc26(x.tripId||'—')} · préparée ${esc26(fmtCreated26(x.createdAt))}</span></div><span class="v26-date-badge ${tadDateClass26(x.serviceDate)}">${tadDateLabel26(x.serviceDate)}</span></div><div class="v26-tad-buttons"><button type="button" class="primary" data-v26-tad-action="load">▶ Charger ce TAD</button><button type="button" class="danger" data-v26-tad-action="delete">🗑 Supprimer</button></div></div>`).join(''):'<div class="v26-empty"><strong>Aucun TAD préparé</strong><br>Passe en mode TAD, choisis la date, la course, ton départ et les arrêts à desservir, puis touche « Enregistrer ce TAD ».</div>'}catch(e){box.innerHTML=`<div class="v26-empty">Impossible de lire les TAD : ${esc26(e.message||e)}</div>`}}
+  function openTads26(){q('v26TadLibrary')?.classList.remove('hidden');renderTads26()}
+  function closeTads26(){q('v26TadLibrary')?.classList.add('hidden')}
+  function currentTadRecord26(){
+    if(state?.service?.mode!=='tad'||!state?.run||!state?.pattern)throw new Error('Passe d’abord en mode TAD et choisis une course.');
+    const start=Number(q('startStop')?.value||0), indices=(typeof tadSelectedIndices==='function'?tadSelectedIndices():[...(state.service.tadStops||[])].sort((a,b)=>a-b));
+    const future=indices.filter(i=>i>start);if(!future.length)throw new Error('Sélectionne au moins un arrêt à desservir après le départ.');
+    const selected=indices.map(i=>{const s=state.pattern.stops[i];return {index:i,id:s?.id||null,name:s?.name||'',lat:Number(s?.lat),lon:Number(s?.lon)}});
+    const dep=departureFor(state.run.trip,start,state.run.serviceDate);
+    return {id:uuid26(),matricule:matricule26(),serviceDate:dateInputValue(),dept:state.dept,routeId:state.route?.id||null,routeShort:state.route?.short||'',routeLong:state.route?.long||'',tripId:state.run?.trip?.id||null,patternHeadsign:state.pattern?.headsign||'',startStopIndex:start,startStopId:state.pattern.stops[start]?.id||null,originName:state.pattern.stops[start]?.name||'',terminusName:state.pattern.stops[future.at(-1)]?.name||'',departureClock:dep?formatClock(dep):'',selectedStops:selected,createdAt:new Date().toISOString(),appVersion:'V26'};
+  }
+  async function saveCurrentTad26(){try{const rec=currentTadRecord26();await putTad26(rec);if(q('tadSummary'))q('tadSummary').textContent=`✅ TAD enregistré pour le ${fmtDate26(rec.serviceDate)} · ${rec.routeShort} · ${rec.originName} → ${rec.terminusName}. Tu le retrouveras dans « Mes TAD ». `;await renderTads26()}catch(e){alert(e.message||e)}}
+  async function loadPreparedTad26(rec){
+    if(!rec||V26.loadingTad)return;V26.loadingTad=true;
+    const list=q('v26TadList');if(list)list.insertAdjacentHTML('afterbegin','<div id="v26LoadingTad" class="v26-empty">⏳ Chargement de la course TAD…</div>');
+    try{
+      setServiceMode('tad');
+      const type=q('lineTypeFilter');if(type){type.value='all';type.dispatchEvent(new Event('change',{bubbles:true}))}
+      q('serviceDate').value=rec.serviceDate;
+      q('dept').value=rec.dept;await loadDept(rec.dept);
+      const route=state.routes.find(r=>String(r.id)===String(rec.routeId))||state.routes.find(r=>String(r.short)===String(rec.routeShort));if(!route)throw new Error('La ligne enregistrée n’existe plus dans les données Fluo actuelles.');
+      q('route').value=route.id;await loadRoute(route);
+      let ri=state.runOptions.findIndex(r=>String(r.trip?.id)===String(rec.tripId));
+      if(ri<0&&rec.departureClock){ri=state.runOptions.findIndex(r=>{const idx=r.pattern.stops.findIndex(s=>String(s.id)===String(rec.startStopId));const d=idx>=0?departureFor(r.trip,idx,r.serviceDate):null;return d&&formatClock(d)===rec.departureClock})}
+      if(ri<0)throw new Error('La course exacte n’est plus disponible pour cette date. Vérifie le nouveau GTFS Fluo.');
+      q('trip').value=String(ri);await selectRun(ri);
+      let start=state.pattern.stops.findIndex(s=>String(s.id)===String(rec.startStopId));if(start<0)start=Math.min(Number(rec.startStopIndex||0),state.pattern.stops.length-1);q('startStop').value=String(start);
+      const ids=new Set((rec.selectedStops||[]).map(s=>String(s.id||'')).filter(Boolean));const fallbackNames=new Set((rec.selectedStops||[]).filter(s=>!s.id).map(s=>String(s.name||'')).filter(Boolean));const chosen=[];state.pattern.stops.forEach((s,i)=>{if(i===start||(s.id&&ids.has(String(s.id)))||(!s.id&&fallbackNames.has(String(s.name||''))))chosen.push(i)});state.service.tadStops=new Set(chosen.filter(i=>i>=start));state.service.tadStops.add(start);renderTadStopList(false);updateTadSummary();q('startStop')?.dispatchEvent(new Event('change',{bubbles:true}));q('tadStopList')?.dispatchEvent(new Event('change',{bubbles:true}));refreshStartAvailability();closeTads26();
+      if(q('status'))status(`TAD préparé chargé · ${rec.routeShort} · ${rec.originName} → ${rec.terminusName} · ${fmtDate26(rec.serviceDate)}.`,'ok');
+    }catch(e){alert(`Impossible de charger ce TAD : ${e.message||e}`)}finally{q('v26LoadingTad')?.remove();V26.loadingTad=false}
+  }
+
+  const ANNOUNCEMENTS=[
+    {id:'diversion',title:'Déviation en cours',text:()=>`Votre ligne subit actuellement une déviation. Merci de votre compréhension.`},
+    {id:'diversion_end',title:'Fin de déviation',text:()=>`Votre ligne reprend désormais son itinéraire habituel. Merci de votre compréhension.`},
+    {id:'stop_closed',title:'Prochain arrêt non desservi',text:()=>`En raison des conditions de circulation, l’arrêt ${state?.pattern?.stops?.[state?.target]?.name||'suivant'} ne pourra pas être desservi. Merci de votre compréhension.`},
+    {id:'terminates_next',title:'Terminus au prochain arrêt',text:()=>`Ce véhicule effectuera son terminus au prochain arrêt. Merci de prendre toutes vos affaires personnelles avec vous.`},
+    {id:'destination_change',title:'Changement de destination',text:()=>`La destination de ce véhicule a été modifiée. Merci de consulter l’affichage ou de vous rapprocher du conducteur pour plus d’informations.`},
+    {id:'traffic_delay',title:'Retard / circulation difficile',text:()=>`En raison de difficultés de circulation, votre ligne circule actuellement avec du retard. Merci de votre patience.`},
+    {id:'regulation',title:'Attente de régulation',text:()=>`Afin de réguler le service, nous allons patienter quelques instants à cet arrêt. Merci de votre compréhension.`},
+    {id:'driver_change',title:'Changement de conducteur',text:()=>`Un changement de conducteur va avoir lieu. Nous repartirons dans quelques instants. Merci de votre patience.`},
+    {id:'move_inside',title:'Se répartir dans le véhicule',text:()=>`Merci de vous répartir dans l’ensemble du véhicule et de libérer les accès et les portes.`},
+    {id:'wheelchair',title:'Libérer l’espace fauteuil roulant',text:()=>`Merci de libérer l’emplacement prioritaire afin de permettre l’accès à une personne en fauteuil roulant.`},
+    {id:'doors',title:'Portes / sécurité',text:()=>`Merci de ne pas gêner la fermeture des portes et de rester en retrait jusqu’à leur ouverture complète.`},
+    {id:'service_interrupted',title:'Service momentanément interrompu',text:()=>`En raison d’un incident, le service est momentanément interrompu. Merci de votre compréhension et de suivre les indications du conducteur.`},
+    {id:'terminus_belongings',title:'Arrivée au terminus',text:()=>`Nous arrivons au terminus. Merci de vérifier que vous n’oubliez aucun effet personnel à bord.`}
+  ];
+  function addAnnouncementUi26(){
+    const req=q('requestsBtn');if(req&&!q('v26AnnounceBtn')){const b=document.createElement('button');b.id='v26AnnounceBtn';b.className='v26-ann-btn';b.type='button';b.textContent='🔊 Annonces vocales';req.insertAdjacentElement('afterend',b)}
+    const side=q('v15LandscapeSide');if(side&&!q('v26AnnounceSide')){const b=document.createElement('button');b.id='v26AnnounceSide';b.className='v26-ann-side';b.type='button';b.textContent='🔊 Annonces vocales';side.querySelector('.v15-side-actions')?.insertAdjacentElement('afterend',b)}
+    if(!q('v26AnnounceSheet'))document.body.insertAdjacentHTML('beforeend',`<div id="v26AnnounceSheet" class="v26-backdrop v26-ann-backdrop hidden" role="dialog" aria-modal="true"><div class="v26-sheet v26-ann-sheet"><div class="v26-head"><div><div class="v13-logo">ANNONCES VOYAGEURS · V26</div><h2>🔊 Annonces vocales</h2><p>Sélectionne une annonce, vérifie le texte puis valide sa diffusion. Les annonces d’arrêt restent prioritaires et peuvent interrompre une annonce manuelle.</p></div><button id="v26AnnClose" class="v26-close" type="button">Fermer</button></div><div class="v26-scroll"><div id="v26AnnList" class="v26-ann-list"></div><div class="v26-ann-preview"><label>Texte qui sera annoncé<textarea id="v26AnnText" spellcheck="true" placeholder="Choisis une annonce ci-dessus ou saisis un message personnalisé."></textarea></label><div class="v26-ann-actions"><button id="v26AnnSpeak" class="primary" type="button">🔊 DIFFUSER L’ANNONCE</button><button id="v26AnnClear" type="button">Effacer</button></div><div id="v26AnnStatus" class="v26-ann-note">Une seule annonce est lancée à la fois. Les annonces automatiques de prochain arrêt et d’arrivée conservent la priorité.</div></div></div></div></div>`);
+    const list=q('v26AnnList');if(list)list.innerHTML=ANNOUNCEMENTS.map(a=>`<button type="button" class="v26-ann-choice" data-v26-ann="${a.id}"><b>${esc26(a.title)}</b><span>${esc26(a.text())}</span></button>`).join('');
+  }
+  function openAnnouncements26(){q('v26AnnounceSheet')?.classList.remove('hidden');refreshAnnouncementTexts26()}
+  function closeAnnouncements26(){q('v26AnnounceSheet')?.classList.add('hidden')}
+  function refreshAnnouncementTexts26(){q('v26AnnList')?.querySelectorAll('[data-v26-ann]').forEach(b=>{const a=ANNOUNCEMENTS.find(x=>x.id===b.dataset.v26Ann);const span=b.querySelector('span');if(a&&span)span.textContent=a.text()})}
+  function selectAnnouncement26(id){V26.selectedAnnouncement=id;q('v26AnnList')?.querySelectorAll('.v26-ann-choice').forEach(b=>b.classList.toggle('selected',b.dataset.v26Ann===id));const a=ANNOUNCEMENTS.find(x=>x.id===id);if(a&&q('v26AnnText'))q('v26AnnText').value=a.text()}
+  function speakAnnouncement26(){const text=(q('v26AnnText')?.value||'').trim();if(!text)return;try{if(typeof say==='function')say(text,{priority:80,kind:'manual'});else{const u=new SpeechSynthesisUtterance(text);u.lang='fr-FR';speechSynthesis.speak(u)}q('v26AnnStatus').textContent='✅ Annonce envoyée à la file de diffusion.'}catch(e){q('v26AnnStatus').textContent=`Annonce impossible : ${e.message||e}`}}
+
+  addTadUi26();addAnnouncementUi26();
+  q('v26MyTadsBtn')?.addEventListener('click',openTads26);q('v26OpenTads')?.addEventListener('click',openTads26);q('v26SaveTad')?.addEventListener('click',saveCurrentTad26);q('v26TadClose')?.addEventListener('click',closeTads26);q('v26TadDone')?.addEventListener('click',closeTads26);q('v26TadLibrary')?.addEventListener('click',e=>{if(e.target===q('v26TadLibrary'))closeTads26()});
+  q('v26TadList')?.addEventListener('click',async e=>{const item=e.target.closest('[data-v26-tad]'),act=e.target.closest('[data-v26-tad-action]')?.dataset.v26TadAction;if(!item||!act)return;const rec=await getTad26(item.dataset.v26Tad);if(!rec)return;if(act==='load')return loadPreparedTad26(rec);if(act==='delete'&&confirm(`Supprimer ce TAD préparé du ${fmtDate26(rec.serviceDate)} ?`)){await deleteTad26(rec.id);await renderTads26()}});
+  q('v26DeletePast')?.addEventListener('click',async()=>{const today=localYmd26(),xs=(await allTads26()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun TAD passé à supprimer.');if(!confirm(`Supprimer ${xs.length} TAD passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await deleteTad26(x.id);await renderTads26()});
+  q('v26AnnounceBtn')?.addEventListener('click',openAnnouncements26);q('v26AnnounceSide')?.addEventListener('click',openAnnouncements26);q('v26AnnClose')?.addEventListener('click',closeAnnouncements26);q('v26AnnounceSheet')?.addEventListener('click',e=>{if(e.target===q('v26AnnounceSheet'))closeAnnouncements26()});q('v26AnnList')?.addEventListener('click',e=>{const b=e.target.closest('[data-v26-ann]');if(b)selectAnnouncement26(b.dataset.v26Ann)});q('v26AnnSpeak')?.addEventListener('click',speakAnnouncement26);q('v26AnnClear')?.addEventListener('click',()=>{V26.selectedAnnouncement=null;q('v26AnnList')?.querySelectorAll('.selected').forEach(x=>x.classList.remove('selected'));if(q('v26AnnText'))q('v26AnnText').value='';q('v26AnnStatus').textContent='Saisis un message ou choisis une annonce dans la bibliothèque.'});
+
+  document.title='Fluo SAEIV V26 · Mes TAD + annonces vocales';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V26 MES TAD + ANNONCES';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
+})();
+</script>
+
 </body>
 </html>
