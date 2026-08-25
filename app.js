@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-// Fluo SAEIV V28 — base stable V26 + audio voyageurs pilotable, ding-dong fiabilisé et terminus enrichi.
+// Fluo SAEIV V28.1 — base V28 stable + amorçage audio muet, retour haptique UI et commandes paysage fixes.
 // Le moteur de suivi utilise la progression le long du shape, le cap tangent au parcours et un lissage circulaire.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),
@@ -101,9 +101,18 @@ function createRequestChimeAudio(){
   }catch{return null}
 }
 function primeRequestChime(){
+  // V28.1 : on arme le MEME élément audio qui jouera le ding-dong, mais totalement muet.
+  // La V28 utilisait un volume très faible (.001) qui pouvait produire un petit « tung » audible.
   requestChimeContext();
   const a=createRequestChimeAudio();
-  if(a){const old=a.volume;a.volume=.001;const p=a.play();if(p?.then)p.then(()=>{a.pause();a.currentTime=0;a.volume=old}).catch(()=>{a.volume=old});}
+  if(!a) return;
+  const oldMuted=a.muted, oldVolume=a.volume;
+  try{
+    a.pause(); a.currentTime=0; a.muted=true; a.volume=0;
+    const restore=()=>{try{a.pause();a.currentTime=0;a.muted=oldMuted;a.volume=oldVolume}catch{}};
+    const p=a.play();
+    if(p?.then) p.then(()=>setTimeout(restore,70)).catch(restore); else setTimeout(restore,70);
+  }catch{ a.muted=oldMuted; a.volume=oldVolume; }
 }
 function playRequestChime(index){
   const now=Date.now(); if(now-state.audio.lastRequestChimeAt<900) return; state.audio.lastRequestChimeAt=now;
@@ -118,9 +127,7 @@ function playRequestChimeFallback(){
   const notes=[880,659], t0=ctx.currentTime+.025;
   notes.forEach((freq,i)=>{const o=ctx.createOscillator(),g=ctx.createGain(),t=t0+i*.22;o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.32,t+.025);g.gain.exponentialRampToValueAtTime(.0001,t+.20);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.22);});
 }
-// Toute interaction conducteur réarme la sortie audio média pour le futur ding-dong.
-document.addEventListener('pointerdown',primeRequestChime,{passive:true});
-document.addEventListener('touchstart',primeRequestChime,{passive:true});
+// V28.1 : plus d'amorçage audio à chaque toucher. Le ding-dong est armé au moment où le conducteur sélectionne une demande d'arrêt.
 async function jget(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 
 

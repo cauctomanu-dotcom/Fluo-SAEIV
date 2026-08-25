@@ -1877,12 +1877,8 @@
   }
   function primeAudioRoute(){
     const now=Date.now();if(now-AudioRoute.lastPrime<700)return;AudioRoute.lastPrime=now;
-    const ctx=audioCtx();if(!ctx)return;
-    try{
-      const o=ctx.createOscillator(),g=ctx.createGain(),t=ctx.currentTime+.005;
-      o.frequency.value=440;g.gain.setValueAtTime(.00001,t);g.gain.exponentialRampToValueAtTime(.0001,t+.015);g.gain.exponentialRampToValueAtTime(.00001,t+.045);
-      o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.05);
-    }catch{}
+    // V28.1 : réveille seulement le contexte audio. Aucun oscillateur, donc aucun petit son parasite.
+    audioCtx();
   }
   document.addEventListener('pointerdown',primeAudioRoute,{passive:true});
   document.addEventListener('touchstart',primeAudioRoute,{passive:true});
@@ -2742,6 +2738,71 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
   document.title='Fluo SAEIV V28 · Base stable + commandes conducteur';
   window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V28 STABLE';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
+})();
+</script>
+
+<script id="v281ErgoPatch">
+'use strict';
+/* V28.1 — ergonomie tactile : haptique best-effort + dock paysage toujours visible. */
+(() => {
+  const q=id=>document.getElementById(id);
+
+  const css=document.createElement('style');css.id='v281Style';css.textContent=`
+    /* Les commandes paysage deviennent un dock indépendant du contenu variable (notamment ARRÊT DEMANDÉ). */
+    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){
+      #v15LandscapeSide{position:relative!important;padding-bottom:102px!important}
+      #v281LandscapeDock{position:absolute;z-index:40;left:4px;right:4px;bottom:5px;display:grid;grid-template-columns:1fr;gap:4px;padding:4px;border:1px solid rgba(255,255,255,.10);border-radius:10px;background:rgba(7,18,27,.95);box-shadow:0 -5px 16px rgba(0,0,0,.24);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+      #v281LandscapeDock .v15-side-actions{display:grid!important;grid-template-columns:1fr auto!important;gap:4px!important}
+      #v281LandscapeDock .v281-dock-row{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+      #v281LandscapeDock button{margin:0!important;min-height:27px!important;padding:4px 5px!important;border-radius:8px!important;font-size:.56rem!important;line-height:1.05!important}
+      #v281LandscapeDock #v28PassengerToggleSide{font-size:.52rem!important;white-space:normal!important}
+      #v281LandscapeDock #v26AnnounceSide,#v281LandscapeDock #v28RecenterSide{width:100%!important;min-width:0!important}
+      #v15LandscapeSide .v15-side-spacer{display:none!important}
+      #v15LandscapeSide .v15-request-box:not(.hidden){padding:5px 6px!important;margin:0!important}
+      #v15LandscapeSide .v15-request-box:not(.hidden) strong{font-size:.72rem!important;max-height:1.15em!important;white-space:nowrap!important;text-overflow:ellipsis!important}
+    }
+    @media(orientation:landscape) and (max-height:390px) and (max-width:760px){
+      #v15LandscapeSide{padding-bottom:91px!important}
+      #v281LandscapeDock{left:3px;right:3px;bottom:3px;gap:3px;padding:3px}
+      #v281LandscapeDock button{min-height:23px!important;padding:3px 4px!important;font-size:.51rem!important}
+    }
+    /* Élément Safari éventuellement utilisé pour un retour tactile natif ; complètement hors écran. */
+    #v281HapticSwitch{position:fixed!important;left:-9999px!important;top:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+  `;document.head.appendChild(css);
+
+  function buildLandscapeDock(){
+    const side=q('v15LandscapeSide'); if(!side||q('v281LandscapeDock'))return;
+    const actions=side.querySelector('.v15-side-actions'), ann=q('v26AnnounceSide'), rec=q('v28RecenterSide'), toggle=q('v28PassengerToggleSide');
+    if(!actions)return;
+    const dock=document.createElement('div');dock.id='v281LandscapeDock';
+    actions.insertAdjacentElement('beforebegin',dock);dock.appendChild(actions);
+    const row=document.createElement('div');row.className='v281-dock-row';dock.appendChild(row);
+    if(ann)row.appendChild(ann);if(rec)row.appendChild(rec);if(toggle)dock.appendChild(toggle);
+    q('v28SideTools')?.remove();
+  }
+  buildLandscapeDock();
+  window.addEventListener('orientationchange',()=>setTimeout(buildLandscapeDock,120),{passive:true});
+
+  // Retour haptique : API standard Android/Chrome ; Safari iPhone ne fournit toujours pas Navigator.vibrate.
+  // On tente aussi le contrôle "switch" natif de WebKit en secours, sans jamais bloquer l'interface s'il n'est pas pris en charge.
+  let lastHaptic=0,iosSwitch=null;
+  function ensureIosSwitch(){
+    if(iosSwitch)return iosSwitch;
+    try{iosSwitch=document.createElement('input');iosSwitch.id='v281HapticSwitch';iosSwitch.type='checkbox';iosSwitch.setAttribute('switch','');iosSwitch.setAttribute('aria-hidden','true');iosSwitch.tabIndex=-1;document.body.appendChild(iosSwitch)}catch{}
+    return iosSwitch;
+  }
+  function hapticTap(){
+    const now=performance.now();if(now-lastHaptic<45)return;lastHaptic=now;
+    try{if(typeof navigator.vibrate==='function'&&navigator.vibrate(10))return}catch{}
+    try{const s=ensureIosSwitch();if(s)s.click()}catch{}
+  }
+  document.addEventListener('pointerdown',e=>{
+    const b=e.target.closest?.('button,[role="button"]');if(!b||b.disabled||b.getAttribute('aria-disabled')==='true')return;hapticTap();
+  },{capture:true,passive:true});
+
+  document.title='Fluo SAEIV V28.1 · Stable + ergonomie tactile';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V28.1 STABLE';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
+  if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,20));else setTimeout(label,20);
 })();
 </script>
 
