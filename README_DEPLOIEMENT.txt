@@ -223,3 +223,14 @@ V31.6 — MENU CONDUCTEUR + MON PLANNING + MA JOURNÉE
   renseignée/capturée ; un régime inconnu est signalé au conducteur au lieu d'être supposé.
 - Le contrôle RSE reste une aide de planification : accords d'entreprise, dérogations et tachygraphe
   restent prioritaires.
+
+
+=== V31.7 — PLANNING INTUITIF ===
+- Course régulière : sélection guidée Département > Ligne > Sens.
+- À partir de l'heure de début du planning, la course GTFS active la plus proche dans le sens choisi est liée automatiquement au SAEIV.
+- Le départ, la destination, les horaires, la longueur de ligne et le régime RSE sont repris depuis la course liée.
+- Haut-le-pied : le départ et la destination peuvent chacun être un arrêt Fluo 54/57 ou une adresse libre.
+- Recherche d'arrêt dans la base locale Fluo avec conservation des coordonnées GPS exactes.
+- Les adresses sont vérifiées et géocodées (Nominatim avec repli Photon) avant enregistrement.
+- Ma journée lance un haut-le-pied vers la destination réellement enregistrée ; un accès séparé reste disponible vers la prochaine course liée.
+- Le cockpit paysage V31.6.1 validé est conservé.
