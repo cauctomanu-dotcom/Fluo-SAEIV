@@ -1,4 +1,4 @@
-// Fluo SAEIV V30.5 — limitations routières OSM maxspeed exactes.
+// Fluo SAEIV V31.1 — édition GitHub plate (moins de 100 fichiers).
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -130,6 +130,39 @@ function playRequestChimeFallback(){
 }
 // V28.1 : plus d'amorçage audio à chaque toucher. Le ding-dong est armé au moment où le conducteur sélectionne une demande d'arrêt.
 async function jget(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
+
+// V31.1 : les centaines de petits fichiers GTFS sont regroupées en paquets plats.
+// Un paquet de parcours n'est chargé qu'au moment où sa ligne est utilisée, puis il
+// reste en mémoire. Le repli vers l'ancienne arborescence facilite la maintenance
+// locale sans modifier les fonctions métier (GPS, annonces, arrêts, TAD, journaux).
+const fluoFlatCache={cores:new Map(),bundles:new Map()};
+async function fluoDeptCore(dept){
+  const d=String(dept);
+  if(!fluoFlatCache.cores.has(d)) fluoFlatCache.cores.set(d,jget(`fluo${d}_core.json`));
+  return fluoFlatCache.cores.get(d);
+}
+async function fluoRoutesData(dept){
+  try{return (await fluoDeptCore(dept)).routesIndex;}
+  catch{return jget(`data/${dept}/routes.json`);}
+}
+async function fluoServicesData(dept){
+  try{return (await fluoDeptCore(dept)).servicesIndex;}
+  catch{return jget(`data/${dept}/services.json`);}
+}
+async function fluoStopsData(dept){
+  try{return (await fluoDeptCore(dept)).stopsIndex;}
+  catch{return jget(`data/${dept}/stops.json`);}
+}
+async function fluoRoutePayload(dept,route){
+  if(route?.bundle){
+    if(!fluoFlatCache.bundles.has(route.bundle)) fluoFlatCache.bundles.set(route.bundle,jget(route.bundle));
+    const pack=await fluoFlatCache.bundles.get(route.bundle), payload=pack?.routes?.[route.file];
+    if(!payload) throw new Error(`Parcours ${route.file} absent du paquet ${route.bundle}`);
+    return payload;
+  }
+  return jget(`data/${dept}/${route.file}`);
+}
+window.FluoFlatData={core:fluoDeptCore,routes:fluoRoutesData,services:fluoServicesData,stops:fluoStopsData,route:fluoRoutePayload};
 
 
 function cssColor(hex, fallback='#ffd000'){
@@ -635,7 +668,7 @@ async function loadDept(d){
   ui.route.innerHTML='<option>Chargement…</option>';
   status(`Chargement des lignes ${d}…`);
   try{
-    const [data,svc]=await Promise.all([jget(`data/${d}/routes.json`),jget(`data/${d}/services.json`).catch(()=>({services:{}}))]);
+    const [data,svc]=await Promise.all([fluoRoutesData(d),fluoServicesData(d).catch(()=>({services:{}}))]);
     state.routes=data.routes||[]; state.services=svc.services||{};
     ui.route.innerHTML='<option value="">Choisir une ligne…</option>'+state.routes.map(r=>`<option value="${esc(r.id)}">${esc(r.short)} — ${esc(r.long)}</option>`).join('');
     ui.route.disabled=false;
@@ -650,7 +683,7 @@ async function loadRoute(r){
   state.route=r; resetSelections('route');
   ui.trip.innerHTML='<option>Chargement des courses exactes…</option>';
   try{
-    const data=await jget(`data/${state.dept}/${r.file}`);
+    const data=await fluoRoutePayload(state.dept,r);
     state.patterns=data.patterns||[];
     if(state.service.mode==='formation') populateFormationPatterns(); else populateRuns();
     const count=state.patterns.reduce((n,p)=>n+(p.trips?.length||0),0);
@@ -1125,7 +1158,7 @@ function startSimulation(){
   const p=s.path[0]; state.pos=syntheticPosition(p[0],p[1],0); updateNavigation(state.pos);
   if(state.service.mode==='formation'){
     state.departed=true; s.playing=true; ui.simPlayPause.disabled=false; ui.simSkip.disabled=false; ui.simPlayPause.textContent='⏸ Pause simulation';
-    ui.announceState.textContent=`Formation simulée x${s.scale} · ${Math.round(s.speedMps*3.6)} km/h`;
+    ui.announceState.textContent=`Formation simulée x${s.scale} · vitesse locale automatique`;
     say(`Mode formation. ${lineIdentity()}`,{priority:30,kind:'system'}); processPos(syntheticPosition(p[0],p[1],s.speedMps)); s.raf=requestAnimationFrame(simulationFrame); return;
   }
   state.departed=false;
@@ -1134,7 +1167,7 @@ function startSimulation(){
   ui.departureTime.textContent='Simulation'; ui.departureCountdown.textContent='T−5:00 simulé';
   say('Départ dans cinq minutes.',{priority:90,kind:'departure'});
   state.departureTimers.push(setTimeout(()=>{ ui.departureCountdown.textContent='T−1:00 simulé'; say(`${lineIdentity()} Départ dans une minute.`,{priority:90,kind:'departure'}); },1800));
-  state.departureTimers.push(setTimeout(()=>{ state.departed=true; s.playing=true; s.lastTs=performance.now(); ui.simPlayPause.disabled=false; ui.simSkip.disabled=false; ui.simPlayPause.textContent='⏸ Pause simulation'; ui.departureCountdown.textContent='En service simulé'; ui.announceState.textContent=`Simulation du tracé GTFS x${s.scale} · ${Math.round(s.speedMps*3.6)} km/h`; processPos(syntheticPosition(p[0],p[1],s.speedMps)); s.raf=requestAnimationFrame(simulationFrame); },3900));
+  state.departureTimers.push(setTimeout(()=>{ state.departed=true; s.playing=true; s.lastTs=performance.now(); ui.simPlayPause.disabled=false; ui.simSkip.disabled=false; ui.simPlayPause.textContent='⏸ Pause simulation'; ui.departureCountdown.textContent='En service simulé'; ui.announceState.textContent=`Simulation du tracé GTFS x${s.scale} · vitesse locale automatique`; processPos(syntheticPosition(p[0],p[1],s.speedMps)); s.raf=requestAnimationFrame(simulationFrame); },3900));
 }
 function toggleSimulation(){
   if(state.mode!=='simulation') return;
@@ -1224,7 +1257,7 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('data/build.json'); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=31.1').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(()=>{});
