@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V30.7",
+  "name": "Fluo SAEIV V31.1",
   "short_name": "Fluo SAEIV",
-  "start_url": "./?v=30.5",
+  "start_url": "./?v=31.1",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V30.7 — GPS fluide, simulation non bloquante, billets collectifs, routes à éviter, journal intégral et limitations routières OSM maxspeed."
+  "description": "SAEIV conducteur V31.1 — édition GitHub plate de moins de 100 fichiers, limitations OSM non bloquantes et horaires officiels Fluo."
 }

@@ -1,4 +1,4 @@
-FLUO SAEIV V30 — EXPLOITATION + BILLET COLLECTIF + JOURNAL ARRIVÉE/DÉPART
+FLUO SAEIV V31.1 — ÉDITION GITHUB PLATE (MOINS DE 100 FICHIERS)
 ============================================================================
 
 Base : V29, elle-même basée sur la V28.1 stable.
@@ -8,7 +8,11 @@ Fichiers à remplacer dans GitHub :
 - app.js
 - sw.js
 - manifest.webmanifest
-- build_gtfs.py (inclus, pas de changement fonctionnel spécifique V30)
+- dossier data complet (obligatoire : lignes, arrêts, horaires et tracés officiels)
+- build_gtfs.py (outil de régénération des données)
+
+Le dossier tests est inclus pour vérification, mais il n'est pas nécessaire au fonctionnement
+du site. Le plus simple est de déposer tout le contenu décompressé de l'archive dans GitHub.
 
 Nouveautés / corrections V30 :
 - Journal : les annonces vocales et les bascules audio ne sont plus enregistrées.
@@ -21,13 +25,14 @@ Nouveautés / corrections V30 :
 - Correctif Création de ligne : les listes de résultats Départ/Terminus se ferment après sélection.
 - Meurthe-et-Moselle : 54R + chiffres = ligne régulière ; toutes les autres lignes du 54 sont classées scolaires.
 - Nouveau type de service « Billet collectif » : aucun département/type de ligne requis ; départ et destination par arrêt Fluo ou adresse ; étapes intermédiaires ajoutables ; calcul OSRM ; navigation GPS réelle ou simulation.
-- Restauration de la vitesse route : profil estimé OSM/OSRM affiché dans le panneau carte et dans le cockpit paysage, car plafonné à 100 km/h.
-- Le même profil routier alimente une ETA dynamique prochain arrêt / terminus et reste utilisé par la simulation.
+- Profil de vitesse local sans API : 35–50 km/h en desserte rapprochée et 70–80 km/h sur les liaisons interurbaines.
+- Le même profil local alimente l'ETA et la simulation sans ralentir le GPS ni l'interface.
 - La vitesse route courante est également mémorisée avec les échantillons GPS du journal quand disponible.
 
 IMPORTANT
 ---------
-La limitation affichée provient désormais des attributs maxspeed publiés dans OpenStreetMap. Les vitesses moyennes de routage OSRM ne sont plus converties en panneaux. Si aucun maxspeed exploitable n'est disponible, l'application affiche « — ».
+La V30.8 ne télécharge et n'affiche plus aucune limitation de vitesse OSM. Les anciens modules
+V30.5 sont neutralisés ; les valeurs visibles en simulation correspondent uniquement au modèle local.
 
 Les adresses du mode Billet collectif nécessitent une connexion Internet pour le géocodage et le routage.
 Les contacts d'exploitation seront ajoutés lorsque les noms et numéros seront fournis.
@@ -79,7 +84,7 @@ V30.4 — BILLETS COLLECTIFS PRÉPARÉS
 - Suppression individuelle et nettoyage des billets passés.
 
 
-V30.5 — LIMITATIONS ROUTIÈRES
+V30.5 — LIMITATIONS ROUTIÈRES (HISTORIQUE, DÉSACTIVÉ EN V30.8)
 - Suppression de l'ancienne estimation des limitations à partir de la vitesse de routage OSRM.
 - Lecture des valeurs maxspeed publiées dans OpenStreetMap autour du tracé réellement utilisé par le SAEIV.
 - Prise en compte de maxspeed, maxspeed:forward/backward, maxspeed:bus et variantes directionnelles.
@@ -108,6 +113,54 @@ V30.7 — SIMULATION NON BLOQUANTE + GPS FLUIDE
 - En GPS réel, le navigateur demande toujours la position la plus fraîche (maximumAge 0).
 - Le pictogramme et la caméra sont animés entre les fixes GPS. Cette interpolation reste
   strictement visuelle : annonces, arrêts, TAD et journaux utilisent le GPS réel uniquement.
+
+V30.8 — SANS LIMITATIONS OSM + HORAIRES FLUO ACTUALISÉS
+----------------------------------------------------------
+- Suppression complète du chargement des limitations OSM/Overpass pendant la sélection,
+  le GPS réel et la simulation.
+- Retour à un profil local stable : 35–50 km/h en desserte rapprochée et 70–80 km/h
+  pour les liaisons interurbaines de type départementale/nationale.
+- Une limitation absente ne peut plus être convertie en 0 km/h.
+- Données GTFS officielles Fluo régénérées le 25/08/2026 depuis les ressources
+  courantes data.gouv/transport.data.gouv.fr publiées par Fluo Grand Est.
+- Moselle : 423 lignes, horaires valables du 21/08/2026 au 15/08/2027.
+- Meurthe-et-Moselle : 223 lignes, horaires valables du 21/08/2026 au 31/12/2026.
+- Les flux couvrent les lignes régulières, scolaires et le transport à la demande.
+- La création de lignes et les billets collectifs ne sont pas modifiés par cette mise à jour.
+
+V30.9 — FICHE HORAIRE DIRECTEMENT DEPUIS LA LIGNE
+---------------------------------------------------
+- Après la sélection d'une ligne officielle 54 ou 57, un bouton « Voir la fiche horaire
+  de la ligne » apparaît sous les informations de course.
+- La fiche utilise les données GTFS officielles déjà embarquées : aucun site externe
+  ni nouveau téléchargement n'est nécessaire.
+- Choix de la date, du sens et du départ, puis affichage de tous les arrêts avec les
+  heures d'arrivée et de départ.
+- Mise en page imprimable depuis l'application.
+- Les lignes personnalisées et les billets collectifs restent volontairement exclus,
+  car ils ne possèdent pas de fiche officielle Fluo.
 - « Tout sélectionner », « Supprimer la sélection » et « Effacer les journaux terminés » sont de nouveau opérationnels.
 - Le service actuellement ouvert reste protégé contre la suppression.
 - Suppression simultanée de la session et de tous ses événements IndexedDB associés.
+
+V31.0 — LIMITATIONS OSM ET ÉCRAN PAYSAGE
+-----------------------------------------
+- Les limitations maxspeed OpenStreetMap, y compris les valeurs directionnelles et les
+  valeurs spécifiques aux bus lorsqu'elles existent, sont chargées après la course.
+- Le chargement ne bloque jamais le GPS ni le démarrage d'une simulation. Les profils sont
+  conservés 7 jours sur l'appareil ; en cas de donnée absente ou de réseau indisponible,
+  l'ancien modèle local 35–50–70–80 km/h reste immédiatement actif.
+- Le car reste plafonné à 100 km/h, même si la limitation routière est supérieure.
+- En paysage, les commandes principales sont regroupées sur une ligne en bas de la carte.
+  Les commandes supplémentaires restent dans la colonne de droite.
+- Le nom complet de la ligne, la destination physique et le prochain arrêt ne sont plus
+  tronqués dans la colonne conducteur.
+
+V31.1 — ARCHIVE PLATE POUR GITHUB
+---------------------------------
+- Tous les fichiers à publier se trouvent directement à la racine de l'archive : aucun dossier.
+- Les 646 fichiers de lignes GTFS ont été regroupés en paquets JSON plus gros, sans supprimer
+  de lignes, de parcours, d'arrêts, de services ni d'horaires.
+- Les paquets sont chargés à la demande et conservés en mémoire afin de ne pas ralentir le
+  lancement d'une course, la simulation ou le suivi GPS.
+- L'archive finale contient moins de 100 fichiers et ne nécessite aucun fichier de test.

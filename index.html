@@ -6,9 +6,8 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="manifest" href="manifest.webmanifest?v=31.1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-  <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Fluo SAEIV V22 · TAD + suivi stable</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -141,7 +140,7 @@
   </div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="app.js"></script>
+<script src="app.js?v=31.1"></script>
 <script>
 'use strict';
 
@@ -1243,8 +1242,8 @@
     }
     if(dest.next) dest.next.textContent=text(source.next);
     if(dest.distance) dest.distance.textContent=text(source.distance);
-    if(dest.line) dest.line.textContent=text(source.route);
-    if(dest.destination) dest.destination.textContent=text(source.destination);
+    if(dest.line) dest.line.textContent=[state?.route?.short,state?.route?.long].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' · ')||text(source.route);
+    if(dest.destination) dest.destination.textContent=state?.pattern?.stops?.at(-1)?.name||text(source.destination);
     if(dest.request&&source.request){
       const visible=!source.request.classList.contains('hidden'); dest.request.classList.toggle('hidden',!visible);
       if(dest.requestStop) dest.requestStop.textContent=text(source.requestStop);
@@ -1344,9 +1343,9 @@
       const txt=[...lab.childNodes].find(n=>n.nodeType===3); if(txt) txt.textContent='Vitesse du bus simulé';
       let hint=q('v16SimSpeedHint');
       if(!hint){ hint=document.createElement('small'); hint.id='v16SimSpeedHint'; hint.className='v16-inline-hint'; ui.simSpeed.insertAdjacentElement('afterend',hint); }
-      hint.textContent='Automatique selon le profil routier · bus limité à 100 km/h';
+      hint.textContent='Automatique sans chargement : urbain 35–50 · route 70–80 km/h';
     }
-    ui.simSpeed.innerHTML='<option value="50">Automatique · route (max 100)</option>';
+    ui.simSpeed.innerHTML='<option value="50">Automatique · ancien système stable</option>';
     ui.simSpeed.disabled=true;
   }
 
@@ -1378,7 +1377,7 @@
   const mapWrap=document.querySelector('#driver .navmap-wrap');
   if(mapWrap && !q('v16Map3d')){
     mapWrap.insertAdjacentHTML('afterbegin','<div id="v16Map3d" class="v16-map3d" aria-label="Carte GPS 3D"></div>');
-    mapWrap.insertAdjacentHTML('beforeend',`<div class="v16-map-controls"><button id="v16MapMode" type="button">🧭 3D</button><div id="v16SpeedLimit" class="v16-speed-limit"><span>ROUTE</span><b>—</b></div></div>`);
+    mapWrap.insertAdjacentHTML('beforeend',`<div class="v16-map-controls"><button id="v16MapMode" type="button">🧭 3D</button><div id="v16SpeedLimit" class="v16-speed-limit"><span>SIMU</span><b>AUTO</b></div></div>`);
   }
 
   const css=document.createElement('style'); css.id='v16Style';
@@ -1539,15 +1538,9 @@
   function stopKey(stops){return stops.map(s=>`${Number(s.lat).toFixed(5)},${Number(s.lon).toFixed(5)}`).join('|')}
   async function roadProfilesForStops(stops){
     if(!Array.isArray(stops)||stops.length<2)return [];
-    const currentState=state?.pattern?.stops&&stops.every(s=>state.pattern.stops.includes(s));
-    const key=`v305|${stopKey(stops)}|${currentState?(state.pattern?.shape?.length||0):0}`;const cached=V16.profileCache.get(key);if(cached)return cached;
-    const legDefs=[];
-    if(currentState){
-      for(let i=0;i<stops.length-1;i++){const shape=stateLegShape(stops[i],stops[i+1]);if(shape?.length>=2)legDefs.push({shape,fallbackKmh:50});else legDefs.push({shape:[[+stops[i].lat,+stops[i].lon],[+stops[i+1].lat,+stops[i+1].lon]],fallbackKmh:50})}
-    }else{
-      let i=0;while(i<stops.length-1){const j=Math.min(stops.length-1,i+30),chunk=stops.slice(i,j+1),coords=chunk.map(s=>`${Number(s.lon)},${Number(s.lat)}`).join(';'),url=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=false&steps=true&geometries=geojson&alternatives=false&continue_straight=true&annotations=speed,distance,duration`,r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error(`profil routier HTTP ${r.status}`);const d=await r.json(),route=d?.routes?.[0];if(d?.code!=='Ok'||!route?.legs?.length)throw new Error('profil routier indisponible');route.legs.forEach((leg,k)=>{const avg=(Number(leg.distance)>0&&Number(leg.duration)>0)?Number(leg.distance)/Number(leg.duration)*3.6:50;legDefs.push({shape:mergeLegShape(leg,chunk[k],chunk[k+1]),fallbackKmh:Math.min(100,Math.max(15,avg))})});i=j}
-    }
-    let ways=[];try{ways=await speedWaysForShapes(legDefs.map(x=>x.shape))}catch(e){console.warn('V30.5 limitations OSM indisponibles',e)}const idx=wayGrid(ways),all=legDefs.map(x=>profileFromGeometry(x.shape,idx,x.fallbackKmh));V16.profileCache.set(key,all);return all;
+    const currentState=state?.pattern?.stops&&stops.every(s=>state.pattern.stops.includes(s)),key=`v308-local|${stopKey(stops)}|${currentState?(state.pattern?.shape?.length||0):0}`,cached=V16.profileCache.get(key);if(cached)return cached;
+    const all=[];for(let i=0;i<stops.length-1;i++){const a=stops[i],b=stops[i+1],shape=(currentState?stateLegShape(a,b):null)||[[+a.lat,+a.lon],[+b.lat,+b.lon]],kmh=simpleLegKmh(shape),meters=shape.slice(1).reduce((n,p,k)=>n+dist(shape[k][0],shape[k][1],p[0],p[1]),0);all.push({segments:[{from:0,to:1,travelKmh:kmh,busKmh:kmh,roadKmh:null,meters,seconds:meters/(kmh/3.6),source:'profil local stable'}],distance:meters,seconds:meters/(kmh/3.6),avgKmh:kmh,source:'profil local stable'})}
+    V16.profileCache.set(key,all);return all;
   }
   function profileSegmentAt(profile,p){if(!profile?.segments?.length)return null;const f=Math.max(0,Math.min(1,Number(p)||0));return profile.segments.find(s=>f>=s.from&&f<=s.to)||profile.segments.at(-1)}
   function speedAtProgress(profile,p){const z=profileSegmentAt(profile,p);return z?(Number.isFinite(z.busKmh)?z.busKmh:z.travelKmh):null}
@@ -1560,19 +1553,25 @@
     while(guard++<500){ const n=nextOperationalStop(cur); if(n===null) break; ids.push(n); cur=n; }
     return ids;
   }
+  function simpleLegKmh(shape){
+    let meters=0;for(let i=1;i<(shape?.length||0);i++)meters+=dist(shape[i-1][0],shape[i-1][1],shape[i][0],shape[i][1]);
+    // Ancien principe stable, sans API : desserte urbaine lente, puis route interurbaine.
+    return meters<800?35:meters<2500?50:meters<8000?70:80;
+  }
   async function prepareSimulationRoadProfile(){
     V16.simLegs.clear(); V16.simReady=false; V16.simLoading=true;
     try{
       const ids=operationalIndices(), stops=ids.map(i=>state.pattern.stops[i]);
       if(stops.length<2) throw new Error('aucun inter-arrêt');
-      if(ui?.status) status(`Calcul du profil de vitesse routier pour ${stops.length-1} inter-arrêts…`);
-      const legs=await roadProfilesForStops(stops);
-      for(let k=0;k<Math.min(legs.length,ids.length-1);k++) V16.simLegs.set(`${ids[k]}-${ids[k+1]}`,legs[k]);
+      for(let k=0;k<ids.length-1;k++){
+        const a=stops[k],b=stops[k+1],shape=stateLegShape(a,b)||[[+a.lat,+a.lon],[+b.lat,+b.lon]],kmh=simpleLegKmh(shape),meters=shape.slice(1).reduce((n,p,i)=>n+dist(shape[i][0],shape[i][1],p[0],p[1]),0);
+        V16.simLegs.set(`${ids[k]}-${ids[k+1]}`,{segments:[{from:0,to:1,travelKmh:kmh,busKmh:kmh,roadKmh:null,meters,seconds:meters/(kmh/3.6),source:'profil local stable'}],distance:meters,seconds:meters/(kmh/3.6),avgKmh:kmh,source:'profil local stable'});
+      }
       V16.simReady=true;
-      if(ui?.status) status('Profil routier chargé : simulation automatique, vitesse bus plafonnée à 100 km/h.','ok');
+      if(ui?.status) status('Profil local prêt : aucun chargement de limitation, route interurbaine 70–80 km/h.','ok');
     }catch(e){
-      console.warn('V16 profil simulation',e); V16.simReady=false;
-      if(ui?.status) status(`Profil routier indisponible (${e.message||e}) : la simulation utilisera une vitesse de secours de 50 km/h.`,'err');
+      console.warn('V30.8 profil local',e); V16.simReady=false;
+      if(ui?.status) status('Profil local indisponible : vitesse de secours de 50 km/h.','err');
     }finally{V16.simLoading=false}
   }
 
@@ -1587,7 +1586,7 @@
       // la simulation part donc immédiatement à 50 km/h, puis adopte le profil dès qu'il est prêt.
       V16.simCurrentMps=0; V16.currentRoadLimit=50;
       baseStartSimulation();
-      if(!V16.simLoading) prepareSimulationRoadProfile().catch(e=>console.warn('V30.7 profil simulation en arrière-plan',e));
+      if(!V16.simLoading) prepareSimulationRoadProfile().catch(e=>console.warn('V30.8 profil local',e));
     };
     ui.simulate?.addEventListener('click',startSimulation);
 
@@ -1603,7 +1602,10 @@
       }
       const p0=state.fusion?.snapped, progress=(p0&&Number.isFinite(p0.lat))?legProgress(p0.lat,p0.lon):0;
       const leg=V16.simLegs.get(`${state.current}-${state.target}`);
-      const legalLimit=Number(window.FluoSpeedLimitsV305?.limitAtAlong?.(state.fusion?.snapped?.along)); const limit=Number.isFinite(legalLimit)?Math.min(100,legalLimit):(V16.simReady?speedAtProgress(leg,progress):50); V16.currentRoadLimit=limit;
+      const localSpeed=V16.simReady?speedAtProgress(leg,progress):50,routeAlong=Number(state?.fusion?.snapped?.along),osmSpeed=Number.isFinite(routeAlong)?window.FluoSpeedLimitsV305?.limitAtAlong?.(routeAlong):null;
+      // La limitation OSM, lorsqu'elle est connue, remplace le profil local sans jamais
+      // bloquer la simulation. Le car reste plafonné à 100 km/h.
+      const modelSpeed=Number.isFinite(osmSpeed)&&osmSpeed>0?Math.min(100,osmSpeed):localSpeed,limit=Number.isFinite(modelSpeed)&&modelSpeed>0?modelSpeed:50;V16.currentRoadLimit=limit;
       let target=limit/3.6;
       // Freinage naturel à l'approche d'un arrêt, sauf après l'arrêt quand on est déjà en train d'en repartir.
       const c=state.pos?.coords, tgt=state.pattern?.stops?.[state.target];
@@ -1649,13 +1651,13 @@
     V16.calc={...V16.calc,dept,routes:[],patterns:[],route:null,pattern:null}; const rr=q('v16CalcRoute'),pp=q('v16CalcPattern'),ss=q('v16CalcStart');
     rr.disabled=true;pp.disabled=true;ss.disabled=true;rr.innerHTML='<option>Chargement…</option>';pp.innerHTML='<option>Choisir la ligne</option>';ss.innerHTML='<option>Choisir le parcours</option>';q('v16CalcRun').disabled=true;
     if(!dept){rr.innerHTML='<option>Choisir le département</option>';return}
-    try{const data=await jget(`data/${dept}/routes.json`);V16.calc.routes=data.routes||[];rr.innerHTML='<option value="">Choisir une ligne…</option>'+V16.calc.routes.map((r,i)=>`<option value="${i}">${esc(r.short)} — ${esc(r.long)}</option>`).join('');rr.disabled=false;setCalcStatus(`${V16.calc.routes.length} lignes chargées.`,'ok')}catch(e){setCalcStatus(`Impossible de charger les lignes : ${e.message}`,'err')}
+    try{const data=await window.FluoFlatData.routes(dept);V16.calc.routes=data.routes||[];rr.innerHTML='<option value="">Choisir une ligne…</option>'+V16.calc.routes.map((r,i)=>`<option value="${i}">${esc(r.short)} — ${esc(r.long)}</option>`).join('');rr.disabled=false;setCalcStatus(`${V16.calc.routes.length} lignes chargées.`,'ok')}catch(e){setCalcStatus(`Impossible de charger les lignes : ${e.message}`,'err')}
   }
   async function calcLoadRoute(i){
     const r=V16.calc.routes[Number(i)];V16.calc.route=r||null;V16.calc.patterns=[];V16.calc.pattern=null;const pp=q('v16CalcPattern'),ss=q('v16CalcStart');pp.disabled=true;ss.disabled=true;q('v16CalcRun').disabled=true;
     if(!r){pp.innerHTML='<option>Choisir la ligne</option>';return}
     pp.innerHTML='<option>Chargement…</option>';
-    try{const data=await jget(`data/${V16.calc.dept}/${r.file}`);V16.calc.patterns=data.patterns||[];pp.innerHTML='<option value="">Choisir le sens / parcours…</option>'+V16.calc.patterns.map((p,n)=>`<option value="${n}">${esc(calcVariantHint(p))}</option>`).join('');pp.disabled=false;setCalcStatus(`${V16.calc.patterns.length} parcours disponibles pour ${r.short}.`,'ok')}catch(e){setCalcStatus(`Impossible de charger les parcours : ${e.message}`,'err')}
+    try{const data=await window.FluoFlatData.route(V16.calc.dept,r);V16.calc.patterns=data.patterns||[];pp.innerHTML='<option value="">Choisir le sens / parcours…</option>'+V16.calc.patterns.map((p,n)=>`<option value="${n}">${esc(calcVariantHint(p))}</option>`).join('');pp.disabled=false;setCalcStatus(`${V16.calc.patterns.length} parcours disponibles pour ${r.short}.`,'ok')}catch(e){setCalcStatus(`Impossible de charger les parcours : ${e.message}`,'err')}
   }
   function calcSelectPattern(i){
     const p=V16.calc.patterns[Number(i)];V16.calc.pattern=p||null;const ss=q('v16CalcStart');q('v16CalcResults').classList.add('hidden');
@@ -2499,14 +2501,14 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const out=[];
     for(const dept of ['54','57']){
       try{
-        const d=await jget(`data/${dept}/stops.json`);
+        const d=await window.FluoFlatData.stops(dept);
         for(const s of d.stops||[])out.push({...s,dept:String(s.dept||dept)});
       }catch(e){
         // Secours pour une publication qui n'aurait pas encore le nouveau stops.json :
         // on reconstruit la liste depuis les fichiers de lignes. Plus lent, mais le module reste utilisable.
-        const idx=await jget(`data/${dept}/routes.json`), seen=new Map();
+        const idx=await window.FluoFlatData.routes(dept), seen=new Map();
         for(const r of idx.routes||[]){
-          try{const data=await jget(`data/${dept}/${r.file}`);for(const p of data.patterns||[])for(const s of p.stops||[]){const k=s.id||`${s.name}|${s.lat}|${s.lon}`;if(!seen.has(k))seen.set(k,{id:s.id||k,name:s.name||s.id||'Arrêt',lat:Number(s.lat),lon:Number(s.lon),code:s.code||'',dept})}}catch{}
+          try{const data=await window.FluoFlatData.route(dept,r);for(const p of data.patterns||[])for(const s of p.stops||[]){const k=s.id||`${s.name}|${s.lat}|${s.lon}`;if(!seen.has(k))seen.set(k,{id:s.id||k,name:s.name||s.id||'Arrêt',lat:Number(s.lat),lon:Number(s.lon),code:s.code||'',dept})}}catch{}
         }
         out.push(...seen.values());
       }
@@ -3220,22 +3222,22 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function opIndices(){const out=[];if(!state?.pattern)return out;let cur=state.current,guard=0;if(Number.isInteger(cur)&&cur<state.pattern.stops.length)out.push(cur);while(guard++<500){const n=nextOperationalStop(cur);if(n===null)break;out.push(n);cur=n}return out}
   function roadKey(ids){return `${state?.route?.id||state?.route?.short||''}|${state?.pattern?.shape_id||''}|${ids.join(',')}`}
   async function loadRoadProfiles(){
-    const api=window.FluoRoadProfileApi,ids=opIndices();if(!state?.running||!api||ids.length<2)return;const key=roadKey(ids);if(V30.road.loading||V30.road.key===key&&V30.road.legs.size)return;V30.road.loading=true;V30.road.key=key;V30.road.legs.clear();V30.road.ids=ids;
-    try{const stops=ids.map(i=>state.pattern.stops[i]),legs=await api.profilesForStops(stops);for(let i=0;i<Math.min(legs.length,ids.length-1);i++)V30.road.legs.set(`${ids[i]}-${ids[i+1]}`,legs[i]);journal('ROAD_PROFILE_READY',{legs:V30.road.legs.size,source:'OSM maxspeed / Overpass',maxBusKmh:100});}catch(e){console.warn('V30 profil route',e);V30.road.legs.clear()}finally{V30.road.loading=false;updateRoadDisplay();updateRoadEta()}
+    const ids=opIndices();if(!state?.running||ids.length<2)return;const key=roadKey(ids);if(V30.road.loading||V30.road.key===key&&V30.road.legs.size)return;V30.road.loading=true;V30.road.key=key;V30.road.legs.clear();V30.road.ids=ids;
+    try{await prepareSimulationRoadProfile();for(const [k,v] of V16.simLegs)V30.road.legs.set(k,v);journal('ROAD_PROFILE_READY',{legs:V30.road.legs.size,source:'profil local stable 35/50/70/80',network:false});}catch(e){console.warn('V30.8 profil local',e);V30.road.legs.clear()}finally{V30.road.loading=false;updateRoadDisplay();updateRoadEta()}
   }
   function currentLegProfile(){return V30.road.legs.get(`${state.current}-${state.target}`)||null}
   function remainingSeconds(profile,p){if(!profile?.segments?.length)return null;const f=Math.max(0,Math.min(1,Number(p)||0));let sec=0;for(const z of profile.segments){const a=Number(z.from),b=Number(z.to),zs=Number(z.seconds)||0;if(f>=b)continue;if(f<=a)sec+=zs;else if(b>a)sec+=zs*(b-f)/(b-a)}return sec}
   function currentProgress(){try{if(!state?.pos)return 0;return Math.max(0,Math.min(1,legProgress(state.pos.coords.latitude,state.pos.coords.longitude)))}catch{return 0}}
   function updateRoadDisplay(){
-    const profile=currentLegProfile(),progress=currentProgress(),api=window.FluoRoadProfileApi,road=profile?.segments?.length?api?.roadSpeedAtProgress?.(profile,progress):null,bus=profile?.segments?.length?api?.busSpeedAtProgress?.(profile,progress):null,meta=profile?.segments?.length?api?.speedMetaAtProgress?.(profile,progress):null;
-    const limit=Number.isFinite(road)?Math.round(road):null,busLimit=Number.isFinite(bus)?Math.round(bus):null;V30.road.currentLimit=limit;V30.road.currentBusLimit=busLimit;window.FluoRoadSpeedV30={get currentLimit(){return V30.road.currentLimit},get currentBusLimit(){return V30.road.currentBusLimit}};
-    const sign=q('v16SpeedLimit');if(sign){const b=sign.querySelector('b');if(b)b.textContent=Number.isFinite(limit)?String(limit):'—';let sm=q('v305BusLimit');if(!sm){sm=document.createElement('small');sm.id='v305BusLimit';sign.appendChild(sm)}sm.textContent=Number.isFinite(limit)&&Number.isFinite(busLimit)&&busLimit!==limit?`CAR ${busLimit}`:'';sign.title=Number.isFinite(limit)?`Limitation publiée OSM : ${limit} km/h${meta?.roadName?` · ${meta.roadName}`:''}${Number.isFinite(busLimit)&&busLimit!==limit?` · limite car ${busLimit} km/h`:''}`:'Aucune limitation publiée exploitable sur cette portion'}
-    const side=q('v30RoadSide');if(side){side.querySelector('b').textContent=Number.isFinite(limit)?`${limit} km/h`:'—';side.querySelector('small').textContent=Number.isFinite(limit)?`${meta?.roadName?meta.roadName+' · ':''}${Number.isFinite(busLimit)&&busLimit!==limit?`car ${busLimit} · `:''}OSM maxspeed`:'limitation non renseignée'}
+    const profile=currentLegProfile(),progress=currentProgress(),speed=profile?.segments?.length?speedAtProgress(profile,progress):null;
+    const model=Number.isFinite(speed)&&speed>0?Math.round(speed):null;V30.road.currentLimit=null;V30.road.currentBusLimit=model;window.FluoRoadSpeedV30={get currentLimit(){return null},get currentBusLimit(){return V30.road.currentBusLimit}};
+    const sign=q('v16SpeedLimit');if(sign){const b=sign.querySelector('b');if(b)b.textContent=Number.isFinite(model)?String(model):'AUTO';let sm=q('v305BusLimit');if(!sm){sm=document.createElement('small');sm.id='v305BusLimit';sign.appendChild(sm)}sm.textContent='';sign.title='Vitesse de simulation locale, sans limitation OSM ni chargement réseau'}
+    const side=q('v30RoadSide');if(side){side.querySelector('b').textContent=Number.isFinite(model)?`${model} km/h`:'AUTO';side.querySelector('small').textContent='profil local · aucun chargement OSM'}
   }
   function updateRoadEta(){
     if(!state?.running||!state?.pattern||!V30.road.legs.size)return;const ids=V30.road.ids,curPos=ids.indexOf(state.current),targetPos=ids.indexOf(state.target);if(curPos<0||targetPos<0)return;const p=currentProgress(),leg=currentLegProfile(),nextSec=remainingSeconds(leg,p);if(!Number.isFinite(nextSec))return;let termSec=nextSec;if(targetPos<ids.length-1)termSec+=30;for(let k=targetPos;k<ids.length-1;k++){const z=V30.road.legs.get(`${ids[k]}-${ids[k+1]}`);if(z)termSec+=Number(z.seconds)||0;if(k<ids.length-2)termSec+=30}const now=Date.now(),a=new Date(now+nextSec*1000),z=new Date(now+termSec*1000),ta=a.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),tz=z.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});if(q('v29EtaNext'))q('v29EtaNext').textContent=ta;if(q('v29EtaTerminus'))q('v29EtaTerminus').textContent=tz;if(q('v29SideEta'))q('v29SideEta').textContent=`ETA prochain ${ta} · terminus ${tz}`
   }
-  const sideNext=q('v15LandscapeSide')?.querySelector('.v15-line-box');if(sideNext&&!q('v30RoadSide'))sideNext.insertAdjacentHTML('afterend','<div id="v30RoadSide" class="v30-road-side"><span>LIMITATION ROUTE</span><b>—</b><small>chargement des maxspeed OSM…</small></div>');
+  const sideNext=q('v15LandscapeSide')?.querySelector('.v15-line-box');if(sideNext&&!q('v30RoadSide'))sideNext.insertAdjacentHTML('afterend','<div id="v30RoadSide" class="v30-road-side"><span>VITESSE SIMULATION</span><b>AUTO</b><small>profil local sans chargement</small></div>');
 
   // ---------- Billet collectif ----------
   const serviceButtons=document.querySelector('.service-choice-buttons');
@@ -3245,7 +3247,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   if(choice&&!q('v30CollectivePanel'))choice.insertAdjacentHTML('afterend',`<div id="v30CollectivePanel"><div class="v30-collective-head"><h3>🎫 Billet collectif</h3><p>Construis un parcours libre sans département ni ligne Fluo : départ et destination peuvent être un arrêt Fluo 54/57 ou une adresse, avec autant d’étapes intermédiaires que nécessaire.</p></div><div class="v30-collective-grid"><label>Nom / référence du billet<input id="v30CollectiveName" type="text" maxlength="60" value="Billet collectif"></label><label>Heure indicative de départ<input id="v30CollectiveTime" type="time" step="60"></label></div><div id="v30CollectiveStart"></div><div id="v30CollectiveStages" class="v30-stage-list"></div><button id="v30AddStage" type="button" class="full" style="margin-top:8px">＋ Ajouter une étape</button><div id="v30CollectiveEnd" style="margin-top:8px"></div><div class="v30-collective-actions"><button id="v30CollectiveCalc" class="primary wide" type="button">🗺 CALCULER LE PARCOURS</button></div><div id="v30CollectiveStatus" class="v30-collective-status">Choisis le départ, les éventuelles étapes puis la destination.</div><div id="v30CollectivePreview" class="v30-collective-preview hidden"><div id="v30CollectiveMap"></div><div id="v30CollectiveSummary" class="v30-collective-summary"></div><div class="v30-collective-actions"><button id="v30CollectiveGps" class="primary" type="button">🛰 LANCER EN GPS RÉEL</button><button id="v30CollectiveSim" class="sim" type="button">▶︎ LANCER EN SIMULATION</button></div></div></div>`);
   function collectiveStatus(text,kind=''){const e=q('v30CollectiveStatus');if(e){e.textContent=text;e.className=`v30-collective-status ${kind}`}}
   function stopLabel(x){return `${x.name}${x.code?` · ${x.code}`:''} · ${x.dept}`}
-  async function loadCollectiveStops(){if(V30.collective.stops)return V30.collective.stops;const all=[];for(const dept of ['54','57']){try{const d=await jget(`data/${dept}/stops.json`);for(const x of d.stops||[])if(Number.isFinite(Number(x.lat))&&Number.isFinite(Number(x.lon)))all.push({...x,dept:String(x.dept||dept),lat:Number(x.lat),lon:Number(x.lon)})}catch{}}V30.collective.stops=all.sort((a,b)=>String(a.name).localeCompare(String(b.name),'fr'));return all}
+  async function loadCollectiveStops(){if(V30.collective.stops)return V30.collective.stops;const all=[];for(const dept of ['54','57']){try{const d=await window.FluoFlatData.stops(dept);for(const x of d.stops||[])if(Number.isFinite(Number(x.lat))&&Number.isFinite(Number(x.lon)))all.push({...x,dept:String(x.dept||dept),lat:Number(x.lat),lon:Number(x.lon)})}catch{}}V30.collective.stops=all.sort((a,b)=>String(a.name).localeCompare(String(b.name),'fr'));return all}
   function searchStops(text){const n=norm(text),bits=n.split(' ').filter(Boolean);if(!n)return[];return (V30.collective.stops||[]).map(x=>{const h=norm(`${x.name} ${x.code||''} ${x.dept}`);let score=bits.every(b=>h.includes(b))?10:0;if(norm(x.name).startsWith(n))score+=30;if(h.startsWith(n))score+=15;return{x,score}}).filter(z=>z.score>0).sort((a,b)=>b.score-a.score).slice(0,30).map(z=>z.x)}
   function pointHtml(role,idx=0){const title=role==='start'?'Point de départ':role==='end'?'Destination':`Étape ${idx}`;return `<div class="v30-point" data-v30-role="${role}" data-v30-index="${idx}"><div class="v30-point-head"><strong>${title}</strong><select class="v30-point-kind"><option value="stop">Arrêt Fluo 54/57</option><option value="address">Adresse</option></select>${role==='stage'?'<button class="v30-remove-stage" type="button">Supprimer</button>':''}</div><input class="v30-point-search" type="search" autocomplete="off" placeholder="Rechercher un arrêt Fluo…"><span class="v30-selected">Aucun point sélectionné.</span><div class="v30-point-results hidden"></div></div>`}
   function initCollectiveRows(){if(q('v30CollectiveStart')&&!q('v30CollectiveStart').children.length)q('v30CollectiveStart').innerHTML=pointHtml('start');if(q('v30CollectiveEnd')&&!q('v30CollectiveEnd').children.length)q('v30CollectiveEnd').innerHTML=pointHtml('end')}
@@ -3765,18 +3767,23 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v305SpeedLimitsPatch">
 'use strict';
-/* Fluo SAEIV V30.5 — limitations de vitesse légales cartographiées.
-   Remplace l'affichage de l'ancienne estimation OSRM par les tags maxspeed OSM réels.
-   La simulation utilise cette limite lorsqu'elle est disponible, avec plafond car à 100 km/h. */
+/* Fluo SAEIV V31 — limitations maxspeed OpenStreetMap non bloquantes.
+   Les valeurs OSM sont utilisées quand elles sont présentes ; le profil local stable reste
+   actif immédiatement et sert de secours en cas de donnée absente ou de réseau indisponible. */
 (() => {
   const q=id=>document.getElementById(id);
   const V305={
-    key:'',loading:false,ready:false,serial:0,ways:[],segments:[],samples:[],sampleStep:35,
+    key:'',loading:false,ready:false,serial:0,ways:[],segments:[],samples:[],sampleStep:50,
     currentLimit:null,currentMeta:null,lastBuildAt:0,lastRenderAt:0,
     endpoints:['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']
   };
+  const CACHE_KEY='fluoMaxspeedProfilesV31',CACHE_TTL=7*24*60*60*1000,CACHE_MAX=10;
   const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const norm=v=>String(v??'').trim();
+  const yieldUi=()=>new Promise(resolve=>(window.requestIdleCallback?window.requestIdleCallback(()=>resolve(),{timeout:80}):setTimeout(resolve,0)));
+  function readCache(){try{const v=JSON.parse(localStorage.getItem(CACHE_KEY)||'[]');return Array.isArray(v)?v:[]}catch{return[]}}
+  function loadCache(key){const rec=readCache().find(x=>x.key===key&&Date.now()-Number(x.savedAt||0)<CACHE_TTL);if(!rec||!Array.isArray(rec.samples)||!rec.samples.length)return false;V305.samples=rec.samples;V305.ready=true;V305.loading=false;V305.lastBuildAt=Number(rec.savedAt)||Date.now();return true}
+  function saveCache(key,samples){try{const keep=readCache().filter(x=>x.key!==key&&Date.now()-Number(x.savedAt||0)<CACHE_TTL).slice(0,CACHE_MAX-1);keep.unshift({key,savedAt:Date.now(),samples:samples.map(s=>({along:Math.round(s.along),kmh:Number.isFinite(s.kmh)?Math.round(s.kmh):null,meta:s.meta?{source:s.meta.source||'',raw:s.meta.raw||'',bus:!!s.meta.bus,name:s.meta.name||'',highway:s.meta.highway||'',wayId:s.meta.wayId||null}:null}))});localStorage.setItem(CACHE_KEY,JSON.stringify(keep))}catch{}}
   const rad=x=>x*Math.PI/180;
   const deg=x=>x*180/Math.PI;
   function routeBearing(a,b){
@@ -3834,16 +3841,17 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     if(shape.length<2)return'';const z=[shape[0],shape[Math.floor(shape.length/3)],shape[Math.floor(shape.length*2/3)],shape.at(-1)];
     return `${state?.route?.id||state?.route?.short||''}|${state?.pattern?.shape_id||''}|${z.map(p=>p.map(v=>v.toFixed(5)).join(',')).join('|')}|${shape.length}`;
   }
-  function bboxChunks(shape,cum,maxMeters=6500){
+  function bboxChunks(shape,cum,maxMeters=9000){
     const out=[];let start=0,total=cum.at(-1)||0;
     while(start<total){const end=Math.min(total,start+maxMeters),pts=[];for(let a=start;a<=end;a+=500){const p=pointAt(shape,cum,a);if(p)pts.push(p)}const pEnd=pointAt(shape,cum,end);if(pEnd)pts.push(pEnd);if(pts.length){const lats=pts.map(p=>p[0]),lons=pts.map(p=>p[1]),padLat=.0017,padLon=.0025;out.push([Math.min(...lats)-padLat,Math.min(...lons)-padLon,Math.max(...lats)+padLat,Math.max(...lons)+padLon])}if(end>=total)break;start=end}
-    return out.slice(0,18);
+    return out.slice(0,12);
   }
   function overpassQuery(b){const [s,w,n,e]=b.map(x=>Number(x).toFixed(6));return `[out:json][timeout:20];(way["highway"]["maxspeed"](${s},${w},${n},${e});way["highway"]["maxspeed:forward"](${s},${w},${n},${e});way["highway"]["maxspeed:backward"](${s},${w},${n},${e});way["highway"]["maxspeed:bus"](${s},${w},${n},${e});way["highway"]["maxspeed:bus:forward"](${s},${w},${n},${e});way["highway"]["maxspeed:bus:backward"](${s},${w},${n},${e});way["highway"]["source:maxspeed"](${s},${w},${n},${e});way["highway"]["maxspeed:type"](${s},${w},${n},${e});way["highway"]["zone:maxspeed"](${s},${w},${n},${e}););out tags geom;`}
   async function fetchOverpass(bbox){
-    const query=overpassQuery(bbox),body=`data=${encodeURIComponent(query)}`;let last=null;
+    const query=overpassQuery(bbox);let last=null;
     for(const url of V305.endpoints){
-      try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json'},body,cache:'no-store'});if(!r.ok)throw new Error(`HTTP ${r.status}`);const d=await r.json();if(Array.isArray(d?.elements))return d.elements}catch(e){last=e}
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),4500);
+      try{const r=await fetch(`${url}?data=${encodeURIComponent(query)}`,{headers:{'Accept':'application/json'},cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error(`HTTP ${r.status}`);const d=await r.json();if(Array.isArray(d?.elements))return d.elements}catch(e){last=e}finally{clearTimeout(timer)}
     }
     throw last||new Error('service maxspeed indisponible');
   }
@@ -3862,13 +3870,21 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   async function buildProfile(force=false){
     const shape=routeShape();if(shape.length<2)return false;const key=shapeKey(shape);if(!force&&V305.ready&&V305.key===key)return true;if(V305.loading&&V305.key===key)return false;
-    const serial=++V305.serial,cum=cumulative(shape),total=cum.at(-1)||0;if(total<20)return false;V305.loading=true;V305.ready=false;V305.key=key;V305.currentLimit=null;V305.currentMeta=null;renderCurrent(true);
+    const serial=++V305.serial,cum=cumulative(shape),total=cum.at(-1)||0;if(total<20)return false;V305.loading=true;V305.ready=false;V305.key=key;V305.currentLimit=null;V305.currentMeta=null;
+    if(!force&&loadCache(key)){renderCurrent();return true}renderCurrent(true);
     try{
-      const boxes=bboxChunks(shape,cum),byId=new Map();for(let i=0;i<boxes.length;i++){if(serial!==V305.serial)return false;try{const xs=await fetchOverpass(boxes[i]);for(const x of xs)if(x?.type==='way')byId.set(x.id,x)}catch(e){console.warn(`V30.5 maxspeed bloc ${i+1}/${boxes.length}`,e)}}
+      const boxes=bboxChunks(shape,cum),byId=new Map();if(!boxes.length)return false;
+      // Une première zone sert de sonde. Si Overpass est indisponible, on s'arrête
+      // immédiatement et le profil local reste actif sans lancer toutes les zones.
+      try{const first=await fetchOverpass(boxes[0]);for(const x of first)if(x?.type==='way')byId.set(x.id,x)}catch(e){console.warn('V31 maxspeed indisponible · profil local conservé',e);return false}
+      let cursor=1;
+      async function worker(){while(cursor<boxes.length){const i=cursor++;if(serial!==V305.serial)return;try{const xs=await fetchOverpass(boxes[i]);for(const x of xs)if(x?.type==='way')byId.set(x.id,x)}catch(e){console.warn(`V31 maxspeed bloc ${i+1}/${boxes.length}`,e)}await yieldUi()}}
+      await Promise.all(Array.from({length:Math.min(2,Math.max(0,boxes.length-1))},worker));
       if(serial!==V305.serial)return false;const ways=[...byId.values()],segments=makeSegments(ways),buckets=bucketSegments(segments),step=V305.sampleStep,samples=[];
-      for(let a=0;a<=total;a+=step){const p=pointAt(shape,cum,a),p2=pointAt(shape,cum,Math.min(total,a+Math.max(18,step)));if(!p||!p2)continue;const head=routeBearing(p,p2),meta=nearestSpeed(p,head,buckets);samples.push({along:a,kmh:meta?.kmh??null,meta:meta||null})}
+      let sampled=0;for(let a=0;a<=total;a+=step){const p=pointAt(shape,cum,a),p2=pointAt(shape,cum,Math.min(total,a+Math.max(18,step)));if(!p||!p2)continue;const head=routeBearing(p,p2),meta=nearestSpeed(p,head,buckets);samples.push({along:a,kmh:meta?.kmh??null,meta:meta||null});if(++sampled%160===0)await yieldUi()}
       const lastPoint=pointAt(shape,cum,total);if(lastPoint){const p0=pointAt(shape,cum,Math.max(0,total-step))||lastPoint,head=routeBearing(p0,lastPoint),meta=nearestSpeed(lastPoint,head,buckets);samples.push({along:total,kmh:meta?.kmh??null,meta:meta||null})}
       V305.ways=ways;V305.segments=segments;V305.samples=samples;V305.ready=true;V305.lastBuildAt=Date.now();
+      saveCache(key,samples);
       try{if(typeof journal==='function')journal('ROAD_PROFILE_READY',{source:'OpenStreetMap maxspeed',ways:ways.length,samples:samples.filter(x=>Number.isFinite(x.kmh)).length,totalSamples:samples.length})}catch{}
       return true;
     }finally{if(serial===V305.serial){V305.loading=false;renderCurrent()}}
@@ -3878,24 +3894,21 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function limitAtAlong(along){const s=sampleAtAlong(along);return Number.isFinite(s?.kmh)?Math.round(s.kmh):null}
   function currentAlong(){const a=Number(state?.fusion?.snapped?.along);return Number.isFinite(a)?a:null}
   function renderCurrent(loadingOnly=false){
-    const along=currentAlong(),sample=sampleAtAlong(along),limit=Number.isFinite(sample?.kmh)?Math.round(sample.kmh):null;V305.currentLimit=limit;V305.currentMeta=sample?.meta||null;
-    if(typeof window.FluoRoadSpeedV30==='object')try{Object.defineProperty(window.FluoRoadSpeedV30,'currentLimit',{configurable:true,get:()=>V305.currentLimit})}catch{window.FluoRoadSpeedV30={get currentLimit(){return V305.currentLimit}}}else window.FluoRoadSpeedV30={get currentLimit(){return V305.currentLimit}};
-    const sign=q('v16SpeedLimit'),side=q('v30RoadSide');
-    const source=V305.loading?'Chargement des limitations…':Number.isFinite(limit)?`${sample?.meta?.bus?'limite bus cartographiée':'limite route cartographiée'}${sample?.meta?.name?` · ${sample.meta.name}`:''}`:'maxspeed non renseigné sur cette portion';
-    if(sign){const b=sign.querySelector('b');if(b)b.textContent=V305.loading&&!V305.ready?'…':Number.isFinite(limit)?String(limit):'—';sign.title=Number.isFinite(limit)?`Limitation cartographiée OpenStreetMap : ${limit} km/h${sample?.meta?.name?` · ${sample.meta.name}`:''}. Simulation car plafonnée à 100 km/h.`:'Limitation légale non disponible dans les données cartographiques pour cette portion.'}
-    if(side){const b=side.querySelector('b'),sm=side.querySelector('small');if(b)b.textContent=V305.loading&&!V305.ready?'…':Number.isFinite(limit)?`${limit} km/h`:'—';if(sm)sm.textContent=source}
-    if(window.__fluoV16&&state?.mode!=='simulation')window.__fluoV16.currentRoadLimit=Number.isFinite(limit)?limit:null;
+    const sample=sampleAtAlong(currentAlong()),osm=Number.isFinite(sample?.kmh)?Math.round(sample.kmh):null,fromProfile=Number(window.FluoRoadSpeedV30?.currentBusLimit),fallback=Number(window.__fluoV16?.currentRoadLimit),model=Number.isFinite(fromProfile)&&fromProfile>0?fromProfile:fallback,shown=osm??(Number.isFinite(model)&&model>0?Math.round(model):null),sign=q('v16SpeedLimit'),side=q('v30RoadSide');
+    V305.currentLimit=osm;V305.currentMeta=sample?.meta||null;
+    if(sign){const tag=sign.querySelector('span'),b=sign.querySelector('b');if(tag)tag.textContent=osm?'OSM':V305.loading?'OSM…':'AUTO';if(b)b.textContent=shown?String(Math.min(100,shown)):'AUTO';sign.title=osm?`Limitation OpenStreetMap${sample?.meta?.name?` · ${sample.meta.name}`:''}`:V305.loading?'Limitations OSM en cours de chargement · profil local actif':'Profil local actif · limitation OSM absente ou indisponible'}
+    if(side){const b=side.querySelector('b'),sm=side.querySelector('small');if(b)b.textContent=shown?`${Math.min(100,shown)} km/h`:'AUTO';if(sm)sm.textContent=osm?'limitation OSM cartographiée':V305.loading?'OSM en arrière-plan · profil local actif':'profil local de secours'}
   }
-  function scheduleBuild(force=false){clearTimeout(V305._timer);V305._timer=setTimeout(()=>buildProfile(force).catch(e=>{console.warn('V30.5 limitations',e);V305.loading=false;V305.ready=false;renderCurrent()}),220)}
-  try{const basePrepare=prepareCourseGeometry;prepareCourseGeometry=function(){const r=basePrepare();scheduleBuild(false);return r}}catch(e){console.warn('V30.5 prepare hook',e)}
-  try{const baseEnter=enterDriver;enterDriver=function(mode){const r=baseEnter(mode);scheduleBuild(false);setTimeout(renderCurrent,120);return r}}catch(e){console.warn('V30.5 enter hook',e)}
-  try{const baseProcess=processPos;processPos=function(p){const r=baseProcess(p);renderCurrent();return r}}catch(e){console.warn('V30.5 process hook',e)}
+  function scheduleBuild(force=false){clearTimeout(V305._timer);V305.serial++;V305.loading=false;V305.ready=false;V305.currentLimit=null;V305.currentMeta=null;const shape=routeShape(),key=shapeKey(shape);if(!force&&key&&loadCache(key)){V305.key=key;renderCurrent();return}renderCurrent();if(!navigator.onLine||shape.length<2)return;V305._timer=setTimeout(()=>buildProfile(force).catch(e=>{console.warn('V31 limitations OSM',e);renderCurrent()}),1300)}
+  try{const basePrepare=prepareCourseGeometry;prepareCourseGeometry=function(){const r=basePrepare();scheduleBuild(false);return r}}catch(e){console.warn('V31 prepare hook',e)}
+  try{const baseEnter=enterDriver;enterDriver=function(mode){const r=baseEnter(mode);scheduleBuild(false);setTimeout(renderCurrent,120);return r}}catch(e){console.warn('V31 enter hook',e)}
+  try{const baseProcess=processPos;processPos=function(p){const r=baseProcess(p);renderCurrent();return r}}catch(e){console.warn('V31 process hook',e)}
   window.addEventListener('online',()=>{if(state?.pattern)scheduleBuild(true)});
   window.FluoSpeedLimitsV305={build:buildProfile,limitAtAlong,get currentLimit(){return V305.currentLimit},get currentMeta(){return V305.currentMeta},get ready(){return V305.ready},get loading(){return V305.loading},state:V305};
 
-  const note=document.querySelector('.fusion-note');if(note&&!q('v305SpeedNote'))note.insertAdjacentHTML('afterend','<div id="v305SpeedNote" class="fusion-note"><b>🚦 Limitations V30.5</b><span>Le panneau vitesse utilise désormais les limitations <code>maxspeed</code> réellement cartographiées sur la voirie (avec <code>maxspeed:bus</code> lorsqu’il existe). L’ancienne conversion de vitesse moyenne OSRM n’est plus affichée comme une limitation. Si aucune valeur fiable n’est renseignée, le SAEIV affiche « — ».</span></div>');
-  document.title='Fluo SAEIV V30.7 · Simulation fiable + GPS fluide';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.7 GPS FLUIDE';const b=q('buildInfo');if(b&&!/V30.7/.test(b.textContent))b.textContent+=' · V30.7 simulation non bloquante + GPS fluide'};
+  const note=document.querySelector('.fusion-note');if(note&&!q('v305SpeedNote'))note.insertAdjacentHTML('afterend','<div id="v305SpeedNote" class="fusion-note"><b>🚌 Limitations OSM non bloquantes V31</b><span>Les valeurs maxspeed OpenStreetMap sont chargées en arrière-plan et conservées 7 jours. Si une valeur manque ou si le réseau ne répond pas, le profil local 35–50–70–80 reste actif sans interrompre la simulation ni le GPS.</span></div>');
+  document.title='Fluo SAEIV V31 · Limitations OSM + paysage conducteur';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V31 OSM NON BLOQUANT';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
 })();
 </script>
@@ -4042,8 +4055,115 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 
-<script id="v307FinalLabel">
-(()=>{const apply=()=>{document.title='Fluo SAEIV V30.7 · Simulation fiable + GPS fluide';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.7 GPS FLUIDE'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
+<script id="v309LineTimetable">
+'use strict';
+/* V30.9 — fiche horaire officielle accessible dès la sélection d'une ligne. */
+(()=>{
+  const q=id=>document.getElementById(id),html=s=>esc(String(s??''));
+  const info=q('courseInfo');if(!info)return;
+  const button=document.createElement('button');button.id='v309TimetableOpen';button.type='button';button.className='v309-open hidden';button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-controls','v309Timetable');button.textContent='📄 VOIR LA FICHE HORAIRE DE LA LIGNE';info.insertAdjacentElement('afterend',button);
+  document.body.insertAdjacentHTML('beforeend',`<div id="v309Timetable" class="v309-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="v309Title"><div class="v309-sheet"><div class="v309-head"><div><div class="v309-kicker">HORAIRES OFFICIELS FLUO</div><h2 id="v309Title">Fiche horaire</h2><p id="v309Subtitle"></p></div><button id="v309Close" type="button">Fermer</button></div><div class="v309-tools"><label>Date<input id="v309Date" type="date"></label><label>Sens / destination<select id="v309Direction"></select></label></div><div id="v309Departures" class="v309-departures"></div><div id="v309TripDetail" class="v309-detail"></div><div class="v309-actions"><button id="v309Print" type="button">🖨 Imprimer la fiche</button></div></div></div>`);
+  const css=document.createElement('style');css.id='v309Style';css.textContent=`
+    .v309-open{width:100%;margin:8px 0 2px;min-height:48px;border:1px solid #4b6b7d;background:#102a39;color:#eefaff;border-radius:13px;font-weight:950}.v309-open.hidden,.v309-backdrop.hidden{display:none!important}
+    .v309-backdrop{position:fixed;z-index:16000;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;padding:12px}.v309-sheet{width:min(980px,100%);max-height:94dvh;overflow:auto;background:#0b1b26;color:#eff9ff;border:1px solid #39586a;border-radius:22px;padding:16px;box-shadow:0 -22px 70px rgba(0,0,0,.55)}
+    .v309-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.v309-head h2{margin:2px 0 3px}.v309-head p{margin:0;color:#a9bdc9;font-size:.76rem}.v309-kicker{color:#ffd000;font-size:.66rem;font-weight:1000;letter-spacing:.08em}.v309-head button{padding:9px 12px}.v309-tools{display:grid;grid-template-columns:minmax(170px,.4fr) 1fr;gap:10px;margin:14px 0}.v309-tools label{font-size:.7rem;color:#a9bdc9}.v309-tools input,.v309-tools select{display:block;width:100%;margin-top:4px;min-height:46px;background:#07131c;color:#fff;border:1px solid #39586a;border-radius:11px;padding:9px;font:inherit;color-scheme:dark}
+    .v309-departures{display:flex;gap:7px;overflow:auto;padding:2px 1px 10px}.v309-dep{flex:0 0 auto;padding:9px 11px;border-radius:999px;background:#142c3b;border:1px solid #3d6074;color:#fff;font-weight:950}.v309-dep.active{background:#ffd000;color:#111;border-color:#ffd000}.v309-empty{padding:18px;border:1px dashed #456275;border-radius:13px;color:#a9bdc9;text-align:center}.v309-detail{border:1px solid #39586a;border-radius:14px;overflow:auto;background:#07131c}.v309-detail-head{padding:11px 12px;background:#102633;position:sticky;left:0}.v309-detail-head b{display:block}.v309-detail-head span{display:block;color:#abc0cc;font-size:.7rem;margin-top:2px}.v309-table{width:100%;border-collapse:collapse;font-size:.78rem}.v309-table th,.v309-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}.v309-table th{color:#a9bdc9;background:#0c202c;position:sticky;top:0}.v309-table td:first-child{font-weight:850;min-width:220px}.v309-table td:last-child{font-weight:1000;color:#ffd000;white-space:nowrap}.v309-actions{display:flex;justify-content:flex-end;margin-top:10px}.v309-actions button{min-height:44px}
+    @media(max-width:620px){.v309-backdrop{padding:0}.v309-sheet{border-radius:22px 22px 0 0;padding:13px;padding-bottom:calc(13px + env(safe-area-inset-bottom))}.v309-tools{grid-template-columns:1fr}.v309-table{font-size:.72rem}.v309-table th,.v309-table td{padding:8px}.v309-table td:first-child{min-width:170px}}
+    @media print{body>*:not(#v309Timetable){display:none!important}#v309Timetable{display:block!important;position:static;background:#fff;padding:0}.v309-sheet{max-height:none;overflow:visible;width:100%;border:0;box-shadow:none;background:#fff;color:#111}.v309-head button,.v309-tools,.v309-departures,.v309-actions{display:none!important}.v309-detail{overflow:visible;background:#fff;border-color:#aaa}.v309-detail-head,.v309-table th{background:#eee;color:#111}.v309-table td,.v309-table th{color:#111;border-color:#ccc}.v309-table td:last-child{color:#111}}
+  `;document.head.appendChild(css);
+
+  let groups=[];
+  const rawDate=()=>q('v309Date')?.value||q('serviceDate')?.value||'';
+  const dateObject=()=>{const m=rawDate().match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]):parseServiceDate()};
+  const clock=raw=>{const m=String(raw||'').match(/^(\d+):(\d{2})/);if(!m)return '—';return `${String((+m[1])%24).padStart(2,'0')}:${m[2]}`};
+  const tripTime=(trip,index)=>{const pair=trip?.times?.[index]||[],a=clock(pair[0]),d=clock(pair[1]);return a==='—'?d:d==='—'||a===d?a:`${a} / ${d}`};
+  function officialReady(){return ['54','57'].includes(String(state?.dept))&&state?.route&&!state.route.custom&&(state.patterns||[]).some(p=>(p.trips||[]).length)}
+  function syncButton(){button.classList.toggle('hidden',!officialReady())}
+  function buildGroups(){
+    const date=dateObject(),map=new Map();for(let pi=0;pi<(state.patterns||[]).length;pi++){const p=state.patterns[pi],origin=p.stops?.[0]?.name||'Départ',dest=p.stops?.at(-1)?.name||p.headsign||'Terminus',key=`${origin}→${dest}`;for(let ti=0;ti<(p.trips||[]).length;ti++){const trip=p.trips[ti];if(!serviceActive(trip.service,date))continue;const raw=trip.times?.[0]?.[1]||trip.times?.[0]?.[0];if(!raw)continue;if(!map.has(key))map.set(key,{key,label:`${origin} → ${dest}`,runs:[]});map.get(key).runs.push({pi,ti,p,trip,raw,seconds:gtfsSeconds(raw)??Infinity})}}
+    groups=[...map.values()].map(g=>({...g,runs:g.runs.sort((a,b)=>a.seconds-b.seconds)})).sort((a,b)=>a.label.localeCompare(b.label,'fr'));return groups;
+  }
+  function renderTrip(run){
+    const p=run.p,trip=run.trip,rows=p.stops.map((st,i)=>`<tr><td>${i+1}. ${html(st.name)}</td><td>${html(tripTime(trip,i))}</td></tr>`).join(''),dest=p.stops.at(-1)?.name||p.headsign||'Terminus';
+    q('v309TripDetail').innerHTML=`<div class="v309-detail-head"><b>${html(p.stops[0]?.name||'Départ')} → ${html(dest)}</b><span>Départ ${html(clock(run.raw))} · ${p.stops.length} arrêts · données GTFS officielles Fluo</span></div><table class="v309-table"><thead><tr><th>Arrêt</th><th>Arrivée / départ</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  function renderDepartures(){
+    const g=groups[Number(q('v309Direction').value||0)];if(!g){q('v309Departures').innerHTML='';q('v309TripDetail').innerHTML='<div class="v309-empty">Aucun horaire pour cette date.</div>';return}
+    q('v309Departures').innerHTML=g.runs.map((r,i)=>`<button type="button" class="v309-dep${i===0?' active':''}" data-v309-run="${i}">${html(clock(r.raw))}</button>`).join('');renderTrip(g.runs[0]);
+  }
+  function renderSheet(){
+    const gs=buildGroups(),date=dateObject();q('v309Title').textContent=`${state.route.short} · ${state.route.long||'Fiche horaire'}`;q('v309Subtitle').textContent=`${date.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})} · lignes régulières, scolaires et TAD issues du flux officiel`;
+    q('v309Direction').innerHTML=gs.length?gs.map((g,i)=>`<option value="${i}">${html(g.label)} · ${g.runs.length} départ${g.runs.length>1?'s':''}</option>`).join(''):'<option>Aucun service ce jour</option>';q('v309Direction').disabled=!gs.length;renderDepartures();
+  }
+  function openTimetable(){
+    const modal=q('v309Timetable');modal.classList.remove('hidden');q('v309Date').value=q('serviceDate')?.value||new Date().toISOString().slice(0,10);
+    try{renderSheet()}catch(e){console.error('V30.9 affichage fiche horaire',e);q('v309Title').textContent=state?.route?.short||'Fiche horaire';q('v309Subtitle').textContent='La ligne est sélectionnée, mais ses horaires ne peuvent pas être affichés.';q('v309Departures').innerHTML='';q('v309TripDetail').innerHTML=`<div class="v309-empty">Affichage impossible : ${html(e?.message||e)}</div>`}
+  }
+  function close(){q('v309Timetable').classList.add('hidden')}
+  // Délégation en capture : l'ouverture reste fiable même si un ancien module intercepte
+  // ensuite les clics de l'écran de sélection.
+  document.addEventListener('click',e=>{if(!e.target.closest?.('#v309TimetableOpen'))return;e.preventDefault();openTimetable()},true);
+  q('v309Close').addEventListener('click',close);q('v309Timetable').addEventListener('click',e=>{if(e.target===q('v309Timetable'))close()});q('v309Date').addEventListener('change',renderSheet);q('v309Direction').addEventListener('change',renderDepartures);q('v309Departures').addEventListener('click',e=>{const b=e.target.closest('[data-v309-run]');if(!b)return;q('v309Departures').querySelectorAll('.v309-dep').forEach(x=>x.classList.toggle('active',x===b));const g=groups[Number(q('v309Direction').value||0)],run=g?.runs?.[Number(b.dataset.v309Run)];if(run)renderTrip(run)});q('v309Print').addEventListener('click',()=>window.print());document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  try{const baseLoadRoute=loadRoute;loadRoute=async function(r){button.classList.add('hidden');const out=await baseLoadRoute(r);syncButton();return out};const baseReset=resetSelections;resetSelections=function(level){const out=baseReset(level);if(level==='dept'||level==='route')button.classList.add('hidden');return out}}catch(e){console.warn('V30.9 fiche horaire',e)}
+  q('serviceDate')?.addEventListener('change',()=>{if(!q('v309Timetable').classList.contains('hidden')){q('v309Date').value=q('serviceDate').value;renderSheet()}});syncButton();
+})();
+</script>
+
+<script id="v31LandscapeDriverLayout">
+'use strict';
+/* V31 — informations complètes en paysage, commandes principales en bas et surplus à droite. */
+(()=>{
+  const q=id=>document.getElementById(id),driver=q('driver'),side=q('v15LandscapeSide');if(!driver||!side)return;
+  const bottom=document.createElement('div');bottom.id='v31LandscapeBottom';bottom.setAttribute('aria-label','Commandes principales conducteur');
+  bottom.innerHTML=`<button type="button" data-v31-target="followMap">🎯 Suivre</button><button type="button" data-v31-target="navVoiceBtn">🔊 GPS</button><button type="button" data-v31-target="prev">← Arrêt</button><button type="button" class="primary" data-v31-target="speak">🔊 Annoncer</button><button type="button" data-v31-target="nextBtn">Arrêt →</button><button type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button type="button" class="danger" data-v31-target="v15FinishBtn">FIN</button>`;
+  driver.appendChild(bottom);
+  const dock=q('v281LandscapeDock');if(dock&&!q('v31SideExtra')){const extra=document.createElement('div');extra.id='v31SideExtra';extra.innerHTML='<button type="button" data-v31-target="v16MapMode">🧭 Carte 2D/3D</button><button type="button" data-v31-target="simPlayPause">⏯ Simulation</button><button type="button" data-v31-target="simSkip">⏭ Arrêt simu</button>';dock.appendChild(extra)}
+  function targetFor(button){return q(button?.dataset?.v31Target)}
+  function syncButtons(){document.querySelectorAll('[data-v31-target]').forEach(b=>{const t=targetFor(b);b.disabled=!t||t.disabled;const sim=/^(simPlayPause|simSkip)$/.test(b.dataset.v31Target),hidden=sim&&(!t||t.closest('.sim-controls')?.classList.contains('hidden'));b.classList.toggle('v31-hidden',!!hidden);if(b.dataset.v31Target==='v16MapMode'&&t)b.textContent=`🧭 ${t.textContent.replace(/^\s*🧭\s*/, '')}`;if(b.dataset.v31Target==='navVoiceBtn'&&t)b.textContent=t.classList.contains('off')?'🔇 GPS':'🔊 GPS'})}
+  document.addEventListener('click',e=>{const b=e.target.closest?.('[data-v31-target]');if(!b)return;const t=targetFor(b);if(t&&!t.disabled){e.preventDefault();t.click();setTimeout(syncButtons,0)}},true);
+  function syncFullTexts(){
+    const line=[state?.route?.short,state?.route?.long].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' · '),dest=state?.pattern?.stops?.at(-1)?.name||state?.pattern?.headsign||'—',next=state?.pattern?.stops?.[state?.target]?.name||q('next')?.textContent||'—';
+    if(q('v15Line')&&line&&q('v15Line').textContent!==line)q('v15Line').textContent=line;
+    if(q('v15Destination')&&q('v15Destination').textContent!==dest)q('v15Destination').textContent=dest;
+    if(q('v15NextStop')&&next&&q('v15NextStop').textContent!==next)q('v15NextStop').textContent=next;
+    syncButtons();
+  }
+  const css=document.createElement('style');css.id='v31LandscapeStyle';css.textContent=`
+    #v31LandscapeBottom{display:none}
+    .v31-hidden{display:none!important}
+    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){
+      #driver{grid-template-columns:minmax(0,1fr) minmax(205px,28vw)!important;grid-template-rows:minmax(0,1fr) auto!important}
+      #driver .navmap-wrap{grid-column:1!important;grid-row:1!important}
+      #v15LandscapeSide{grid-column:2!important;grid-row:1/3!important;padding:5px!important;overflow-y:auto!important;scrollbar-width:thin}
+      #v15LandscapeSide .v15-next-box strong{max-height:none!important;overflow:visible!important;white-space:normal!important;overflow-wrap:anywhere!important;font-size:clamp(.82rem,1.65vw,1.05rem)!important}
+      #v15LandscapeSide .v15-line-box{grid-template-columns:1fr!important}
+      #v15LandscapeSide .v15-line-box strong,#v15LandscapeSide .v15-destination strong{display:block!important;max-height:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere!important;-webkit-line-clamp:unset!important;font-size:.72rem!important;line-height:1.12!important}
+      #v15LandscapeSide .v15-line-box>div:first-child strong{font-size:.82rem!important;color:#ffd000!important}
+      #v281LandscapeDock{position:static!important;inset:auto!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:4px!important;margin-top:auto!important;padding:4px!important;flex:0 0 auto!important}
+      #v281LandscapeDock .v15-side-actions{display:none!important}
+      #v281LandscapeDock .v281-dock-row,#v281LandscapeDock .v29-dock-row,#v31SideExtra{display:contents!important}
+      #v281LandscapeDock button{width:100%!important;min-width:0!important;min-height:27px!important;padding:4px!important;font-size:.53rem!important;line-height:1.05!important;white-space:normal!important}
+      #driver > #v31LandscapeBottom{grid-column:1!important;grid-row:2!important;display:flex!important;gap:4px!important;min-width:0!important;overflow-x:auto!important;padding:4px 1px 0!important;scrollbar-width:thin!important}
+      #v31LandscapeBottom button{flex:1 0 auto!important;min-width:64px!important;min-height:34px!important;padding:5px 7px!important;font-size:.59rem!important;line-height:1.05!important;white-space:nowrap!important}
+      #driver .maphud #followMap,#v15MapGuidance #v15NavVoice,.v16-map-controls #v16MapMode{display:none!important}
+      #driver .maphud{pointer-events:none!important}.v16-map-controls{pointer-events:none!important}.v16-map-controls .v16-speed-limit{pointer-events:none!important}
+      #v15LandscapeSide .v15-side-spacer{display:none!important}
+    }
+    @media(orientation:landscape) and (max-height:390px) and (max-width:760px){
+      #driver{grid-template-columns:minmax(0,1fr) minmax(190px,30vw)!important;gap:4px!important}
+      #v31LandscapeBottom button{min-height:29px!important;padding:4px 6px!important;font-size:.53rem!important}
+      #v15LandscapeSide .v15-punctuality{min-height:39px!important}
+      #v15LandscapeSide .v15-next-box,#v15LandscapeSide .v15-line-box>div{padding:4px 5px!important}
+      #v281LandscapeDock button{min-height:23px!important;font-size:.49rem!important}
+    }
+  `;document.head.appendChild(css);
+  [q('routeBadge'),q('headsign'),q('next'),q('v15Line'),q('v15Destination'),q('v15NextStop'),q('simControls')].filter(Boolean).forEach(el=>new MutationObserver(()=>setTimeout(syncFullTexts,0)).observe(el,{attributes:true,childList:true,subtree:true,characterData:true}));
+  setInterval(syncFullTexts,700);syncFullTexts();
+})();
+</script>
+
+<script id="v309FinalLabel">
+(()=>{const apply=()=>{document.title='Fluo SAEIV V31.1 · édition GitHub plate';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V31.1 GITHUB PLAT'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
 </script>
 </body>
 </html>
