@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V30.5",
+  "name": "Fluo SAEIV V30.6",
   "short_name": "Fluo SAEIV",
-  "start_url": "./?v=30.5",
+  "start_url": "./?v=30.6",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V30.5 — billets collectifs préparés, routes à éviter, journal intégral et limitations routières OSM maxspeed."
+  "description": "SAEIV conducteur V30.6 — billets collectifs préparés, routes à éviter, journal intégral et limitations routières OSM maxspeed."
 }

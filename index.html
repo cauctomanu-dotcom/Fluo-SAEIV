@@ -4010,5 +4010,192 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 
+<script id="v306GpsVisualSmoothing">
+'use strict';
+/* Fluo SAEIV V30.6 — fluidification du pictogramme GPS réel.
+   Le navigateur/iPhone peut ne livrer qu'un fix GPS par seconde. On conserve ces fixes
+   comme vérité de navigation, mais le rendu du bus est interpolé/extrapolé très brièvement
+   entre deux fixes afin d'éviter les sauts de ~20 m à 80 km/h. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const G={
+    raf:null, active:false, mode:null,
+    fixPerf:0, lastFrame:0, lastCamera:0,
+    anchorAlong:null, visualAlong:null,
+    anchorLat:null, anchorLon:null, visualLat:null, visualLon:null,
+    speedMps:0, visualHeading:0, rawHeading:null,
+    lastFixAlong:null, lastFixPerf:0
+  };
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+  function reset(){
+    if(G.raf!==null){cancelAnimationFrame(G.raf);G.raf=null;}
+    G.active=false;G.mode=null;G.fixPerf=0;G.lastFrame=0;G.lastCamera=0;
+    G.anchorAlong=G.visualAlong=null;G.anchorLat=G.anchorLon=G.visualLat=G.visualLon=null;
+    G.speedMps=0;G.visualHeading=Number(state?.nav?.lastHeading||0);G.rawHeading=null;
+    G.lastFixAlong=null;G.lastFixPerf=0;
+  }
+  function shortestHeading(prev,next,alpha){
+    if(!Number.isFinite(next))return Number.isFinite(prev)?prev:0;
+    if(!Number.isFinite(prev))return next;
+    const d=((next-prev+540)%360)-180;
+    return (prev+d*clamp(alpha,0,1)+360)%360;
+  }
+  function destination(lat,lon,heading,meters){
+    const R=6371000, br=heading*Math.PI/180, p1=lat*Math.PI/180, l1=lon*Math.PI/180, d=meters/R;
+    const p2=Math.asin(Math.sin(p1)*Math.cos(d)+Math.cos(p1)*Math.sin(d)*Math.cos(br));
+    const l2=l1+Math.atan2(Math.sin(br)*Math.sin(d)*Math.cos(p1),Math.cos(d)-Math.sin(p1)*Math.sin(p2));
+    return {lat:p2*180/Math.PI,lon:((l2*180/Math.PI+540)%360)-180};
+  }
+  function currentVisual(){
+    if(G.mode==='route'&&Number.isFinite(G.visualAlong)){
+      const p=typeof pointAtRouteAlong==='function'?pointAtRouteAlong(G.visualAlong):null;
+      if(p)return {lat:p.lat,lon:p.lon,heading:G.visualHeading};
+    }
+    if(Number.isFinite(G.visualLat)&&Number.isFinite(G.visualLon))return {lat:G.visualLat,lon:G.visualLon,heading:G.visualHeading};
+    return null;
+  }
+  function rotateLeafletBus(h){
+    const el=state?.nav?.busMarker?.getElement?.();if(!el)return;
+    const bus=el.querySelector('.bus-pin-v16,.bus-pin-v12,.bus-pin');
+    if(bus)bus.style.transform=`rotate(${h.toFixed(1)}deg)`;
+  }
+  function renderMapLibre(lat,lon,h,now,force=false){
+    const V=window.__fluoV16,m=V?.map3d;
+    if(!V||!m||!V.mapLoaded)return;
+    try{
+      if(V.busMarker){V.busMarker.setLngLat([lon,lat]);V.busMarker.setRotation(h);}
+      if(!force&&now-(G.lastCamera||0)<32)return; // caméra ~30 i/s, pictogramme jusqu'à 60 i/s
+      G.lastCamera=now;
+      const common=V.mapMode==='3d'
+        ? {center:[lon,lat],zoom:16.7,pitch:55,bearing:h,offset:[0,Math.min(115,window.innerHeight*.18)]}
+        : {center:[lon,lat],zoom:16.1,pitch:0,bearing:V.mapMode==='heading'?h:0,offset:[0,V.mapMode==='heading'?Math.min(75,window.innerHeight*.12):0]};
+      m.stop();m.jumpTo(common);V.lastCameraAt=now;V.last3dHeading=h;
+    }catch(e){console.warn('V30.6 rendu MapLibre',e)}
+  }
+  function renderLeaflet(lat,lon,h,now,force=false){
+    const marker=state?.nav?.busMarker,map=state?.nav?.map;
+    try{if(marker){marker.setLatLng([lat,lon]);rotateLeafletBus(h)}}catch{}
+    // Leaflet reste le secours si MapLibre n'est pas actif.
+    const maplibreActive=q('driver')?.classList.contains('v16-maplibre-active');
+    if(maplibreActive||!map||state?.nav?.follow===false)return;
+    if(!force&&now-(G.lastCamera||0)<32)return;
+    try{map.setView([lat,lon],Math.max(map.getZoom(),15),{animate:false})}catch{}
+  }
+  function renderVisual(force=false){
+    const v=currentVisual();if(!v)return;
+    const now=performance.now();
+    state.nav.lastHeading=v.heading;state.nav.lastDisplayLat=v.lat;state.nav.lastDisplayLon=v.lon;state.nav.lastDisplayAt=Date.now();
+    renderLeaflet(v.lat,v.lon,v.heading,now,force);
+    renderMapLibre(v.lat,v.lon,v.heading,now,force);
+  }
+  function estimatedSpeed(fixAlong,now,c){
+    const gps=Number(c?.speed);
+    if(Number.isFinite(gps)&&gps>=0)return clamp(gps,0,42); // 151 km/h max de garde-fou
+    if(Number.isFinite(fixAlong)&&Number.isFinite(G.lastFixAlong)&&G.lastFixPerf>0){
+      const dt=Math.max(.15,(now-G.lastFixPerf)/1000),v=(fixAlong-G.lastFixAlong)/dt;
+      if(Number.isFinite(v))return clamp(v,0,42);
+    }
+    return clamp(G.speedMps||0,0,42);
+  }
+  function takeFix(p){
+    if(state?.mode!=='gps'||!state?.running||!p?.coords){G.active=false;return;}
+    const now=performance.now(),c=p.coords,snap=state?.fusion?.snapped;
+    const deviation=window.FluoOpsV29?.isDeviationActive?.()===true;
+    const routeMode=!deviation&&Number.isFinite(Number(snap?.along));
+    const nextMode=routeMode?'route':'raw';
+    const fixAlong=routeMode?Number(snap.along):null;
+    const speed=estimatedSpeed(fixAlong,now,c);
+    const rawH=Number.isFinite(c.heading)&&c.heading>=0?Number(c.heading):null;
+
+    if(!G.active||G.mode!==nextMode){
+      G.mode=nextMode;
+      if(routeMode){
+        G.anchorAlong=fixAlong;G.visualAlong=fixAlong;
+        const hh=Number.isFinite(snap?.heading)?Number(snap.heading):(rawH??state.nav.lastHeading??0);G.visualHeading=hh;
+      }else{
+        G.anchorLat=Number(c.latitude);G.anchorLon=Number(c.longitude);G.visualLat=G.anchorLat;G.visualLon=G.anchorLon;
+        G.visualHeading=rawH??Number(state.nav.lastHeading||0);
+      }
+    }else if(routeMode){
+      // Le nouveau fix devient l'ancre ; on ne téléporte pas le rendu dessus.
+      G.anchorAlong=fixAlong;
+    }else{
+      G.anchorLat=Number(c.latitude);G.anchorLon=Number(c.longitude);
+    }
+
+    G.speedMps=speed;G.rawHeading=rawH;G.fixPerf=now;G.active=true;
+    if(Number.isFinite(fixAlong)){G.lastFixAlong=fixAlong;G.lastFixPerf=now;}
+    renderVisual(true); // annule dans la même frame le saut produit par le fix brut
+    if(G.raf===null){G.lastFrame=now;G.raf=requestAnimationFrame(frame);}
+  }
+  function frame(now){
+    G.raf=null;
+    if(!G.active||state?.mode!=='gps'||!state?.running)return;
+    const dt=clamp((now-(G.lastFrame||now))/1000,.001,.08);G.lastFrame=now;
+    const age=Math.max(0,(now-G.fixPerf)/1000);
+    // On ne prédit jamais loin : au-delà d'environ 1,25 s sans nouveau fix, le bus cesse d'avancer.
+    // En mauvaise précision, l'horizon est encore raccourci.
+    const acc=Number(state?.pos?.coords?.accuracy)||20;
+    const horizon=acc>80?.55:acc>40?.8:1.25;
+    const predictAge=Math.min(age,horizon);
+    const followAlpha=1-Math.exp(-dt/0.105); // réponse ~100 ms, donc fluide sans effet élastique
+
+    if(G.mode==='route'&&Number.isFinite(G.anchorAlong)){
+      const total=Number(state?.fusion?.cum?.at?.(-1))||Infinity;
+      let desired=G.anchorAlong+G.speedMps*predictAge;
+      desired=clamp(desired,0,total);
+      if(!Number.isFinite(G.visualAlong))G.visualAlong=desired;
+      // À vitesse de roulage, éviter qu'une petite erreur GPS fasse reculer brutalement l'icône.
+      if(G.speedMps>2.5)desired=Math.max(G.visualAlong-1.2,desired);
+      G.visualAlong += (desired-G.visualAlong)*followAlpha;
+      const targetH=typeof routeHeadingAtAlong==='function'?routeHeadingAtAlong(G.visualAlong):(Number(state?.fusion?.snapped?.heading)||G.visualHeading);
+      G.visualHeading=shortestHeading(G.visualHeading,targetH,1-Math.exp(-dt/0.16));
+    }else if(G.mode==='raw'&&Number.isFinite(G.anchorLat)&&Number.isFinite(G.anchorLon)){
+      const h=G.rawHeading??G.visualHeading;
+      const d=G.speedMps*predictAge,goal=destination(G.anchorLat,G.anchorLon,h,d);
+      if(!Number.isFinite(G.visualLat)){G.visualLat=goal.lat;G.visualLon=goal.lon;}
+      G.visualLat += (goal.lat-G.visualLat)*followAlpha;G.visualLon += (goal.lon-G.visualLon)*followAlpha;
+      G.visualHeading=shortestHeading(G.visualHeading,h,1-Math.exp(-dt/0.16));
+    }
+    renderVisual(false);
+    G.raf=requestAnimationFrame(frame);
+  }
+
+  // Le dernier wrapper processPos voit le fix après toutes les logiques SAEIV (arrêts, journal, limitation, etc.).
+  // Ces logiques restent donc fondées sur le GPS réel ; seul l'affichage est fluidifié.
+  try{
+    const baseProcess=processPos;
+    processPos=function(p){
+      const before=currentVisual();
+      const r=baseProcess(p);
+      // Le rendu brut effectué par les versions précédentes a lieu dans la même pile JS.
+      // On repart de notre position visuelle précédente avant de prendre le nouveau fix pour éviter un flash/saut.
+      if(before&&G.active){
+        if(G.mode==='route'&&Number.isFinite(G.visualAlong))renderVisual(true);
+        else if(G.mode==='raw'){G.visualLat=before.lat;G.visualLon=before.lon;G.visualHeading=before.heading;renderVisual(true);}
+      }
+      takeFix(p);return r;
+    };
+  }catch(e){console.warn('V30.6 wrapper GPS',e)}
+
+  q('finish')?.addEventListener('click',()=>setTimeout(reset,0));
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){if(G.raf!==null){cancelAnimationFrame(G.raf);G.raf=null;}}
+    else if(G.active&&state?.mode==='gps'&&state?.running&&G.raf===null){G.lastFrame=performance.now();G.raf=requestAnimationFrame(frame);}
+  });
+
+  window.FluoGpsSmoothingV306={reset,state:G,render:renderVisual};
+  document.title='Fluo SAEIV V30.6 · GPS fluide';
+  const label=()=>{
+    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.6 GPS FLUIDE';
+    const b=q('buildInfo');if(b&&!/V30.6/.test(b.textContent))b.textContent+=' · V30.6 suivi GPS fluide';
+    const note=document.querySelector('.fusion-note');
+    if(note&&!q('v306SmoothNote'))note.insertAdjacentHTML('afterend','<div id="v306SmoothNote" class="fusion-note"><b>🛰 GPS fluide V30.6</b><span>Les fixes GPS réels restent la référence. Entre deux fixes reçus de l\'iPhone, le pictogramme est animé le long du parcours à haute fréquence avec une prédiction très courte fondée sur la vitesse, puis corrigé en douceur au fix suivant.</span></div>');
+  };
+  if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,80));else setTimeout(label,80);
+})();
+</script>
+
 </body>
 </html>

@@ -1,4 +1,4 @@
-// Fluo SAEIV V30.5 — limitations routières OSM maxspeed exactes.
+// Fluo SAEIV V30.6 — suivi GPS visuel fluide + limitations routières OSM maxspeed exactes.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -1050,7 +1050,9 @@ async function startGps(){
     if(state.service.mode==='formation') say(`Mode formation. ${lineIdentity()}`,{priority:30,kind:'system'});
     else say('Billet collectif. Navigation activée.',{priority:30,kind:'system'});
   } else { scheduleDepartureAnnouncements(); say('Annonces activées.',{priority:20,kind:'system'}); }
-  state.watch=navigator.geolocation.watchPosition(processPos,geoErr,{enableHighAccuracy:true,timeout:15000,maximumAge:250});
+  // V30.6 : aucune position mise en cache. La cadence réelle reste décidée par iOS/Safari ;
+  // le moteur d’interpolation visuelle V30.6 assure la fluidité entre deux fixes.
+  state.watch=navigator.geolocation.watchPosition(processPos,geoErr,{enableHighAccuracy:true,timeout:15000,maximumAge:0});
 }
 
 function syntheticPosition(lat,lon,speed,heading=null){
