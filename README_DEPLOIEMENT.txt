@@ -1,4 +1,4 @@
-FLUO SAEIV V31.4 — ÉDITION GITHUB MONOBLOC · PAYSAGE CONDUCTEUR ÉPURÉ
+FLUO SAEIV V31.5 — ÉDITION GITHUB MONOBLOC · COCKPIT PAYSAGE VALIDÉ
 ============================================================================
 
 Base : V29, elle-même basée sur la V28.1 stable.
@@ -189,3 +189,17 @@ V31.4 — PAYSAGE CONDUCTEUR ÉPURÉ
 - Bouton Suivre replacé directement sur la carte GPS.
 - Suppression des boutons Suivre et GPS vocal de la barre de commandes basse.
 - Prochain arrêt conservé comme information principale sous la rangée supérieure.
+
+
+V31.5 — COCKPIT PAYSAGE VALIDÉ
+--------------------------------
+- Barre inférieure sur toute la largeur : arrêt précédent, Annoncer, arrêt suivant, Mode déviation,
+  Demandes, Incident, Recaler poteau et Fin.
+- Arrêt précédent/suivant resserrés pour intégrer Mode déviation sans défilement.
+- Bouton 3D sur la carte à côté de la vitesse ; Fusion et Reprendre le suivi compactés.
+- Colonne droite : ponctualité, numéro de ligne, origine-destination compacte, prochain arrêt.
+- ARRÊT DEMANDÉ est intégré au prochain arrêt et utilise le ding-dong conducteur existant ;
+  aucune phrase vocale n'est diffusée pour signaler la demande.
+- Interrupteurs paysage : annonces vocales voyageurs et annonce destination.
+- Commandes de simulation secondaires, visibles uniquement en simulation.
+- GPS, TAD, journaux, déviation, incident, recalage et horaires restent basés sur les fonctions existantes.

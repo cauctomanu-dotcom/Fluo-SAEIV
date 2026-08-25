@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=31.4">
+  <link rel="manifest" href="manifest.webmanifest?v=31.5">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Fluo SAEIV V22 · TAD + suivi stable</title>
@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.4 — édition GitHub monobloc, paysage conducteur épuré.
+// Fluo SAEIV V31.5 — édition GitHub monobloc, cockpit paysage validé.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -1446,10 +1446,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=31.4').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=31.5').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.4').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.5').catch(()=>{});
 
 </script>
 <script>
@@ -2553,8 +2553,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     }
     if(dest.next) dest.next.textContent=text(source.next);
     if(dest.distance) dest.distance.textContent=text(source.distance);
-    if(dest.line) dest.line.textContent=[state?.route?.short,state?.route?.long].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' · ')||text(source.route);
-    if(dest.destination) dest.destination.textContent=state?.pattern?.stops?.at(-1)?.name||text(source.destination);
+    if(dest.line) dest.line.textContent=state?.route?.short||text(source.route);
+    if(dest.destination) dest.destination.textContent=window.FluoCompactLineDestination?.()||state?.pattern?.stops?.at(-1)?.name||text(source.destination);
     if(dest.request&&source.request){
       const visible=!source.request.classList.contains('hidden'); dest.request.classList.toggle('hidden',!visible);
       if(dest.requestStop) dest.requestStop.textContent=text(source.requestStop);
@@ -5450,7 +5450,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function syncButtons(){document.querySelectorAll('[data-v31-target]').forEach(b=>{const t=targetFor(b);b.disabled=!t||t.disabled;const sim=/^(simPlayPause|simSkip)$/.test(b.dataset.v31Target),hidden=sim&&(!t||t.closest('.sim-controls')?.classList.contains('hidden'));b.classList.toggle('v31-hidden',!!hidden);if(b.dataset.v31Target==='v16MapMode'&&t)b.textContent=`🧭 ${t.textContent.replace(/^\s*🧭\s*/, '')}`;if(b.dataset.v31Target==='navVoiceBtn'&&t)b.textContent=t.classList.contains('off')?'🔇 GPS':'🔊 GPS'})}
   document.addEventListener('click',e=>{const b=e.target.closest?.('[data-v31-target]');if(!b)return;const t=targetFor(b);if(t&&!t.disabled){e.preventDefault();t.click();setTimeout(syncButtons,0)}},true);
   function syncFullTexts(){
-    const line=[state?.route?.short,state?.route?.long].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' · '),dest=state?.pattern?.stops?.at(-1)?.name||state?.pattern?.headsign||'—',next=state?.pattern?.stops?.[state?.target]?.name||q('next')?.textContent||'—';
+    const line=state?.route?.short||'—',dest=window.FluoCompactLineDestination?.()||state?.pattern?.stops?.at(-1)?.name||state?.pattern?.headsign||'—',next=state?.pattern?.stops?.[state?.target]?.name||q('next')?.textContent||'—';
     if(q('v15Line')&&line&&q('v15Line').textContent!==line)q('v15Line').textContent=line;
     if(q('v15Destination')&&q('v15Destination').textContent!==dest)q('v15Destination').textContent=dest;
     if(q('v15NextStop')&&next&&q('v15NextStop').textContent!==next)q('v15NextStop').textContent=next;
@@ -5513,5 +5513,173 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   Object.entries(modes).forEach(([id,mode])=>document.getElementById(id)?.addEventListener('click',()=>window.FluoSetServiceModeV313?.(mode),{capture:true}));
 })();
 </script>
+
+<script id="v315ValidatedLandscapeDesign">
+'use strict';
+/* V31.5 — cockpit paysage validé. Les actions existantes restent les sources de vérité. */
+(()=>{
+  const q=id=>document.getElementById(id);
+  const driver=q('driver'),side=q('v15LandscapeSide'),mapWrap=document.querySelector('#driver .navmap-wrap');
+  if(!driver||!side||!mapWrap)return;
+
+  const shortStopName=name=>String(name||'').trim().split(/\s+-\s+/)[0].trim()||String(name||'').trim();
+  window.FluoCompactLineDestination=()=>{
+    const stops=state?.pattern?.stops||[]; if(!stops.length)return '—';
+    let a=0,z=stops.length-1;
+    if(state?.service?.mode==='tad'){
+      const start=Number(q('startStop')?.value||0); if(Number.isInteger(start)&&start>=0&&start<stops.length)a=start;
+      try{const t=typeof tadTerminusIndex==='function'?tadTerminusIndex():null;if(Number.isInteger(t)&&t>=a&&t<stops.length)z=t}catch{}
+    }
+    const from=shortStopName(stops[a]?.name),to=shortStopName(stops[z]?.name);
+    return from&&to&&from!==to?`${from} - ${to}`:(to||from||'—');
+  };
+
+  // ARRÊT DEMANDÉ intégré au bloc du prochain arrêt. Le signal reste le ding-dong central existant.
+  const nextBox=side.querySelector('.v15-next-box'),requestBox=q('v15RequestBox');
+  if(nextBox&&requestBox&&requestBox.parentElement!==nextBox)nextBox.appendChild(requestBox);
+  if(requestBox&&!q('v315RequestCue')){
+    const cue=document.createElement('small');cue.id='v315RequestCue';cue.textContent='🔔 Ding-dong conducteur';requestBox.appendChild(cue);
+  }
+
+  // Réglage indépendant de l'identité ligne/destination.
+  if(state?.audio&&typeof state.audio.destinationEnabled==='undefined')state.audio.destinationEnabled=localStorage.getItem('fluoDestinationAnnouncementEnabled')!=='off';
+  if(typeof lineIdentity==='function'&&!window.FluoLineIdentityV315Wrapped){
+    const baseLineIdentity=lineIdentity;
+    lineIdentity=function(){return state?.audio?.destinationEnabled===false?'':baseLineIdentity()};
+    window.FluoLineIdentityV315Wrapped=true;
+  }
+
+  let voice=q('v315VoiceControls');
+  if(!voice){
+    voice=document.createElement('div');voice.id='v315VoiceControls';voice.className='v315-voice-controls';
+    voice.innerHTML='<button id="v315PassengerToggle" type="button"><span>🔊 Annonces vocales</span><b>ON</b></button><button id="v315DestinationToggle" type="button"><span>🔁 Annonce destination</span><b>ON</b></button>';
+    (nextBox||side.firstElementChild)?.insertAdjacentElement('afterend',voice);
+  }
+  function syncVoice(){
+    const p=q('v315PassengerToggle'),d=q('v315DestinationToggle');
+    const pon=state?.audio?.passengerEnabled!==false,don=state?.audio?.destinationEnabled!==false;
+    if(p){p.classList.toggle('off',!pon);p.querySelector('b').textContent=pon?'ON':'OFF';p.setAttribute('aria-pressed',String(pon));}
+    if(d){d.classList.toggle('off',!don);d.querySelector('b').textContent=don?'ON':'OFF';d.setAttribute('aria-pressed',String(don));}
+  }
+  q('v315PassengerToggle')?.addEventListener('click',()=>{
+    const existing=q('v28PassengerToggleSide')||q('v28PassengerToggle');
+    if(existing)existing.click();
+    else if(state?.audio){state.audio.passengerEnabled=state.audio.passengerEnabled===false;localStorage.setItem('fluoPassengerAnnouncementsEnabled',state.audio.passengerEnabled?'on':'off');}
+    setTimeout(syncVoice,0);
+  });
+  q('v315DestinationToggle')?.addEventListener('click',()=>{
+    if(!state?.audio)return;state.audio.destinationEnabled=state.audio.destinationEnabled===false;
+    localStorage.setItem('fluoDestinationAnnouncementEnabled',state.audio.destinationEnabled?'on':'off');syncVoice();
+  });
+
+  const bottom=q('v31LandscapeBottom');
+  if(bottom)bottom.innerHTML='<button class="v315-stop" type="button" data-v31-target="prev">← Arrêt</button><button class="primary v315-announce" type="button" data-v31-target="speak">📢 Annoncer</button><button class="v315-stop" type="button" data-v31-target="nextBtn">Arrêt →</button><button class="v315-deviation" type="button" data-v31-target="v29DeviationBtn">↪ Mode déviation</button><button class="v315-requests" type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button class="v315-incident" type="button" data-v31-target="v29IncidentBtn">📝 Incident</button><button class="v315-recenter" type="button" data-v31-target="recenter">🎯 Recaler poteau</button><button class="danger v315-finish" type="button" data-v31-target="v15FinishBtn">FIN</button>';
+
+  const dock=q('v281LandscapeDock'),extra=q('v31SideExtra');
+  if(extra)extra.innerHTML='<button type="button" data-v31-target="simPlayPause">⏯ Simulation</button><button type="button" data-v31-target="simSkip">⏭ Arrêt simu</button>';
+  if(dock)dock.setAttribute('aria-label','Commandes de simulation');
+
+  function syncValidated(){
+    if(q('v15Line'))q('v15Line').textContent=state?.route?.short||'—';
+    if(q('v15Destination'))q('v15Destination').textContent=window.FluoCompactLineDestination?.()||'—';
+    const devProxy=bottom?.querySelector('[data-v31-target="v29DeviationBtn"]'),dev=q('v29DeviationBtn');
+    if(devProxy&&dev){
+      devProxy.disabled=!!dev.disabled;devProxy.classList.toggle('v29-deviation-active',dev.classList.contains('v29-deviation-active'));
+      const t=(dev.textContent||'').trim();devProxy.textContent=t.includes('Recalculer')?'↻ Recalculer':t.includes('Rejoindre')?'↩ Rejoindre ligne':'↪ Mode déviation';
+    }
+    const simActive=state?.mode==='simulation'&&state?.running;if(dock)dock.classList.toggle('v315-sim-hidden',!simActive);
+    syncVoice();
+  }
+  [q('v29DeviationBtn'),q('headsign'),q('routeBadge'),q('simControls')].filter(Boolean).forEach(el=>new MutationObserver(()=>setTimeout(syncValidated,0)).observe(el,{attributes:true,childList:true,subtree:true,characterData:true}));
+  q('startStop')?.addEventListener('change',syncValidated);setInterval(syncValidated,550);
+
+  const css=document.createElement('style');css.id='v315ValidatedLandscapeStyle';css.textContent=`
+    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){
+      #driver{grid-template-columns:minmax(0,1fr) minmax(220px,29vw)!important;grid-template-rows:minmax(0,1fr) auto!important;gap:5px!important}
+      #driver .navmap-wrap{grid-column:1!important;grid-row:1!important}
+      #v15LandscapeSide{grid-column:2!important;grid-row:1!important;padding:5px!important;gap:6px!important;overflow:hidden!important;border-left:1px solid rgba(126,164,185,.24)!important}
+      #driver>#v31LandscapeBottom{grid-column:1/3!important;grid-row:2!important;display:grid!important;grid-template-columns:.72fr 1.02fr .72fr 1.08fr .94fr .86fr 1.08fr .68fr!important;gap:5px!important;padding:5px!important;margin:0!important;overflow:visible!important;border:1px solid rgba(126,164,185,.18)!important;border-radius:12px!important;background:#08141d!important}
+      #v31LandscapeBottom button{min-width:0!important;width:100%!important;min-height:38px!important;padding:5px 6px!important;font-size:.56rem!important;line-height:1.05!important;white-space:nowrap!important;border-radius:10px!important}
+      #v31LandscapeBottom .v315-stop{font-size:.54rem!important}
+      #v31LandscapeBottom .v315-announce{background:linear-gradient(180deg,#ffd928,#ffb900)!important;border-color:#ffe256!important;color:#14202a!important}
+      #v31LandscapeBottom .v315-requests{background:linear-gradient(180deg,#f29116,#db6c00)!important;border-color:#ffac35!important;color:#fff!important}
+      #v31LandscapeBottom .v315-incident{background:#173040!important;border-color:#355163!important;color:#eef9ff!important}
+      #v31LandscapeBottom .v315-finish{background:linear-gradient(180deg,#8b3134,#642123)!important;border-color:#a9494c!important}
+      #v31LandscapeBottom .v29-deviation-active{background:#55380b!important;border-color:#d39424!important;color:#ffe5a7!important}
+
+      #v314TopInfo{grid-template-columns:78px minmax(0,1fr)!important;gap:6px!important}
+      #v314TopInfo .v15-punctuality{width:78px!important;height:78px!important;min-height:78px!important;border-radius:13px!important}
+      #v314TopInfo .v15-punctuality span{font-size:.56rem!important}
+      #v314TopInfo .v15-punctuality strong{font-size:1.08rem!important}
+      #v314TopInfo .v15-line-box,#v314TopInfo .v15-line-box>div{height:78px!important;min-height:78px!important}
+      #v314TopInfo .v15-line-box>div{padding:7px 10px!important;border-radius:13px!important}
+      #v314TopInfo .v15-line-box>div>span{font-size:.5rem!important}
+      #v314TopInfo .v15-line-box>div:first-child strong#v15Line{font-size:1.18rem!important;overflow:visible!important;text-overflow:clip!important}
+      #v314TopInfo .v314-line-destination{margin-top:6px!important;font-size:.61rem!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.15!important}
+
+      #v15LandscapeSide .v15-next-box{padding:10px 11px!important;border-radius:13px!important;min-height:0!important}
+      #v15LandscapeSide .v15-next-box>span:first-child{font-size:.56rem!important;letter-spacing:.11em!important}
+      #v15LandscapeSide .v15-next-box strong#v15NextStop{margin-top:5px!important;font-size:clamp(.88rem,1.8vw,1.13rem)!important;line-height:1.05!important;max-height:none!important;white-space:normal!important;overflow:visible!important}
+      #v15LandscapeSide .v15-next-box b#v15NextDistance{font-size:1.12rem!important;margin-top:7px!important}
+      #v15LandscapeSide .v29-side-eta{margin-top:6px!important;font-size:.52rem!important;color:#92a8b5!important}
+      #v15LandscapeSide .v15-request-box{margin-top:9px!important;padding:8px 9px!important;border-width:1px!important;border-color:#d49d00!important;background:#18220d!important;border-radius:10px!important;box-shadow:none!important}
+      #v15LandscapeSide .v15-request-box span{font-size:.62rem!important;color:#ffd000!important;letter-spacing:0!important}
+      #v15LandscapeSide .v15-request-box strong{margin-top:3px!important;font-size:.67rem!important;color:#eef8fc!important;white-space:normal!important;max-height:none!important;overflow:visible!important}
+      #v315RequestCue{display:block;margin-top:4px;color:#9fb2bd;font-size:.52rem;font-weight:750}
+
+      #v315VoiceControls{display:grid!important;grid-template-columns:1fr!important;gap:5px!important;flex:0 0 auto!important}
+      #v315VoiceControls button{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;min-height:32px!important;padding:5px 8px!important;border-radius:10px!important;background:#102737!important;border-color:#355163!important;font-size:.58rem!important}
+      #v315VoiceControls button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:850}
+      #v315VoiceControls button b{min-width:31px;padding:3px 6px;border-radius:999px;background:#4f9f28;color:#fff;font-size:.5rem;text-align:center}
+      #v315VoiceControls button.off b{background:#684043;color:#ffd8d6}
+
+      #v281LandscapeDock{position:static!important;display:grid!important;grid-template-columns:1fr!important;gap:4px!important;margin-top:auto!important;padding:4px!important;border:1px solid rgba(255,255,255,.08)!important;border-radius:10px!important;background:#081720!important}
+      #v281LandscapeDock.v315-sim-hidden{display:none!important}
+      #v281LandscapeDock>*:not(#v31SideExtra){display:none!important}
+      #v31SideExtra{display:grid!important;grid-template-columns:1fr 1fr!important;gap:4px!important}
+      #v31SideExtra button{min-height:28px!important;padding:4px 5px!important;font-size:.52rem!important}
+
+      #driver .maphud{left:8px!important;right:8px!important;bottom:7px!important;align-items:flex-end!important}
+      #driver .maphud #followMap{display:inline-flex!important;flex:0 0 auto!important;width:auto!important;min-height:27px!important;padding:4px 7px!important;font-size:.51rem!important;border-radius:8px!important}
+      #driver .maphud #routeState{flex:0 0 auto!important;width:auto!important;max-width:120px!important;padding:4px 7px!important;font-size:.51rem!important;border-radius:8px!important;white-space:nowrap!important}
+      .v16-map-controls{display:flex!important;right:8px!important;top:8px!important;gap:4px!important;pointer-events:auto!important}
+      .v16-map-controls #v16MapMode{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:39px!important;min-height:38px!important;padding:4px 6px!important;border-radius:10px!important;font-size:.54rem!important;pointer-events:auto!important}
+      .v16-map-controls .v16-speed-limit{transform:none!important;min-width:43px!important;padding:4px 5px!important;border-radius:10px!important;pointer-events:none!important}
+      .v16-map-controls .v16-speed-limit b{font-size:.95rem!important}
+
+      #v15LandscapeSide #v30RoadSide,#v15LandscapeSide .v15-side-spacer,#v15LandscapeSide>.v15-side-actions,#v15LandscapeSide>#v26AnnounceSide,#v15LandscapeSide>#v28PassengerToggleSide,#v15LandscapeSide>#v28SideTools{display:none!important}
+    }
+    @media(orientation:landscape) and (max-height:390px) and (max-width:760px){
+      #driver{grid-template-columns:minmax(0,1fr) minmax(202px,31vw)!important;gap:4px!important}
+      #driver>#v31LandscapeBottom{grid-template-columns:.68fr .96fr .68fr 1fr .88fr .78fr 1fr .58fr!important;gap:3px!important;padding:3px!important}
+      #v31LandscapeBottom button{min-height:30px!important;padding:3px 4px!important;font-size:.47rem!important}
+      #v31LandscapeBottom .v315-stop{font-size:.45rem!important}
+      #v314TopInfo{grid-template-columns:66px minmax(0,1fr)!important;gap:4px!important}
+      #v314TopInfo .v15-punctuality{width:66px!important;height:66px!important;min-height:66px!important}
+      #v314TopInfo .v15-line-box,#v314TopInfo .v15-line-box>div{height:66px!important;min-height:66px!important}
+      #v314TopInfo .v15-line-box>div:first-child strong#v15Line{font-size:1rem!important}
+      #v314TopInfo .v314-line-destination{font-size:.51rem!important;margin-top:4px!important}
+      #v15LandscapeSide{gap:4px!important;padding:4px!important}
+      #v15LandscapeSide .v15-next-box{padding:6px 7px!important}
+      #v15LandscapeSide .v15-next-box strong#v15NextStop{font-size:.76rem!important}
+      #v15LandscapeSide .v15-next-box b#v15NextDistance{font-size:.9rem!important;margin-top:4px!important}
+      #v15LandscapeSide .v29-side-eta{font-size:.45rem!important;margin-top:3px!important}
+      #v15LandscapeSide .v15-request-box{margin-top:5px!important;padding:5px 6px!important}
+      #v315VoiceControls{gap:3px!important}
+      #v315VoiceControls button{min-height:25px!important;padding:3px 5px!important;font-size:.48rem!important}
+      #v315VoiceControls button b{min-width:27px!important;font-size:.43rem!important;padding:2px 4px!important}
+      #v31SideExtra button{min-height:23px!important;font-size:.45rem!important}
+      #driver .maphud #followMap,#driver .maphud #routeState{font-size:.45rem!important;padding:3px 5px!important;min-height:23px!important}
+      .v16-map-controls #v16MapMode{min-width:34px!important;min-height:32px!important;font-size:.47rem!important}
+      .v16-map-controls .v16-speed-limit{min-width:37px!important;padding:3px 4px!important}
+    }
+  `;document.head.appendChild(css);
+
+  syncValidated();
+  document.title='Fluo SAEIV V31.5 · édition GitHub monobloc';
+  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.5 GITHUB MONOBLOC';
+})();
+</script>
+
 </body>
 </html>
