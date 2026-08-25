@@ -1,4 +1,4 @@
-FLUO SAEIV V31.5 — ÉDITION GITHUB MONOBLOC · COCKPIT PAYSAGE VALIDÉ
+FLUO SAEIV V31.6 — ÉDITION GITHUB MONOBLOC · PLANNING CONDUCTEUR
 ============================================================================
 
 Base : V29, elle-même basée sur la V28.1 stable.
@@ -203,3 +203,23 @@ V31.5 — COCKPIT PAYSAGE VALIDÉ
 - Interrupteurs paysage : annonces vocales voyageurs et annonce destination.
 - Commandes de simulation secondaires, visibles uniquement en simulation.
 - GPS, TAD, journaux, déviation, incident, recalage et horaires restent basés sur les fonctions existantes.
+
+
+V31.6 — MENU CONDUCTEUR + MON PLANNING + MA JOURNÉE
+------------------------------------------------------
+- Menu hamburger : Journaux, création de fiche horaire, fiches horaires enregistrées,
+  création de ligne, Mes TAD, Mes billets, Mon planning et Admin.
+- « Ma journée » ajouté aux choix de service, facultatif et automatiquement calé sur la date du jour.
+- Planning hebdomadaire local : courses régulières, TAD, billets/services collectifs, haut-le-pied,
+  prises/fins de service, travaux annexes, mise à disposition, pauses et coupures.
+- Possibilité de lier une course exacte déjà sélectionnée dans le SAEIV : département, ligne, trip_id,
+  arrêt de prise de service et sélection TAD sont mémorisés puis restaurés depuis « Ma journée ».
+- Haut-le-pied : départ/destination libres ; vers une prochaine course liée, le module HLP existant
+  du SAEIV peut être préparé automatiquement vers l'arrêt de prise de service.
+- Totaux journée et semaine : amplitude, temps de travail, conduite, haut-le-pied, coupures/pauses.
+- Contrôle RSE indicatif : travail quotidien, amplitude, repos quotidien, conduite UE 561/2006,
+  pause après 4 h 30, limites hebdomadaires et cumul deux semaines lorsque les données existent.
+- Distinction automatique possible entre service régulier <= 50 km et règlement UE selon la longueur
+  renseignée/capturée ; un régime inconnu est signalé au conducteur au lieu d'être supposé.
+- Le contrôle RSE reste une aide de planification : accords d'entreprise, dérogations et tachygraphe
+  restent prioritaires.

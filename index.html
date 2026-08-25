@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=31.5">
+  <link rel="manifest" href="manifest.webmanifest?v=31.6">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Fluo SAEIV V22 · TAD + suivi stable</title>
@@ -1446,10 +1446,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=31.5').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=31.6').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.5').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.6').catch(()=>{});
 
 </script>
 <script>
@@ -5678,6 +5678,240 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   syncValidated();
   document.title='Fluo SAEIV V31.5 · édition GitHub monobloc';
   const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.5 GITHUB MONOBLOC';
+})();
+</script>
+
+<script id="v316PlanningHub">
+'use strict';
+/* V31.6 — menu conducteur + planning hebdomadaire + « Ma journée » + contrôle RSE indicatif.
+   Le planning est local au navigateur et facultatif. Les moteurs existants restent les sources de vérité
+   pour les courses, TAD, GPS, haut-le-pied V29, journaux et annonces. */
+(()=>{
+  const q=id=>document.getElementById(id);
+  const setup=q('setup'),serviceChoice=document.querySelector('.service-choice'),serviceButtons=document.querySelector('.service-choice-buttons');
+  if(!setup||!serviceChoice||!serviceButtons)return;
+
+  const PLAN_KEY='fluo-saeiv-planning-v316';
+  const PROGRESS_KEY='fluo-saeiv-planning-progress-v316';
+  const TYPE={
+    regular:{label:'🚌 Course régulière',work:true,drive:true},
+    tad:{label:'📞 Course TAD',work:true,drive:true},
+    collective:{label:'🎫 Billet / service collectif',work:true,drive:true},
+    hlp:{label:'↗ Haut-le-pied',work:true,drive:true},
+    start:{label:'🟢 Prise de service',work:true,drive:false},
+    end:{label:'🔴 Fin de service',work:true,drive:false},
+    annex:{label:'🧰 Travaux annexes',work:true,drive:false},
+    availability:{label:'⏳ Mise à disposition',work:true,drive:false},
+    cut:{label:'✂️ Coupure',work:false,drive:false,break:true},
+    pause:{label:'☕ Pause',work:false,drive:false,break:true},
+    other:{label:'📌 Autre',work:true,drive:false}
+  };
+  const pad=n=>String(n).padStart(2,'0');
+  const localDate=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const parseDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3],12):new Date()};
+  const addDays=(s,n)=>{const d=parseDate(s);d.setDate(d.getDate()+n);return localDate(d)};
+  const monday=s=>{const d=parseDate(s||localDate(new Date())),wd=(d.getDay()+6)%7;d.setDate(d.getDate()-wd);return localDate(d)};
+  const minute=t=>{const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);return m?Math.max(0,Math.min(1439,+m[1]*60 + +m[2])):null};
+  const clock=m=>{if(!Number.isFinite(m))return'—';m=((Math.round(m)%1440)+1440)%1440;return`${pad(Math.floor(m/60))}:${pad(m%60)}`};
+  const dur=item=>{let a=minute(item.start),b=minute(item.end);if(a===null||b===null)return 0;if(b<a)b+=1440;return Math.max(0,b-a)};
+  const fmtMin=m=>{m=Math.max(0,Math.round(Number(m)||0));return`${Math.floor(m/60)} h ${pad(m%60)}`};
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const uid=()=>`pl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+  const today=()=>localDate(new Date());
+  const dayName=s=>parseDate(s).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'}).replace('.','');
+  const longDay=s=>parseDate(s).toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  const weekLabel=s=>{const z=addDays(s,6);return`${parseDate(s).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})} → ${parseDate(z).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})}`};
+  function loadPlan(){try{const x=JSON.parse(localStorage.getItem(PLAN_KEY)||'{}');return Array.isArray(x.items)?x:{version:1,items:[]}}catch{return{version:1,items:[]}}}
+  function savePlan(){localStorage.setItem(PLAN_KEY,JSON.stringify(plan));renderAll()}
+  function loadProgress(){try{return JSON.parse(localStorage.getItem(PROGRESS_KEY)||'{}')||{}}catch{return{}}}
+  function saveProgress(){localStorage.setItem(PROGRESS_KEY,JSON.stringify(progress));renderToday()}
+  let plan=loadPlan(),progress=loadProgress(),weekStart=monday(today()),selectedDate=today(),editingId=null,draftLink=null,draftOrigin=null,draftDestination=null;
+  const itemsFor=date=>plan.items.filter(x=>x.date===date).sort((a,b)=>(minute(a.start)??9999)-(minute(b.start)??9999)||String(a.id).localeCompare(String(b.id)));
+  const routeLengthKm=shape=>{let m=0;for(let i=1;i<(shape||[]).length;i++){const a=shape[i-1],b=shape[i];if(a&&b&&typeof dist==='function')m+=dist(Number(a[0]),Number(a[1]),Number(b[0]),Number(b[1]))}return m/1000};
+  const regimeOf=item=>{if(item.regime&&item.regime!=='auto')return item.regime;const km=Number(item.lineDistanceKm);if(Number.isFinite(km)&&km>0)return km<=50?'national50':'eu561';return TYPE[item.type]?.drive?'unknown':'none'};
+  const driveMinutes=item=>TYPE[item.type]?.drive?Math.max(0,Number(item.driveMinutes)||dur(item)):0;
+
+  // ---------- Menu hamburger : on déplace les vrais boutons, donc leurs événements historiques restent intacts. ----------
+  const top=document.querySelector('.top'),gps=q('gpsPill');
+  if(top&&!q('v316HeaderActions')){
+    const wrap=document.createElement('div');wrap.id='v316HeaderActions';wrap.className='v316-header-actions';
+    if(gps)wrap.appendChild(gps);
+    const b=document.createElement('button');b.id='v316MenuBtn';b.type='button';b.className='v316-menu-btn';b.setAttribute('aria-label','Ouvrir le menu');b.textContent='☰';wrap.appendChild(b);top.appendChild(wrap);
+  }
+  if(!q('v316MenuBackdrop'))document.body.insertAdjacentHTML('beforeend',`<div id="v316MenuBackdrop" class="v316-menu-backdrop hidden"><aside id="v316Menu" class="v316-menu" role="dialog" aria-modal="true" aria-label="Menu conducteur"><div class="v316-menu-head"><div><div class="eyebrow">OUTILS CONDUCTEUR</div><h2>Menu</h2></div><button id="v316MenuClose" type="button">✕</button></div><div id="v316MenuItems" class="v316-menu-items"></div><div class="v316-menu-foot">Les données de planning restent enregistrées localement sur cet appareil.</div></aside></div>`);
+  const menuItems=q('v316MenuItems');
+  const menuDefs=[
+    ['v13JournalBtn','📁 Journaux'],['v16CalcOpen','📄 Créer une fiche horaire'],['v24SheetsBtn','🗂 Fiches horaires enregistrées'],
+    ['v25CreatorBtn','🛠 Création de ligne'],['v26MyTadsBtn','📞 Mes TAD'],['v304MyCollectivesBtn','🎫 Mes billets'],['v29AdminBtn','⚙️ Admin']
+  ];
+  function populateMenu(){
+    if(!menuItems)return;
+    for(const [id,label] of menuDefs){const el=q(id);if(el&&el.parentElement!==menuItems){el.textContent=label;el.classList.add('v316-menu-entry');menuItems.appendChild(el)}}
+    let pl=q('v316PlanningBtn');if(!pl){pl=document.createElement('button');pl.id='v316PlanningBtn';pl.type='button';pl.className='v316-menu-entry v316-planning-entry';pl.textContent='📅 Mon planning';const admin=q('v29AdminBtn');admin?.insertAdjacentElement('beforebegin',pl);if(!admin)menuItems.appendChild(pl)}
+  }
+  populateMenu();
+  const openMenu=()=>{populateMenu();q('v316MenuBackdrop')?.classList.remove('hidden')},closeMenu=()=>q('v316MenuBackdrop')?.classList.add('hidden');
+  q('v316MenuBtn')?.addEventListener('click',openMenu);q('v316MenuClose')?.addEventListener('click',closeMenu);q('v316MenuBackdrop')?.addEventListener('click',e=>{if(e.target===q('v316MenuBackdrop'))closeMenu()});
+  menuItems?.addEventListener('click',e=>{if(e.target.closest('button'))setTimeout(closeMenu,80)});
+
+  // ---------- Ma journée dans le choix de service ----------
+  if(!q('v316TodayMode')){const b=document.createElement('button');b.id='v316TodayMode';b.type='button';b.className='service-mode v316-today-mode';b.textContent='📅 Ma journée';serviceButtons.appendChild(b)}
+  if(!q('v316TodayPanel'))serviceChoice.insertAdjacentHTML('afterend',`<section id="v316TodayPanel" class="v316-today-panel hidden"><div class="v316-today-head"><div><div class="eyebrow">PLANNING DU JOUR</div><h3 id="v316TodayTitle"></h3><p id="v316TodaySub"></p></div><button id="v316TodayOpenPlan" type="button">Modifier</button></div><div id="v316TodayMetrics" class="v316-today-metrics"></div><div id="v316TodayCompliance"></div><div id="v316TodayList" class="v316-today-list"></div><div class="v316-today-actions"><button id="v316StartDay" class="primary" type="button">▶ LANCER MA JOURNÉE</button><button id="v316LeaveDay" type="button">Choix manuel</button></div></section>`);
+  function setDayMode(on){
+    setup.classList.toggle('v316-day-mode',!!on);q('v316TodayMode')?.classList.toggle('active',!!on);q('v316TodayPanel')?.classList.toggle('hidden',!on);
+    [...setup.children].forEach(el=>{const keep=el.classList.contains('gps-test')||el===serviceChoice||el.id==='v316TodayPanel'||el.id==='buildInfo';el.classList.toggle('v316-day-hidden',!!on&&!keep)});
+    if(on)renderToday();
+  }
+  q('v316TodayMode')?.addEventListener('click',()=>setDayMode(true));q('v316LeaveDay')?.addEventListener('click',()=>setDayMode(false));
+  ['regularMode','tadMode','formationMode','v30CollectiveMode'].forEach(id=>q(id)?.addEventListener('click',()=>setDayMode(false),{capture:true}));
+
+  // ---------- Fenêtre planning ----------
+  if(!q('v316Planner'))document.body.insertAdjacentHTML('beforeend',`
+  <div id="v316Planner" class="v316-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="v316PlannerTitle"><div class="v316-planner">
+    <div class="v316-planner-head"><div><div class="eyebrow">SEMAINE CONDUCTEUR</div><h2 id="v316PlannerTitle">📅 Mon planning</h2><p>Courses, TAD, haut-le-pied, coupures et temps annexes. Le contrôle RSE est un assistant indicatif.</p></div><button id="v316PlannerClose" type="button">Fermer</button></div>
+    <div class="v316-weekbar"><button id="v316PrevWeek" type="button">←</button><button id="v316ThisWeek" type="button">Aujourd’hui</button><strong id="v316WeekLabel"></strong><button id="v316NextWeek" type="button">→</button></div>
+    <div id="v316DayTabs" class="v316-day-tabs"></div>
+    <div id="v316WeekSummary" class="v316-week-summary"></div>
+    <div class="v316-planner-grid">
+      <main class="v316-plan-main"><div id="v316DaySummary" class="v316-day-summary"></div><div id="v316RseBox"></div><div id="v316PlanList" class="v316-plan-list"></div><div class="v316-plan-actions"><button id="v316AddItem" class="primary" type="button">＋ Ajouter au planning</button><button id="v316CopyDay" type="button">⧉ Copier cette journée</button></div></main>
+      <form id="v316Editor" class="v316-editor hidden"><div class="v316-editor-head"><h3 id="v316EditorTitle">Nouvel élément</h3><button id="v316EditorCancel" type="button">✕</button></div>
+        <div class="v316-form-grid">
+          <label>Type<select id="v316Type">${Object.entries(TYPE).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}</select></label>
+          <label>Référence / service<input id="v316Label" type="text" maxlength="80" placeholder="ex. Service 142, renfort, prise de service"></label>
+          <label>Début<input id="v316Start" type="time" step="60"></label><label>Fin<input id="v316End" type="time" step="60"></label>
+          <label>Ligne / numéro<input id="v316Line" type="text" maxlength="30" placeholder="ex. 57R026"></label>
+          <label>Régime RSE<select id="v316Regime"><option value="auto">Automatique selon longueur</option><option value="national50">Service régulier ≤ 50 km</option><option value="eu561">Règlement (CE) 561/2006</option><option value="none">Non concerné / non conduite</option></select></label>
+          <label>Départ<input id="v316Origin" type="text" maxlength="120" placeholder="Dépôt, terminus, arrêt, adresse…"></label>
+          <label>Destination<input id="v316Destination" type="text" maxlength="120" placeholder="Terminus, départ de ligne, dépôt, adresse…"></label>
+          <label>Longueur de ligne (km)<input id="v316Distance" type="number" min="0" max="1000" step="0.1" placeholder="facultatif"></label>
+          <label>Conduite prévue (min)<input id="v316DriveMinutes" type="number" min="0" max="900" step="1" placeholder="sinon durée totale"></label>
+        </div>
+        <label class="v316-notes">Notes<textarea id="v316Notes" rows="3" maxlength="500" placeholder="Consignes, lieu de coupure, véhicule…"></textarea></label>
+        <div class="v316-link-tools"><button id="v316LinkCourse" type="button">🔗 Lier la course sélectionnée</button><button id="v316UseStartPlace" type="button">📍 Départ = prise de service sélectionnée</button><button id="v316UseTerminusPlace" type="button">🏁 Destination = terminus sélectionné</button></div>
+        <div id="v316LinkStatus" class="v316-link-status">Aucune course liée.</div>
+        <div class="v316-editor-actions"><button id="v316SaveItem" class="primary" type="submit">💾 Enregistrer</button><button id="v316DeleteItem" class="danger hidden" type="button">🗑 Supprimer</button></div>
+      </form>
+    </div>
+    <div class="v316-legal-note"><b>Contrôle RSE indicatif.</b> Il vérifie les principaux seuils planifiables (travail quotidien, amplitude, repos, conduite UE, pauses UE, hebdomadaire). Les accords d’entreprise, dérogations, services mixtes et données tachygraphe restent prioritaires. Références intégrées : Code des transports D3312-6, D3312-7, R3312-13, R3312-28 et règlement (CE) 561/2006.</div>
+  </div></div>`);
+
+  function openPlanner(date=today()){selectedDate=date;weekStart=monday(date);editingId=null;q('v316Editor')?.classList.add('hidden');q('v316Planner')?.classList.remove('hidden');renderPlanner()}
+  function closePlanner(){q('v316Planner')?.classList.add('hidden');renderToday()}
+  q('v316PlanningBtn')?.addEventListener('click',()=>openPlanner(today()));q('v316TodayOpenPlan')?.addEventListener('click',()=>openPlanner(today()));q('v316PlannerClose')?.addEventListener('click',closePlanner);q('v316Planner')?.addEventListener('click',e=>{if(e.target===q('v316Planner'))closePlanner()});
+  q('v316PrevWeek')?.addEventListener('click',()=>{weekStart=addDays(weekStart,-7);selectedDate=weekStart;renderPlanner()});q('v316NextWeek')?.addEventListener('click',()=>{weekStart=addDays(weekStart,7);selectedDate=weekStart;renderPlanner()});q('v316ThisWeek')?.addEventListener('click',()=>{selectedDate=today();weekStart=monday(selectedDate);renderPlanner()});
+
+  function metrics(date){
+    const xs=itemsFor(date);let work=0,drive=0,euDrive=0,nationalDrive=0,breaks=0,first=Infinity,last=-Infinity;
+    for(const x of xs){const d=dur(x),a=minute(x.start),b=minute(x.end);if(a!==null&&b!==null){if(b<a)b+=1440;first=Math.min(first,a);last=Math.max(last,b)}const m=TYPE[x.type]||TYPE.other;if(m.work)work+=d;if(m.break)breaks+=d;if(m.drive){const dm=driveMinutes(x);drive+=dm;const r=regimeOf(x);if(r==='eu561')euDrive+=dm;if(r==='national50')nationalDrive+=dm}}
+    return{items:xs,work,drive,euDrive,nationalDrive,breaks,amplitude:Number.isFinite(first)&&Number.isFinite(last)?Math.max(0,last-first):0,first:Number.isFinite(first)?first:null,last:Number.isFinite(last)?last:null,hasRegular:xs.some(x=>['regular','tad'].includes(x.type)),hasEu:xs.some(x=>regimeOf(x)==='eu561'),hasNational:xs.some(x=>regimeOf(x)==='national50'),unknownRegime:xs.some(x=>TYPE[x.type]?.drive&&regimeOf(x)==='unknown')};
+  }
+  function complianceForWeek(ws){
+    const alerts=[],days=Array.from({length:7},(_,i)=>addDays(ws,i)),mm=days.map(d=>[d,metrics(d)]),work=mm.reduce((s,[,m])=>s+m.work,0),eu=mm.reduce((s,[,m])=>s+m.euDrive,0);
+    const push=(severity,date,title,detail)=>alerts.push({severity,date,title,detail});
+    let over9=0,over10Work=0;
+    for(const [date,m] of mm){
+      if(!m.items.length)continue;
+      if(m.work>720)push('error',date,'Travail effectif > 12 h',`${fmtMin(m.work)} planifiées.`);else if(m.work>600){over10Work++;push('warn',date,'Travail effectif > 10 h',`${fmtMin(m.work)} : dépassement nécessitant les conditions prévues par la réglementation / l’accord applicable.`)}
+      const ampLimit=m.hasRegular?780:720;if(m.amplitude>840)push('error',date,'Amplitude > 14 h',`${fmtMin(m.amplitude)} entre le premier début et la dernière fin.`);else if(m.amplitude>ampLimit)push('warn',date,`Amplitude > ${m.hasRegular?'13':'12'} h`,`${fmtMin(m.amplitude)} : prolongation à vérifier selon le type de service et les autorisations applicables.`);
+      if(m.euDrive>600)push('error',date,'Conduite UE > 10 h',`${fmtMin(m.euDrive)} sous régime 561/2006.`);else if(m.euDrive>540){over9++;push('warn',date,'Conduite UE > 9 h',`${fmtMin(m.euDrive)} : extension à 10 h au maximum, limitée à deux fois dans la semaine.`)}
+      if(m.unknownRegime)push('warn',date,'Régime RSE à préciser','Au moins une période de conduite ne permet pas de déterminer si la ligne régulière dépasse 50 km.');
+      // Pause 45 min après 4 h 30 : contrôle des segments explicitement marqués UE.
+      let acc=0,split=false,breach=false;
+      for(const x of m.items){const d=dur(x),meta=TYPE[x.type]||TYPE.other,r=regimeOf(x);if(meta.drive&&r==='eu561'){const dm=driveMinutes(x);if(acc+dm>270&&!breach){push('error',date,'Pause de conduite UE insuffisante',`Plus de 4 h 30 de conduite UE sont planifiées sans pause de 45 min (ou fractionnement 15 + 30 min) clairement identifiable.`);breach=true}acc+=dm}else if(meta.break&&d>0){if(d>=45){acc=0;split=false;breach=false}else if(split&&d>=30){acc=0;split=false;breach=false}else if(d>=15){split=true}}}
+    }
+    if(over9>2)push('error',ws,'Plus de deux journées UE > 9 h',`${over9} journées dépassent 9 h de conduite UE sur la semaine.`);
+    if(work>2880)push('error',ws,'Travail hebdomadaire > 48 h',`${fmtMin(work)} planifiées sur la semaine.`);else if(work>2640)push('warn',ws,'Travail hebdomadaire > 44 h',`${fmtMin(work)} : vérifier la moyenne et la période de référence applicables.`);
+    if(eu>3360)push('error',ws,'Conduite UE > 56 h/semaine',`${fmtMin(eu)} de conduite sous règlement 561/2006.`);
+    const pws=addDays(ws,-7),prevEu=Array.from({length:7},(_,i)=>metrics(addDays(pws,i)).euDrive).reduce((a,b)=>a+b,0);if(eu+prevEu>5400)push('error',ws,'Conduite UE > 90 h sur deux semaines',`${fmtMin(eu+prevEu)} cumulées avec la semaine précédente enregistrée.`);
+    const prevWork=Array.from({length:7},(_,i)=>metrics(addDays(pws,i)).work).reduce((a,b)=>a+b,0);if(work+prevWork>5280)push('warn',ws,'Travail > 88 h sur deux semaines',`${fmtMin(work+prevWork)} cumulées : vérifier la convention et la période de référence.`);
+    // Repos entre journées : standard 11 h ; seuil réduit dur selon le régime identifié.
+    for(let i=0;i<7;i++){const date=days[i],m=metrics(date);if(m.first===null)continue;const pd=addDays(date,-1),pm=metrics(pd);if(pm.last===null)continue;let gap=(1440-pm.last)+m.first;if(pm.last>1440)gap=m.first-(pm.last-1440);const hard=(m.hasNational||pm.hasNational)?600:(m.hasEu||pm.hasEu)?540:660;if(gap<hard)push('error',date,'Repos quotidien insuffisant',`${fmtMin(gap)} entre les deux journées (seuil réduit minimal modélisé : ${fmtMin(hard)}).`);else if(gap<660)push('warn',date,'Repos quotidien réduit',`${fmtMin(gap)} : le repos normal de 11 h n’est pas atteint ; vérifier les conditions de réduction/compensation.`)}
+    return{alerts,work,eu};
+  }
+  function dayAlerts(date){return complianceForWeek(monday(date)).alerts.filter(a=>a.date===date)}
+  function statusClass(alerts){return alerts.some(a=>a.severity==='error')?'bad':alerts.some(a=>a.severity==='warn')?'warn':'ok'}
+
+  function renderPlanner(){
+    q('v316WeekLabel').textContent=weekLabel(weekStart);
+    q('v316DayTabs').innerHTML=Array.from({length:7},(_,i)=>{const d=addDays(weekStart,i),m=metrics(d),a=dayAlerts(d);return`<button type="button" data-v316-date="${d}" class="${d===selectedDate?'active ':''}${statusClass(a)}"><b>${esc(dayName(d))}</b><small>${m.items.length?`${m.items.length} élément${m.items.length>1?'s':''}`:'Libre'}</small></button>`}).join('');
+    const weekDays=Array.from({length:7},(_,i)=>metrics(addDays(weekStart,i))),weekItems=Array.from({length:7},(_,i)=>itemsFor(addDays(weekStart,i))).flat(),weekWork=weekDays.reduce((a,m)=>a+m.work,0),weekDrive=weekDays.reduce((a,m)=>a+m.drive,0),weekHlp=weekItems.filter(x=>x.type==='hlp').reduce((a,x)=>a+driveMinutes(x),0),weekBreaks=weekDays.reduce((a,m)=>a+m.breaks,0);
+    q('v316WeekSummary').innerHTML=`<div><span>SEMAINE · TRAVAIL</span><b>${fmtMin(weekWork)}</b></div><div><span>CONDUITE</span><b>${fmtMin(weekDrive)}</b></div><div><span>HAUT-LE-PIED</span><b>${fmtMin(weekHlp)}</b></div><div><span>COUPURES / PAUSES</span><b>${fmtMin(weekBreaks)}</b></div>`;
+    const m=metrics(selectedDate),alerts=dayAlerts(selectedDate);
+    q('v316DaySummary').innerHTML=`<div><span>Amplitude</span><b>${fmtMin(m.amplitude)}</b></div><div><span>Travail</span><b>${fmtMin(m.work)}</b></div><div><span>Conduite</span><b>${fmtMin(m.drive)}</b></div><div><span>Coupures / pauses</span><b>${fmtMin(m.breaks)}</b></div>`;
+    q('v316RseBox').innerHTML=alerts.length?`<div class="v316-rse ${statusClass(alerts)}"><strong>${statusClass(alerts)==='bad'?'⛔':statusClass(alerts)==='warn'?'⚠️':'✅'} Contrôle planning</strong>${alerts.map(a=>`<p class="${a.severity}"><b>${esc(a.title)}</b> — ${esc(a.detail)}</p>`).join('')}</div>`:`<div class="v316-rse ok"><strong>✅ Aucun dépassement détecté dans les règles modélisées</strong><p>Contrôle indicatif uniquement : accords, dérogations et tachygraphe restent prioritaires.</p></div>`;
+    const list=q('v316PlanList');list.innerHTML=m.items.length?m.items.map((x,i)=>{const meta=TYPE[x.type]||TYPE.other,r=regimeOf(x),linked=x.linked?'<span class="v316-linked">LIÉ SAEIV</span>':'';return`<article class="v316-plan-item type-${x.type}" data-v316-id="${esc(x.id)}"><div class="v316-time"><b>${esc(x.start||'—')}</b><span>${esc(x.end||'—')}</span></div><div class="v316-plan-text"><div><strong>${meta.label}${x.line?` · ${esc(x.line)}`:''}</strong>${linked}</div><b>${esc(x.label||[x.origin,x.destination].filter(Boolean).join(' → ')||'Sans intitulé')}</b><small>${esc([x.origin&&`Départ : ${x.origin}`,x.destination&&`Destination : ${x.destination}`,TYPE[x.type]?.drive&&`conduite ${fmtMin(driveMinutes(x))}`,r==='eu561'?'RSE UE 561/2006':r==='national50'?'régulier ≤ 50 km':r==='unknown'?'régime à préciser':''].filter(Boolean).join(' · '))}</small></div><div class="v316-item-actions"><button type="button" data-v316-edit="${esc(x.id)}">Modifier</button><button type="button" data-v316-dup="${esc(x.id)}">⧉</button></div></article>`}).join(''):`<div class="v316-empty"><b>Aucun planning pour ${esc(longDay(selectedDate))}.</b><span>Ajoute une course, un haut-le-pied, une coupure ou un autre temps de service.</span></div>`;
+  }
+  q('v316DayTabs')?.addEventListener('click',e=>{const b=e.target.closest('[data-v316-date]');if(!b)return;selectedDate=b.dataset.v316Date;editingId=null;q('v316Editor').classList.add('hidden');renderPlanner()});
+  q('v316PlanList')?.addEventListener('click',e=>{const edit=e.target.closest('[data-v316-edit]'),dup=e.target.closest('[data-v316-dup]');if(edit)return openEditor(edit.dataset.v316Edit);if(dup){const x=plan.items.find(z=>z.id===dup.dataset.v316Dup);if(x){plan.items.push({...x,id:uid(),label:x.label?`${x.label} (copie)`:'Copie'});savePlan()}}});
+  q('v316AddItem')?.addEventListener('click',()=>openEditor(null));
+  q('v316CopyDay')?.addEventListener('click',()=>{const xs=itemsFor(selectedDate);if(!xs.length)return alert('Cette journée est vide.');const target=prompt('Copier vers quelle date ? (AAAA-MM-JJ)',addDays(selectedDate,1));if(!/^\d{4}-\d{2}-\d{2}$/.test(target||''))return;for(const x of xs)plan.items.push({...x,id:uid(),date:target});savePlan();selectedDate=target;weekStart=monday(target);renderPlanner()});
+
+  function openEditor(id){
+    editingId=id||null;const x=id?plan.items.find(z=>z.id===id):null;draftLink=x?.linked?JSON.parse(JSON.stringify(x.linked)):null;draftOrigin=x?.originCoords?{...x.originCoords}:null;draftDestination=x?.destinationCoords?{...x.destinationCoords}:null;
+    q('v316Editor').classList.remove('hidden');q('v316EditorTitle').textContent=x?'Modifier l’élément':`Ajouter · ${longDay(selectedDate)}`;
+    q('v316Type').value=x?.type||'regular';q('v316Label').value=x?.label||'';q('v316Line').value=x?.line||'';q('v316Origin').value=x?.origin||'';q('v316Destination').value=x?.destination||'';q('v316Regime').value=x?.regime||'auto';q('v316Distance').value=Number.isFinite(Number(x?.lineDistanceKm))?x.lineDistanceKm:'';q('v316DriveMinutes').value=Number.isFinite(Number(x?.driveMinutes))?x.driveMinutes:'';q('v316Notes').value=x?.notes||'';
+    const prev=itemsFor(selectedDate).at(-1),start=x?.start||prev?.end||'08:00';q('v316Start').value=start;const sm=minute(start)??480;q('v316End').value=x?.end||clock(sm+60);q('v316DeleteItem').classList.toggle('hidden',!x);syncLinkStatus();setTimeout(()=>q('v316Type').focus(),50);
+  }
+  const closeEditor=()=>{editingId=null;q('v316Editor').classList.add('hidden')};q('v316EditorCancel')?.addEventListener('click',e=>{e.preventDefault();closeEditor()});
+  function syncLinkStatus(){const e=q('v316LinkStatus');if(!e)return;e.className='v316-link-status'+(draftLink?' linked':'');e.textContent=draftLink?`✅ Course SAEIV liée : ${draftLink.routeShort||''} · trip ${draftLink.tripId||'—'} · départ arrêt ${Number(draftLink.startStopIndex||0)+1}`:'Aucune course SAEIV liée. Les éléments manuels restent parfaitement utilisables pour le planning et les calculs.'}
+  q('v316LinkCourse')?.addEventListener('click',e=>{e.preventDefault();if(!state?.route||!state?.pattern||!state?.run?.trip)return alert('Sélectionne d’abord une course exacte dans le SAEIV, puis reviens dans Mon planning.');const startIdx=Number(q('startStop')?.value||0),stops=state.pattern.stops||[];let endIdx=stops.length-1;if(state.service.mode==='tad'){try{const t=typeof tadTerminusIndex==='function'?tadTerminusIndex():null;if(Number.isInteger(t))endIdx=t}catch{}}const sd=state.run.serviceDate||parseDate(selectedDate),dep=departureFor(state.run.trip,startIdx,sd),arr=arrivalFor(state.run.trip,endIdx,sd),km=routeLengthKm(state.pattern.shape||[]);draftLink={dept:String(state.dept||''),routeId:String(state.route.id||''),routeShort:String(state.route.short||''),tripId:String(state.run.trip.id||''),startStopIndex:startIdx,endStopIndex:endIdx,serviceMode:state.service.mode==='tad'?'tad':'regular',tadStops:state.service.mode==='tad'?[...(state.service.tadStops||[])]:[]};q('v316Type').value=state.service.mode==='tad'?'tad':'regular';q('v316Line').value=state.route.short||'';q('v316Label').value=`${state.route.short||'Ligne'} · ${state.pattern.headsign||stops[endIdx]?.name||''}`;q('v316Origin').value=stops[startIdx]?.name||'';q('v316Destination').value=stops[endIdx]?.name||'';draftOrigin=stops[startIdx]?{lat:Number(stops[startIdx].lat),lon:Number(stops[startIdx].lon),name:stops[startIdx].name}:null;draftDestination=stops[endIdx]?{lat:Number(stops[endIdx].lat),lon:Number(stops[endIdx].lon),name:stops[endIdx].name}:null;if(dep)q('v316Start').value=formatClock(dep);if(arr)q('v316End').value=formatClock(arr);if(Number.isFinite(km)&&km>0){q('v316Distance').value=km.toFixed(1);q('v316Regime').value=km<=50?'national50':'eu561'}syncLinkStatus()});
+  function capturePlace(which){if(!state?.pattern?.stops?.length)return alert('Sélectionne d’abord une course dans le SAEIV.');let idx=Number(q('startStop')?.value||0);if(which==='terminus'){idx=state.pattern.stops.length-1;if(state.service.mode==='tad')try{const t=typeof tadTerminusIndex==='function'?tadTerminusIndex():null;if(Number.isInteger(t))idx=t}catch{}}const s=state.pattern.stops[idx];if(!s)return;if(which==='start'){q('v316Origin').value=s.name;draftOrigin={lat:Number(s.lat),lon:Number(s.lon),name:s.name}}else{q('v316Destination').value=s.name;draftDestination={lat:Number(s.lat),lon:Number(s.lon),name:s.name}}}
+  q('v316UseStartPlace')?.addEventListener('click',e=>{e.preventDefault();capturePlace('start')});q('v316UseTerminusPlace')?.addEventListener('click',e=>{e.preventDefault();capturePlace('terminus')});
+  q('v316Editor')?.addEventListener('submit',e=>{e.preventDefault();const start=q('v316Start').value,end=q('v316End').value;if(!start||!end)return alert('Renseigne l’heure de début et de fin.');const rec={id:editingId||uid(),date:selectedDate,type:q('v316Type').value,label:q('v316Label').value.trim(),line:q('v316Line').value.trim(),start,end,origin:q('v316Origin').value.trim(),destination:q('v316Destination').value.trim(),regime:q('v316Regime').value,lineDistanceKm:q('v316Distance').value===''?null:Number(q('v316Distance').value),driveMinutes:q('v316DriveMinutes').value===''?null:Number(q('v316DriveMinutes').value),notes:q('v316Notes').value.trim(),linked:draftLink||null,originCoords:draftOrigin||null,destinationCoords:draftDestination||null,updatedAt:new Date().toISOString()};const i=plan.items.findIndex(x=>x.id===rec.id);if(i>=0)plan.items[i]=rec;else plan.items.push(rec);savePlan();closeEditor();renderPlanner()});
+  q('v316DeleteItem')?.addEventListener('click',e=>{e.preventDefault();if(!editingId)return;if(!confirm('Supprimer cet élément du planning ?'))return;plan.items=plan.items.filter(x=>x.id!==editingId);savePlan();closeEditor();renderPlanner()});
+
+  // ---------- Ma journée : préparation automatique des courses exactes ----------
+  function dayProgress(date){if(progress.date!==date)progress={date,done:{},activeId:null};progress.done=progress.done||{};return progress}
+  function nextPending(date){const p=dayProgress(date);return itemsFor(date).find(x=>!p.done[x.id])||null}
+  function renderToday(){
+    const date=today(),m=metrics(date),p=dayProgress(date),alerts=dayAlerts(date),xs=m.items;const current=p.activeId?xs.find(x=>x.id===p.activeId&&!p.done[x.id]):nextPending(date);
+    q('v316TodayTitle').textContent=longDay(date);q('v316TodaySub').textContent=xs.length?`${xs.length} élément${xs.length>1?'s':''} · ${current?`prochaine étape ${current.start}`:'journée terminée'}`:'Aucun planning enregistré pour aujourd’hui.';
+    q('v316TodayMetrics').innerHTML=`<div><span>Amplitude</span><b>${fmtMin(m.amplitude)}</b></div><div><span>Travail</span><b>${fmtMin(m.work)}</b></div><div><span>Conduite</span><b>${fmtMin(m.drive)}</b></div><div><span>Fin prévue</span><b>${m.last===null?'—':clock(m.last)}</b></div>`;
+    q('v316TodayCompliance').innerHTML=`<div class="v316-mini-rse ${statusClass(alerts)}">${alerts.length?(statusClass(alerts)==='bad'?'⛔': '⚠️')+` ${alerts.length} point${alerts.length>1?'s':''} RSE à vérifier`:'✅ Planning sans dépassement détecté'}</div>`;
+    q('v316TodayList').innerHTML=xs.length?xs.map((x,i)=>{const done=!!p.done[x.id],active=current?.id===x.id,meta=TYPE[x.type]||TYPE.other,next=xs.slice(i+1).find(z=>z.linked);let action='';if(!done){if(x.linked)action=`<button type="button" data-v316-prepare="${x.id}">Préparer la course</button>`;else if(x.type==='hlp'&&next?.linked)action=`<button type="button" data-v316-hlp-next="${x.id}">GPS vers prochaine course</button>`;else if(x.type==='hlp')action=`<button type="button" data-v316-hlp="${x.id}">Itinéraire HLP</button>`;action+=`<button type="button" data-v316-done="${x.id}">✓ Terminé</button>`}return`<article class="v316-today-item ${done?'done':''} ${active?'active':''}"><div class="v316-time"><b>${esc(x.start)}</b><span>${esc(x.end)}</span></div><div><strong>${meta.label}${x.line?` · ${esc(x.line)}`:''}</strong><b>${esc(x.label||[x.origin,x.destination].filter(Boolean).join(' → ')||'Étape')}</b><small>${esc([x.origin,x.destination].filter(Boolean).join(' → '))}</small></div><div class="v316-today-item-actions">${action}</div></article>`}).join(''):`<div class="v316-empty"><b>Ta journée n’est pas encore préparée.</b><span>Ouvre « Mon planning » pour saisir tes courses, haut-le-pied et coupures.</span></div>`;
+    q('v316StartDay').disabled=!xs.length||!nextPending(date);q('v316StartDay').textContent=p.activeId?'▶ REPRENDRE MA JOURNÉE':'▶ LANCER MA JOURNÉE';saveProgressSilent();
+  }
+  function saveProgressSilent(){try{localStorage.setItem(PROGRESS_KEY,JSON.stringify(progress))}catch{}}
+  function setDone(id){const date=today(),p=dayProgress(date);p.done[id]=true;if(p.activeId===id)p.activeId=null;const n=nextPending(date);p.activeId=n?.id||null;saveProgress();return n}
+  q('v316StartDay')?.addEventListener('click',async()=>{const date=today(),p=dayProgress(date),n=nextPending(date);if(!n)return;p.activeId=n.id;saveProgress();if(n.linked)await prepareLinkedCourse(n);else if(n.type==='hlp'){const next=itemsFor(date).slice(itemsFor(date).findIndex(x=>x.id===n.id)+1).find(x=>x.linked);if(next)await prepareHlpToNext(n,next)}});
+  q('v316TodayList')?.addEventListener('click',async e=>{const prep=e.target.closest('[data-v316-prepare]'),done=e.target.closest('[data-v316-done]'),hlpNext=e.target.closest('[data-v316-hlp-next]'),hlp=e.target.closest('[data-v316-hlp]');if(done)return void setDone(done.dataset.v316Done);if(prep){const x=plan.items.find(z=>z.id===prep.dataset.v316Prepare);if(x){progress.activeId=x.id;saveProgressSilent();await prepareLinkedCourse(x)}return}if(hlpNext){const xs=itemsFor(today()),i=xs.findIndex(x=>x.id===hlpNext.dataset.v316HlpNext),x=xs[i],next=xs.slice(i+1).find(z=>z.linked);if(x&&next)await prepareHlpToNext(x,next);return}if(hlp){const x=plan.items.find(z=>z.id===hlp.dataset.v316Hlp);if(x)await openHlpPreview(x)}});
+
+  async function prepareLinkedCourse(item,{forHlp=false}={}){
+    const l=item?.linked;if(!l)throw new Error('Cette étape n’est pas liée à une course SAEIV.');try{
+      setDayMode(false);if(q('serviceDate'))q('serviceDate').value=item.date;
+      if(typeof window.FluoSetServiceModeV313==='function')window.FluoSetServiceModeV313(l.serviceMode==='tad'?'tad':'regular');else if(typeof setServiceMode==='function')setServiceMode(l.serviceMode==='tad'?'tad':'regular');
+      if(q('dept'))q('dept').value=l.dept;await loadDept(l.dept);if(q('dept'))q('dept').value=l.dept;
+      const route=(state.routes||[]).find(r=>String(r.id)===String(l.routeId))||(state.routes||[]).find(r=>String(r.short)===String(l.routeShort));if(!route)throw new Error(`ligne ${l.routeShort||l.routeId} introuvable`);q('route').value=route.id;await loadRoute(route);
+      let idx=(state.runOptions||[]).findIndex(r=>String(r.trip?.id)===String(l.tripId));if(idx<0){const sm=minute(item.start);idx=(state.runOptions||[]).findIndex(r=>Math.abs((r.originDeparture.getHours()*60+r.originDeparture.getMinutes())-sm)<=2)}if(idx<0)throw new Error('la course exacte n’est pas active à cette date');q('trip').value=String(idx);await selectRun(idx);q('startStop').value=String(Math.min(Number(l.startStopIndex||0),state.pattern.stops.length-1));if(l.serviceMode==='tad'){state.service.tadStops=new Set((l.tadStops||[]).map(Number));if(!state.service.tadStops.size)state.service.tadStops.add(Number(l.startStopIndex||0));renderTadStopList(false);q('startStop')?.dispatchEvent(new Event('change',{bubbles:true}))}updateDepartureDisplay();refreshStartAvailability();labels();sessionStorage.setItem('fluo-v316-prepared-item',forHlp?'':item.id);status(`📅 Ma journée · ${item.line||l.routeShort} prête pour ${item.start}. ${forHlp?'Le départ de cette course sert de destination au haut-le-pied.':'Tu peux lancer la prise de service GPS.'}`,'ok');if(!forHlp)q('start')?.scrollIntoView({behavior:'smooth',block:'center'});return true
+    }catch(e){alert(`Impossible de préparer cette étape : ${e.message||e}`);setDayMode(true);return false}
+  }
+  async function prepareHlpToNext(item,next){const ok=await prepareLinkedCourse(next,{forHlp:true});if(!ok)return;const open=q('v29HlpOpen'),calc=q('v29HlpCalc');if(open){open.click();setTimeout(()=>calc?.click(),180)}else alert('Le module haut-le-pied est indisponible sur cette version.');progress.activeId=item.id;saveProgressSilent()}
+
+  // ---------- HLP manuel : aperçu routier lorsque la destination n’est pas une course liée ----------
+  if(!q('v316HlpPreview'))document.body.insertAdjacentHTML('beforeend',`<div id="v316HlpPreview" class="v316-backdrop hidden"><div class="v316-hlp-sheet"><div class="v316-planner-head"><div><div class="eyebrow">HAUT-LE-PIED</div><h2 id="v316HlpTitle">Itinéraire</h2><p id="v316HlpSummary"></p></div><button id="v316HlpClose" type="button">Fermer</button></div><div id="v316HlpMap"></div><div id="v316HlpStatus" class="v316-link-status">Calcul…</div></div></div>`);
+  let hlpMap=null;
+  async function geocode(text){const s=String(text||'').trim();if(!s)throw new Error('lieu manquant');const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=fr&accept-language=fr&q=${encodeURIComponent(s)}`,{headers:{Accept:'application/json'}});if(!r.ok)throw new Error('géocodage indisponible');const x=(await r.json())?.[0];if(!x)throw new Error(`lieu introuvable : ${s}`);return{lat:Number(x.lat),lon:Number(x.lon),name:x.display_name||s}}
+  async function openHlpPreview(item){q('v316HlpPreview').classList.remove('hidden');q('v316HlpTitle').textContent=`${item.origin||'Départ'} → ${item.destination||'Destination'}`;q('v316HlpStatus').textContent='Calcul du trajet routier…';try{let a=item.originCoords,b=item.destinationCoords;if(!a&&state?.pos?.coords)a={lat:Number(state.pos.coords.latitude),lon:Number(state.pos.coords.longitude),name:'Position actuelle'};if(!a)a=await geocode(item.origin);if(!b)b=await geocode(item.destination);const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=false`,{cache:'no-store'});const d=await r.json(),rt=d?.routes?.[0];if(!rt)throw new Error('aucun trajet routier trouvé');const shape=rt.geometry.coordinates.map(c=>[Number(c[1]),Number(c[0])]);q('v316HlpSummary').textContent=`${(rt.distance/1000).toFixed(1).replace('.',',')} km · environ ${Math.max(1,Math.round(rt.duration/60))} min`;q('v316HlpStatus').textContent='✅ Itinéraire préparé. Pour un haut-le-pied vers une prochaine course liée, utilise « GPS vers prochaine course » : le module HLP du SAEIV prendra le relais.';if(typeof L!=='undefined'){if(hlpMap)try{hlpMap.remove()}catch{}hlpMap=L.map('v316HlpMap').setView(shape[0],12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(hlpMap);L.polyline(shape,{color:'#ffd000',weight:6,opacity:.9}).addTo(hlpMap);L.circleMarker([a.lat,a.lon],{radius:7}).addTo(hlpMap).bindPopup('Départ');L.circleMarker([b.lat,b.lon],{radius:7}).addTo(hlpMap).bindPopup('Destination');hlpMap.fitBounds(shape,{padding:[25,25],maxZoom:15});setTimeout(()=>hlpMap.invalidateSize(),80)}}catch(e){q('v316HlpStatus').textContent=`❌ ${e.message||e}`}}
+  q('v316HlpClose')?.addEventListener('click',()=>q('v316HlpPreview').classList.add('hidden'));q('v316HlpPreview')?.addEventListener('click',e=>{if(e.target===q('v316HlpPreview'))q('v316HlpPreview').classList.add('hidden')});
+
+  // Une course préparée via « Ma journée » est marquée terminée quand le conducteur termine réellement le service.
+  q('finish')?.addEventListener('click',()=>{const id=sessionStorage.getItem('fluo-v316-prepared-item');if(!id)return;sessionStorage.removeItem('fluo-v316-prepared-item');setTimeout(()=>{setDone(id);setDayMode(true)},80)});
+
+  function renderAll(){if(!q('v316Planner')?.classList.contains('hidden'))renderPlanner();renderToday()}
+
+  const css=document.createElement('style');css.id='v316PlanningStyle';css.textContent=`
+    .v316-header-actions{display:flex;align-items:center;gap:8px}.v316-menu-btn{min-width:45px;width:45px;padding:8px;font-size:1.3rem;border-radius:12px}.v316-menu-backdrop{position:fixed;z-index:20000;inset:0;background:rgba(0,0,0,.66);display:flex;justify-content:flex-end}.v316-menu{width:min(380px,90vw);height:100%;padding:18px;background:linear-gradient(180deg,#102936,#071620);border-left:1px solid #355163;box-shadow:-25px 0 70px rgba(0,0,0,.5);overflow:auto}.v316-menu-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.v316-menu-head h2{margin:3px 0 12px}.v316-menu-head button{min-width:42px;padding:7px}.v316-menu-items{display:grid;gap:7px}.v316-menu-items .v316-menu-entry{width:100%;min-height:50px;text-align:left;border-radius:13px;padding:10px 12px;background:#102737;font-size:.78rem}.v316-menu-items .v316-planning-entry{border-color:#d5aa16;background:linear-gradient(135deg,#3d330b,#183020);color:#fff0a1}.v316-menu-foot{margin-top:16px;color:#8299a6;font-size:.66rem;line-height:1.45}.v13-userbar .v316-menu-entry{display:none!important}
+    .v316-today-mode{border-color:#6688a0!important}.v316-today-panel{margin:12px 0;padding:14px;border:1px solid #355163;border-radius:16px;background:linear-gradient(180deg,#0d2634,#081923)}.v316-today-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v316-today-head h3{margin:3px 0;font-size:1.25rem}.v316-today-head p{margin:3px 0;color:#9eb4bf;font-size:.72rem}.v316-today-head button{min-height:38px;padding:7px 10px}.v316-today-metrics,.v316-day-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:11px}.v316-today-metrics div,.v316-day-summary div{padding:9px;border:1px solid #2d4859;border-radius:11px;background:#071720}.v316-today-metrics span,.v316-day-summary span{display:block;color:#8fa6b3;font-size:.58rem}.v316-today-metrics b,.v316-day-summary b{display:block;margin-top:3px;font-size:.85rem}.v316-mini-rse{margin-top:8px;padding:8px 10px;border:1px solid #397c51;border-radius:10px;background:#0e2b1c;color:#cffff0;font-size:.7rem;font-weight:850}.v316-mini-rse.warn{border-color:#846d21;background:#342b0b;color:#ffe8a0}.v316-mini-rse.bad{border-color:#8a4446;background:#3b2022;color:#ffd2cf}.v316-today-list{display:grid;gap:6px;margin-top:9px}.v316-today-item{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:9px;align-items:center;padding:9px;border:1px solid #2d4859;border-radius:12px;background:#081720}.v316-today-item.active{border-color:#ffd000;box-shadow:inset 3px 0 0 #ffd000}.v316-today-item.done{opacity:.48}.v316-today-item>div:nth-child(2)>strong,.v316-today-item>div:nth-child(2)>b,.v316-today-item>div:nth-child(2)>small{display:block}.v316-today-item>div:nth-child(2)>strong{font-size:.67rem;color:#b6c9d2}.v316-today-item>div:nth-child(2)>b{margin-top:2px;font-size:.78rem}.v316-today-item>div:nth-child(2)>small{margin-top:2px;color:#8198a5;font-size:.61rem}.v316-time b,.v316-time span{display:block}.v316-time b{color:#ffd000}.v316-time span{font-size:.65rem;color:#91a7b3}.v316-today-item-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.v316-today-item-actions button{min-height:34px;padding:5px 7px;font-size:.6rem}.v316-today-actions{display:flex;gap:8px;margin-top:10px}.v316-today-actions button:first-child{flex:1}.v316-day-hidden{display:none!important}
+    .v316-backdrop{position:fixed;z-index:21000;inset:0;padding:12px;background:rgba(0,0,0,.76);display:flex;align-items:flex-end;justify-content:center}.v316-planner{width:min(1180px,100%);max-height:96dvh;padding:15px;border:1px solid rgba(255,255,255,.16);border-radius:22px;background:#0d202c;box-shadow:0 -25px 70px rgba(0,0,0,.55);overflow:auto}.v316-planner-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v316-planner-head h2{margin:3px 0}.v316-planner-head p{margin:0;color:#a4b7c1;font-size:.72rem}.v316-weekbar{display:grid;grid-template-columns:auto auto 1fr auto;gap:7px;align-items:center;margin-top:12px}.v316-weekbar strong{text-align:center}.v316-weekbar button{min-height:38px;padding:6px 10px}.v316-day-tabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:9px}.v316-day-tabs button{min-width:0;padding:7px 4px;min-height:50px;font-size:.65rem}.v316-day-tabs b,.v316-day-tabs small{display:block}.v316-day-tabs small{margin-top:2px;color:#8fa6b3;font-size:.52rem}.v316-day-tabs button.active{border-color:#ffd000;background:#2c2a10}.v316-day-tabs button.warn{box-shadow:inset 0 -3px 0 #d5a62d}.v316-day-tabs button.bad{box-shadow:inset 0 -3px 0 #c85154}.v316-day-tabs button.ok{box-shadow:inset 0 -3px 0 #3f9c65}.v316-week-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:8px}.v316-week-summary div{padding:8px 9px;border:1px solid #355163;border-radius:10px;background:#0a1c26}.v316-week-summary span{display:block;color:#8ca3af;font-size:.53rem;font-weight:900;letter-spacing:.04em}.v316-week-summary b{display:block;margin-top:3px;font-size:.8rem;color:#eef8fc}.v316-planner-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(330px,.75fr);gap:12px;margin-top:12px}.v316-plan-main{min-width:0}.v316-rse{margin-top:8px;padding:10px;border:1px solid #397c51;border-radius:12px;background:#0b2819;color:#d6ffe5;font-size:.67rem}.v316-rse strong{display:block}.v316-rse p{margin:5px 0 0;line-height:1.35}.v316-rse.warn{border-color:#8a7123;background:#30290d;color:#ffe5a0}.v316-rse.bad{border-color:#884446;background:#371f22;color:#ffd2d0}.v316-rse p.error{color:#ffc2be}.v316-rse p.warn{color:#ffe6a5}.v316-plan-list{display:grid;gap:6px;margin-top:9px}.v316-plan-item{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px;border:1px solid #2d4859;border-radius:12px;background:#071720}.v316-plan-text>div{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.v316-plan-text strong,.v316-plan-text>b,.v316-plan-text small{display:block}.v316-plan-text strong{font-size:.67rem;color:#b9ccd5}.v316-plan-text>b{margin-top:2px;font-size:.79rem}.v316-plan-text small{margin-top:3px;color:#8399a6;font-size:.6rem;line-height:1.35}.v316-linked{padding:2px 5px;border-radius:999px;background:#174529;color:#bfffd3;font-size:.48rem;font-weight:950}.v316-item-actions{display:flex;gap:4px}.v316-item-actions button{min-height:33px;padding:5px 7px;font-size:.57rem}.v316-plan-actions{display:flex;gap:7px;margin-top:9px}.v316-empty{padding:18px;border:1px dashed #355163;border-radius:12px;text-align:center;color:#a7bbc5}.v316-empty b,.v316-empty span{display:block}.v316-empty span{margin-top:4px;font-size:.68rem}.v316-editor{min-width:0;padding:12px;border:1px solid #355163;border-radius:15px;background:#081720;align-self:start;position:sticky;top:0}.v316-editor-head{display:flex;justify-content:space-between;align-items:center}.v316-editor-head h3{margin:0}.v316-editor-head button{min-height:35px;padding:5px 8px}.v316-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.v316-form-grid label,.v316-notes{font-size:.66rem}.v316-form-grid input,.v316-form-grid select{min-height:41px;padding:7px 8px}.v316-notes{margin-top:8px}.v316-notes textarea{min-height:70px}.v316-link-tools{display:grid;grid-template-columns:1fr;gap:5px;margin-top:8px}.v316-link-tools button{min-height:38px;padding:6px 8px;font-size:.62rem;text-align:left}.v316-link-status{margin-top:8px;padding:8px;border:1px solid #355163;border-radius:10px;background:#0a1c26;color:#a8bbc5;font-size:.63rem;line-height:1.4}.v316-link-status.linked{border-color:#34764c;color:#cffff0}.v316-editor-actions{display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:9px}.v316-legal-note{margin-top:12px;padding:9px 10px;border:1px solid #355163;border-radius:11px;color:#8fa5b2;background:#071720;font-size:.61rem;line-height:1.45}.v316-hlp-sheet{width:min(900px,100%);max-height:92dvh;padding:14px;border:1px solid #355163;border-radius:20px;background:#0d202c}.v316-hlp-sheet #v316HlpMap{height:min(55vh,480px);margin-top:10px;border:1px solid #355163;border-radius:13px;overflow:hidden}
+    @media(max-width:820px){.v316-week-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.v316-planner-grid{grid-template-columns:1fr}.v316-editor{position:static}.v316-day-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}.v316-today-metrics,.v316-day-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.v316-form-grid{grid-template-columns:1fr}.v316-today-item,.v316-plan-item{grid-template-columns:50px minmax(0,1fr)}.v316-today-item-actions,.v316-item-actions{grid-column:1/-1;justify-content:flex-start}.v316-weekbar{grid-template-columns:auto 1fr auto}.v316-weekbar #v316ThisWeek{grid-column:1/-1;grid-row:2}.v316-menu{width:min(360px,94vw)}}
+    @media(orientation:landscape) and (max-height:650px){.v316-menu-backdrop,.v316-backdrop{align-items:stretch}.v316-planner,.v316-hlp-sheet{max-height:100dvh;border-radius:0}.v316-menu{width:min(360px,48vw)}}
+  `;document.head.appendChild(css);
+
+  // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
+  setTimeout(populateMenu,150);setTimeout(populateMenu,700);
+  renderToday();
+  document.title='Fluo SAEIV V31.6 · planning conducteur';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.6 PLANNING';
+  window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
 

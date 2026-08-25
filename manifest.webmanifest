@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.5",
-  "short_name": "Fluo V31.5",
-  "start_url": "./?v=31.5",
+  "name": "Fluo SAEIV V31.6",
+  "short_name": "Fluo V31.6",
+  "start_url": "./?v=31.6",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.5 — cockpit paysage validé, commandes principales sur toute la largeur, arrêt demandé avec ding-dong conducteur."
+  "description": "SAEIV conducteur V31.6 — cockpit paysage, menu hamburger, Mon planning, Ma journée, haut-le-pied/coupures et contrôle RSE indicatif."
 }
