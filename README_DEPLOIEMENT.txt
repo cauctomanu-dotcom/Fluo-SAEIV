@@ -98,20 +98,16 @@ V30.5 — CORRECTION GESTION DES JOURNAUX
 - Cases de sélection remises au premier plan et rendues cliquables.
 - Un clic sur une case ne déclenche plus l'ouverture du journal.
 - Suppression individuelle reprise par un gestionnaire V30.5 indépendant.
+
+V30.7 — SIMULATION NON BLOQUANTE + GPS FLUIDE
+------------------------------------------------
+- Le lancement d'une simulation n'attend plus les services OSM/Overpass : la course part
+  immédiatement avec la vitesse de secours, puis adopte le profil routier en arrière-plan.
+- Une panne ou une forte latence du profil routier ne peut plus laisser le bouton bloqué
+  sur « Profil routier » avec un sablier.
+- En GPS réel, le navigateur demande toujours la position la plus fraîche (maximumAge 0).
+- Le pictogramme et la caméra sont animés entre les fixes GPS. Cette interpolation reste
+  strictement visuelle : annonces, arrêts, TAD et journaux utilisent le GPS réel uniquement.
 - « Tout sélectionner », « Supprimer la sélection » et « Effacer les journaux terminés » sont de nouveau opérationnels.
 - Le service actuellement ouvert reste protégé contre la suppression.
 - Suppression simultanée de la session et de tous ses événements IndexedDB associés.
-
-
-V30.6 — SUIVI GPS VISUEL FLUIDE
-================================
-- Le GPS réel reste la seule référence pour les annonces, la validation des arrêts, la régulation, les limitations et le journal.
-- Le pictogramme du bus n’attend plus visuellement le prochain fix GPS pour se déplacer : il est animé entre les fixes via requestAnimationFrame.
-- Sur le tracé officiel, l’affichage avance à partir de la vitesse GPS avec une extrapolation volontairement courte (maximum ~1,25 s), puis se recale progressivement au fix suivant.
-- En cas de précision GPS dégradée, l’horizon de prédiction est automatiquement réduit.
-- En déviation manuelle, le lissage reste disponible sur la position brute sans forcer le bus sur le shape officiel.
-- La caméra MapLibre est rafraîchie jusqu’à ~30 images/s et le pictogramme jusqu’au rythme d’affichage du navigateur, afin de supprimer l’effet de saut visible à 70–90 km/h.
-- watchPosition utilise désormais maximumAge: 0 afin d’éviter autant que possible une position GPS mise en cache.
-- Si aucun nouveau fix n’arrive après la courte fenêtre de prédiction, le bus cesse d’avancer visuellement au lieu de dériver.
-
-À noter : la fréquence native des fixes GPS reste décidée par iOS/Safari. V30.6 ne prétend donc pas obtenir 10 fixes GPS par seconde ; elle rend le déplacement fluide entre les fixes réels tout en conservant ceux-ci comme vérité métier.
