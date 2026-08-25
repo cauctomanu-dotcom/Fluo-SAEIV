@@ -244,3 +244,12 @@ V31.6 — MENU CONDUCTEUR + MON PLANNING + MA JOURNÉE
 - Haut-le-pied : carnet d’adresses locales. Une adresse vérifiée peut être enregistrée sous un nom, rappelée en départ ou destination, modifiée ou supprimée.
 - Le carnet d’adresses est stocké localement dans le navigateur et a été structuré pour pouvoir être réutilisé plus tard dans les billets collectifs.
 - Cockpit paysage validé V31.6.1/V31.7 conservé.
+
+
+=== V31.10 — CORRECTIF MENU / PLANNING ===
+- Restauration du menu hamburger conducteur.
+- Restauration de « Ma journée » et « Mon planning ».
+- Restauration de « Créer une fiche horaire » dans le menu, ainsi que les fiches enregistrées.
+- Conservation du planning intuitif : lignes régulières/scolaires, sens, départs disponibles, favoris d’adresses.
+- Conservation du haut-le-pied avec départ repris automatiquement depuis l’arrivée de l’étape précédente lorsque possible.
+- Conservation du cockpit paysage validé.

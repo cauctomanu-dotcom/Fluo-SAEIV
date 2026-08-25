@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=31.6">
+  <link rel="manifest" href="manifest.webmanifest?v=31.10">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Fluo SAEIV V22 · TAD + suivi stable</title>
@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.9 — édition GitHub monobloc, planning intuitif V3 + HLP départ automatique + cockpit paysage validé.
+// Fluo SAEIV V31.10 — édition GitHub monobloc, menu/planning restaurés + HLP départ automatique + cockpit paysage validé.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -5683,7 +5683,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v316PlanningHub">
 'use strict';
-/* V31.9 — menu conducteur + planning hebdomadaire intuitif + « Ma journée » + contrôle RSE indicatif.
+/* V31.10 — menu conducteur + planning hebdomadaire intuitif + « Ma journée » + contrôle RSE indicatif.
    Le planning est local au navigateur et facultatif. Les moteurs existants restent les sources de vérité
    pour les courses, TAD, GPS, haut-le-pied V29, journaux et annonces. */
 (()=>{
@@ -5777,6 +5777,143 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   function v317SyncEditorMode(x=null){const type=q('v316Type')?.value||'regular',regular=type==='regular',hlp=type==='hlp',simple=['start','end','annex','availability','cut','pause','other'].includes(type);q('v317RegularGuide')?.classList.toggle('hidden',!regular);q('v317HlpGuide')?.classList.toggle('hidden',!hlp);q('v318RawStart')?.classList.toggle('hidden',regular);q('v318RawEnd')?.classList.toggle('hidden',regular);for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawRegime','v317RawDistance','v317RawDrive'])q(id)?.classList.remove('hidden');if(regular){for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawRegime','v317RawDistance','v317RawDrive'])q(id)?.classList.add('hidden')}else if(hlp){for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawDistance'])q(id)?.classList.add('hidden')}else if(simple){for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawRegime','v317RawDistance','v317RawDrive'])q(id)?.classList.add('hidden')}const legacyTools=document.querySelector('#v316Editor .v316-link-tools'),legacyStatus=q('v316LinkStatus'),hideLegacy=regular||hlp||simple;if(legacyTools)legacyTools.classList.toggle('hidden',hideLegacy);if(legacyStatus)legacyStatus.classList.toggle('hidden',hideLegacy);if(hlp){document.querySelectorAll('.v317-place-card').forEach(card=>v317PopulateHlpCard(card,card.dataset.v317Place,x));v318RefreshSavedAddresses()}}
   async function v317InitRegularEditor(x=null){const linked=x?.linked||draftLink||null,dept=String(linked?.dept||'57');if(q('v317RegularDept'))q('v317RegularDept').value=['54','57'].includes(dept)?dept:'57';let family='regular';if(linked?.routeId){try{const all=await v317Routes(dept),r=all.find(z=>String(z.id)===String(linked.routeId));if(r)family=v318RouteClass(r)}catch{}}if(q('v318RegularClass'))q('v318RegularClass').value=family;await v317LoadRegularLines(linked?.routeId);if(linked?.routeId&&q('v317RegularLine'))q('v317RegularLine').value=String(linked.routeId);if(q('v317RegularLine')?.value){await v317LoadRegularDirections(linked?.patternIndex);if(linked?.patternIndex!==undefined&&linked?.patternIndex!==null){const hit=[...q('v317RegularDirection').options].find(o=>String(o.value).split(',').map(Number).includes(Number(linked.patternIndex)));if(hit)q('v317RegularDirection').value=hit.value}else if(x?.origin&&x?.destination){const deptNow=q('v317RegularDept').value,routes=await v317Routes(deptNow),route=routes.find(r=>String(r.id)===String(q('v317RegularLine').value));if(route){const ps=await v317Patterns(deptNow,route),pi=ps.findIndex(p=>String(p?.stops?.[0]?.name||'')===String(x.origin)&&String(p?.headsign||p?.stops?.at(-1)?.name||'')===String(x.destination));if(pi>=0){const opt=[...q('v317RegularDirection').options].find(o=>String(o.value).split(',').map(Number).includes(pi));if(opt)q('v317RegularDirection').value=opt.value}}}if(q('v317RegularDirection')?.value)await v318LoadRegularDepartures(linked?.tripId||null)}q('v317RegularStatus').textContent=linked?`✅ Course liée : ${linked.routeShort||x?.line||''}. Tu peux changer le type de ligne, la ligne, le sens ou l’heure de départ.`:'Choisis le type de ligne, la ligne, le sens puis une heure de départ disponible.'}
+  const routeLengthKm=shape=>{let m=0;for(let i=1;i<(shape||[]).length;i++){const a=shape[i-1],b=shape[i];if(a&&b&&typeof dist==='function')m+=dist(Number(a[0]),Number(a[1]),Number(b[0]),Number(b[1]))}return m/1000};
+  const regimeOf=item=>{if(item.regime&&item.regime!=='auto')return item.regime;const km=Number(item.lineDistanceKm);if(Number.isFinite(km)&&km>0)return km<=50?'national50':'eu561';return TYPE[item.type]?.drive?'unknown':'none'};
+  const driveMinutes=item=>TYPE[item.type]?.drive?Math.max(0,Number(item.driveMinutes)||dur(item)):0;
+
+  // ---------- Menu hamburger : on déplace les vrais boutons, donc leurs événements historiques restent intacts. ----------
+  const top=document.querySelector('.top'),gps=q('gpsPill');
+  if(top&&!q('v316HeaderActions')){
+    const wrap=document.createElement('div');wrap.id='v316HeaderActions';wrap.className='v316-header-actions';
+    if(gps)wrap.appendChild(gps);
+    const b=document.createElement('button');b.id='v316MenuBtn';b.type='button';b.className='v316-menu-btn';b.setAttribute('aria-label','Ouvrir le menu');b.textContent='☰';wrap.appendChild(b);top.appendChild(wrap);
+  }
+  if(!q('v316MenuBackdrop'))document.body.insertAdjacentHTML('beforeend',`<div id="v316MenuBackdrop" class="v316-menu-backdrop hidden"><aside id="v316Menu" class="v316-menu" role="dialog" aria-modal="true" aria-label="Menu conducteur"><div class="v316-menu-head"><div><div class="eyebrow">OUTILS CONDUCTEUR</div><h2>Menu</h2></div><button id="v316MenuClose" type="button">✕</button></div><div id="v316MenuItems" class="v316-menu-items"></div><div class="v316-menu-foot">Les données de planning restent enregistrées localement sur cet appareil.</div></aside></div>`);
+  const menuItems=q('v316MenuItems');
+  const menuDefs=[
+    ['v13JournalBtn','📁 Journaux'],['v16CalcOpen','📄 Créer une fiche horaire'],['v24SheetsBtn','🗂 Fiches horaires enregistrées'],
+    ['v25CreatorBtn','🛠 Création de ligne'],['v26MyTadsBtn','📞 Mes TAD'],['v304MyCollectivesBtn','🎫 Mes billets'],['v29AdminBtn','⚙️ Admin']
+  ];
+  function populateMenu(){
+    if(!menuItems)return;
+    for(const [id,label] of menuDefs){const el=q(id);if(el&&el.parentElement!==menuItems){el.textContent=label;el.classList.add('v316-menu-entry');menuItems.appendChild(el)}}
+    let pl=q('v316PlanningBtn');if(!pl){pl=document.createElement('button');pl.id='v316PlanningBtn';pl.type='button';pl.className='v316-menu-entry v316-planning-entry';pl.textContent='📅 Mon planning';const admin=q('v29AdminBtn');admin?.insertAdjacentElement('beforebegin',pl);if(!admin)menuItems.appendChild(pl)}
+  }
+  populateMenu();
+  const openMenu=()=>{populateMenu();q('v316MenuBackdrop')?.classList.remove('hidden')},closeMenu=()=>q('v316MenuBackdrop')?.classList.add('hidden');
+  q('v316MenuBtn')?.addEventListener('click',openMenu);q('v316MenuClose')?.addEventListener('click',closeMenu);q('v316MenuBackdrop')?.addEventListener('click',e=>{if(e.target===q('v316MenuBackdrop'))closeMenu()});
+  menuItems?.addEventListener('click',e=>{if(e.target.closest('button'))setTimeout(closeMenu,80)});
+
+  // ---------- Ma journée dans le choix de service ----------
+  if(!q('v316TodayMode')){const b=document.createElement('button');b.id='v316TodayMode';b.type='button';b.className='service-mode v316-today-mode';b.textContent='📅 Ma journée';serviceButtons.appendChild(b)}
+  if(!q('v316TodayPanel'))serviceChoice.insertAdjacentHTML('afterend',`<section id="v316TodayPanel" class="v316-today-panel hidden"><div class="v316-today-head"><div><div class="eyebrow">PLANNING DU JOUR</div><h3 id="v316TodayTitle"></h3><p id="v316TodaySub"></p></div><button id="v316TodayOpenPlan" type="button">Modifier</button></div><div id="v316TodayMetrics" class="v316-today-metrics"></div><div id="v316TodayCompliance"></div><div id="v316TodayList" class="v316-today-list"></div><div class="v316-today-actions"><button id="v316StartDay" class="primary" type="button">▶ LANCER MA JOURNÉE</button><button id="v316LeaveDay" type="button">Choix manuel</button></div></section>`);
+  function setDayMode(on){
+    setup.classList.toggle('v316-day-mode',!!on);q('v316TodayMode')?.classList.toggle('active',!!on);q('v316TodayPanel')?.classList.toggle('hidden',!on);
+    [...setup.children].forEach(el=>{const keep=el.classList.contains('gps-test')||el===serviceChoice||el.id==='v316TodayPanel'||el.id==='buildInfo';el.classList.toggle('v316-day-hidden',!!on&&!keep)});
+    if(on)renderToday();
+  }
+  q('v316TodayMode')?.addEventListener('click',()=>setDayMode(true));q('v316LeaveDay')?.addEventListener('click',()=>setDayMode(false));
+  ['regularMode','tadMode','formationMode','v30CollectiveMode'].forEach(id=>q(id)?.addEventListener('click',()=>setDayMode(false),{capture:true}));
+
+  // ---------- Fenêtre planning ----------
+  if(!q('v316Planner'))document.body.insertAdjacentHTML('beforeend',`
+  <div id="v316Planner" class="v316-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="v316PlannerTitle"><div class="v316-planner">
+    <div class="v316-planner-head"><div><div class="eyebrow">SEMAINE CONDUCTEUR</div><h2 id="v316PlannerTitle">📅 Mon planning</h2><p>Courses, TAD, haut-le-pied, coupures et temps annexes. Le contrôle RSE est un assistant indicatif.</p></div><button id="v316PlannerClose" type="button">Fermer</button></div>
+    <div class="v316-weekbar"><button id="v316PrevWeek" type="button">←</button><button id="v316ThisWeek" type="button">Aujourd’hui</button><strong id="v316WeekLabel"></strong><button id="v316NextWeek" type="button">→</button></div>
+    <div id="v316DayTabs" class="v316-day-tabs"></div>
+    <div id="v316WeekSummary" class="v316-week-summary"></div>
+    <div class="v316-planner-grid">
+      <main class="v316-plan-main"><div id="v316DaySummary" class="v316-day-summary"></div><div id="v316RseBox"></div><div id="v316PlanList" class="v316-plan-list"></div><div class="v316-plan-actions"><button id="v316AddItem" class="primary" type="button">＋ Ajouter au planning</button><button id="v316CopyDay" type="button">⧉ Copier cette journée</button></div></main>
+      <form id="v316Editor" class="v316-editor hidden"><div class="v316-editor-head"><h3 id="v316EditorTitle">Nouvel élément</h3><button id="v316EditorCancel" type="button">✕</button></div>
+        <div class="v316-form-grid">
+          <label>Type<select id="v316Type">${Object.entries(TYPE).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}</select></label>
+          <label>Référence / service<input id="v316Label" type="text" maxlength="80" placeholder="ex. Service 142, renfort, prise de service"></label>
+          <label id="v318RawStart">Début<input id="v316Start" type="time" step="60"></label><label id="v318RawEnd">Fin<input id="v316End" type="time" step="60"></label>
+          <label id="v317RawLine">Ligne / numéro<input id="v316Line" type="text" maxlength="30" placeholder="ex. 57R026"></label>
+          <label id="v317RawRegime">Régime RSE<select id="v316Regime"><option value="auto">Automatique selon longueur</option><option value="national50">Service régulier ≤ 50 km</option><option value="eu561">Règlement (CE) 561/2006</option><option value="none">Non concerné / non conduite</option></select></label>
+          <label id="v317RawOrigin">Départ<input id="v316Origin" type="text" maxlength="120" placeholder="Dépôt, terminus, arrêt, adresse…"></label>
+          <label id="v317RawDestination">Destination<input id="v316Destination" type="text" maxlength="120" placeholder="Terminus, départ de ligne, dépôt, adresse…"></label>
+          <label id="v317RawDistance">Longueur de ligne (km)<input id="v316Distance" type="number" min="0" max="1000" step="0.1" placeholder="facultatif"></label>
+          <label id="v317RawDrive">Conduite prévue (min)<input id="v316DriveMinutes" type="number" min="0" max="900" step="1" placeholder="sinon durée totale"></label>
+        </div>
+        <section id="v317RegularGuide" class="v317-guide hidden">
+          <div class="v317-guide-title"><b>🚌 Course de ligne</b><span>Choisis le département, le type de ligne, la ligne, le sens puis l’heure de départ réellement disponible ce jour. Les horaires et le terminus sont récupérés automatiquement.</span></div>
+          <div class="v317-guide-grid v318-regular-grid">
+            <label>Département<select id="v317RegularDept"><option value="57">57 · Moselle</option><option value="54">54 · Meurthe-et-Moselle</option></select></label>
+            <label>Type de ligne<select id="v318RegularClass"><option value="regular">Ligne régulière</option><option value="school">Ligne scolaire</option></select></label>
+            <label class="wide">Ligne<select id="v317RegularLine"><option value="">Choisir une ligne…</option></select></label>
+            <label class="wide">Sens / parcours<select id="v317RegularDirection" disabled><option value="">Choisir d’abord une ligne…</option></select></label>
+            <label class="wide">Heure de départ<select id="v318RegularDeparture" disabled><option value="">Choisir d’abord le sens…</option></select></label>
+          </div>
+          <div id="v317RegularStatus" class="v317-guide-status">Choisis le type de ligne, la ligne, le sens puis une heure de départ disponible.</div>
+        </section>
+        <section id="v317HlpGuide" class="v317-guide hidden">
+          <div class="v317-guide-title"><b>↗ Haut-le-pied</b><span id="v317HlpStatus">Pour chaque extrémité, choisis un arrêt Fluo ou saisis une adresse. Le départ est repris automatiquement de l’étape précédente quand c’est possible.</span></div>
+          <div class="v317-place-pair">
+            <div class="v317-place-card" data-v317-place="origin"><div class="v317-place-head"><b>📍 Départ</b><select class="v317-place-kind"><option value="stop">Arrêt Fluo</option><option value="address">Adresse</option></select></div><div class="v317-stop-mode"><label>Département<select class="v317-place-dept"><option value="57">57</option><option value="54">54</option></select></label><label class="wide">Rechercher un arrêt<input class="v317-place-search" type="search" autocomplete="off" placeholder="Ex. Château-Salins, gare, mairie…"></label><div class="v317-place-results"></div></div><div class="v317-address-mode hidden"><label>Adresse enregistrée<select class="v318-saved-address"><option value="">— Saisir une nouvelle adresse —</option></select></label><label>Adresse<input class="v317-place-address" type="text" autocomplete="street-address" placeholder="Rue, numéro, commune…"></label><div class="v318-address-actions"><button class="v318-address-save" type="button">⭐ Enregistrer</button><button class="v317-address-check" type="button">🔎 Vérifier</button><button class="v318-address-delete" type="button" title="Supprimer cette adresse enregistrée">🗑</button></div></div><div class="v317-place-selected">Aucun départ sélectionné.</div></div>
+            <div class="v317-place-card" data-v317-place="destination"><div class="v317-place-head"><b>🏁 Destination</b><select class="v317-place-kind"><option value="stop">Arrêt Fluo</option><option value="address">Adresse</option></select></div><div class="v317-stop-mode"><label>Département<select class="v317-place-dept"><option value="57">57</option><option value="54">54</option></select></label><label class="wide">Rechercher un arrêt<input class="v317-place-search" type="search" autocomplete="off" placeholder="Ex. Baronville, dépôt, gare…"></label><div class="v317-place-results"></div></div><div class="v317-address-mode hidden"><label>Adresse enregistrée<select class="v318-saved-address"><option value="">— Saisir une nouvelle adresse —</option></select></label><label>Adresse<input class="v317-place-address" type="text" autocomplete="street-address" placeholder="Rue, numéro, commune…"></label><div class="v318-address-actions"><button class="v318-address-save" type="button">⭐ Enregistrer</button><button class="v317-address-check" type="button">🔎 Vérifier</button><button class="v318-address-delete" type="button" title="Supprimer cette adresse enregistrée">🗑</button></div></div><div class="v317-place-selected">Aucune destination sélectionnée.</div></div>
+          </div>
+        </section>
+        <label class="v316-notes">Notes<textarea id="v316Notes" rows="3" maxlength="500" placeholder="Consignes, lieu de coupure, véhicule…"></textarea></label>
+        <div class="v316-link-tools"><button id="v316LinkCourse" type="button">🔗 Lier la course sélectionnée</button><button id="v316UseStartPlace" type="button">📍 Départ = prise de service sélectionnée</button><button id="v316UseTerminusPlace" type="button">🏁 Destination = terminus sélectionné</button></div>
+        <div id="v316LinkStatus" class="v316-link-status">Aucune course liée.</div>
+        <div class="v316-editor-actions"><button id="v316SaveItem" class="primary" type="submit">💾 Enregistrer</button><button id="v316DeleteItem" class="danger hidden" type="button">🗑 Supprimer</button></div>
+      </form>
+    </div>
+    <div class="v316-legal-note"><b>Contrôle RSE indicatif.</b> Il vérifie les principaux seuils planifiables (travail quotidien, amplitude, repos, conduite UE, pauses UE, hebdomadaire). Les accords d’entreprise, dérogations, services mixtes et données tachygraphe restent prioritaires. Références intégrées : Code des transports D3312-6, D3312-7, R3312-13, R3312-28 et règlement (CE) 561/2006.</div>
+  </div></div>`);
+
+  function openPlanner(date=today()){selectedDate=date;weekStart=monday(date);editingId=null;q('v316Editor')?.classList.add('hidden');q('v316Planner')?.classList.remove('hidden');renderPlanner()}
+  function closePlanner(){q('v316Planner')?.classList.add('hidden');renderToday()}
+  q('v316PlanningBtn')?.addEventListener('click',()=>openPlanner(today()));q('v316TodayOpenPlan')?.addEventListener('click',()=>openPlanner(today()));q('v316PlannerClose')?.addEventListener('click',closePlanner);q('v316Planner')?.addEventListener('click',e=>{if(e.target===q('v316Planner'))closePlanner()});
+  q('v316PrevWeek')?.addEventListener('click',()=>{weekStart=addDays(weekStart,-7);selectedDate=weekStart;renderPlanner()});q('v316NextWeek')?.addEventListener('click',()=>{weekStart=addDays(weekStart,7);selectedDate=weekStart;renderPlanner()});q('v316ThisWeek')?.addEventListener('click',()=>{selectedDate=today();weekStart=monday(selectedDate);renderPlanner()});
+
+  function metrics(date){
+    const xs=itemsFor(date);let work=0,drive=0,euDrive=0,nationalDrive=0,breaks=0,first=Infinity,last=-Infinity;
+    for(const x of xs){const d=dur(x),a=minute(x.start),b=minute(x.end);if(a!==null&&b!==null){if(b<a)b+=1440;first=Math.min(first,a);last=Math.max(last,b)}const m=TYPE[x.type]||TYPE.other;if(m.work)work+=d;if(m.break)breaks+=d;if(m.drive){const dm=driveMinutes(x);drive+=dm;const r=regimeOf(x);if(r==='eu561')euDrive+=dm;if(r==='national50')nationalDrive+=dm}}
+    return{items:xs,work,drive,euDrive,nationalDrive,breaks,amplitude:Number.isFinite(first)&&Number.isFinite(last)?Math.max(0,last-first):0,first:Number.isFinite(first)?first:null,last:Number.isFinite(last)?last:null,hasRegular:xs.some(x=>['regular','tad'].includes(x.type)),hasEu:xs.some(x=>regimeOf(x)==='eu561'),hasNational:xs.some(x=>regimeOf(x)==='national50'),unknownRegime:xs.some(x=>TYPE[x.type]?.drive&&regimeOf(x)==='unknown')};
+  }
+  function complianceForWeek(ws){
+    const alerts=[],days=Array.from({length:7},(_,i)=>addDays(ws,i)),mm=days.map(d=>[d,metrics(d)]),work=mm.reduce((s,[,m])=>s+m.work,0),eu=mm.reduce((s,[,m])=>s+m.euDrive,0);
+    const push=(severity,date,title,detail)=>alerts.push({severity,date,title,detail});
+    let over9=0,over10Work=0;
+    for(const [date,m] of mm){
+      if(!m.items.length)continue;
+      if(m.work>720)push('error',date,'Travail effectif > 12 h',`${fmtMin(m.work)} planifiées.`);else if(m.work>600){over10Work++;push('warn',date,'Travail effectif > 10 h',`${fmtMin(m.work)} : dépassement nécessitant les conditions prévues par la réglementation / l’accord applicable.`)}
+      const ampLimit=m.hasRegular?780:720;if(m.amplitude>840)push('error',date,'Amplitude > 14 h',`${fmtMin(m.amplitude)} entre le premier début et la dernière fin.`);else if(m.amplitude>ampLimit)push('warn',date,`Amplitude > ${m.hasRegular?'13':'12'} h`,`${fmtMin(m.amplitude)} : prolongation à vérifier selon le type de service et les autorisations applicables.`);
+      if(m.euDrive>600)push('error',date,'Conduite UE > 10 h',`${fmtMin(m.euDrive)} sous régime 561/2006.`);else if(m.euDrive>540){over9++;push('warn',date,'Conduite UE > 9 h',`${fmtMin(m.euDrive)} : extension à 10 h au maximum, limitée à deux fois dans la semaine.`)}
+      if(m.unknownRegime)push('warn',date,'Régime RSE à préciser','Au moins une période de conduite ne permet pas de déterminer si la ligne régulière dépasse 50 km.');
+      // Pause 45 min après 4 h 30 : contrôle des segments explicitement marqués UE.
+      let acc=0,split=false,breach=false;
+      for(const x of m.items){const d=dur(x),meta=TYPE[x.type]||TYPE.other,r=regimeOf(x);if(meta.drive&&r==='eu561'){const dm=driveMinutes(x);if(acc+dm>270&&!breach){push('error',date,'Pause de conduite UE insuffisante',`Plus de 4 h 30 de conduite UE sont planifiées sans pause de 45 min (ou fractionnement 15 + 30 min) clairement identifiable.`);breach=true}acc+=dm}else if(meta.break&&d>0){if(d>=45){acc=0;split=false;breach=false}else if(split&&d>=30){acc=0;split=false;breach=false}else if(d>=15){split=true}}}
+    }
+    if(over9>2)push('error',ws,'Plus de deux journées UE > 9 h',`${over9} journées dépassent 9 h de conduite UE sur la semaine.`);
+    if(work>2880)push('error',ws,'Travail hebdomadaire > 48 h',`${fmtMin(work)} planifiées sur la semaine.`);else if(work>2640)push('warn',ws,'Travail hebdomadaire > 44 h',`${fmtMin(work)} : vérifier la moyenne et la période de référence applicables.`);
+    if(eu>3360)push('error',ws,'Conduite UE > 56 h/semaine',`${fmtMin(eu)} de conduite sous règlement 561/2006.`);
+    const pws=addDays(ws,-7),prevEu=Array.from({length:7},(_,i)=>metrics(addDays(pws,i)).euDrive).reduce((a,b)=>a+b,0);if(eu+prevEu>5400)push('error',ws,'Conduite UE > 90 h sur deux semaines',`${fmtMin(eu+prevEu)} cumulées avec la semaine précédente enregistrée.`);
+    const prevWork=Array.from({length:7},(_,i)=>metrics(addDays(pws,i)).work).reduce((a,b)=>a+b,0);if(work+prevWork>5280)push('warn',ws,'Travail > 88 h sur deux semaines',`${fmtMin(work+prevWork)} cumulées : vérifier la convention et la période de référence.`);
+    // Repos entre journées : standard 11 h ; seuil réduit dur selon le régime identifié.
+    for(let i=0;i<7;i++){const date=days[i],m=metrics(date);if(m.first===null)continue;const pd=addDays(date,-1),pm=metrics(pd);if(pm.last===null)continue;let gap=(1440-pm.last)+m.first;if(pm.last>1440)gap=m.first-(pm.last-1440);const hard=(m.hasNational||pm.hasNational)?600:(m.hasEu||pm.hasEu)?540:660;if(gap<hard)push('error',date,'Repos quotidien insuffisant',`${fmtMin(gap)} entre les deux journées (seuil réduit minimal modélisé : ${fmtMin(hard)}).`);else if(gap<660)push('warn',date,'Repos quotidien réduit',`${fmtMin(gap)} : le repos normal de 11 h n’est pas atteint ; vérifier les conditions de réduction/compensation.`)}
+    return{alerts,work,eu};
+  }
+  function dayAlerts(date){return complianceForWeek(monday(date)).alerts.filter(a=>a.date===date)}
+  function statusClass(alerts){return alerts.some(a=>a.severity==='error')?'bad':alerts.some(a=>a.severity==='warn')?'warn':'ok'}
+
+  function renderPlanner(){
+    q('v316WeekLabel').textContent=weekLabel(weekStart);
+    q('v316DayTabs').innerHTML=Array.from({length:7},(_,i)=>{const d=addDays(weekStart,i),m=metrics(d),a=dayAlerts(d);return`<button type="button" data-v316-date="${d}" class="${d===selectedDate?'active ':''}${statusClass(a)}"><b>${esc(dayName(d))}</b><small>${m.items.length?`${m.items.length} élément${m.items.length>1?'s':''}`:'Libre'}</small></button>`}).join('');
+    const weekDays=Array.from({length:7},(_,i)=>metrics(addDays(weekStart,i))),weekItems=Array.from({length:7},(_,i)=>itemsFor(addDays(weekStart,i))).flat(),weekWork=weekDays.reduce((a,m)=>a+m.work,0),weekDrive=weekDays.reduce((a,m)=>a+m.drive,0),weekHlp=weekItems.filter(x=>x.type==='hlp').reduce((a,x)=>a+driveMinutes(x),0),weekBreaks=weekDays.reduce((a,m)=>a+m.breaks,0);
+    q('v316WeekSummary').innerHTML=`<div><span>SEMAINE · TRAVAIL</span><b>${fmtMin(weekWork)}</b></div><div><span>CONDUITE</span><b>${fmtMin(weekDrive)}</b></div><div><span>HAUT-LE-PIED</span><b>${fmtMin(weekHlp)}</b></div><div><span>COUPURES / PAUSES</span><b>${fmtMin(weekBreaks)}</b></div>`;
+    const m=metrics(selectedDate),alerts=dayAlerts(selectedDate);
+    q('v316DaySummary').innerHTML=`<div><span>Amplitude</span><b>${fmtMin(m.amplitude)}</b></div><div><span>Travail</span><b>${fmtMin(m.work)}</b></div><div><span>Conduite</span><b>${fmtMin(m.drive)}</b></div><div><span>Coupures / pauses</span><b>${fmtMin(m.breaks)}</b></div>`;
+    q('v316RseBox').innerHTML=alerts.length?`<div class="v316-rse ${statusClass(alerts)}"><strong>${statusClass(alerts)==='bad'?'⛔':statusClass(alerts)==='warn'?'⚠️':'✅'} Contrôle planning</strong>${alerts.map(a=>`<p class="${a.severity}"><b>${esc(a.title)}</b> — ${esc(a.detail)}</p>`).join('')}</div>`:`<div class="v316-rse ok"><strong>✅ Aucun dépassement détecté dans les règles modélisées</strong><p>Contrôle indicatif uniquement : accords, dérogations et tachygraphe restent prioritaires.</p></div>`;
+    const list=q('v316PlanList');list.innerHTML=m.items.length?m.items.map((x,i)=>{const meta=TYPE[x.type]||TYPE.other,r=regimeOf(x),linked=x.linked?'<span class="v316-linked">LIÉ SAEIV</span>':'';return`<article class="v316-plan-item type-${x.type}" data-v316-id="${esc(x.id)}"><div class="v316-time"><b>${esc(x.start||'—')}</b><span>${esc(x.end||'—')}</span></div><div class="v316-plan-text"><div><strong>${meta.label}${x.line?` · ${esc(x.line)}`:''}</strong>${linked}</div><b>${esc(x.label||[x.origin,x.destination].filter(Boolean).join(' → ')||'Sans intitulé')}</b><small>${esc([x.origin&&`Départ : ${x.origin}`,x.destination&&`Destination : ${x.destination}`,TYPE[x.type]?.drive&&`conduite ${fmtMin(driveMinutes(x))}`,r==='eu561'?'RSE UE 561/2006':r==='national50'?'régulier ≤ 50 km':r==='unknown'?'régime à préciser':''].filter(Boolean).join(' · '))}</small></div><div class="v316-item-actions"><button type="button" data-v316-edit="${esc(x.id)}">Modifier</button><button type="button" data-v316-dup="${esc(x.id)}">⧉</button></div></article>`}).join(''):`<div class="v316-empty"><b>Aucun planning pour ${esc(longDay(selectedDate))}.</b><span>Ajoute une course, un haut-le-pied, une coupure ou un autre temps de service.</span></div>`;
+  }
+  q('v316DayTabs')?.addEventListener('click',e=>{const b=e.target.closest('[data-v316-date]');if(!b)return;selectedDate=b.dataset.v316Date;editingId=null;q('v316Editor').classList.add('hidden');renderPlanner()});
+  q('v316PlanList')?.addEventListener('click',e=>{const edit=e.target.closest('[data-v316-edit]'),dup=e.target.closest('[data-v316-dup]');if(edit)return openEditor(edit.dataset.v316Edit);if(dup){const x=plan.items.find(z=>z.id===dup.dataset.v316Dup);if(x){plan.items.push({...x,id:uid(),label:x.label?`${x.label} (copie)`:'Copie'});savePlan()}}});
+  q('v316AddItem')?.addEventListener('click',()=>openEditor(null));
+  q('v316CopyDay')?.addEventListener('click',()=>{const xs=itemsFor(selectedDate);if(!xs.length)return alert('Cette journée est vide.');const target=prompt('Copier vers quelle date ? (AAAA-MM-JJ)',addDays(selectedDate,1));if(!/^\d{4}-\d{2}-\d{2}$/.test(target||''))return;for(const x of xs)plan.items.push({...x,id:uid(),date:target});savePlan();selectedDate=target;weekStart=monday(target);renderPlanner()});
+
   function openEditor(id){
     editingId=id||null;const x=id?plan.items.find(z=>z.id===id):null;draftLink=x?.linked?JSON.parse(JSON.stringify(x.linked)):null;draftOrigin=x?.originCoords?{...x.originCoords}:null;draftDestination=x?.destinationCoords?{...x.destinationCoords}:null;
     q('v316Editor').classList.remove('hidden');q('v316EditorTitle').textContent=x?'Modifier l’élément':`Ajouter · ${longDay(selectedDate)}`;
@@ -5790,6 +5927,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v317RegularLine')?.addEventListener('change',async()=>{draftLink=null;q('v318RegularDeparture').innerHTML='<option value="">Choisir d’abord le sens…</option>';q('v318RegularDeparture').disabled=true;await v317LoadRegularDirections()});
   q('v317RegularDirection')?.addEventListener('change',async()=>{draftLink=null;await v318LoadRegularDepartures()});
   q('v318RegularDeparture')?.addEventListener('change',async()=>{draftLink=null;if(q('v318RegularDeparture').value)await v318SelectRegularDeparture()});
+  q('v316Start')?.addEventListener('change',()=>{if(q('v316Type')?.value==='hlp'&&!q('v316Origin')?.value.trim())v319PrefillHlpOriginFromPrevious()});
   document.querySelectorAll('.v317-place-card').forEach(card=>{
     const which=card.dataset.v317Place;
     card.querySelector('.v317-place-kind')?.addEventListener('change',()=>{const kind=card.querySelector('.v317-place-kind').value;if(which==='origin')draftOrigin=null;else draftDestination=null;q(which==='origin'?'v316Origin':'v316Destination').value='';card.querySelector('.v317-place-selected').textContent=`Aucun ${which==='origin'?'départ':'destination'} sélectionné.`;v317SyncPlaceMode(card)});
@@ -5860,7 +5998,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.9 · planning intuitif';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.9 PLANNING';
+  document.title='Fluo SAEIV V31.10 · planning restauré et consolidé';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.10 PLANNING';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
