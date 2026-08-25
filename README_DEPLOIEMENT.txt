@@ -234,3 +234,13 @@ V31.6 — MENU CONDUCTEUR + MON PLANNING + MA JOURNÉE
 - Les adresses sont vérifiées et géocodées (Nominatim avec repli Photon) avant enregistrement.
 - Ma journée lance un haut-le-pied vers la destination réellement enregistrée ; un accès séparé reste disponible vers la prochaine course liée.
 - Le cockpit paysage V31.6.1 validé est conservé.
+
+
+=== V31.8 — PLANNING INTUITIF V2 ===
+- Mon planning : filtre Ligne régulière / Ligne scolaire avant la liste des lignes.
+- Classification Fluo : les lignes scolaires S/E sont séparées des lignes régulières.
+- Après choix ligne + sens, l’application charge les heures de départ réellement disponibles pour la date du planning.
+- Le choix d’une heure lie la course exacte et récupère automatiquement horaires, origine et terminus.
+- Haut-le-pied : carnet d’adresses locales. Une adresse vérifiée peut être enregistrée sous un nom, rappelée en départ ou destination, modifiée ou supprimée.
+- Le carnet d’adresses est stocké localement dans le navigateur et a été structuré pour pouvoir être réutilisé plus tard dans les billets collectifs.
+- Cockpit paysage validé V31.6.1/V31.7 conservé.

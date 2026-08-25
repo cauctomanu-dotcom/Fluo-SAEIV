@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.7",
-  "short_name": "Fluo V31.7",
-  "start_url": "./?v=31.7",
+  "name": "Fluo SAEIV V31.9",
+  "short_name": "Fluo V31.9",
+  "start_url": "./?v=31.9",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.7 — cockpit paysage validé, planning intuitif ligne/sens, haut-le-pied par arrêt Fluo ou adresse, Ma journée et contrôle RSE indicatif."
+  "description": "SAEIV conducteur V31.9 — cockpit paysage validé, planning intuitif avec départ HLP repris automatiquement de l’étape précédente, filtre lignes régulières/scolaires, départs disponibles, carnet d’adresses, Ma journée et contrôle RSE indicatif."
 }
