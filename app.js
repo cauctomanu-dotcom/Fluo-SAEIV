@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-// Fluo SAEIV V30.1 — base V30 + routes à éviter par adresse/carte, arrêt demandé intégré et responsive consolidé.
+// Fluo SAEIV V30.2 — base V30 + routes à éviter par adresse/carte, arrêt demandé intégré et responsive consolidé.
 // Le moteur de suivi utilise la progression le long du shape, le cap tangent au parcours et un lissage circulaire.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),
@@ -24,7 +24,7 @@ const state = {
   sim:{raf:null, playing:false, segmentFrom:0, segmentTo:1, fraction:0, holdUntil:0, speedMps:13.89, scale:10, delaySeconds:0, lastTs:0, path:[], pathIndex:0, pathFraction:0, heldTarget:-1},
   nav:{map:null,routeLine:null,busMarker:null,stopMarkers:[],follow:true,lastHeading:0,lastDisplayLat:null,lastDisplayLon:null,lastDisplayAt:0},
   wakeLock:null, wakeLockTimer:null,
-  fusion:{shape:[],cum:[],stopAlong:[],lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null},
+  fusion:{shape:[],cum:[],stopAlong:[],stopSnap:[],lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null},
   audio:{queue:[],current:null,token:0,requestChimeCtx:null,requestChimeAudio:null,requestChimeUrl:null,lastRequestChimeAt:0,passengerEnabled:localStorage.getItem('fluoPassengerAnnouncementsEnabled')!=='off'},
   service:{mode:'regular',tadStops:new Set(),requestedStops:new Set(),requestAlertIndex:null,requestChimedStops:new Set()},
   punctuality:{ticker:null,deltaSeconds:null,plannedTime:null,status:'unknown'}
@@ -176,6 +176,32 @@ function courseShape(){
   // V20: on ne fabrique plus JAMAIS un pseudo-tracé en reliant les arrêts par des segments droits.
   return Array.isArray(p.shape)&&p.shape.length>=2?p.shape:[];
 }
+// V30.2 — rattachement des poteaux à la géométrie réellement parcourue.
+// La coordonnée GTFS source est conservée dans __gtfsLat/__gtfsLon ; le point opérationnel
+// peut être projeté perpendiculairement sur le shape lorsque le décalage reste crédible.
+function normalizedStopKey(stop){
+  return String(stop?.name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+}
+function stopSnapLimit(stop){
+  const k=normalizedStopKey(stop);
+  // Corrections terrain confirmées à Vic-sur-Seille :
+  // École = rue de Metz ; Cimetière = avenue/rue du Général-de-Gaulle.
+  if(k.includes('VIC SUR SEILLE')&&(k.includes('ECOLE')||k.includes('CIMETIERE'))) return 180;
+  // Pour les autres poteaux, on corrige uniquement les petits décalages cartographiques.
+  return 75;
+}
+function sourceStopPoint(stop){
+  const lat=Number.isFinite(Number(stop?.__gtfsLat))?Number(stop.__gtfsLat):Number(stop?.lat);
+  const lon=Number.isFinite(Number(stop?.__gtfsLon))?Number(stop.__gtfsLon):Number(stop?.lon);
+  return {lat,lon};
+}
+function operationalStopPoint(index){
+  const st=state.pattern?.stops?.[index];
+  if(!st) return null;
+  const snap=state.fusion?.stopSnap?.[index];
+  if(snap&&snap.applied&&Number.isFinite(snap.lat)&&Number.isFinite(snap.lon)) return {lat:snap.lat,lon:snap.lon,snapped:true,offsetM:snap.offsetM||0};
+  return {lat:Number(st.lat),lon:Number(st.lon),snapped:false,offsetM:0};
+}
 function prepareCourseGeometry(){
   let shape=courseShape().map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
   const stops=state.pattern?.stops||[];
@@ -185,22 +211,33 @@ function prepareCourseGeometry(){
     if(reverse+30<direct) shape.reverse();
   }
   if(shape.length<2){
-    state.fusion={shape:[],cum:[],stopAlong:new Array(stops.length).fill(null),lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null};
+    state.fusion={shape:[],cum:[],stopAlong:new Array(stops.length).fill(null),stopSnap:new Array(stops.length).fill(null),lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null};
     return;
   }
   const cum=[0]; for(let i=1;i<shape.length;i++) cum.push(cum[i-1]+dist(shape[i-1][0],shape[i-1][1],shape[i][0],shape[i][1]));
-  const stopAlong=[]; let searchFrom=0;
+  const stopAlong=[], stopSnap=[]; let searchFrom=0;
   for(const st of stops){
-    let best={d:Infinity,along:null,seg:searchFrom};
+    // Toujours repartir de la coordonnée GTFS source afin qu'un recalcul successif ne dérive jamais.
+    if(!Number.isFinite(Number(st.__gtfsLat))) st.__gtfsLat=Number(st.lat);
+    if(!Number.isFinite(Number(st.__gtfsLon))) st.__gtfsLon=Number(st.lon);
+    const src=sourceStopPoint(st);
+    let best={d:Infinity,along:null,seg:searchFrom,lat:null,lon:null};
     for(let i=searchFrom;i<shape.length-1;i++){
-      const q=pointSegmentProjection(st.lat,st.lon,shape[i],shape[i+1]);
+      const q=pointSegmentProjection(src.lat,src.lon,shape[i],shape[i+1]);
       const along=cum[i]+q.t*(cum[i+1]-cum[i]);
-      if(q.d<best.d) best={d:q.d,along,seg:i};
+      if(q.d<best.d) best={d:q.d,along,seg:i,lat:q.lat,lon:q.lon};
       if(best.d<6&&i>searchFrom+180) break;
     }
-    stopAlong.push(best.along); searchFrom=Math.max(searchFrom,best.seg);
+    const limit=stopSnapLimit(st), applied=Number.isFinite(best.d)&&best.d<=limit&&Number.isFinite(best.lat)&&Number.isFinite(best.lon);
+    stopAlong.push(best.along);
+    stopSnap.push({lat:best.lat,lon:best.lon,offsetM:Number.isFinite(best.d)?best.d:null,along:best.along,segment:best.seg,applied,sourceLat:src.lat,sourceLon:src.lon});
+    // Toute l'exploitation (carte, détection d'arrivée, simulation, journal) utilise le point
+    // projeté sur le tracé, tout en gardant __gtfsLat/__gtfsLon pour audit et recalcul.
+    if(applied){ st.lat=best.lat; st.lon=best.lon; st.__routeSnapOffsetM=best.d; }
+    else { st.lat=src.lat; st.lon=src.lon; st.__routeSnapOffsetM=null; }
+    searchFrom=Math.max(searchFrom,best.seg);
   }
-  state.fusion={shape,cum,stopAlong,lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null};
+  state.fusion={shape,cum,stopAlong,stopSnap,lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null};
 }
 function v20PatternKey(pattern=state.pattern){
   const stops=pattern?.stops||[];
@@ -391,8 +428,10 @@ function drawRoute(){
     state.nav.routeLine=L.polyline(shape,{color:cssColor(state.route?.color,'#ffd000'),weight:6,opacity:.92,lineJoin:'round',lineCap:'round'}).addTo(state.nav.map);
   }
   state.pattern.stops.forEach((s,i)=>{
-    const m=L.marker([s.lat,s.lon],{icon:stopIcon(i),keyboard:false})
-      .bindTooltip(`${i+1}. ${s.name}`,{direction:'top',offset:[0,-5]})
+    const p=operationalStopPoint(i)||{lat:s.lat,lon:s.lon};
+    const corrected=Number.isFinite(Number(s.__routeSnapOffsetM))&&Number(s.__routeSnapOffsetM)>=2;
+    const m=L.marker([p.lat,p.lon],{icon:stopIcon(i),keyboard:false})
+      .bindTooltip(`${i+1}. ${s.name}${corrected?' · recalé au tracé':''}`,{direction:'top',offset:[0,-5]})
       .addTo(state.nav.map);
     state.nav.stopMarkers.push(m);
   });
@@ -943,15 +982,15 @@ function processPos(p){
     try{window.FluoOpsV29?.onPosition?.(p,snap)}catch(e){console.warn('V29 déviation',e)}
     return;
   }
-  const t=state.pattern?.stops[state.target]; if(!t) return;
-  const physicalD=dist(c.latitude,c.longitude,t.lat,t.lon), routeD=routeDistanceToStop(state.target,c), reach=65;
+  const t=state.pattern?.stops[state.target], tp=operationalStopPoint(state.target); if(!t||!tp) return;
+  const physicalD=dist(c.latitude,c.longitude,tp.lat,tp.lon), routeD=routeDistanceToStop(state.target,c), reach=65;
   ui.distance.textContent=fmt(routeD);
   if(!state.announced){
     const wait=state.nextStopDueAt?Math.max(0,Math.ceil((state.nextStopDueAt-Date.now())/1000)):null;
     ui.threshold.textContent=wait===null?'au départ':`${wait} s`;
   }else ui.threshold.textContent='annoncé';
   const good=(c.accuracy||999)<=120;
-  const origin=state.pattern.stops[state.current], originD=origin?dist(c.latitude,c.longitude,origin.lat,origin.lon):Infinity;
+  const origin=state.pattern.stops[state.current], originP=operationalStopPoint(state.current), originD=originP?dist(c.latitude,c.longitude,originP.lat,originP.lon):Infinity;
   if(!state.departed){
     const moved=originD>80;
     if(moved||(sp!==null&&sp>4)){ state.departed=true; updateDepartureDisplay(); }
@@ -971,8 +1010,8 @@ function processPos(p){
   if(state.reached) state.minDist=Math.min(state.minDist,physicalD);
   const targetAlong=state.fusion.stopAlong?.[state.target], passedAlong=Number.isFinite(snap.along)&&Number.isFinite(targetAlong)&&snap.along>targetAlong+42;
   if(good&&((state.reached&&physicalD>=Math.max(reach+25,state.minDist+35))||passedAlong)){ advance(false); return; }
-  const followingIndex=nextOperationalStop(state.target), following=followingIndex===null?null:state.pattern.stops[followingIndex];
-  if(good&&following&&physicalD>220){ const df=dist(c.latitude,c.longitude,following.lat,following.lon); if(df<100&&df<physicalD*.45) advance(false); }
+  const followingIndex=nextOperationalStop(state.target), following=followingIndex===null?null:state.pattern.stops[followingIndex], followingP=followingIndex===null?null:operationalStopPoint(followingIndex);
+  if(good&&following&&followingP&&physicalD>220){ const df=dist(c.latitude,c.longitude,followingP.lat,followingP.lon); if(df<100&&df<physicalD*.45) advance(false); }
 }
 function geoErr(e){ ui.gpsPill.className='pill'; ui.gpsPill.textContent='GPS erreur'; status(e.code===1?'Autorisation GPS refusée.':'Position GPS indisponible.','err'); }
 
@@ -1023,12 +1062,12 @@ function nearestShapeIndex(lat,lon,shape){
 }
 function buildSimulationPath(){
   const stops=state.pattern.stops, shape=(state.fusion.shape?.length>=2?state.fusion.shape:(state.pattern.shape?.length>=2?state.pattern.shape:stops.map(s=>[s.lat,s.lon])));
-  const a=stops[state.current], z=stops[operationalEndIndex()];
-  let i0=nearestShapeIndex(a.lat,a.lon,shape), i1=nearestShapeIndex(z.lat,z.lon,shape);
+  const a=stops[state.current], z=stops[operationalEndIndex()], ap=operationalStopPoint(state.current)||a, zp=operationalStopPoint(operationalEndIndex())||z;
+  let i0=nearestShapeIndex(ap.lat,ap.lon,shape), i1=nearestShapeIndex(zp.lat,zp.lon,shape);
   let path=i0<=i1?shape.slice(i0,i1+1):shape.slice(i1,i0+1).reverse();
   // On force les vrais poteaux aux extrémités pour que le moteur touche bien départ/terminus.
-  if(!path.length) path=[[a.lat,a.lon],[z.lat,z.lon]];
-  path[0]=[a.lat,a.lon]; path[path.length-1]=[z.lat,z.lon];
+  if(!path.length) path=[[ap.lat,ap.lon],[zp.lat,zp.lon]];
+  path[0]=[ap.lat,ap.lon]; path[path.length-1]=[zp.lat,zp.lon];
   return path;
 }
 function syncSimulationToState(){
@@ -1062,8 +1101,8 @@ function simulationFrame(ts){
     const lat=a[0]+(b[0]-a[0])*s.pathFraction, lon=a[1]+(b[1]-a[1])*s.pathFraction;
     processPos(syntheticPosition(lat,lon,s.speedMps,bearing(a[0],a[1],b[0],b[1])));
 
-    const target=state.pattern.stops[state.target];
-    if(target && state.target!==s.heldTarget && dist(lat,lon,target.lat,target.lon)<22){
+    const target=state.pattern.stops[state.target], targetP=operationalStopPoint(state.target);
+    if(target && targetP && state.target!==s.heldTarget && dist(lat,lon,targetP.lat,targetP.lon)<22){
       s.heldTarget=state.target; s.holdUntil=performance.now()+700; ui.announceState.textContent='Arrêt simulé au poteau'; break;
     }
     if(s.pathFraction>=1){ s.pathIndex++; s.pathFraction=0; }

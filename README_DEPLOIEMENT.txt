@@ -48,3 +48,32 @@ V30.1 — ROUTES À ÉVITER + ARRÊT DEMANDÉ + RESPONSIVE
 
 La récupération d’une rue entière nécessite une connexion Internet (Nominatim/Overpass OpenStreetMap).
 Le routage public OSRM choisit parmi ses alternatives et rejette celles qui touchent une route enregistrée ; si aucune alternative compatible n’est proposée, l’application signale que le calcul est impossible au lieu d’utiliser la rue interdite.
+
+
+V30.2 — RECALAGE DES POTEAUX SUR LE TRACÉ
+===========================================
+- La coordonnée GTFS source de chaque arrêt est conservée pour traçabilité.
+- Lorsqu'un poteau est légèrement décalé de la géométrie officielle de sa course, le SAEIV calcule sa projection perpendiculaire sur le tracé et utilise ce point opérationnel pour la carte, la détection d'arrivée, la simulation, le recalage et les futurs journaux.
+- Recalage automatique volontairement limité à 75 m pour les arrêts ordinaires afin d'éviter de déplacer un poteau sur une rue parallèle.
+- Correction terrain renforcée à Vic-sur-Seille (jusqu'à 180 m si nécessaire) :
+  * VIC-SUR-SEILLE — École : rattachement au passage de la course sur la rue de Metz.
+  * VIC-SUR-SEILLE — Cimetière : rattachement au passage de la course sur l'avenue/rue du Général-de-Gaulle.
+- Le nom de l'arrêt et sa coordonnée GTFS d'origine ne sont pas perdus ; seul le point opérationnel utilisé par le SAEIV est recalé.
+
+
+V30.3 — ROUTES A EVITER SUR LE TRACE PRINCIPAL
+- Une route administrateur qui est réellement empruntée par la course déclenche un recalcul des inter-arrêts concernés avant la prise de service.
+- Les simples croisements de rue ne sont pas considérés comme un emprunt de la voie.
+- Les arrêts sont conservés ; seuls les tronçons entre deux arrêts concernés sont remplacés par un contournement OSRM compatible.
+- Si aucune alternative ne peut être trouvée, le tracé officiel est conservé pour le tronçon et une alerte rouge l’indique au lieu d’inventer un parcours.
+- Le service est bloqué pendant le recalcul afin d’éviter de démarrer avec une géométrie en cours de modification.
+
+
+V30.4 — BILLETS COLLECTIFS PRÉPARÉS
+=====================================
+- Date de service dans Billet collectif.
+- Enregistrement du billet après calcul : nom, date, heure, départ, destination, étapes, type arrêt/adresse, coordonnées, tracé, distance et durée.
+- Bibliothèque « Mes billets collectifs » accessible depuis le module et la barre conducteur.
+- Chargement le jour J avec champs, étapes, carte et tracé restaurés, prêt à lancer ou recalculer.
+- Données séparées par matricule dans IndexedDB.
+- Suppression individuelle et nettoyage des billets passés.

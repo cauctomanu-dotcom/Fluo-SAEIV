@@ -2134,7 +2134,10 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const rows=stopRows23(s,ev),route=routePoints23(s,ev),markers=rows.map((r,i)=>({i,name:r.stopName||'Arrêt',actual:r.ts,scheduled:r.scheduledTime||null,delay:r.scheduleDeltaSec,p:rowPoint23(r,s)})).filter(x=>x.p);
     const data=JSON.stringify({route,markers}).replace(/</g,'\\u003c');
     const rowHtml=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc23(r.stopName||'—')}</td><td>${esc23(fmtDate23(r.ts))}</td><td>${esc23(r.scheduledTime?fmtTime23(r.scheduledTime):'—')}</td><td>${esc23(fmtDelay23(r.scheduleDeltaSec))}</td><td>${Number.isFinite(Number(r.speedKmh))?Number(r.speedKmh).toFixed(1).replace('.',',')+' km/h':'—'}</td></tr>`).join('');
-    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal ${esc23(s.route||'Fluo SAEIV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1100px;margin:auto;padding:18px}h1{margin-bottom:4px}.muted{color:#9fb0bb}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:15px 0}.card{background:#0d202c;border:1px solid #355163;border-radius:12px;padding:10px}.card small{display:block;color:#8fa5b3}.card b{font-size:1.05rem}#map{height:440px;border-radius:15px;overflow:hidden;border:1px solid #355163;background:#10202a}table{width:100%;border-collapse:collapse;margin-top:15px;background:#0d202c}th,td{padding:9px;border-bottom:1px solid #28404e;text-align:left}th{color:#b9cad5}footer{margin-top:15px;color:#8295a3;font-size:.8rem}@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}#map{height:360px}table{font-size:.8rem;display:block;overflow:auto}}</style></head><body><main><div class="muted">FLUO SAEIV · RAPPORT DE JOURNAL</div><h1>${esc23(s.route||'—')} · ${esc23(s.destination||'')}</h1><div class="muted">${esc23(fmtDate23(s.startedAt))} · ${esc23(s.serviceMode||'')} ${s.tripId?`· trip ${esc23(s.tripId)}`:''}</div><div class="cards"><div class="card"><small>ARRÊTS</small><b>${rows.length}</b></div><div class="card"><small>DISTANCE</small><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="card"><small>VITESSE MAX</small><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="card"><small>CONDUCTEUR</small><b>${esc23(s.matricule||'—')}</b></div></div><div id="map"></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Passage réel</th><th>Prévu</th><th>Écart</th><th>Vitesse</th></tr></thead><tbody>${rowHtml}</tbody></table><footer>Rapport généré le ${esc23(fmtDate23(iso23()))}. Le fond de carte nécessite une connexion Internet. Les positions proviennent du journal local du SAEIV.</footer></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const DATA=${data};const c=DATA.route[0]||(DATA.markers[0]&&DATA.markers[0].p)||[48.7,6.2];const map=L.map('map').setView(c,13);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(DATA.route.length>1){L.polyline(DATA.route,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...DATA.route)}DATA.markers.forEach((x,i)=>{b.push(x.p);L.circleMarker(x.p,{radius:i===0?7:6,color:'#173447',weight:2,fillColor:i===DATA.markers.length-1?'#ffb000':i===0?'#55d981':'#fff',fillOpacity:1}).addTo(map).bindPopup('<b>'+x.name.replace(/[<>&]/g,'')+'</b><br>Passage : '+new Date(x.actual).toLocaleTimeString('fr-FR')+'<br>Prévu : '+(x.scheduled?new Date(x.scheduled).toLocaleTimeString('fr-FR'):'—'))});if(b.length>1)map.fitBounds(b,{padding:[28,28],maxZoom:16});<\/script></body></html>`;
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal ${esc23(s.route||'Fluo SAEIV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1100px;margin:auto;padding:18px}h1{margin-bottom:4px}.muted{color:#9fb0bb}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:15px 0}.card{background:#0d202c;border:1px solid #355163;border-radius:12px;padding:10px}.card small{display:block;color:#8fa5b3}.card b{font-size:1.05rem}#map{height:440px;border-radius:15px;overflow:hidden;border:1px solid #355163;background:#10202a}table{width:100%;border-collapse:collapse;margin-top:15px;background:#0d202c}th,td{padding:9px;border-bottom:1px solid #28404e;text-align:left}th{color:#b9cad5}footer{margin-top:15px;color:#8295a3;font-size:.8rem}@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}#map{height:360px}table{font-size:.8rem;display:block;overflow:auto}}</style></head><body><main><div class="muted">FLUO SAEIV · RAPPORT DE JOURNAL</div><h1>${esc23(s.route||'—')} · ${esc23(s.destination||'')}</h1><div class="muted">${esc23(fmtDate23(s.startedAt))} · ${esc23(s.serviceMode||'')} ${s.tripId?`· trip ${esc23(s.tripId)}`:''}</div><div class="cards"><div class="card"><small>ARRÊTS</small><b>${rows.length}</b></div><div class="card"><small>DISTANCE</small><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="card"><small>VITESSE MAX</small><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="card"><small>CONDUCTEUR</small><b>${esc23(s.matricule||'—')}</b></div></div><div id="map"></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Passage réel</th><th>Prévu</th><th>Écart</th><th>Vitesse</th></tr></thead><tbody>${rowHtml}</tbody></table><footer>Rapport généré le ${esc23(fmtDate23(iso23()))}. Le fond de carte nécessite une connexion Internet. Les positions proviennent du journal local du SAEIV.</footer></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const DATA=${data};const c=DATA.route[0]||(DATA.markers[0]&&DATA.markers[0].p)||[48.7,6.2];const map=L.map('map').setView(c,13);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(DATA.route.length>1){L.polyline(DATA.route,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...DATA.route)}DATA.markers.forEach((x,i)=>{b.push(x.p);L.circleMarker(x.p,{radius:i===0?7:6,color:'#173447',weight:2,fillColor:i===DATA.markers.length-1?'#ffb000':i===0?'#55d981':'#fff',fillOpacity:1}).addTo(map).bindPopup('<b>'+x.name.replace(/[<>&]/g,'')+'</b><br>Passage : '+new Date(x.actual).toLocaleTimeString('fr-FR')+'<br>Prévu : '+(x.scheduled?new Date(x.scheduled).toLocaleTimeString('fr-FR'):'—'))});if(b.length>1)map.fitBounds(b,{padding:[28,28],maxZoom:16});<\/script>
+
+
+</body></html>`;
   }
   async function downloadReport23(s,ev){
     if(!s||!ev)return;const d=new Date(s.startedAt||Date.now()),stamp=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}-${String(d.getMinutes()).padStart(2,'0')}`;
@@ -3173,6 +3176,19 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function activateCollective(mode){const route=V30.collective.route;if(!route?.shape?.length||route.points?.length<2)return collectiveStatus('Calcule d’abord le parcours.','err');state.service.mode='collective';state.dept='COLLECTIF';state.route={id:`collective-${Date.now()}`,short:'BC',long:route.name,custom:true};const stops=route.points.map((p,i)=>({id:`collective-${i}`,name:p.name,lat:Number(p.lat),lon:Number(p.lon),arrival:'',departure:''})),pattern={headsign:stops.at(-1).name,direction:'collective',shape_id:`collective-${Date.now()}`,trace_source:'collective_osrm_v30',shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),stops,trips:[]};state.patterns=[pattern];state.pattern=pattern;state.runOptions=[];state.run=null;state.current=0;state.target=1;state.service.tadStops.clear();state.service.requestedStops.clear();state.service.requestAlertIndex=null;state.service.requestChimedStops.clear();ui.startStop.innerHTML=stops.map((x,i)=>`<option value="${i}">${i+1}. ${esc(x.name)}</option>`).join('');ui.startStop.disabled=false;ui.startStop.value='0';prepareCourseGeometry();labels();if(mode==='gps')startGps();else startSimulation();setTimeout(()=>journal('COLLECTIVE_ROUTE',{name:route.name,points:route.points.length,distanceM:Math.round(route.distance),durationS:Math.round(route.duration),waypoints:route.points.map((p,i)=>({order:i+1,name:p.name,lat:p.lat,lon:p.lon,kind:p.kind}))}),500)}
   q('v30CollectiveGps')?.addEventListener('click',()=>activateCollective('gps'));q('v30CollectiveSim')?.addEventListener('click',()=>activateCollective('simulation'));
 
+  // API publique minimale pour la bibliothèque de billets collectifs préparés.
+  window.FluoCollectiveV30={
+    getRoute:()=>V30.collective.route,
+    setRoute(route){
+      if(!route?.shape?.length||!Array.isArray(route.points)||route.points.length<2)throw new Error('billet collectif invalide');
+      V30.collective.route={...route,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),points:route.points.map(p=>({...p,lat:Number(p.lat),lon:Number(p.lon)}))};
+      q('v30CollectivePreview')?.classList.remove('hidden');
+      if(q('v30CollectiveSummary'))q('v30CollectiveSummary').textContent=`${route.points.length} points · ${(Number(route.distance||0)/1000).toFixed(1).replace('.',',')} km · environ ${Math.max(1,Math.round(Number(route.duration||0)/60))} min hors arrêts.`;
+      renderCollectiveMap(V30.collective.route);collectiveStatus('✅ Billet collectif préparé chargé. Tu peux le modifier, le recalculer ou le lancer.','ok');return V30.collective.route;
+    },
+    calculate:calculateCollective,activate:activateCollective,setMode:()=>setServiceMode('collective'),pointHtml,renumberStages,renderMap:renderCollectiveMap,status:collectiveStatus
+  };
+
   // Version / journal policy.
   const label=()=>{document.title='Fluo SAEIV V30 · Billet collectif + journal arrêts + vitesse route';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30 EXPLOITATION';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
 })();
@@ -3375,6 +3391,286 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   settleResponsive();
 })();
 
+</script>
+
+
+<script id="v302StopSnapPatch">
+'use strict';
+/* V30.2 — version label. Le recalage poteaux/tracé est implémenté dans app.js afin que
+   carte, arrivée, simulation et journaux partagent exactement le même point opérationnel. */
+(() => {
+  const label=()=>{
+    document.title='Fluo SAEIV V30.2 · Poteaux recalés au tracé';
+    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.2 EXPLOITATION';
+    const b=document.getElementById('buildInfo');if(b&&!/V30.2/.test(b.textContent))b.textContent+=' · V30.2 poteaux recalés au tracé';
+  };
+  if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,80));else setTimeout(label,80);
+})();
+</script>
+<script id="v303AvoidMainRoutePatch">
+'use strict';
+/* Fluo SAEIV V30.3 — les routes administrateur à éviter recalculent aussi le tracé principal
+   de la course, inter-arrêt par inter-arrêt, avant la prise de service. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const AVOID_KEY='fluoAvoidRoadsV29';
+  const GROUP_KEY='fluoAvoidRoadGroupsV301';
+  const V303={busy:false,timer:null,serial:0,applying:false,lastPattern:null,lastMessage:'',cache:new Map()};
+  const cloneShape=sh=>(Array.isArray(sh)?sh:[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
+  const shapeHash=sh=>{const a=sh||[];if(a.length<2)return '0';const z=[a[0],a[Math.floor(a.length/2)],a[a.length-1]].flat().map(v=>Number(v).toFixed(5)).join('|');return `${a.length}:${z}`};
+  const readPoints=()=>{try{const x=JSON.parse(localStorage.getItem(AVOID_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return[]}};
+  const readGroups=()=>{try{const x=JSON.parse(localStorage.getItem(GROUP_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return[]}};
+  const meters=(a,b)=>typeof dist==='function'?dist(a[0],a[1],b[0],b[1]):0;
+
+  const css=document.createElement('style');css.id='v303Style';css.textContent=`
+    .v303-route-status{margin:9px 0 2px;padding:9px 10px;border:1px solid #355163;border-radius:12px;background:#091923;color:#b9cad5;font-size:.7rem;line-height:1.4}
+    .v303-route-status.busy{border-color:#79651f;background:#241d08;color:#ffe69a}.v303-route-status.ok{border-color:#2f7e50;background:#0b2719;color:#caffd8}.v303-route-status.warn{border-color:#9a6324;background:#2b1d0b;color:#ffd9a6}.v303-route-status.err{border-color:#8c3b3f;background:#2b1719;color:#ffd0cd}
+    .v303-route-pill{display:inline-flex;margin-left:6px;padding:2px 6px;border-radius:999px;background:#6b1f22;color:#ffe4e2;font-size:.61rem;font-weight:950;vertical-align:middle}
+    @media(max-width:680px){.v303-route-status{font-size:.67rem;padding:8px 9px}}
+  `;document.head.appendChild(css);
+  const info=q('courseInfo');if(info&&!q('v303RouteStatus'))info.insertAdjacentHTML('afterend','<div id="v303RouteStatus" class="v303-route-status">Routes à éviter : vérification après sélection de la course.</div>');
+  function setStatus(text,kind=''){const e=q('v303RouteStatus');if(e){e.textContent=text;e.className=`v303-route-status ${kind}`};V303.lastMessage=text}
+
+  function buildEntities(){
+    const pts=readPoints(),groups=readGroups(),by=new Map();
+    for(const g of groups)by.set(String(g.id),{id:String(g.id),name:g.name||'Route à éviter',road:true,lengthM:Number(g.lengthM||0),points:[]});
+    const legacy=[];
+    for(const p of pts){
+      if(p.groupId&&by.has(String(p.groupId)))by.get(String(p.groupId)).points.push({lat:Number(p.lat),lon:Number(p.lon),radius:Math.max(8,Number(p.radius)||18)});
+      else if(Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lon)))legacy.push({id:String(p.id||Math.random()),name:p.name||'Zone à éviter',road:false,lengthM:Number(p.radius||40)*2,points:[{lat:Number(p.lat),lon:Number(p.lon),radius:Math.max(8,Number(p.radius)||40)}]});
+    }
+    // Si une ancienne sauvegarde de groupe n'a plus ses points échantillonnés, on réutilise sa géométrie.
+    for(const g of groups){const e=by.get(String(g.id));if(e&&e.points.length<2){const flat=(g.segments||[]).flat();const step=Math.max(1,Math.ceil(flat.length/70));for(let i=0;i<flat.length;i+=step){const p=flat[i];if(Number.isFinite(Number(p?.[0]))&&Number.isFinite(Number(p?.[1])))e.points.push({lat:Number(p[0]),lon:Number(p[1]),radius:20})}}}
+    return [...by.values(),...legacy].filter(e=>e.points.length);
+  }
+  function cumulative(shape){const c=[0];for(let i=1;i<shape.length;i++)c.push(c[i-1]+meters(shape[i-1],shape[i]));return c}
+  function nearestProjection(lat,lon,shape,cum){
+    let best={d:Infinity,along:0,seg:0,t:0,lat:null,lon:null};
+    for(let i=0;i<shape.length-1;i++){
+      const z=pointSegmentProjection(lat,lon,shape[i],shape[i+1]);
+      if(z.d<best.d){const a=cum[i]||0,b=cum[i+1]??a,along=a+z.t*(b-a);best={d:z.d,along,seg:i,t:z.t,lat:z.lat,lon:z.lon}}
+    }
+    return best;
+  }
+  function entityOverlap(shape,entity,cum=cumulative(shape)){
+    if(shape.length<2)return{touch:false,min:0,max:0,span:0,count:0};
+    const src=entity.points,step=Math.max(1,Math.ceil(src.length/70)),hits=[];
+    for(let i=0;i<src.length;i+=step){const p=src[i],z=nearestProjection(p.lat,p.lon,shape,cum),tol=Math.max(13,Number(p.radius)||18)+5;if(z.d<=tol)hits.push(z.along)}
+    if(!hits.length)return{touch:false,min:0,max:0,span:0,count:0};
+    const mn=Math.min(...hits),mx=Math.max(...hits),span=mx-mn;
+    // Une simple traversée d'une rue à un carrefour ne doit pas être interprétée comme "emprunter la rue".
+    const threshold=entity.road?Math.max(22,Math.min(65,(entity.lengthM||100)*.22)):0;
+    const touch=entity.road?(hits.length>=2&&span>=threshold):true;
+    return{touch,min:mn,max:mx,span,count:hits.length};
+  }
+  function touchesAny(shape,entities){const cum=cumulative(shape);return entities.some(e=>entityOverlap(shape,e,cum).touch)}
+  function relevantEntities(shape,entities){const cum=cumulative(shape);return entities.map(e=>({e,o:entityOverlap(shape,e,cum)})).filter(x=>x.o.touch).sort((a,b)=>a.o.min-b.o.min)}
+
+  function pointAtAlong(shape,cum,along){
+    along=Math.max(0,Math.min(cum.at(-1)||0,along));let lo=0,hi=cum.length-1;
+    while(lo<hi){const m=Math.floor((lo+hi+1)/2);if(cum[m]<=along)lo=m;else hi=m-1}
+    const i=Math.min(lo,shape.length-2),a=cum[i],b=cum[i+1]??a,f=b>a?(along-a)/(b-a):0;
+    return[shape[i][0]+(shape[i+1][0]-shape[i][0])*f,shape[i][1]+(shape[i+1][1]-shape[i][1])*f,i];
+  }
+  function sliceAlong(shape,cum,a,b){
+    if(!Number.isFinite(a)||!Number.isFinite(b)||b<=a)return[];const A=pointAtAlong(shape,cum,a),B=pointAtAlong(shape,cum,b),out=[[A[0],A[1]]];
+    for(let i=A[2]+1;i<=B[2]&&i<shape.length;i++){if((cum[i]||0)>a&&(cum[i]||0)<b)out.push([shape[i][0],shape[i][1]])}
+    out.push([B[0],B[1]]);return out;
+  }
+  function operationalIndices(){
+    const n=state?.pattern?.stops?.length||0;if(!n)return[];
+    if(state?.service?.mode==='tad'&&state?.service?.tadStops?.size){return [...state.service.tadStops].filter(i=>Number.isInteger(i)&&i>=0&&i<n).sort((a,b)=>a-b)}
+    return Array.from({length:n},(_,i)=>i);
+  }
+  function stopAlongs(base,cum,ids){
+    const out=[];let floor=0;
+    for(const idx of ids){const s=state.pattern.stops[idx];if(!s)continue;let best={d:Infinity,along:floor};
+      // La projection complète est plus robuste sur les boucles ; on impose ensuite une progression monotone.
+      const z=nearestProjection(Number(s.lat),Number(s.lon),base,cum);best=z;if(best.along+25<floor)best.along=floor;floor=Math.max(floor,best.along);out.push({idx,along:best.along,stop:s})}
+    return out;
+  }
+  function entityCenter(entity){
+    const ps=entity.points;if(!ps.length)return{lat:48.7,lon:6.2,r:350};let lat=0,lon=0,minLat=Infinity,maxLat=-Infinity,minLon=Infinity,maxLon=-Infinity;
+    for(const p of ps){lat+=p.lat;lon+=p.lon;minLat=Math.min(minLat,p.lat);maxLat=Math.max(maxLat,p.lat);minLon=Math.min(minLon,p.lon);maxLon=Math.max(maxLon,p.lon)}lat/=ps.length;lon/=ps.length;
+    const diag=dist(minLat,minLon,maxLat,maxLon);return{lat,lon,r:Math.max(260,Math.min(900,diag*.65+220))};
+  }
+  function offsetPoint(c,dx,dy){const lat=c.lat+dy/111320,lon=c.lon+dx/(111320*Math.max(.25,Math.cos(c.lat*Math.PI/180)));return{lat,lon}}
+  async function osrm(waypoints,alternatives=false){
+    const key=waypoints.map(p=>`${p.lon.toFixed(5)},${p.lat.toFixed(5)}`).join(';')+`|${alternatives?'a':'n'}`;
+    if(V303.cache.has(key))return V303.cache.get(key);
+    const coords=waypoints.map(p=>`${p.lon},${p.lat}`).join(';'),url=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=${alternatives?'true':'false'}&continue_straight=true`;
+    const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error(`routage HTTP ${r.status}`);const d=await r.json();if(d?.code!=='Ok'||!d.routes?.length)throw new Error('aucun itinéraire routier trouvé');
+    const routes=d.routes.map(rt=>({shape:(rt.geometry?.coordinates||[]).map(c=>[Number(c[1]),Number(c[0])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),distance:Number(rt.distance||0),duration:Number(rt.duration||0)})).filter(x=>x.shape.length>1);V303.cache.set(key,routes);return routes;
+  }
+  async function safeLeg(start,end,relevant,allEntities){
+    // 1) Les alternatives naturelles d'OSRM suffisent souvent.
+    try{const xs=await osrm([start,end],true);const safe=xs.filter(x=>!touchesAny(x.shape,allEntities)).sort((a,b)=>a.distance-b.distance)[0];if(safe)return safe}catch{}
+    // 2) Sinon, on force plusieurs points de contournement autour des voiries concernées.
+    const centers=relevant.map(x=>entityCenter(x.e));
+    const dirs=[[0,1],[0,-1],[1,0],[-1,0],[.72,.72],[-.72,.72],[.72,-.72],[-.72,-.72]];
+    let best=null;
+    for(const [dx,dy] of dirs){
+      const vias=centers.map(c=>offsetPoint(c,dx*c.r,dy*c.r));
+      try{const xs=await osrm([start,...vias,end],false);const cand=xs[0];if(cand&&!touchesAny(cand.shape,allEntities)&&(!best||cand.distance<best.distance))best=cand;if(best&&dirs.indexOf?.([dx,dy])>=3)break}catch{}
+    }
+    if(best)return best;throw new Error('aucun contournement compatible trouvé autour de la route à éviter');
+  }
+  function appendShape(out,part){for(const p of part||[]){const z=out.at(-1);if(!z||dist(z[0],z[1],p[0],p[1])>.8)out.push([p[0],p[1]])}}
+
+  async function rebuildMainRoute(reason='auto'){
+    clearTimeout(V303.timer);const token=++V303.serial;
+    if(V303.busy||V303.applying||!state?.pattern||state?.running)return;
+    const entities=buildEntities(),pattern=state.pattern,current=cloneShape(pattern.shape||[]);if(current.length<2)return;
+    // Si un autre module vient de produire un nouveau tracé (TAD, ligne perso, billet collectif...), il devient la nouvelle base.
+    const curHash=shapeHash(current);
+    if(!pattern.__v303BaseShape||(!pattern.__v303AppliedHash&&shapeHash(pattern.__v303BaseShape)!==curHash)||(pattern.__v303AppliedHash&&pattern.__v303AppliedHash!==curHash)){
+      pattern.__v303BaseShape=cloneShape(current);pattern.__v303AppliedHash=null;
+    }
+    const base=cloneShape(pattern.__v303BaseShape||current);
+    if(!entities.length){
+      if(pattern.__v303AppliedHash){V303.applying=true;pattern.shape=cloneShape(base);pattern.__v303AppliedHash=null;try{prepareCourseGeometry();drawRoute?.();updateStopMarkers?.()}finally{V303.applying=false}}
+      setStatus('Routes à éviter : aucune route enregistrée. Tracé officiel conservé.');return;
+    }
+    const wholeRelevant=relevantEntities(base,entities);
+    if(!wholeRelevant.length){
+      if(pattern.__v303AppliedHash){V303.applying=true;pattern.shape=cloneShape(base);pattern.__v303AppliedHash=null;try{prepareCourseGeometry();drawRoute?.();updateStopMarkers?.()}finally{V303.applying=false}}
+      setStatus(`Routes à éviter : ${entities.length} enregistrée${entities.length>1?'s':''}, aucune n'est empruntée par cette course.`,'ok');return;
+    }
+    V303.busy=true;setStatus(`Recalcul du tracé : ${wholeRelevant.map(x=>x.e.name).join(', ')} doit être évitée…`,'busy');
+    const oldStart=q('start')?.disabled,oldSim=q('simulate')?.disabled;if(q('start'))q('start').disabled=true;if(q('simulate'))q('simulate').disabled=true;
+    try{
+      const cum=cumulative(base),ids=operationalIndices(),stops=stopAlongs(base,cum,ids);if(stops.length<2)throw new Error('arrêts insuffisants pour reconstruire la course');
+      const out=[];let changed=0,warnings=[];
+      // Conserve le début du shape jusqu'au premier arrêt opérationnel.
+      appendShape(out,sliceAlong(base,cum,0,stops[0].along));
+      for(let k=0;k<stops.length-1;k++){
+        if(token!==V303.serial)return;
+        const A=stops[k],B=stops[k+1];if(B.along<=A.along+2)continue;
+        const baseLeg=sliceAlong(base,cum,A.along,B.along),rel=relevantEntities(baseLeg,entities);
+        if(!rel.length){appendShape(out,baseLeg);continue}
+        setStatus(`Recalcul ${changed+1} · ${A.stop.name} → ${B.stop.name} · contournement de ${rel.map(x=>x.e.name).join(', ')}…`,'busy');
+        try{
+          const rt=await safeLeg({lat:Number(A.stop.lat),lon:Number(A.stop.lon)},{lat:Number(B.stop.lat),lon:Number(B.stop.lon)},rel,entities);appendShape(out,rt.shape);changed++;
+        }catch(e){appendShape(out,baseLeg);warnings.push(`${A.stop.name} → ${B.stop.name} : ${e.message||e}`)}
+      }
+      appendShape(out,sliceAlong(base,cum,stops.at(-1).along,cum.at(-1)||0));
+      if(token!==V303.serial)return;
+      if(changed>0){
+        V303.applying=true;pattern.shape=out;pattern.trace_source='admin_avoid_v303';pattern.__v303AppliedHash=shapeHash(out);
+        try{prepareCourseGeometry();drawRoute?.();updateStopMarkers?.();labels?.()}finally{V303.applying=false}
+        const names=[...new Set(wholeRelevant.map(x=>x.e.name))];
+        const msg=`✅ Tracé modifié : ${changed} inter-arrêt${changed>1?'s':''} recalculé${changed>1?'s':''} pour éviter ${names.join(', ')}.${warnings.length?` ${warnings.length} tronçon${warnings.length>1?'s':''} n'a pas trouvé d'alternative et reste signalé.`:''}`;
+        setStatus(msg,warnings.length?'warn':'ok');
+        if(q('courseInfo')&&!q('courseInfo').querySelector('.v303-route-pill'))q('courseInfo').insertAdjacentHTML('beforeend',' <span class="v303-route-pill">DÉVIATION ADMIN</span>');
+        try{window.FluoJournalCore?.log?.('ROUTE_AVOIDANCE_PREPARED',{avoidedRoads:names,reroutedLegs:changed,warnings})}catch{}
+      }else{
+        V303.applying=true;pattern.shape=cloneShape(base);pattern.__v303AppliedHash=null;try{prepareCourseGeometry();drawRoute?.();updateStopMarkers?.()}finally{V303.applying=false}
+        q('courseInfo')?.querySelector('.v303-route-pill')?.remove();setStatus(`⚠️ La course emprunte une route à éviter, mais aucun itinéraire alternatif compatible n'a été trouvé. ${warnings[0]||''}`,'err');
+      }
+    }catch(e){setStatus(`Recalcul des routes à éviter impossible : ${e.message||e}`,'err')}
+    finally{V303.busy=false;try{refreshStartAvailability?.()}catch{};if(q('start')&&oldStart===true)q('start').disabled=true;if(q('simulate')&&oldSim===true)q('simulate').disabled=true}
+  }
+  function schedule(reason='auto',delay=220){clearTimeout(V303.timer);if(state?.running)return;V303.timer=setTimeout(()=>rebuildMainRoute(reason),delay)}
+
+  // Toute géométrie nouvellement produite par le moteur est contrôlée après stabilisation.
+  try{const basePrepare303=prepareCourseGeometry;prepareCourseGeometry=function(){const r=basePrepare303();if(!V303.applying)schedule('geometry',320);return r}}catch(e){console.warn('V30.3 prepare route évitement',e)}
+  try{const baseSelect303=selectRun;selectRun=function(i){const r=baseSelect303(i);Promise.resolve(r).finally(()=>schedule('course',180));return r}}catch(e){console.warn('V30.3 select route évitement',e)}
+  try{const baseEnter303=enterDriver;enterDriver=function(mode){if(V303.busy){alert('Le tracé est encore en cours de recalcul pour les routes à éviter. Attends la fin du calcul avant la prise de service.');return}return baseEnter303(mode)}}catch(e){console.warn('V30.3 entrée service',e)}
+
+  // Sauvegarde/suppression d'une route admin : recalcule immédiatement la course affichée.
+  document.addEventListener('click',e=>{
+    if(e.target.closest?.('#v301SaveRoad,[data-v301-delete-group],[data-v301-delete-point]'))setTimeout(()=>{const p=state?.pattern;if(p?.__v303AppliedHash){V303.applying=true;p.shape=cloneShape(p.__v303BaseShape||p.shape);p.__v303AppliedHash=null;try{prepareCourseGeometry()}finally{V303.applying=false}}schedule('admin-change',120)},120);
+  },true);
+  window.addEventListener('storage',e=>{if(e.key===AVOID_KEY||e.key===GROUP_KEY)schedule('storage-change',120)});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')schedule('visible',300)});
+
+  // Empêche un lancement pendant un calcul asynchrone, même si un ancien module réactive le bouton.
+  document.addEventListener('click',e=>{if(V303.busy&&e.target.closest?.('#start,#simulate')){e.preventDefault();e.stopImmediatePropagation();alert('Recalcul du tracé en cours. Attends quelques secondes avant de lancer le service.')}},true);
+
+  document.title='Fluo SAEIV V30.3 · Routes à éviter sur le tracé principal';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.3 ROUTAGE ADMIN';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
+  if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>{setTimeout(label,30);schedule('load',600)});else{setTimeout(label,30);schedule('load',600)}
+})();
+</script>
+
+<script id="v304PreparedCollectives">
+'use strict';
+/* Fluo SAEIV V30.4 — billets collectifs préparés : sauvegarde datée et restauration comme Mes TAD. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const DB_NAME='fluo-saeiv-prepared-collective-v304', STORE='collectives', ACCOUNT_KEY='fluoSaeivAccountV13';
+  const V304={dbPromise:null,loading:false};
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const uuid=()=>crypto.randomUUID?crypto.randomUUID():`bc-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const matricule=()=>{try{return JSON.parse(localStorage.getItem(ACCOUNT_KEY)||'null')?.matricule||'local'}catch{return'local'}};
+  const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const fmtDate=v=>{try{return new Date(`${v}T12:00:00`).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}catch{return v||'—'}};
+  const fmtCreated=v=>{try{return new Date(v).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}catch{return v||'—'}};
+
+  const css=document.createElement('style');css.id='v304Style';css.textContent=`
+    .v304-prep-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.v304-prep-actions button{min-height:44px}
+    .v304-ticket-item{padding:11px;border:1px solid #2e4656;border-radius:13px;background:#081720;margin-bottom:8px}.v304-ticket-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}.v304-ticket-item strong{display:block}.v304-ticket-item span{display:block;color:#91a8b6;font-size:.7rem;margin-top:3px;line-height:1.35}.v304-date-badge{display:inline-flex!important;padding:5px 7px;border-radius:999px;background:#173142;color:#d9edf6!important;font-size:.62rem!important;font-weight:950;white-space:nowrap;margin:0!important}.v304-date-badge.today{background:#123a22;color:#caffd8!important}.v304-date-badge.future{background:#10284a;color:#cde4ff!important}.v304-date-badge.past{background:#3a2525;color:#ffd5d2!important}.v304-ticket-buttons{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.v304-ticket-buttons button{padding:8px 9px;font-size:.72rem}.v304-empty{padding:22px;text-align:center;color:#9fb0bb}.v304-library-foot{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.v304-library-foot button{min-height:44px}
+    @media(min-width:681px){#v30CollectivePanel .v30-collective-grid{grid-template-columns:1.35fr .85fr .85fr}}
+    @media(max-width:680px){.v304-prep-actions,.v304-library-foot{grid-template-columns:1fr}.v304-ticket-row{grid-template-columns:1fr}.v304-date-badge{width:max-content}}
+  `;document.head.appendChild(css);
+
+  function db(){if(V304.dbPromise)return V304.dbPromise;V304.dbPromise=new Promise((resolve,reject)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(STORE)){const s=d.createObjectStore(STORE,{keyPath:'id'});s.createIndex('date','serviceDate');s.createIndex('matricule','matricule')}};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});return V304.dbPromise}
+  async function all(){const d=await db();return new Promise((res,rej)=>{const r=d.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res((r.result||[]).filter(x=>String(x.matricule||'')===String(matricule())).sort((a,b)=>String(a.serviceDate).localeCompare(String(b.serviceDate))||String(a.departureTime||'').localeCompare(String(b.departureTime||''))));r.onerror=()=>rej(r.error)})}
+  async function get(id){const d=await db();return new Promise((res,rej)=>{const r=d.transaction(STORE).objectStore(STORE).get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+  async function put(x){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction(STORE,'readwrite');tx.objectStore(STORE).put(x);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+  async function del(id){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+
+  function addUi(){
+    const grid=q('v30CollectivePanel')?.querySelector('.v30-collective-grid');
+    if(grid&&!q('v304CollectiveDate')){const time=q('v30CollectiveTime')?.closest('label'),lab=document.createElement('label');lab.innerHTML='Date du billet<input id="v304CollectiveDate" type="date">';time?.insertAdjacentElement('beforebegin',lab)}
+    const firstActions=q('v30CollectivePanel')?.querySelector('.v30-collective-actions');
+    if(firstActions&&!q('v304CollectivePrepActions'))firstActions.insertAdjacentHTML('afterend','<div id="v304CollectivePrepActions" class="v304-prep-actions"><button id="v304SaveCollective" class="primary" type="button">💾 Enregistrer ce billet</button><button id="v304OpenCollectives" type="button">🎫 Mes billets collectifs</button></div>');
+    const userbar=q('v13Userbar');if(userbar&&!q('v304MyCollectivesBtn')){const anchor=q('v26MyTadsBtn')||q('v25CreatorBtn')||q('v24SheetsBtn')||q('v13JournalBtn');const b=document.createElement('button');b.id='v304MyCollectivesBtn';b.className='v13-log-btn';b.type='button';b.textContent='🎫 Mes billets';anchor?.insertAdjacentElement('afterend',b)}
+    if(!q('v304CollectiveLibrary'))document.body.insertAdjacentHTML('beforeend',`<div id="v304CollectiveLibrary" class="v26-backdrop hidden" role="dialog" aria-modal="true"><div class="v26-sheet"><div class="v26-head"><div><div class="v13-logo">BILLETS COLLECTIFS PRÉPARÉS · V30.4</div><h2>🎫 Mes billets collectifs</h2><p>Prépare un billet collectif à l’avance pour une date précise. Le jour J, touche « Charger » : départ, destination, étapes et parcours seront restaurés tels qu’ils ont été préparés.</p></div><button id="v304CollectiveClose" class="v26-close" type="button">Fermer</button></div><div id="v304CollectiveList" class="v26-scroll"></div><div class="v304-library-foot"><button id="v304DeletePast" class="danger" type="button">🧹 Supprimer les billets passés</button><button id="v304CollectiveDone" type="button">Fermer</button></div></div></div>`)
+  }
+  function ensureDate(){const d=q('v304CollectiveDate');if(d&&!d.value)d.value=ymd()}
+  function dateClass(date){const t=ymd();return date===t?'today':date>t?'future':'past'}
+  function dateLabel(date){const c=dateClass(date);return c==='today'?'AUJOURD’HUI':c==='future'?'À VENIR':'PASSÉ'}
+  function pointSummary(points){if(!Array.isArray(points)||points.length<2)return'Parcours incomplet';return `${points[0]?.name||'Départ'} → ${points.at(-1)?.name||'Destination'}`}
+
+  async function render(){const box=q('v304CollectiveList');if(!box)return;try{const xs=await all();box.innerHTML=xs.length?xs.map(x=>`<div class="v304-ticket-item" data-v304-ticket="${esc(x.id)}"><div class="v304-ticket-row"><div><strong>${esc(x.name||'Billet collectif')} · ${esc(pointSummary(x.points))}</strong><span>${esc(fmtDate(x.serviceDate))} · départ ${esc(x.departureTime||'—')} · ${Math.max(0,(x.points?.length||2)-2)} étape${Math.max(0,(x.points?.length||2)-2)>1?'s':''}</span><span>${Number.isFinite(Number(x.distance))?(Number(x.distance)/1000).toFixed(1).replace('.',',')+' km · ':''}préparé ${esc(fmtCreated(x.createdAt))}</span></div><span class="v304-date-badge ${dateClass(x.serviceDate)}">${dateLabel(x.serviceDate)}</span></div><div class="v304-ticket-buttons"><button class="primary" type="button" data-v304-action="load">▶ Charger ce billet</button><button class="danger" type="button" data-v304-action="delete">🗑 Supprimer</button></div></div>`).join(''):'<div class="v304-empty"><strong>Aucun billet collectif préparé</strong><br>Crée le parcours, choisis sa date puis touche « Enregistrer ce billet ».</div>'}catch(e){box.innerHTML=`<div class="v304-empty">Impossible de lire les billets : ${esc(e.message||e)}</div>`}}
+  function openLibrary(){q('v304CollectiveLibrary')?.classList.remove('hidden');render()}
+  function closeLibrary(){q('v304CollectiveLibrary')?.classList.add('hidden')}
+
+  function currentRecord(){
+    const api=window.FluoCollectiveV30,route=api?.getRoute?.();if(!route?.shape?.length||!Array.isArray(route.points)||route.points.length<2)throw new Error('Calcule d’abord le parcours du billet collectif avant de l’enregistrer.');
+    ensureDate();const serviceDate=q('v304CollectiveDate')?.value;if(!serviceDate)throw new Error('Choisis la date du billet collectif.');
+    const rows=[q('v30CollectiveStart')?.querySelector('.v30-point'),...q('v30CollectiveStages')?.querySelectorAll('.v30-point')||[],q('v30CollectiveEnd')?.querySelector('.v30-point')].filter(Boolean);
+    const points=route.points.map((p,i)=>{const row=rows[i],kind=row?.querySelector('.v30-point-kind')?.value||p.kind||'stop',query=row?.querySelector('.v30-point-search')?.value||p.name||'';return{...p,lat:Number(p.lat),lon:Number(p.lon),kind,query}});
+    return{id:uuid(),matricule:matricule(),serviceDate,departureTime:q('v30CollectiveTime')?.value||'',name:(q('v30CollectiveName')?.value||route.name||'Billet collectif').trim()||'Billet collectif',points,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),distance:Number(route.distance||0),duration:Number(route.duration||0),createdAt:new Date().toISOString(),appVersion:'V30.4'};
+  }
+  async function saveCurrent(){try{const rec=currentRecord();await put(rec);window.FluoCollectiveV30?.status?.(`✅ Billet enregistré pour le ${fmtDate(rec.serviceDate)}. Tu le retrouveras dans « Mes billets collectifs ».`,`ok`);await render()}catch(e){alert(e.message||e)}}
+
+  function setRow(row,item){if(!row||!item)return;const kind=item.kind==='address'?'address':'stop',sel=row.querySelector('.v30-point-kind'),input=row.querySelector('.v30-point-search'),status=row.querySelector('.v30-selected'),results=row.querySelector('.v30-point-results');if(sel)sel.value=kind;if(input){input.value=item.query||item.name||'';input.placeholder=kind==='address'?'Saisir une adresse complète…':'Rechercher un arrêt Fluo…'}row._v30Point={...item,lat:Number(item.lat),lon:Number(item.lon)};if(status)status.textContent=item.name||item.query||'Point chargé';results?.classList.add('hidden')}
+  async function loadPrepared(rec){
+    if(!rec||V304.loading)return;V304.loading=true;
+    try{
+      const api=window.FluoCollectiveV30;if(!api)throw new Error('module billet collectif indisponible');api.setMode?.();ensureDate();
+      q('v30CollectiveName').value=rec.name||'Billet collectif';q('v30CollectiveTime').value=rec.departureTime||'';q('v304CollectiveDate').value=rec.serviceDate||ymd();
+      const pts=Array.isArray(rec.points)?rec.points:[];if(pts.length<2)throw new Error('billet préparé incomplet');
+      const start=q('v30CollectiveStart'),stages=q('v30CollectiveStages'),end=q('v30CollectiveEnd');start.innerHTML=api.pointHtml('start');stages.innerHTML='';for(let i=1;i<pts.length-1;i++)stages.insertAdjacentHTML('beforeend',api.pointHtml('stage',i));end.innerHTML=api.pointHtml('end');api.renumberStages?.();
+      const rows=[start.querySelector('.v30-point'),...stages.querySelectorAll('.v30-point'),end.querySelector('.v30-point')];pts.forEach((p,i)=>setRow(rows[i],p));
+      api.setRoute({shape:rec.shape||[],points:pts,distance:Number(rec.distance||0),duration:Number(rec.duration||0),name:rec.name||'Billet collectif',createdAt:rec.createdAt||new Date().toISOString()});
+      closeLibrary();setTimeout(()=>{try{window.dispatchEvent(new Event('resize'));state?.nav?.map?.invalidateSize?.()}catch{}},120);
+    }catch(e){alert(`Impossible de charger ce billet collectif : ${e.message||e}`)}finally{V304.loading=false}
+  }
+
+  addUi();ensureDate();
+  q('v30CollectiveMode')?.addEventListener('click',ensureDate);
+  q('v304SaveCollective')?.addEventListener('click',saveCurrent);q('v304OpenCollectives')?.addEventListener('click',openLibrary);q('v304MyCollectivesBtn')?.addEventListener('click',openLibrary);q('v304CollectiveClose')?.addEventListener('click',closeLibrary);q('v304CollectiveDone')?.addEventListener('click',closeLibrary);q('v304CollectiveLibrary')?.addEventListener('click',e=>{if(e.target===q('v304CollectiveLibrary'))closeLibrary()});
+  q('v304CollectiveList')?.addEventListener('click',async e=>{const item=e.target.closest('[data-v304-ticket]'),act=e.target.closest('[data-v304-action]')?.dataset.v304Action;if(!item||!act)return;const rec=await get(item.dataset.v304Ticket);if(!rec)return;if(act==='load')return loadPrepared(rec);if(act==='delete'&&confirm(`Supprimer le billet collectif « ${rec.name||'Billet collectif'} » du ${fmtDate(rec.serviceDate)} ?`)){await del(rec.id);await render()}});
+  q('v304DeletePast')?.addEventListener('click',async()=>{const today=ymd(),xs=(await all()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun billet collectif passé à supprimer.');if(!confirm(`Supprimer ${xs.length} billet${xs.length>1?'s':''} collectif${xs.length>1?'s':''} passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await del(x.id);await render()});
+
+  window.FluoPreparedCollectivesV304={all,get,save:put,open:openLibrary};
+  document.title='Fluo SAEIV V30.4 · Billets collectifs préparés';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.4 BILLETS PRÉPARÉS';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
+  if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
+})();
 </script>
 
 </body>
