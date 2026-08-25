@@ -27,7 +27,7 @@ Nouveautés / corrections V30 :
 
 IMPORTANT
 ---------
-La vitesse route affichée est issue du profil OSM/OSRM disponible. Elle est informative et n'est pas présentée comme une limitation réglementaire certifiée. Si la donnée n'est pas exploitable, l'application affiche « — » au lieu d'inventer une valeur.
+La limitation affichée provient désormais des attributs maxspeed publiés dans OpenStreetMap. Les vitesses moyennes de routage OSRM ne sont plus converties en panneaux. Si aucun maxspeed exploitable n'est disponible, l'application affiche « — ».
 
 Les adresses du mode Billet collectif nécessitent une connexion Internet pour le géocodage et le routage.
 Les contacts d'exploitation seront ajoutés lorsque les noms et numéros seront fournis.
@@ -77,3 +77,27 @@ V30.4 — BILLETS COLLECTIFS PRÉPARÉS
 - Chargement le jour J avec champs, étapes, carte et tracé restaurés, prêt à lancer ou recalculer.
 - Données séparées par matricule dans IndexedDB.
 - Suppression individuelle et nettoyage des billets passés.
+
+
+V30.5 — LIMITATIONS ROUTIÈRES
+- Suppression de l'ancienne estimation des limitations à partir de la vitesse de routage OSRM.
+- Lecture des valeurs maxspeed publiées dans OpenStreetMap autour du tracé réellement utilisé par le SAEIV.
+- Prise en compte de maxspeed, maxspeed:forward/backward, maxspeed:bus et variantes directionnelles.
+- Quelques conditions jour/heure simples de maxspeed:conditional peuvent être appliquées ; les conditions météo/école/poids non vérifiables ne sont pas inventées.
+- La grande valeur affichée correspond à la limitation de route publiée. Si la limite applicable au car diffère (par exemple route 130 / car 100), la limite car est indiquée séparément.
+- Si aucune limitation fiable n'est publiée pour la portion, l'interface affiche « — » au lieu d'inventer une valeur.
+- Le profil de service tient compte du tracé courant, y compris les routes administrateur évitées/recalculées.
+- Source en ligne : OpenStreetMap via Overpass. Une connexion est nécessaire pour charger les limitations non mises en cache pendant la session.
+
+Google Maps Roads API propose également des limitations de vitesse, mais ce service n'est pas librement utilisable par une PWA publique et nécessite un accès Google Maps Platform adapté. La V30.5 n'embarque donc aucune clé Google dans le navigateur.
+
+
+Note V30.5 : la grande valeur du panneau correspond à la limitation générale de la route lorsqu'elle est explicitement connue. Une éventuelle valeur maxspeed:bus est affichée séparément sous la forme « CAR xx ». Une limitation bus seule n'est jamais présentée comme la limitation générale de la route.
+
+V30.5 — CORRECTION GESTION DES JOURNAUX
+- Cases de sélection remises au premier plan et rendues cliquables.
+- Un clic sur une case ne déclenche plus l'ouverture du journal.
+- Suppression individuelle reprise par un gestionnaire V30.5 indépendant.
+- « Tout sélectionner », « Supprimer la sélection » et « Effacer les journaux terminés » sont de nouveau opérationnels.
+- Le service actuellement ouvert reste protégé contre la suppression.
+- Suppression simultanée de la session et de tous ses événements IndexedDB associés.

@@ -1,1 +1,11 @@
-{"name":"Fluo SAEIV V30.4","short_name":"Fluo SAEIV","start_url":"./?v=30.4","display":"standalone","orientation":"any","background_color":"#07121b","theme_color":"#07121b","lang":"fr","description":"SAEIV Fluo 54/57 — V30.4 : billets collectifs préparables à l’avance et récupérables par date, avec routes administrateur appliquées au tracé principal."}
+{
+  "name": "Fluo SAEIV V30.5",
+  "short_name": "Fluo SAEIV",
+  "start_url": "./?v=30.5",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07121b",
+  "theme_color": "#07121b",
+  "lang": "fr",
+  "description": "SAEIV conducteur V30.5 — billets collectifs préparés, routes à éviter, journal intégral et limitations routières OSM maxspeed."
+}
