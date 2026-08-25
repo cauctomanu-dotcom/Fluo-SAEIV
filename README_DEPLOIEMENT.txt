@@ -1,35 +1,43 @@
-FLUO SAEIV V26 — MES TAD + ANNONCES VOCALES
+FLUO SAEIV V28 — BASE STABLE CONDUCTEUR
 
-Version cumulative basée sur la V25. Conserve la V25 sur ton ordinateur comme retour arrière.
+Cette version repart de la V26 stable, et NON de la V27 expérimentale.
+La V27 de navigation adaptative n'est pas empilée ici afin d'éviter de reproduire ses régressions.
 
-À remplacer à la racine du dépôt GitHub (main) :
+NOUVEAUTÉS / CORRECTIONS V28
+- Ding-dong ARRÊT DEMANDÉ fiabilisé : élément audio média local + secours Web Audio.
+- Bouton « Recaler poteau » disponible dans le cockpit paysage.
+- Bouton « Arrêts / destination ON/OFF » en portrait ET paysage.
+  Il coupe seulement les annonces voyageurs automatiques :
+  * départ / ligne-destination ;
+  * rappel ligne-destination à mi-parcours ;
+  * prochain arrêt ;
+  * arrivée à l'arrêt / terminus.
+  Les annonces manuelles et outils conducteur restent disponibles.
+- Prochain arrêt terminus : message automatique enrichi avant l'arrivée :
+  « Prochain arrêt, [nom], terminus de la ligne. Avant de descendre, pensez à vérifier que vous n'avez rien oublié à bord. Merci d'avoir voyagé avec nous et à bientôt. »
+- Bibliothèque d'annonces : toucher une annonce lance immédiatement la diffusion.
+- Mes annonces personnalisées : titre + texte, sauvegarde locale persistante, diffusion par simple toucher, suppression individuelle.
+
+CONSERVÉ DE V26 ET VERSIONS PRÉCÉDENTES
+- Mes TAD préparés par date.
+- Journaux.
+- Fiches horaires.
+- Création de lignes personnalisées / exceptionnelles.
+- Navigation existante stable, GPS, simulation, TAD dynamique, annonces, demandes clients.
+
+NON RÉINTÉGRÉ VOLONTAIREMENT DE V27
+- recalcul automatique d'itinéraire hors tracé ;
+- auto-détection agressive d'arrêt raté ;
+- animation GPS expérimentale ;
+- double tracé journal prévu/réel de V27 ;
+- aperçu cartographique expérimental de V27.
+Ces fonctions devront être reprises séparément et testées sans casser la base.
+
+FICHIERS À REMPLACER DANS GITHUB
 - index.html
 - app.js
 - sw.js
 - manifest.webmanifest
-- build_gtfs.py
+- build_gtfs.py (inchangé fonctionnellement depuis V26 mais fourni pour garder un paquet cohérent)
 
-La V26 contient aussi les fonctions V24/V25, donc build_gtfs.py reste nécessaire pour le catalogue des arrêts des lignes personnalisées.
-
-NOUVEAUTÉS V26
-1) TAD préparés à l'avance
-- Préparer le TAD normalement : date, course, arrêt de départ, arrêts à desservir.
-- Bouton « Enregistrer ce TAD » dans le panneau TAD.
-- Bouton « Mes TAD » à côté des journaux/fiches/création de ligne, et directement dans le panneau TAD.
-- Chaque TAD est lié à une date précise et conserve département, ligne, trip_id, départ et stop_id des arrêts retenus.
-- « Charger ce TAD » restaure la course et relance le recalcul du tracé TAD dynamique.
-- Suppression individuelle et nettoyage des TAD passés.
-
-2) Annonces vocales manuelles
-- Bouton « Annonces vocales » dans le cockpit portrait.
-- En paysage : bouton sous les boutons conducteur de la colonne de droite.
-- Bibliothèque : déviation, fin de déviation, arrêt non desservi, terminus, changement de destination, retard, régulation, changement conducteur, répartition voyageurs, fauteuil roulant, portes/sécurité, interruption de service, arrivée terminus.
-- Texte modifiable avant validation, donc une annonce personnalisée peut aussi être saisie.
-- Priorité 80 : les annonces automatiques de prochain arrêt/arrivée restent prioritaires.
-
-Après le commit, attendre Build + Deploy puis fermer complètement la PWA et la rouvrir. Le bandeau doit afficher V26.
-
-ATTENTION
-- Les TAD restent stockés localement sur le smartphone tant que le backend serveur n'est pas mis en place.
-- Le chargement d'un TAD dépend encore de la présence de la course dans le GTFS de la date concernée ; un fallback horaire est prévu si le trip_id change.
-- Les annonces utilisent la synthèse vocale web : les limites iOS concernant le routage Bluetooth et le ducking restent les mêmes qu'avant.
+Garder la V26 et la V27 sur l'ordinateur comme versions de secours.

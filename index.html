@@ -2654,5 +2654,96 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 
+<script id="v28StablePatch">
+'use strict';
+/* V28 — correctifs stables conducteur : commandes paysage, annonces voyageurs ON/OFF,
+   annonces personnalisées persistantes, diffusion immédiate et terminus enrichi côté moteur. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const CUSTOM_KEY='fluoCustomAnnouncementsV28';
+  const esc28=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function readCustom(){try{const x=JSON.parse(localStorage.getItem(CUSTOM_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return []}}
+  function writeCustom(xs){localStorage.setItem(CUSTOM_KEY,JSON.stringify(xs.slice(0,80)))}
+  function uid(){return crypto.randomUUID?crypto.randomUUID():`ann-${Date.now()}-${Math.random().toString(36).slice(2)}`}
+  function passengerOn(){return typeof state!=='undefined' ? state.audio.passengerEnabled!==false : localStorage.getItem('fluoPassengerAnnouncementsEnabled')!=='off'}
+  function syncPassengerButtons(){
+    const on=passengerOn(), text=on?'🔊 Arrêts / destination ON':'🔇 Arrêts / destination OFF';
+    [q('v28PassengerToggle'),q('v28PassengerToggleSide')].filter(Boolean).forEach(b=>{b.textContent=text;b.classList.toggle('v28-off',!on);b.setAttribute('aria-pressed',String(on))});
+  }
+  function togglePassenger(){
+    const next=!passengerOn();
+    localStorage.setItem('fluoPassengerAnnouncementsEnabled',next?'on':'off');
+    if(typeof state!=='undefined'){
+      state.audio.passengerEnabled=next;
+      if(!next && window.speechSynthesis){
+        // On ne coupe pas les annonces manuelles ; on purge seulement les automatiques encore en attente.
+        state.audio.queue=(state.audio.queue||[]).filter(x=>!['departure','identity','stop'].includes(x.kind));
+        if(['departure','identity','stop'].includes(state.audio.current?.kind)){speechSynthesis.cancel();state.audio.current=null;setTimeout(()=>{try{pumpSpeech()}catch{}},20)}
+      }
+    }
+    syncPassengerButtons();
+    const st=q('announceState');if(st)st.textContent=next?'Annonces arrêts/destination activées':'Annonces arrêts/destination désactivées';
+  }
+
+  const css=document.createElement('style');css.id='v28Style';css.textContent=`
+    .v28-passenger-toggle{width:100%;min-height:44px;margin-top:7px;background:#153b28;border-color:#2f7e50;color:#d8ffe5}.v28-passenger-toggle.v28-off{background:#3a2525;border-color:#7d4548;color:#ffd7d4}
+    .v28-side-tools{display:grid;grid-template-columns:1fr;gap:5px;margin-top:5px}.v28-side-tools button{min-height:31px;padding:5px 7px;border-radius:9px;font-size:.62rem}.v28-side-tools .v28-off{background:#3a2525;border-color:#7d4548;color:#ffd7d4}
+    .v28-custom-box{margin-top:12px;padding:11px;border:1px solid #355163;border-radius:13px;background:#091923}.v28-custom-box h3{margin:0 0 8px;font-size:.9rem}.v28-custom-grid{display:grid;grid-template-columns:1fr;gap:8px}.v28-custom-box input,.v28-custom-box textarea{width:100%;background:#091620;color:#fff;border:1px solid #355163;border-radius:11px;padding:10px;font:inherit}.v28-custom-box textarea{min-height:82px;resize:vertical}.v28-custom-actions{display:grid;grid-template-columns:1fr auto;gap:8px}.v28-custom-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.v28-custom-item{position:relative;padding:10px 42px 10px 10px;text-align:left;border:1px solid #2e4656;border-radius:12px;background:#081720}.v28-custom-item b{display:block}.v28-custom-item span{display:block;margin-top:3px;color:#9fb0bb;font-size:.68rem;line-height:1.3;font-weight:600}.v28-custom-delete{position:absolute;right:6px;top:6px;width:30px;height:30px;padding:0;border-radius:8px;background:#3a1d20;color:#ffd5d2}
+    @media(max-width:680px){.v28-custom-list{grid-template-columns:1fr}.v28-custom-actions{grid-template-columns:1fr}#v28PassengerToggle{order:10!important}#driver .grid.six{order:11!important}#driver .controls{order:12!important}#driver .sim-controls{order:13!important}#driver #recenter{order:14!important}}
+    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){.v28-side-tools{display:grid!important}.v28-side-tools button{font-size:.58rem;min-height:28px}}
+  `;document.head.appendChild(css);
+
+  // Portrait : bouton annonces automatiques voyageurs.
+  const annBtn=q('v26AnnounceBtn'), req=q('requestsBtn');
+  if(!q('v28PassengerToggle')){
+    const b=document.createElement('button');b.id='v28PassengerToggle';b.type='button';b.className='v28-passenger-toggle';
+    (annBtn||req)?.insertAdjacentElement('afterend',b);b.addEventListener('click',togglePassenger);
+  }
+
+  // Paysage : recalage poteau + interrupteur annonces automatiques sous les commandes existantes.
+  const side=q('v15LandscapeSide');
+  if(side&&!q('v28SideTools')){
+    const box=document.createElement('div');box.id='v28SideTools';box.className='v28-side-tools';
+    box.innerHTML='<button id="v28RecenterSide" type="button">🎯 Recaler poteau</button><button id="v28PassengerToggleSide" type="button">🔊 Arrêts / destination ON</button>';
+    (q('v26AnnounceSide')||side.querySelector('.v15-side-actions'))?.insertAdjacentElement('afterend',box);
+    q('v28RecenterSide')?.addEventListener('click',()=>q('recenter')?.click());
+    q('v28PassengerToggleSide')?.addEventListener('click',togglePassenger);
+  }
+  syncPassengerButtons();
+
+  // Annonces standard : un toucher = diffusion immédiate. On garde le champ texte pour relire/modifier si besoin.
+  const stdList=q('v26AnnList');
+  if(stdList){
+    stdList.addEventListener('click',e=>{
+      const b=e.target.closest('[data-v26-ann]');if(!b)return;
+      // Le gestionnaire V26 en phase bubble peut encore sélectionner/remplir le texte ; ici on diffuse tout de suite.
+      setTimeout(()=>{const txt=(q('v26AnnText')?.value||b.querySelector('span')?.textContent||'').trim();if(txt&&typeof say==='function')say(txt,{priority:80,kind:'manual'});const st=q('v26AnnStatus');if(st)st.textContent='✅ Annonce diffusée immédiatement.'},0);
+    },true);
+  }
+  if(q('v26AnnSpeak'))q('v26AnnSpeak').textContent='🔁 RELIRE / DIFFUSER LE TEXTE';
+
+  // Bibliothèque personnelle persistante.
+  const preview=q('v26AnnounceSheet')?.querySelector('.v26-ann-preview');
+  if(preview&&!q('v28CustomBox')){
+    preview.insertAdjacentHTML('beforebegin',`<div id="v28CustomBox" class="v28-custom-box"><h3>⭐ Mes annonces personnalisées</h3><div class="v28-custom-grid"><input id="v28CustomTitle" type="text" maxlength="60" placeholder="Titre de l’annonce"><textarea id="v28CustomText" maxlength="700" placeholder="Écris exactement ce qui doit être annoncé."></textarea><div class="v28-custom-actions"><button id="v28CustomSave" class="primary" type="button">💾 Enregistrer l’annonce</button><button id="v28CustomClear" type="button">Vider</button></div></div><div id="v28CustomList" class="v28-custom-list"></div></div>`);
+  }
+  function renderCustom(){
+    const box=q('v28CustomList');if(!box)return;const xs=readCustom();
+    box.innerHTML=xs.length?xs.map(x=>`<button type="button" class="v28-custom-item" data-v28-custom="${esc28(x.id)}"><b>${esc28(x.title)}</b><span>${esc28(x.text)}</span><span class="v28-custom-delete" data-v28-delete="${esc28(x.id)}" role="button" aria-label="Supprimer">🗑</span></button>`).join(''):'<div class="v26-ann-note">Aucune annonce personnalisée enregistrée.</div>';
+  }
+  q('v28CustomSave')?.addEventListener('click',()=>{const title=(q('v28CustomTitle')?.value||'').trim(),text=(q('v28CustomText')?.value||'').trim();if(!title||!text)return alert('Donne un titre et écris le texte de l’annonce.');const xs=readCustom();xs.unshift({id:uid(),title,text,createdAt:new Date().toISOString()});writeCustom(xs);q('v28CustomTitle').value='';q('v28CustomText').value='';renderCustom()});
+  q('v28CustomClear')?.addEventListener('click',()=>{q('v28CustomTitle').value='';q('v28CustomText').value=''});
+  q('v28CustomList')?.addEventListener('click',e=>{const del=e.target.closest('[data-v28-delete]');if(del){e.preventDefault();e.stopPropagation();const id=del.dataset.v28Delete;if(confirm('Supprimer cette annonce personnalisée ?')){writeCustom(readCustom().filter(x=>x.id!==id));renderCustom()}return}const b=e.target.closest('[data-v28-custom]');if(!b)return;const x=readCustom().find(z=>z.id===b.dataset.v28Custom);if(x&&typeof say==='function'){say(x.text,{priority:80,kind:'manual'});const st=q('v26AnnStatus');if(st)st.textContent=`✅ « ${x.title} » diffusée.`}});
+  renderCustom();
+  q('v26AnnounceBtn')?.addEventListener('click',renderCustom);q('v26AnnounceSide')?.addEventListener('click',renderCustom);
+
+  // Les boutons paysage doivent rester synchronisés après chaque entrée en service.
+  try{const baseEnter28=enterDriver;enterDriver=function(mode){const r=baseEnter28(mode);setTimeout(syncPassengerButtons,30);return r}}catch(e){console.warn('V28 boutons conducteur',e)}
+
+  document.title='Fluo SAEIV V28 · Base stable + commandes conducteur';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V28 STABLE';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
+})();
+</script>
+
 </body>
 </html>

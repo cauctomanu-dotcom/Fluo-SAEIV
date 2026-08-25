@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-// Fluo SAEIV V26 — base V25 + TAD préparés et annonces vocales en module cumulatif.
+// Fluo SAEIV V28 — base stable V26 + audio voyageurs pilotable, ding-dong fiabilisé et terminus enrichi.
 // Le moteur de suivi utilise la progression le long du shape, le cap tangent au parcours et un lissage circulaire.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),
@@ -25,7 +25,7 @@ const state = {
   nav:{map:null,routeLine:null,busMarker:null,stopMarkers:[],follow:true,lastHeading:0,lastDisplayLat:null,lastDisplayLon:null,lastDisplayAt:0},
   wakeLock:null, wakeLockTimer:null,
   fusion:{shape:[],cum:[],stopAlong:[],lastAlong:null,lastSegment:null,snapped:null,confidence:0,offRoute:Infinity,lastRaw:null,lastSnapAt:null,displayAlong:null,displayHeading:null},
-  audio:{queue:[],current:null,token:0,requestChimeCtx:null,lastRequestChimeAt:0},
+  audio:{queue:[],current:null,token:0,requestChimeCtx:null,requestChimeAudio:null,requestChimeUrl:null,lastRequestChimeAt:0,passengerEnabled:localStorage.getItem('fluoPassengerAnnouncementsEnabled')!=='off'},
   service:{mode:'regular',tadStops:new Set(),requestedStops:new Set(),requestAlertIndex:null,requestChimedStops:new Set()},
   punctuality:{ticker:null,deltaSeconds:null,plannedTime:null,status:'unknown'}
 };
@@ -45,7 +45,11 @@ function pumpSpeech(){
 }
 function say(text,opts={}){
   if(!('speechSynthesis' in window)||!text) return;
-  const item={text,priority:Number(opts.priority??50),kind:opts.kind||'general',ephemeral:!!opts.ephemeral,seq:Date.now()+Math.random()};
+  const kind=opts.kind||'general';
+  // V28 : le conducteur peut couper uniquement les annonces voyageurs automatiques
+  // (départ/destination, prochain arrêt et arrivée) sans désactiver les outils ou annonces manuelles.
+  if(state.audio.passengerEnabled===false && ['departure','identity','stop'].includes(kind)) return;
+  const item={text,priority:Number(opts.priority??50),kind,ephemeral:!!opts.ephemeral,seq:Date.now()+Math.random()};
   const cur=state.audio.current;
   // Une annonce d'arrêt doit toujours pouvoir prendre la main immédiatement.
   if(cur && (item.kind==='stop'||item.priority>cur.priority)){
@@ -77,23 +81,46 @@ function requestChimeContext(){
   if(state.audio.requestChimeCtx.state==='suspended') state.audio.requestChimeCtx.resume().catch(()=>{});
   return state.audio.requestChimeCtx;
 }
-function primeRequestChime(){ requestChimeContext(); }
-function playRequestChime(index){
-  const now=Date.now();
-  if(now-state.audio.lastRequestChimeAt<900) return;
-  state.audio.lastRequestChimeAt=now;
-  const ctx=requestChimeContext(); if(!ctx) return;
-  // Deux notes descendantes, type bouton arrêt demandé : « ding-dong ».
-  const notes=[880,659], t0=ctx.currentTime+.025;
-  notes.forEach((freq,i)=>{
-    const o=ctx.createOscillator(), g=ctx.createGain(), t=t0+i*.22;
-    o.type='sine'; o.frequency.value=freq;
-    g.gain.setValueAtTime(.0001,t);
-    g.gain.exponentialRampToValueAtTime(.28,t+.025);
-    g.gain.exponentialRampToValueAtTime(.0001,t+.20);
-    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+.22);
-  });
+function createRequestChimeAudio(){
+  if(state.audio.requestChimeAudio) return state.audio.requestChimeAudio;
+  try{
+    // Petit WAV stéréo généré localement : 2 notes descendantes. L'élément <audio>
+    // passe par la route média du téléphone et s'avère plus fiable qu'un oscillateur seul sur iOS/Android.
+    const rate=22050, dur=0.62, n=Math.floor(rate*dur), bytes=44+n*2;
+    const ab=new ArrayBuffer(bytes), v=new DataView(ab);
+    const put=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i))};
+    put(0,'RIFF');v.setUint32(4,bytes-8,true);put(8,'WAVE');put(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);put(36,'data');v.setUint32(40,n*2,true);
+    for(let i=0;i<n;i++){
+      const t=i/rate;let f=0,local=0;
+      if(t<.24){f=880;local=t;} else if(t>.29&&t<.55){f=659;local=t-.29;}
+      let a=0;if(f){const attack=Math.min(1,local/.018),release=Math.max(0,1-local/.24);a=.42*attack*release;}
+      const sample=Math.max(-1,Math.min(1,Math.sin(2*Math.PI*f*local)*a));v.setInt16(44+i*2,Math.round(sample*32767),true);
+    }
+    const url=URL.createObjectURL(new Blob([ab],{type:'audio/wav'}));
+    const a=new Audio(url);a.preload='auto';a.volume=1;state.audio.requestChimeAudio=a;state.audio.requestChimeUrl=url;return a;
+  }catch{return null}
 }
+function primeRequestChime(){
+  requestChimeContext();
+  const a=createRequestChimeAudio();
+  if(a){const old=a.volume;a.volume=.001;const p=a.play();if(p?.then)p.then(()=>{a.pause();a.currentTime=0;a.volume=old}).catch(()=>{a.volume=old});}
+}
+function playRequestChime(index){
+  const now=Date.now(); if(now-state.audio.lastRequestChimeAt<900) return; state.audio.lastRequestChimeAt=now;
+  const a=createRequestChimeAudio();
+  if(a){
+    try{a.pause();a.currentTime=0;a.volume=1;const p=a.play();if(p?.catch)p.catch(()=>playRequestChimeFallback());return;}catch{}
+  }
+  playRequestChimeFallback();
+}
+function playRequestChimeFallback(){
+  const ctx=requestChimeContext(); if(!ctx) return;
+  const notes=[880,659], t0=ctx.currentTime+.025;
+  notes.forEach((freq,i)=>{const o=ctx.createOscillator(),g=ctx.createGain(),t=t0+i*.22;o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.32,t+.025);g.gain.exponentialRampToValueAtTime(.0001,t+.20);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.22);});
+}
+// Toute interaction conducteur réarme la sortie audio média pour le futur ding-dong.
+document.addEventListener('pointerdown',primeRequestChime,{passive:true});
+document.addEventListener('touchstart',primeRequestChime,{passive:true});
 async function jget(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 
 
@@ -852,8 +879,12 @@ function armNextStopAnnouncement(){
 }
 function announce(force=false){
   const s=state.pattern?.stops[state.target]; if(!s) return;
-  say(`Prochain arrêt, ${spoken(s.name)}.`,{priority:100,kind:'stop'}); state.announced=true; state.nextStopDueAt=null;
-  ui.announceState.textContent=force?'Annonce manuelle':(state.mode==='simulation'?'Prochain arrêt annoncé (simulation)':'Prochain arrêt annoncé');
+  const isTerminus=nextOperationalStop(state.target)===null;
+  const text=isTerminus
+    ? `Prochain arrêt, ${spoken(s.name)}, terminus de la ligne. Avant de descendre, pensez à vérifier que vous n'avez rien oublié à bord. Merci d'avoir voyagé avec nous et à bientôt.`
+    : `Prochain arrêt, ${spoken(s.name)}.`;
+  say(text,{priority:100,kind:'stop'}); state.announced=true; state.nextStopDueAt=null;
+  ui.announceState.textContent=force?'Annonce manuelle':(isTerminus?'Annonce terminus effectuée':(state.mode==='simulation'?'Prochain arrêt annoncé (simulation)':'Prochain arrêt annoncé'));
 }
 function announceArrival(){
   const s=state.pattern?.stops[state.target]; if(!s||state.arrivalAnnounced) return;
