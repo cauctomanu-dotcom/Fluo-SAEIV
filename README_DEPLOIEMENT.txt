@@ -1,4 +1,4 @@
-FLUO SAEIV V31.1 — ÉDITION GITHUB PLATE (MOINS DE 100 FICHIERS)
+FLUO SAEIV V31.3 — ÉDITION GITHUB MONOBLOC, PLATE ET COMPACTE
 ============================================================================
 
 Base : V29, elle-même basée sur la V28.1 stable.
@@ -164,3 +164,19 @@ V31.1 — ARCHIVE PLATE POUR GITHUB
 - Les paquets sont chargés à la demande et conservés en mémoire afin de ne pas ralentir le
   lancement d'une course, la simulation ou le suivi GPS.
 - L'archive finale contient moins de 100 fichiers et ne nécessite aucun fichier de test.
+
+V31.2 — DONNÉES COMPRESSÉES POUR LE TÉLÉVERSEMENT WEB GITHUB
+--------------------------------------------------------------
+- Les paquets horaires restent compressés après extraction du ZIP : l'ensemble des fichiers
+  à envoyer sur GitHub pèse désormais nettement moins de 25 Mio.
+- L'application décompresse automatiquement le paquet nécessaire lors du choix d'une ligne.
+- La compression est sans perte : les 646 lignes, 3313 parcours, arrêts, services et horaires
+  officiels sont strictement identiques à la V31.1.
+
+V31.3 — INTERFACE MONOBLOC ANTI-DÉPLOIEMENT PARTIEL
+---------------------------------------------------
+- Le design complet et toute la logique de l'application sont désormais intégrés directement
+  dans index.html : aucun fichier JavaScript séparé ne peut manquer ou arriver en retard.
+- Le cache PWA porte une nouvelle identité et récupère automatiquement cette version complète.
+- Les profils conducteur, TAD, billets et journaux déjà enregistrés sur le téléphone restent
+  conservés, car cette mise à jour ne touche pas aux données locales de l'utilisateur.
