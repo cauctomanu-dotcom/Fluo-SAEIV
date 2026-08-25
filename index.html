@@ -702,7 +702,7 @@
     if(now-V13.lastSampleAt<SAMPLE_INTERVAL_MS && move<SAMPLE_MOVE_M) return;
     const speeds=safeSpeedKmh(p), snap=state?.fusion?.snapped, delta=state?.punctuality?.deltaSeconds;
     const planned=state?.punctuality?.plannedTime;
-    const rec={sessionId:id,ts:new Date(now).toISOString(),type:'GPS_SAMPLE',lat:c.latitude,lon:c.longitude,accuracyM:Number(c.accuracy||0),headingDeg:Number.isFinite(c.heading)?c.heading:null,gpsSpeedKmh:speeds.gps===null?null:Number(speeds.gps.toFixed(1)),derivedSpeedKmh:speeds.derived===null?null:Number(speeds.derived.toFixed(1)),speedKmh:speeds.chosen===null?null:Number(speeds.chosen.toFixed(1)),fusedLat:Number.isFinite(snap?.lat)?snap.lat:null,fusedLon:Number.isFinite(snap?.lon)?snap.lon:null,routeAlongM:Number.isFinite(snap?.along)?Number(snap.along.toFixed(1)):null,fusionConfidence:state?.fusion?.confidence??null,scheduleDeltaSec:Number.isFinite(delta)?Math.round(delta):null,plannedTime:planned?iso(planned):null,currentStop:state?.pattern?.stops?.[state.current]?.name||null,nextStop:state?.pattern?.stops?.[state.target]?.name||null};
+    const rec={sessionId:id,ts:new Date(now).toISOString(),type:'GPS_SAMPLE',lat:c.latitude,lon:c.longitude,accuracyM:Number(c.accuracy||0),headingDeg:Number.isFinite(c.heading)?c.heading:null,gpsSpeedKmh:speeds.gps===null?null:Number(speeds.gps.toFixed(1)),derivedSpeedKmh:speeds.derived===null?null:Number(speeds.derived.toFixed(1)),speedKmh:speeds.chosen===null?null:Number(speeds.chosen.toFixed(1)),fusedLat:Number.isFinite(snap?.lat)?snap.lat:null,fusedLon:Number.isFinite(snap?.lon)?snap.lon:null,routeAlongM:Number.isFinite(snap?.along)?Number(snap.along.toFixed(1)):null,fusionConfidence:state?.fusion?.confidence??null,roadLimitKmh:Number.isFinite(Number(window.FluoRoadSpeedV30?.currentLimit))?Number(window.FluoRoadSpeedV30.currentLimit):null,scheduleDeltaSec:Number.isFinite(delta)?Math.round(delta):null,plannedTime:planned?iso(planned):null,currentStop:state?.pattern?.stops?.[state.current]?.name||null,nextStop:state?.pattern?.stops?.[state.target]?.name||null};
     addEvent(rec).catch(console.warn);
     const st=V13.sessionStats;
     if(st){ st.samples++; if(speeds.chosen!==null){st.maxSpeed=Math.max(st.maxSpeed,speeds.chosen);st.sumSpeed+=speeds.chosen;st.speedCount++;} if(st.lastLat!==null){const dd=dist(st.lastLat,st.lastLon,c.latitude,c.longitude);if(dd<500)st.distance+=dd;} st.lastLat=c.latitude;st.lastLon=c.longitude;st.lastTs=now; if(st.samples%15===0) checkpointSession(); }
@@ -712,7 +712,7 @@
     const id=V13.activeSessionId, st=state?.pattern?.stops?.[index]; if(!id||!st) return;
     const key=`${type}-${index}`; if(type==='STOP_ARRIVAL'&&V13.lastArrivalKey===key)return; if(type==='STOP_PASSED'&&V13.lastPassKey===key)return;
     if(type==='STOP_ARRIVAL')V13.lastArrivalKey=key; else V13.lastPassKey=key;
-    const p=state?.pos, c=p?.coords||{}, scheduled=state?.run?arrivalFor(state.run.trip,index,state.run.serviceDate):null, actual=new Date();
+    const p=state?.pos, c=p?.coords||{}, scheduled=state?.run?arrivalFor(state.run.trip,index,state.run.serviceDate):null, actual=(state?.mode==='simulation'&&scheduled)?new Date(scheduled.getTime()+Number(state.sim?.delaySeconds||0)*1000):new Date();
     const delta=scheduled?Math.round((actual-scheduled)/1000):(Number.isFinite(state?.punctuality?.deltaSeconds)?Math.round(state.punctuality.deltaSeconds):null);
     const speeds=p?safeSpeedKmh(p):{gps:null,derived:null,chosen:null};
     await addEvent({sessionId:id,ts:iso(actual),type,stopIndex:index,stopName:st.name,scheduledTime:scheduled?iso(scheduled):null,scheduleDeltaSec:delta,lat:Number.isFinite(c.latitude)?c.latitude:null,lon:Number.isFinite(c.longitude)?c.longitude:null,accuracyM:Number.isFinite(c.accuracy)?c.accuracy:null,speedKmh:speeds.chosen===null?null:Number(speeds.chosen.toFixed(1))}).catch(console.warn);
@@ -1467,6 +1467,8 @@
     const z=profile.segments.find(s=>f>=s.from&&f<=s.to) || profile.segments.at(-1);
     return Math.min(100,Math.max(10,Number(z?.kmh)||50));
   }
+  // V30 — API en lecture seule pour l'affichage de vitesse route et l'ETA dynamique.
+  window.FluoRoadProfileApi={profilesForStops:roadProfilesForStops,speedAtProgress};
   function operationalIndices(){
     const ids=[state.current]; let cur=state.current, guard=0;
     while(guard++<500){ const n=nextOperationalStop(cur); if(n===null) break; ids.push(n); cur=n; }
@@ -1733,11 +1735,10 @@
       return 'unknown';
     }
     if(dep==='54'){
-      // Meurthe-et-Moselle : régulières R350/R360 (et variantes avec R en suffixe) ;
-      // les codes S... sont scolaires. Les numéros nus sont conservés en régulières.
-      if(/^S[A-Z0-9]+$/.test(code) || genericSchoolText(text) || letters>=2) return 'school';
-      if(/^R\d+[A-Z0-9]*$/.test(code) || /^\d+R$/.test(code) || /^\d+$/.test(code)) return 'regular';
-      return 'unknown';
+      // V30 — règle terrain Meurthe-et-Moselle : 54R + chiffres = ligne régulière.
+      // Toutes les autres lignes du 54 sont classées scolaires.
+      if(/^54R\d+[A-Z0-9]*$/.test(code)) return 'regular';
+      return 'school';
     }
     if(genericSchoolText(text)) return 'school';
     return 'regular';
@@ -1762,7 +1763,7 @@
         <option value="all">Toutes les lignes</option>
         <option value="custom">Lignes personnalisées</option>
       </select>
-      <small>57 : régulières 57R… · 54 : régulières R…/numériques, scolaires S… · « Toutes » affiche aussi les codes atypiques.</small>
+      <small>57 : régulières 57R… · 54 : régulières 54R… ; toutes les autres lignes du 54 sont classées scolaires. · « Toutes » affiche l’ensemble.</small>
       <span id="lineTypeCount" class="v18-filter-count"></span>`;
     route.closest('label')?.before(label);
   }
@@ -2968,21 +2969,51 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   async function getJournalEvents(id){const d=await journalDb();return new Promise((res,rej)=>{const r=d.transaction('events').objectStore('events').index('sessionId').getAll(id);r.onsuccess=()=>res((r.result||[]).sort((a,b)=>String(a.ts).localeCompare(String(b.ts))));r.onerror=()=>rej(r.error)})}
   function plannedTrace(s){return (s?.routeShape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]))}
   function actualTrace(ev){const out=[];for(const e of ev){if(e.type!=='GPS_SAMPLE')continue;const p=[Number(e.lat),Number(e.lon)];if(!Number.isFinite(p[0])||!Number.isFinite(p[1]))continue;const z=out.at(-1);if(!z||dist(z[0],z[1],p[0],p[1])>.8)out.push(p)}return out}
-  function stopRows(s,ev){const rank={STOP_PASSED:1,STOP_ARRIVAL:2,STOP_SKIPPED_DEVIATION:3},by=new Map();for(const e of ev){if(!rank[e.type])continue;const k=Number.isInteger(e.stopIndex)?e.stopIndex:e.stopName;if(!by.has(k)||rank[e.type]>rank[by.get(k).type])by.set(k,e)}const rows=[...by.values()].sort((a,b)=>Number(a.stopIndex??9999)-Number(b.stopIndex??9999)||String(a.ts).localeCompare(String(b.ts)));if(s?.startStop&&!rows.some(r=>Number(r.stopIndex)===Number(s.startStopIndex)))rows.unshift({type:'SERVICE_START',stopIndex:Number(s.startStopIndex||0),stopName:s.startStop,ts:s.startedAt,scheduledTime:s.scheduledDeparture||null,scheduleDeltaSec:s.scheduledDeparture?Math.round((new Date(s.startedAt)-new Date(s.scheduledDeparture))/1000):null});return rows}
-  function eventTitle(e){const m={SERVICE_START:'Prise de service',SERVICE_CONFIGURATION:'Configuration du service',SERVICE_END:'Fin de service',SERVICE_FINISH_REQUEST:'Fin de service demandée',SERVICE_INTERRUPTED:'Service interrompu',APP_BACKGROUND_OR_CLOSE:'Application mise en arrière-plan / fermée',STOP_ARRIVAL:'Arrivée à un arrêt',STOP_PASSED:'Arrêt franchi',STOP_SKIPPED_DEVIATION:'Arrêt non desservi pendant déviation',REQUEST_ADDED:'Demande d’arrêt ajoutée',REQUEST_REMOVED:'Demande d’arrêt retirée',REQUESTS_CLEARED:'Demandes d’arrêt effacées',ANNOUNCEMENT:'Annonce vocale',RECENTER:'Recalage manuel au poteau',PASSENGER_ANNOUNCEMENTS_TOGGLE:'Annonces voyageurs activées/désactivées',DEVIATION_START:'Début de déviation manuelle',DEVIATION_REJOIN_REQUEST:'Rattrapage de ligne calculé',DEVIATION_END:'Fin de déviation',INCIDENT_REPORT:'Rapport d’incident',CONTROL_ACTION:'Action conducteur',NAV_VOICE_TOGGLE:'GPS vocal modifié'};return m[e.type]||String(e.type||'Événement').replaceAll('_',' ')}
-  function eventDetail(e){if(e.type==='ANNOUNCEMENT')return `${e.kind||''} · ${e.text||''}`;if(e.type==='INCIDENT_REPORT')return `${e.category||''}${e.note?` — ${e.note}`:''}`;if(e.stopName)return e.stopName;if(e.type==='DEVIATION_END')return e.reason||e.rejoinStop||'';if(e.type==='DEVIATION_REJOIN_REQUEST')return `${e.rejoinStop||''}${Number.isFinite(e.recoveryDistanceM)?` · ${Math.round(e.recoveryDistanceM)} m`:''}`;if(e.type==='PASSENGER_ANNOUNCEMENTS_TOGGLE')return e.enabled?'Activées':'Désactivées';if(e.type==='CONTROL_ACTION')return e.control||'';if(e.type==='SERVICE_CONFIGURATION')return `${e.route||''} · ${e.destination||''} · ${e.serviceMode||''}`;return e.reason||e.nextStop||''}
-  function visibleEvents(ev){return ev.filter(e=>e.type!=='GPS_SAMPLE')}
-  function stopStatus(r){return r.type==='STOP_SKIPPED_DEVIATION'?'NON DESSERVI':r.type==='STOP_ARRIVAL'?'DESSERVI':r.type==='SERVICE_START'?'DÉPART':'PASSÉ'}
+  function stopRows(s,ev){
+    const by=new Map();
+    const keyOf=e=>Number.isInteger(e.stopIndex)?`i${e.stopIndex}`:`n${e.stopName||''}`;
+    const ensure=e=>{const k=keyOf(e);if(!by.has(k))by.set(k,{stopIndex:Number.isInteger(e.stopIndex)?e.stopIndex:null,stopName:e.stopName||'—',arrival:null,departure:null,passed:null,skipped:null,start:null});return by.get(k)};
+    for(const e of ev){
+      if(!['STOP_ARRIVAL','STOP_DEPARTURE','STOP_PASSED','STOP_SKIPPED_DEVIATION'].includes(e.type))continue;
+      const r=ensure(e);if(e.type==='STOP_ARRIVAL')r.arrival=e;else if(e.type==='STOP_DEPARTURE')r.departure=e;else if(e.type==='STOP_SKIPPED_DEVIATION')r.skipped=e;else r.passed=e;
+    }
+    if(s?.startStop){
+      const fake={stopIndex:Number(s.startStopIndex||0),stopName:s.startStop},r=ensure(fake);r.start={type:'SERVICE_START',ts:s.startedAt,scheduledTime:s.scheduledDeparture||null,scheduleDeltaSec:s.scheduledDeparture?Math.round((new Date(s.startedAt)-new Date(s.scheduledDeparture))/1000):null};
+    }
+    return [...by.values()].sort((a,b)=>Number(a.stopIndex??9999)-Number(b.stopIndex??9999)||String(a.arrival?.ts||a.departure?.ts||a.start?.ts||'').localeCompare(String(b.arrival?.ts||b.departure?.ts||b.start?.ts||'')));
+  }
+  function eventTitle(e){const m={SERVICE_START:'Prise de service',SERVICE_CONFIGURATION:'Configuration du service',SERVICE_END:'Fin de service',SERVICE_FINISH_REQUEST:'Fin de service demandée',SERVICE_INTERRUPTED:'Service interrompu',APP_BACKGROUND_OR_CLOSE:'Application mise en arrière-plan / fermée',STOP_ARRIVAL:'Arrivée à un arrêt',STOP_DEPARTURE:'Départ d’un arrêt',STOP_PASSED:'Arrêt franchi',STOP_SKIPPED_DEVIATION:'Arrêt non desservi pendant déviation',REQUEST_ADDED:'Demande d’arrêt ajoutée',REQUEST_REMOVED:'Demande d’arrêt retirée',REQUESTS_CLEARED:'Demandes d’arrêt effacées',RECENTER:'Recalage manuel au poteau',DEVIATION_START:'Début de déviation manuelle',DEVIATION_REJOIN_REQUEST:'Rattrapage de ligne calculé',DEVIATION_END:'Fin de déviation',INCIDENT_REPORT:'Rapport d’incident',CONTROL_ACTION:'Action conducteur',COLLECTIVE_ROUTE:'Billet collectif / parcours',ROAD_PROFILE_READY:'Profil de vitesse route chargé'};return m[e.type]||String(e.type||'Événement').replaceAll('_',' ')}
+  function eventDetail(e){if(e.type==='INCIDENT_REPORT')return `${e.category||''}${e.note?` — ${e.note}`:''}${e.photoDataUrl?' · photo jointe':''}`;if(e.stopName)return e.stopName;if(e.type==='DEVIATION_END')return e.reason||e.rejoinStop||'';if(e.type==='DEVIATION_REJOIN_REQUEST')return `${e.rejoinStop||''}${Number.isFinite(e.recoveryDistanceM)?` · ${Math.round(e.recoveryDistanceM)} m`:''}`;if(e.type==='CONTROL_ACTION')return e.control||'';if(e.type==='SERVICE_CONFIGURATION')return `${e.route||''} · ${e.destination||''} · ${e.serviceMode||''}`;if(e.type==='COLLECTIVE_ROUTE')return `${e.name||'Billet collectif'} · ${e.points||0} points · ${Number.isFinite(e.distanceM)?(e.distanceM/1000).toFixed(1).replace('.',',')+' km':''}`;return e.reason||e.nextStop||''}
+  function visibleEvents(ev){return ev.filter(e=>!['GPS_SAMPLE','ANNOUNCEMENT','PASSENGER_ANNOUNCEMENTS_TOGGLE','NAV_VOICE_TOGGLE'].includes(e.type))}
+  function stopStatus(r){return r.skipped?'NON DESSERVI':r.arrival?'DESSERVI':r.start&&r.departure?'DÉPART EFFECTUÉ':r.passed?'PASSÉ':r.start?'PRISE DE SERVICE':'—'}
   function fmtDelay(sec){if(!Number.isFinite(Number(sec)))return '—';let x=Math.round(Number(sec)),sg=x<0?'−':'+';x=Math.abs(x);return `${sg}${Math.floor(x/60)}:${String(x%60).padStart(2,'0')}`}
+  function stopCellTime(e){return e?.ts?fmtClock(e.ts):'—'}
+  function stopCellPlanned(e,fallback=null){const v=e?.scheduledTime||fallback;return v?fmtClock(v):'—'}
+  function stopCellDelta(e){return e?fmtDelay(e.scheduleDeltaSec):'—'}
   function renderJournalMap(s,ev,rows){const el=q('v29JournalMap');if(!el||typeof L==='undefined')return;if(V29.journal.map){try{V29.journal.map.remove()}catch{}}const planned=plannedTrace(s),actual=actualTrace(ev),center=actual[0]||planned[0]||[48.7,6.2],map=L.map(el).setView(center,12);V29.journal.map=map;L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const bounds=[];if(planned.length>1){L.polyline(planned,{color:'#ffd000',weight:6,opacity:.75}).addTo(map);bounds.push(...planned)}if(actual.length>1){L.polyline(actual,{color:'#45c7ff',weight:5,opacity:.96}).addTo(map);bounds.push(...actual)}for(const e of ev.filter(x=>['DEVIATION_START','DEVIATION_END','INCIDENT_REPORT'].includes(x.type))){if(!Number.isFinite(Number(e.lat))||!Number.isFinite(Number(e.lon)))continue;const p=[Number(e.lat),Number(e.lon)],fill=e.type==='INCIDENT_REPORT'?'#ff6860':e.type==='DEVIATION_START'?'#ffb000':'#55d981';bounds.push(p);L.circleMarker(p,{radius:7,color:'#173447',weight:2,fillColor:fill,fillOpacity:1}).addTo(map).bindPopup(`<b>${esc(eventTitle(e))}</b><br>${esc(eventDetail(e))}<br>${esc(fmtClock(e.ts))}`)}if(bounds.length>1)try{map.fitBounds(bounds,{padding:[25,25],maxZoom:16})}catch{}setTimeout(()=>map.invalidateSize(),80)}
-  async function openJournalV29(id){const [s,ev]=await Promise.all([getJournalSession(id),getJournalEvents(id)]);if(!s)return;V29.journal.current={s,ev};const rows=stopRows(s,ev),actual=actualTrace(ev),timeline=visibleEvents(ev),inc=ev.filter(e=>e.type==='INCIDENT_REPORT').length,dev=ev.filter(e=>e.type==='DEVIATION_START').length;q('v29JournalTitle').textContent=`${s.route||'Ligne'} · ${s.destination||''}`;q('v29JournalSubtitle').textContent=`${fmtDate(s.startedAt)} → ${s.endedAt?fmtDate(s.endedAt):'service en cours'} · ${s.serviceMode||''}${s.tripId?` · trip ${s.tripId}`:''}`;q('v29JournalSummary').innerHTML=`<div class="v29-card"><span>POINTS GPS RÉELS</span><b>${actual.length}</b></div><div class="v29-card"><span>DISTANCE</span><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="v29-card"><span>VITESSE MAX</span><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="v29-card"><span>DÉVIATIONS</span><b>${dev}</b></div><div class="v29-card"><span>INCIDENTS</span><b>${inc}</b></div>`;q('v29JournalStops').innerHTML=`<h3>Arrêts / passages</h3>${rows.length?`<table><thead><tr><th>#</th><th>Arrêt</th><th>Statut</th><th>Réel</th><th>Prévu</th><th>Écart</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.stopName||'—')}</td><td>${esc(stopStatus(r))}</td><td>${esc(fmtClock(r.ts))}</td><td>${esc(r.scheduledTime?fmtClock(r.scheduledTime):'—')}</td><td>${esc(fmtDelay(r.scheduleDeltaSec))}</td></tr>`).join('')}</tbody></table>`:'<div class="v29-status">Aucun passage d’arrêt enregistré.</div>'}`;q('v29JournalTimeline').innerHTML=`<h3>Chronologie complète</h3>${timeline.map(e=>`<div class="v29-event"><time>${esc(fmtClock(e.ts))}</time><b>${esc(eventTitle(e))}</b><span>${esc(eventDetail(e))}</span></div>`).join('')||'<div class="v29-event">Aucun événement.</div>'}`;q('v29Journal').classList.remove('hidden');setTimeout(()=>renderJournalMap(s,ev,rows),40)}
+  async function openJournalV29(id){
+    const [s,ev]=await Promise.all([getJournalSession(id),getJournalEvents(id)]);if(!s)return;V29.journal.current={s,ev};
+    const rows=stopRows(s,ev),actual=actualTrace(ev),timeline=visibleEvents(ev),inc=ev.filter(e=>e.type==='INCIDENT_REPORT').length,dev=ev.filter(e=>e.type==='DEVIATION_START').length;
+    q('v29JournalTitle').textContent=`${s.route||'Ligne'} · ${s.destination||''}`;q('v29JournalSubtitle').textContent=`${fmtDate(s.startedAt)} → ${s.endedAt?fmtDate(s.endedAt):'service en cours'} · ${s.serviceMode||''}${s.tripId?` · trip ${s.tripId}`:''}`;
+    q('v29JournalSummary').innerHTML=`<div class="v29-card"><span>POINTS GPS RÉELS</span><b>${actual.length}</b></div><div class="v29-card"><span>DISTANCE</span><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="v29-card"><span>VITESSE MAX</span><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="v29-card"><span>DÉVIATIONS</span><b>${dev}</b></div><div class="v29-card"><span>INCIDENTS</span><b>${inc}</b></div>`;
+    q('v29JournalStops').innerHTML=`<h3>Arrivées / départs aux arrêts</h3>${rows.length?`<table><thead><tr><th>#</th><th>Arrêt</th><th>Statut</th><th>Arrivée réelle</th><th>Arrivée prévue</th><th>Écart arr.</th><th>Départ réel</th><th>Départ prévu</th><th>Écart dép.</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.stopName||'—')}</td><td>${esc(stopStatus(r))}</td><td>${esc(stopCellTime(r.arrival))}</td><td>${esc(stopCellPlanned(r.arrival))}</td><td>${esc(stopCellDelta(r.arrival))}</td><td>${esc(stopCellTime(r.departure))}</td><td>${esc(stopCellPlanned(r.departure,r.start?.scheduledTime))}</td><td>${esc(stopCellDelta(r.departure))}</td></tr>`).join('')}</tbody></table>`:'<div class="v29-status">Aucun passage d’arrêt enregistré.</div>'}`;
+    q('v29JournalTimeline').innerHTML=`<h3>Chronologie exploitation</h3>${timeline.map(e=>`<div class="v29-event"><time>${esc(fmtClock(e.ts))}</time><b>${esc(eventTitle(e))}</b><span>${esc(eventDetail(e))}</span>${String(e.photoDataUrl||'').startsWith('data:image/')?`<img class="v30-event-photo" src="${e.photoDataUrl}" alt="Photo jointe à l’incident">`:''}</div>`).join('')||'<div class="v29-event">Aucun événement.</div>'}`;
+    q('v29Journal').classList.remove('hidden');setTimeout(()=>renderJournalMap(s,ev,rows),40)
+  }
   function closeJournalV29(){q('v29Journal')?.classList.add('hidden');if(V29.journal.map){try{V29.journal.map.remove()}catch{}V29.journal.map=null}V29.journal.current=null}
-  function journalReport(s,ev){const planned=plannedTrace(s),actual=actualTrace(ev),rows=stopRows(s,ev),timeline=visibleEvents(ev),data=JSON.stringify({planned,actual,events:ev.filter(e=>['DEVIATION_START','DEVIATION_END','INCIDENT_REPORT'].includes(e.type)).map(e=>({type:e.type,title:eventTitle(e),detail:eventDetail(e),ts:e.ts,lat:e.lat,lon:e.lon}))}).replace(/</g,'\\u003c');const stopHtml=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.stopName||'—')}</td><td>${esc(stopStatus(r))}</td><td>${esc(fmtClock(r.ts))}</td><td>${esc(r.scheduledTime?fmtClock(r.scheduledTime):'—')}</td><td>${esc(fmtDelay(r.scheduleDeltaSec))}</td></tr>`).join(''),timelineHtml=timeline.map(e=>`<div class="event"><time>${esc(fmtClock(e.ts))}</time><b>${esc(eventTitle(e))}</b><span>${esc(eventDetail(e))}</span></div>`).join('');return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal intégral ${esc(s.route||'Fluo SAEIV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1150px;margin:auto;padding:18px}.muted{color:#9fb0bb}.legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;font-weight:bold}.planned{color:#ffd000}.actual{color:#45c7ff}#map{height:460px;border:1px solid #355163;border-radius:14px;overflow:hidden}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}table{width:100%;border-collapse:collapse;background:#0d202c}th,td{padding:8px;border-bottom:1px solid #28404e;text-align:left}th{color:#b9cad5}.timeline{background:#0d202c}.event{padding:8px 10px;border-bottom:1px solid #28404e}.event time{color:#ffd000;font-weight:bold}.event b,.event span{display:block;margin-top:2px}.event span{color:#9fb0bb;font-size:.85rem}@media(max-width:750px){.grid{grid-template-columns:1fr}#map{height:360px}table{font-size:.8rem;display:block;overflow:auto}}</style></head><body><main><div class="muted">FLUO SAEIV · JOURNAL INTÉGRAL V29</div><h1>${esc(s.route||'—')} · ${esc(s.destination||'')}</h1><div class="muted">${esc(fmtDate(s.startedAt))} → ${esc(s.endedAt?fmtDate(s.endedAt):'service en cours')} · ${esc(s.serviceMode||'')}</div><div class="legend"><span class="planned">━━━━ Parcours prévu</span><span class="actual">━━━━ Trajet GPS réellement effectué (~5–7 m)</span></div><div id="map"></div><div class="grid"><div><h2>Arrêts / passages</h2><table><thead><tr><th>#</th><th>Arrêt</th><th>Statut</th><th>Réel</th><th>Prévu</th><th>Écart</th></tr></thead><tbody>${stopHtml}</tbody></table></div><div><h2>Chronologie complète</h2><div class="timeline">${timelineHtml}</div></div></div><p class="muted">Le tracé jaune est la géométrie prévue enregistrée lors de la prise de service. Le tracé bleu relie les positions GPS brutes du véhicule. Les déviations, incidents, recalages, demandes et annonces sont conservés dans la chronologie.</p></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const D=${data};const c=D.actual[0]||D.planned[0]||[48.7,6.2],map=L.map('map').setView(c,12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(D.planned.length>1){L.polyline(D.planned,{color:'#ffd000',weight:6,opacity:.75}).addTo(map);b.push(...D.planned)}if(D.actual.length>1){L.polyline(D.actual,{color:'#45c7ff',weight:5,opacity:.96}).addTo(map);b.push(...D.actual)}D.events.forEach(e=>{if(!Number.isFinite(Number(e.lat))||!Number.isFinite(Number(e.lon)))return;const p=[Number(e.lat),Number(e.lon)],fill=e.type==='INCIDENT_REPORT'?'#ff6860':e.type==='DEVIATION_START'?'#ffb000':'#55d981';b.push(p);L.circleMarker(p,{radius:7,color:'#173447',weight:2,fillColor:fill,fillOpacity:1}).addTo(map).bindPopup('<b>'+String(e.title||'').replace(/[<>&]/g,'')+'</b><br>'+String(e.detail||'').replace(/[<>&]/g,'')+'<br>'+new Date(e.ts).toLocaleTimeString('fr-FR'))});if(b.length>1)map.fitBounds(b,{padding:[25,25],maxZoom:16});<\/script></body></html>`}
+  function journalReport(s,ev){
+    const planned=plannedTrace(s),actual=actualTrace(ev),rows=stopRows(s,ev),timeline=visibleEvents(ev);
+    const mapEvents=ev.filter(e=>['DEVIATION_START','DEVIATION_END','INCIDENT_REPORT'].includes(e.type)).map(e=>({type:e.type,title:eventTitle(e),detail:eventDetail(e),ts:e.ts,lat:e.lat,lon:e.lon}));
+    const data=JSON.stringify({planned,actual,events:mapEvents}).replace(/</g,'\u003c');
+    const stopHtml=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.stopName||'—')}</td><td>${esc(stopStatus(r))}</td><td>${esc(stopCellTime(r.arrival))}</td><td>${esc(stopCellPlanned(r.arrival))}</td><td>${esc(stopCellDelta(r.arrival))}</td><td>${esc(stopCellTime(r.departure))}</td><td>${esc(stopCellPlanned(r.departure,r.start?.scheduledTime))}</td><td>${esc(stopCellDelta(r.departure))}</td></tr>`).join('');
+    const timelineHtml=timeline.map(e=>`<div class="event"><time>${esc(fmtClock(e.ts))}</time><b>${esc(eventTitle(e))}</b><span>${esc(eventDetail(e))}</span>${String(e.photoDataUrl||'').startsWith('data:image/')?`<img class="photo" src="${e.photoDataUrl}" alt="Photo jointe à l’incident">`:''}</div>`).join('');
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal intégral ${esc(s.route||'Fluo SAEIV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1250px;margin:auto;padding:18px}.muted{color:#9fb0bb}.legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;font-weight:bold}.planned{color:#ffd000}.actual{color:#45c7ff}#map{height:460px;border:1px solid #355163;border-radius:14px;overflow:hidden}.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);gap:12px;margin-top:14px}table{width:100%;border-collapse:collapse;background:#0d202c;font-size:.82rem}th,td{padding:8px;border-bottom:1px solid #28404e;text-align:left;white-space:nowrap}th{color:#b9cad5}.tablewrap{overflow:auto}.timeline{background:#0d202c}.event{padding:8px 10px;border-bottom:1px solid #28404e}.event time{color:#ffd000;font-weight:bold}.event b,.event span{display:block;margin-top:2px}.event span{color:#9fb0bb;font-size:.85rem}.photo{display:block;max-width:420px;max-height:320px;object-fit:contain;margin-top:8px;border-radius:10px;border:1px solid #355163}@media(max-width:850px){.grid{grid-template-columns:1fr}#map{height:360px}table{font-size:.78rem}}</style></head><body><main><div class="muted">FLUO SAEIV · JOURNAL INTÉGRAL V30</div><h1>${esc(s.route||'—')} · ${esc(s.destination||'')}</h1><div class="muted">${esc(fmtDate(s.startedAt))} → ${esc(s.endedAt?fmtDate(s.endedAt):'service en cours')} · ${esc(s.serviceMode||'')}</div><div class="legend"><span class="planned">━━━━ Parcours prévu</span><span class="actual">━━━━ Trajet GPS réellement effectué (~5–7 m)</span></div><div id="map"></div><div class="grid"><div><h2>Arrivées / départs aux arrêts</h2><div class="tablewrap"><table><thead><tr><th>#</th><th>Arrêt</th><th>Statut</th><th>Arrivée réelle</th><th>Arrivée prévue</th><th>Écart arr.</th><th>Départ réel</th><th>Départ prévu</th><th>Écart dép.</th></tr></thead><tbody>${stopHtml}</tbody></table></div></div><div><h2>Chronologie exploitation</h2><div class="timeline">${timelineHtml}</div></div></div><p class="muted">Le tracé jaune est la géométrie prévue lors de la prise de service. Le tracé bleu relie les positions GPS brutes du véhicule. Les annonces vocales ne sont pas enregistrées dans ce rapport ; les événements d’exploitation, déviations, incidents, recalages et demandes le sont.</p></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const D=${data};const c=D.actual[0]||D.planned[0]||[48.7,6.2],map=L.map('map').setView(c,12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(D.planned.length>1){L.polyline(D.planned,{color:'#ffd000',weight:6,opacity:.75}).addTo(map);b.push(...D.planned)}if(D.actual.length>1){L.polyline(D.actual,{color:'#45c7ff',weight:5,opacity:.96}).addTo(map);b.push(...D.actual)}D.events.forEach(e=>{if(!Number.isFinite(Number(e.lat))||!Number.isFinite(Number(e.lon)))return;const p=[Number(e.lat),Number(e.lon)],fill=e.type==='INCIDENT_REPORT'?'#ff6860':e.type==='DEVIATION_START'?'#ffb000':'#55d981';b.push(p);L.circleMarker(p,{radius:7,color:'#173447',weight:2,fillColor:fill,fillOpacity:1}).addTo(map).bindPopup('<b>'+String(e.title||'').replace(/[<>&]/g,'')+'</b><br>'+String(e.detail||'').replace(/[<>&]/g,'')+'<br>'+new Date(e.ts).toLocaleTimeString('fr-FR'))});if(b.length>1)map.fitBounds(b,{padding:[25,25],maxZoom:16});<\/script></body></html>`
+  }
   function downloadJournalV29(s,ev){const blob=new Blob([journalReport(s,ev)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a'),d=new Date(s.startedAt||Date.now());a.href=url;a.download=`journal-integral-${String(s.route||'ligne').replace(/[^a-z0-9]+/gi,'-')}-${d.toISOString().slice(0,16).replace(':','-')}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800)}
 
   // ---------- Branchement journal de toutes les fonctions ----------
-  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'V29',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
-  try{const baseSay=say;say=function(text,opts={}){const r=baseSay(text,opts);if(state?.running&&text)log('ANNOUNCEMENT',{text:String(text),kind:opts.kind||'general',priority:Number(opts.priority??50),ephemeral:!!opts.ephemeral});return r}}catch(e){console.warn('V29 journal annonces',e)}
+  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'V30',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service-v30',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
+  // V30 : les annonces vocales ne sont plus enregistrées dans le journal d'exploitation.
   try{const baseReq=requestStop;requestStop=function(index,checked){const r=baseReq(index,checked);if(state?.running)log(checked?'REQUEST_ADDED':'REQUEST_REMOVED',{stopIndex:index,stopName:state.pattern?.stops?.[index]?.name||''});return r}}catch(e){console.warn('V29 journal demandes',e)}
   try{const baseRec=recenter;recenter=function(){const before={current:state.current,target:state.target};const r=baseRec();if(state?.running)log('RECENTER',{beforeCurrent:before.current,beforeTarget:before.target,afterCurrent:state.current,afterTarget:state.target,stopName:state.pattern?.stops?.[state.current]?.name||''});if(V29.deviation.active)finishDeviation('recalage manuel au poteau',false);return r}}catch(e){console.warn('V29 journal recalage',e)}
   try{const basePrev=previous;previous=function(){const r=basePrev();if(state?.running)log('CONTROL_ACTION',{control:'Arrêt précédent / recul manuel',current:state.current,target:state.target});return r}}catch{}
@@ -2990,9 +3021,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   try{const baseFinish=finish;finish=function(){if(state?.running)log('SERVICE_FINISH_REQUEST',{current:state.current,target:state.target});if(V29.deviation.active){V29.deviation.active=false;clearRecovery();syncDeviationButtons()}return baseFinish()}}catch(e){console.warn('V29 fin service',e)}
   try{const baseProcess=processPos;processPos=function(p){const r=baseProcess(p);updateEta();if(V29.deviation.active)refreshDeviationHud();return r}}catch(e){console.warn('V29 process hook',e)}
   q('requestsClear')?.addEventListener('click',()=>{if(state?.running)setTimeout(()=>log('REQUESTS_CLEARED',{}),0)});
-  for(const id of ['v28PassengerToggle','v28PassengerToggleSide'])q(id)?.addEventListener('click',()=>{if(state?.running)setTimeout(()=>log('PASSENGER_ANNOUNCEMENTS_TOGGLE',{enabled:state.audio?.passengerEnabled!==false}),0)});
-  for(const id of ['navVoiceBtn','v15NavVoice'])q(id)?.addEventListener('click',()=>{if(state?.running)setTimeout(()=>log('NAV_VOICE_TOGGLE',{control:id}),0)});
-  for(const [id,name] of [['followMap','Suivre le bus'],['simPlayPause','Pause/reprise simulation'],['simSkip','Saut simulation'],['nextBtn','Arrêt suivant manuel'],['speak','Annonce manuelle arrêt']])q(id)?.addEventListener('click',()=>{if(state?.running)log('CONTROL_ACTION',{control:name})});
+  // V30 : les réglages d'annonces voyageurs / GPS vocal ne créent plus d'événement de journal.
+  for(const [id,name] of [['followMap','Suivre le bus'],['simPlayPause','Pause/reprise simulation'],['simSkip','Saut simulation'],['nextBtn','Arrêt suivant manuel']])q(id)?.addEventListener('click',()=>{if(state?.running)log('CONTROL_ACTION',{control:name})});
 
   // ---------- Événements UI ----------
   addUi();syncDeviationButtons();updateEta();setInterval(()=>{updateEta();refreshPreview()},800);setTimeout(refreshPreview,80);
@@ -3005,6 +3035,344 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
   document.title='Fluo SAEIV V29 · Exploitation + journal intégral';
   const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V29 EXPLOITATION + JOURNAL INTÉGRAL';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
+})();
+
+</script>
+
+<script id="v30Module">
+'use strict';
+/* Fluo SAEIV V30 — billet collectif, arrivées/départs journalisés, incident photo,
+   responsive renforcée, classification 54R et vitesse route restaurée. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const V30={
+    road:{key:'',loading:false,legs:new Map(),ids:[],currentLimit:null},
+    departure:{seen:new Set(),arrivalSeen:new Set(),visits:new Map(),startIndex:null},
+    collective:{active:false,stops:null,route:null,map:null,layers:[],seq:0},
+    incident:{busy:false},
+  };
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  const journal=(type,payload={})=>window.FluoJournalCore?.log?.(type,payload);
+
+  const css=document.createElement('style');css.id='v30Style';css.textContent=`
+    .servicebadge.collective{background:#513b0d;border-color:#d9a626;color:#ffe8a6}
+    #driver.collective-running #schedulePanel,#driver.collective-running #departureStrip,#driver.collective-running #nextScheduledWrap{display:none!important}
+    .v30-road-side{margin-top:5px;padding:5px 7px;border:1px solid #355163;border-radius:9px;background:#081720}.v30-road-side span{display:block;color:#91a8b6;font-size:.5rem;font-weight:900;letter-spacing:.08em}.v30-road-side b{display:block;margin-top:1px;color:#fff;font-size:.86rem}.v30-road-side small{display:block;color:#8295a3;font-size:.48rem}
+    .v30-event-photo{display:block;max-width:100%;max-height:220px;object-fit:contain;margin-top:7px;border:1px solid #355163;border-radius:9px}
+    .v30-incident-extra{margin-top:9px;padding:10px;border:1px solid #355163;border-radius:12px;background:#081720}.v30-incident-extra input[type=file]{width:100%;margin-top:6px}.v30-photo-preview{display:none;max-width:100%;max-height:220px;object-fit:contain;margin-top:8px;border-radius:9px;border:1px solid #355163}.v30-photo-preview.show{display:block}.v30-contact-list{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.v30-contact-list a{display:block;padding:10px;border:1px solid #355163;border-radius:10px;background:#102737;color:#eaf7ff;text-decoration:none;font-weight:850}.v30-contact-list a span{display:block;color:#91a8b6;font-size:.66rem;margin-top:2px}.v30-contact-empty{color:#91a8b6;font-size:.7rem}
+    #v30CollectivePanel{margin-top:12px;padding:12px;border:1px solid #355163;border-radius:15px;background:#081720}.v30-collective-head h3{margin:0 0 4px}.v30-collective-head p{margin:0;color:#91a8b6;font-size:.72rem;line-height:1.4}.v30-collective-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}.v30-collective-grid .wide{grid-column:1/-1}.v30-collective-grid input,.v30-collective-grid select{width:100%;background:#07141e;color:#fff;border:1px solid #355163;border-radius:11px;min-height:46px;padding:10px;font:inherit}.v30-point{position:relative;padding:9px;border:1px solid #2e4656;border-radius:12px;background:#07141e}.v30-point-head{display:grid;grid-template-columns:1fr 150px auto;gap:7px;align-items:center}.v30-point-head strong{font-size:.76rem}.v30-point-search{margin-top:7px}.v30-point-results{position:absolute;z-index:60;left:9px;right:9px;top:calc(100% - 3px);max-height:230px;overflow:auto;border:1px solid #355163;border-radius:11px;background:#07141e;box-shadow:0 14px 35px rgba(0,0,0,.55)}.v30-point-results.hidden{display:none!important}.v30-point-result{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.07);cursor:pointer}.v30-point-result:last-child{border-bottom:0}.v30-point-result b{display:block;font-size:.74rem}.v30-point-result span{display:block;color:#91a8b6;font-size:.64rem;margin-top:2px}.v30-selected{display:block;margin-top:5px;color:#bcd2dd;font-size:.67rem}.v30-stage-list{display:grid;gap:8px;margin-top:8px}.v30-collective-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.v30-collective-actions .wide{grid-column:1/-1}.v30-collective-actions button{min-height:46px}.v30-collective-status{margin-top:9px;padding:10px;border:1px solid #355163;border-radius:11px;color:#b9cad5;font-size:.7rem}.v30-collective-status.ok{border-color:#34764c;color:#d1ffdc}.v30-collective-status.err{border-color:#7d3638;color:#ffd6d4}.v30-collective-status.busy{border-color:#79651f;color:#ffe69a}.v30-collective-preview.hidden{display:none!important}#v30CollectiveMap{height:300px;margin-top:10px;border:1px solid #355163;border-radius:13px;overflow:hidden;background:#10202a}.v30-collective-summary{margin-top:8px;color:#cfe0e8;font-size:.72rem}
+    #setup.v30-collective-active .v18-line-grid,#setup.v30-collective-active #scheduleSetup,#setup.v30-collective-active #formationSetup,#setup.v30-collective-active #tadPanel,#setup.v30-collective-active #v30StandardStartStopLabel,#setup.v30-collective-active #courseInfo,#setup.v30-collective-active #v29Preview,#setup.v30-collective-active .start-actions,#setup.v30-collective-active .sim-config,#setup.v30-collective-active #v29PrestartActions{display:none!important}
+    #setup:not(.v30-collective-active) #v30CollectivePanel{display:none!important}
+    @media(min-width:681px){.service-choice-buttons{grid-template-columns:repeat(5,minmax(0,1fr))!important}}
+    @media(max-width:680px){.v30-contact-list,.v30-collective-grid,.v30-collective-actions{grid-template-columns:1fr}.v30-collective-grid .wide,.v30-collective-actions .wide{grid-column:auto}.v30-point-head{grid-template-columns:1fr}.v30-point-head button{width:100%}#v30CollectiveMap{height:260px}}
+  `;document.head.appendChild(css);
+
+  // ---------- Responsive après fermeture des modales ----------
+  function settleResponsive(){
+    const run=()=>{try{state?.nav?.map?.invalidateSize?.({pan:false,animate:false})}catch{}try{window.__fluoV16?.map3d?.resize?.()}catch{}try{window.dispatchEvent(new Event('resize'))}catch{}try{q('driver')?.getBoundingClientRect()}catch{}};
+    [20,120,320,650].forEach(ms=>setTimeout(run,ms));
+  }
+  function closeIncidentV30(){q('v29Incident')?.classList.add('hidden');settleResponsive()}
+
+  // ---------- Rapport incident : autre type, photo optionnelle, contacts futurs ----------
+  const incidentGrid=q('v29Incident')?.querySelector('.v29-grid');
+  if(incidentGrid&&!q('v30IncidentCustomType')){
+    const type=q('v29IncidentType')?.closest('label');
+    type?.insertAdjacentHTML('afterend','<label id="v30IncidentCustomWrap" class="hidden">Type d’incident personnalisé<input id="v30IncidentCustomType" type="text" maxlength="90" placeholder="Ex. objet sur chaussée, erreur d’itinéraire…"></label>');
+    incidentGrid.insertAdjacentHTML('afterend',`<div class="v30-incident-extra"><b>📷 Photo (facultative)</b><div class="v30-contact-empty">Tu peux joindre une photo prise sur le moment ou déjà présente sur le téléphone.</div><button id="v30IncidentCamera" type="button" style="margin-top:8px">📷 Prendre / joindre une photo</button><input id="v30IncidentPhoto" class="hidden" type="file" accept="image/*" capture="environment"><img id="v30IncidentPhotoPreview" class="v30-photo-preview" alt="Aperçu de la photo"><div style="margin-top:12px"><b>📞 Contacts exploitation</b><div id="v30IncidentContacts" class="v30-contact-list"></div></div></div>`);
+  }
+  function syncCustomIncident(){q('v30IncidentCustomWrap')?.classList.toggle('hidden',q('v29IncidentType')?.value!=='Autre')}
+  q('v29IncidentType')?.addEventListener('change',syncCustomIncident);syncCustomIncident();
+  let photoData=null;
+  q('v30IncidentCamera')?.addEventListener('click',()=>q('v30IncidentPhoto')?.click());
+  function fileDataUrl(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result||''));r.onerror=()=>rej(r.error||new Error('lecture photo impossible'));r.readAsDataURL(file)})}
+  async function compressPhoto(file){
+    const raw=await fileDataUrl(file);if(!String(file.type||'').startsWith('image/'))return raw;
+    try{const img=new Image();await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=raw});const max=1600,scale=Math.min(1,max/Math.max(img.naturalWidth||1,img.naturalHeight||1)),w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale)),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',.78)}catch{return raw}
+  }
+  q('v30IncidentPhoto')?.addEventListener('change',async e=>{const f=e.target.files?.[0];photoData=null;const im=q('v30IncidentPhotoPreview');if(!f){im?.classList.remove('show');return}try{photoData=await compressPhoto(f);if(im){im.src=photoData;im.classList.add('show')}q('v29IncidentStatus').textContent='Photo prête à être jointe au rapport.'}catch(err){q('v29IncidentStatus').textContent=`Photo non chargée : ${err.message||err}`}});
+  const CONTACT_KEY='fluoIncidentContactsV30';
+  function contacts(){try{const x=JSON.parse(localStorage.getItem(CONTACT_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return []}}
+  function renderContacts(){const box=q('v30IncidentContacts');if(!box)return;const xs=contacts();box.innerHTML=xs.length?xs.map(c=>`<a href="tel:${esc(String(c.phone||'').replace(/[^+0-9]/g,''))}">📞 ${esc(c.name||'Contact')}<span>${esc(c.role||'')}${c.phone?` · ${esc(c.phone)}`:''}</span></a>`).join(''):'<div class="v30-contact-empty">Aucun numéro configuré pour le moment. Les contacts pourront être ajoutés dès que tu me donneras les noms et numéros.</div>'}
+  window.FluoIncidentContactsV30={list:contacts,set(list){localStorage.setItem(CONTACT_KEY,JSON.stringify(Array.isArray(list)?list:[]));renderContacts()}};renderContacts();
+  async function saveIncidentV30(){
+    if(V30.incident.busy)return;V30.incident.busy=true;const btn=q('v29IncidentSave');if(btn)btn.disabled=true;
+    try{let category=q('v29IncidentType')?.value||'Autre';if(category==='Autre'){const custom=(q('v30IncidentCustomType')?.value||'').trim();if(custom)category=custom}const note=(q('v29IncidentText')?.value||'').trim(),p=state?.pos?.coords;await journal('INCIDENT_REPORT',{category,note,stopName:q('v29IncidentStop')?.value||'',route:state.route?.short||'',tripId:state.run?.trip?.id||null,photoDataUrl:photoData||null,photoAttached:!!photoData,position:p?{lat:p.latitude,lon:p.longitude,accuracy:p.accuracy}:null});q('v29IncidentStatus').className='v29-status ok';q('v29IncidentStatus').textContent=photoData?'✅ Incident et photo enregistrés dans le journal.':'✅ Incident enregistré dans le journal.';setTimeout(()=>{closeIncidentV30();photoData=null;const im=q('v30IncidentPhotoPreview');if(im){im.src='';im.classList.remove('show')}if(q('v30IncidentPhoto'))q('v30IncidentPhoto').value=''},500)}catch(e){q('v29IncidentStatus').className='v29-status err';q('v29IncidentStatus').textContent=`Enregistrement impossible : ${e.message||e}`}finally{V30.incident.busy=false;if(btn)btn.disabled=false}
+  }
+  q('v29IncidentSave')?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();saveIncidentV30()},true);
+  q('v29IncidentClose')?.addEventListener('click',()=>{setTimeout(closeIncidentV30,0)},true);
+  q('v29Incident')?.addEventListener('click',e=>{if(e.target===q('v29Incident'))setTimeout(closeIncidentV30,0)},true);
+  for(const id of ['v29IncidentBtn','v29IncidentSide'])q(id)?.addEventListener('click',()=>{setTimeout(()=>{syncCustomIncident();renderContacts();photoData=null;if(q('v30IncidentCustomType'))q('v30IncidentCustomType').value='';if(q('v30IncidentPhoto'))q('v30IncidentPhoto').value='';q('v30IncidentPhotoPreview')?.classList.remove('show')},0)});
+
+  // ---------- Création de ligne : fermer réellement les résultats après sélection ----------
+  function hardCloseV25Picker(boxId,inputId){const box=q(boxId),input=q(inputId);if(!box)return;const close=()=>setTimeout(()=>{box.classList.add('hidden');input?.blur()},0);box.addEventListener('click',e=>{if(e.target.closest('[data-i]'))close()});box.addEventListener('pointerup',e=>{if(e.target.closest('[data-i]'))close()});input?.addEventListener('blur',()=>setTimeout(()=>box.classList.add('hidden'),160))}
+  hardCloseV25Picker('v25OriginResults','v25OriginSearch');hardCloseV25Picker('v25TerminusResults','v25TerminusSearch');
+
+  // ---------- Arrivée + départ réel de chaque arrêt ----------
+  function scheduledDeparture(index){return state?.run?departureFor(state.run.trip,index,state.run.serviceDate):null}
+  function actualEventDate(planned){return state?.mode==='simulation'&&planned?new Date(planned.getTime()+Number(state.sim?.delaySeconds||0)*1000):new Date()}
+  function logDeparture(index,reason='départ détecté'){
+    if(!state?.running||!Number.isInteger(index)||V30.departure.seen.has(index))return;const st=state.pattern?.stops?.[index];if(!st)return;V30.departure.seen.add(index);const planned=scheduledDeparture(index),actual=actualEventDate(planned),delta=planned?Math.round((actual-planned)/1000):null,p=state.pos?.coords||{};journal('STOP_DEPARTURE',{ts:actual.toISOString(),stopIndex:index,stopName:st.name,scheduledTime:planned?planned.toISOString():null,scheduleDeltaSec:delta,departureReason:reason,lat:Number.isFinite(p.latitude)?p.latitude:null,lon:Number.isFinite(p.longitude)?p.longitude:null,accuracyM:Number.isFinite(p.accuracy)?p.accuracy:null,speedKmh:Number.isFinite(p.speed)&&p.speed>=0?Number((p.speed*3.6).toFixed(1)):null})
+  }
+  function beforeProcessDeparture(p){
+    if(!state?.running||!state?.pattern||!p?.coords)return;const c=p.coords,sp=Number.isFinite(c.speed)&&c.speed>=0?c.speed:0;
+    // Départ de l'arrêt de prise de service.
+    const cur=state.current,curStop=state.pattern.stops[cur];if(Number.isInteger(cur)&&curStop&&!V30.departure.seen.has(cur)){const d=dist(c.latitude,c.longitude,curStop.lat,curStop.lon);if(d>36&&sp>1.0)logDeparture(cur,'sortie du poteau')}
+    // Départ d'un arrêt où l'arrivée a déjà été reconnue, avant que le moteur n'avance vers l'arrêt suivant.
+    const target=state.target,t=state.pattern.stops[target];if(Number.isInteger(target)&&t&&state.arrivalAnnounced&&!V30.departure.seen.has(target)){V30.departure.arrivalSeen.add(target);const d=dist(c.latitude,c.longitude,t.lat,t.lon),visit=V30.departure.visits.get(target)||{minD:Infinity,settled:false};visit.minD=Math.min(visit.minD,d);if(d<=22||sp<1.1)visit.settled=true;V30.departure.visits.set(target,visit);const leftAfterStop=visit.settled&&d>Math.max(36,visit.minD+22)&&sp>1.0;const passedFallback=state.reached&&d>82&&sp>1.0;if(leftAfterStop||passedFallback)logDeparture(target,leftAfterStop?'redémarrage après arrêt':'franchissement du poteau')}
+  }
+  try{const baseEnter=enterDriver;enterDriver=function(mode){V30.departure.seen=new Set();V30.departure.arrivalSeen=new Set();V30.departure.visits=new Map();V30.departure.startIndex=Number(q('startStop')?.value||0);const r=baseEnter(mode);setTimeout(loadRoadProfiles,120);return r}}catch(e){console.warn('V30 enter hook',e)}
+  try{const baseProcess=processPos;processPos=function(p){beforeProcessDeparture(p);const r=baseProcess(p);updateRoadDisplay();updateRoadEta();return r}}catch(e){console.warn('V30 process hook',e)}
+
+  // ---------- Profil de vitesse route + affichage + ETA ----------
+  function opIndices(){const out=[];if(!state?.pattern)return out;let cur=state.current,guard=0;if(Number.isInteger(cur)&&cur<state.pattern.stops.length)out.push(cur);while(guard++<500){const n=nextOperationalStop(cur);if(n===null)break;out.push(n);cur=n}return out}
+  function roadKey(ids){return `${state?.route?.id||state?.route?.short||''}|${state?.pattern?.shape_id||''}|${ids.join(',')}`}
+  async function loadRoadProfiles(){
+    const api=window.FluoRoadProfileApi,ids=opIndices();if(!state?.running||!api||ids.length<2)return;const key=roadKey(ids);if(V30.road.loading||V30.road.key===key&&V30.road.legs.size)return;V30.road.loading=true;V30.road.key=key;V30.road.legs.clear();V30.road.ids=ids;
+    try{const stops=ids.map(i=>state.pattern.stops[i]),legs=await api.profilesForStops(stops);for(let i=0;i<Math.min(legs.length,ids.length-1);i++)V30.road.legs.set(`${ids[i]}-${ids[i+1]}`,legs[i]);journal('ROAD_PROFILE_READY',{legs:V30.road.legs.size,source:'OSM/OSRM',maxBusKmh:100});}catch(e){console.warn('V30 profil route',e);V30.road.legs.clear()}finally{V30.road.loading=false;updateRoadDisplay();updateRoadEta()}
+  }
+  function currentLegProfile(){return V30.road.legs.get(`${state.current}-${state.target}`)||null}
+  function remainingSeconds(profile,p){if(!profile?.segments?.length)return null;const f=Math.max(0,Math.min(1,Number(p)||0));let sec=0;for(const z of profile.segments){const a=Number(z.from),b=Number(z.to),zs=Number(z.seconds)||0;if(f>=b)continue;if(f<=a)sec+=zs;else if(b>a)sec+=zs*(b-f)/(b-a)}return sec}
+  function currentProgress(){try{if(!state?.pos)return 0;return Math.max(0,Math.min(1,legProgress(state.pos.coords.latitude,state.pos.coords.longitude)))}catch{return 0}}
+  function updateRoadDisplay(){
+    let limit=null;const profile=currentLegProfile();if(state?.mode==='simulation'&&window.__fluoV16?.simReady&&Number.isFinite(window.__fluoV16.currentRoadLimit))limit=Math.round(window.__fluoV16.currentRoadLimit);else if(profile?.segments?.length){const x=window.FluoRoadProfileApi?.speedAtProgress(profile,currentProgress());if(Number.isFinite(x))limit=Math.round(x)}V30.road.currentLimit=limit;window.FluoRoadSpeedV30={get currentLimit(){return V30.road.currentLimit}};
+    const sign=q('v16SpeedLimit');if(sign){const b=sign.querySelector('b');if(b)b.textContent=Number.isFinite(limit)?String(limit):'—';sign.title=Number.isFinite(limit)?`Profil routier estimé : ${limit} km/h · car plafonné à 100 km/h`:'Vitesse route indisponible sur cette portion'}
+    const side=q('v30RoadSide');if(side){side.querySelector('b').textContent=Number.isFinite(limit)?`${limit} km/h`:'—';side.querySelector('small').textContent=Number.isFinite(limit)?'profil OSM/OSRM estimé':'donnée indisponible'}
+  }
+  function updateRoadEta(){
+    if(!state?.running||!state?.pattern||!V30.road.legs.size)return;const ids=V30.road.ids,curPos=ids.indexOf(state.current),targetPos=ids.indexOf(state.target);if(curPos<0||targetPos<0)return;const p=currentProgress(),leg=currentLegProfile(),nextSec=remainingSeconds(leg,p);if(!Number.isFinite(nextSec))return;let termSec=nextSec;if(targetPos<ids.length-1)termSec+=30;for(let k=targetPos;k<ids.length-1;k++){const z=V30.road.legs.get(`${ids[k]}-${ids[k+1]}`);if(z)termSec+=Number(z.seconds)||0;if(k<ids.length-2)termSec+=30}const now=Date.now(),a=new Date(now+nextSec*1000),z=new Date(now+termSec*1000),ta=a.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),tz=z.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});if(q('v29EtaNext'))q('v29EtaNext').textContent=ta;if(q('v29EtaTerminus'))q('v29EtaTerminus').textContent=tz;if(q('v29SideEta'))q('v29SideEta').textContent=`ETA prochain ${ta} · terminus ${tz}`
+  }
+  const sideNext=q('v15LandscapeSide')?.querySelector('.v15-line-box');if(sideNext&&!q('v30RoadSide'))sideNext.insertAdjacentHTML('afterend','<div id="v30RoadSide" class="v30-road-side"><span>VITESSE ROUTE</span><b>—</b><small>chargement du profil…</small></div>');
+
+  // ---------- Billet collectif ----------
+  const serviceButtons=document.querySelector('.service-choice-buttons');
+  if(serviceButtons&&!q('v30CollectiveMode')){const b=document.createElement('button');b.id='v30CollectiveMode';b.className='service-mode';b.type='button';b.textContent='🎫 Billet collectif';q('formationMode')?.insertAdjacentElement('afterend',b)}
+  const startLabel=q('startStop')?.closest('label');if(startLabel&&!startLabel.id)startLabel.id='v30StandardStartStopLabel';
+  const choice=document.querySelector('.service-choice');
+  if(choice&&!q('v30CollectivePanel'))choice.insertAdjacentHTML('afterend',`<div id="v30CollectivePanel"><div class="v30-collective-head"><h3>🎫 Billet collectif</h3><p>Construis un parcours libre sans département ni ligne Fluo : départ et destination peuvent être un arrêt Fluo 54/57 ou une adresse, avec autant d’étapes intermédiaires que nécessaire.</p></div><div class="v30-collective-grid"><label>Nom / référence du billet<input id="v30CollectiveName" type="text" maxlength="60" value="Billet collectif"></label><label>Heure indicative de départ<input id="v30CollectiveTime" type="time" step="60"></label></div><div id="v30CollectiveStart"></div><div id="v30CollectiveStages" class="v30-stage-list"></div><button id="v30AddStage" type="button" class="full" style="margin-top:8px">＋ Ajouter une étape</button><div id="v30CollectiveEnd" style="margin-top:8px"></div><div class="v30-collective-actions"><button id="v30CollectiveCalc" class="primary wide" type="button">🗺 CALCULER LE PARCOURS</button></div><div id="v30CollectiveStatus" class="v30-collective-status">Choisis le départ, les éventuelles étapes puis la destination.</div><div id="v30CollectivePreview" class="v30-collective-preview hidden"><div id="v30CollectiveMap"></div><div id="v30CollectiveSummary" class="v30-collective-summary"></div><div class="v30-collective-actions"><button id="v30CollectiveGps" class="primary" type="button">🛰 LANCER EN GPS RÉEL</button><button id="v30CollectiveSim" class="sim" type="button">▶︎ LANCER EN SIMULATION</button></div></div></div>`);
+  function collectiveStatus(text,kind=''){const e=q('v30CollectiveStatus');if(e){e.textContent=text;e.className=`v30-collective-status ${kind}`}}
+  function stopLabel(x){return `${x.name}${x.code?` · ${x.code}`:''} · ${x.dept}`}
+  async function loadCollectiveStops(){if(V30.collective.stops)return V30.collective.stops;const all=[];for(const dept of ['54','57']){try{const d=await jget(`data/${dept}/stops.json`);for(const x of d.stops||[])if(Number.isFinite(Number(x.lat))&&Number.isFinite(Number(x.lon)))all.push({...x,dept:String(x.dept||dept),lat:Number(x.lat),lon:Number(x.lon)})}catch{}}V30.collective.stops=all.sort((a,b)=>String(a.name).localeCompare(String(b.name),'fr'));return all}
+  function searchStops(text){const n=norm(text),bits=n.split(' ').filter(Boolean);if(!n)return[];return (V30.collective.stops||[]).map(x=>{const h=norm(`${x.name} ${x.code||''} ${x.dept}`);let score=bits.every(b=>h.includes(b))?10:0;if(norm(x.name).startsWith(n))score+=30;if(h.startsWith(n))score+=15;return{x,score}}).filter(z=>z.score>0).sort((a,b)=>b.score-a.score).slice(0,30).map(z=>z.x)}
+  function pointHtml(role,idx=0){const title=role==='start'?'Point de départ':role==='end'?'Destination':`Étape ${idx}`;return `<div class="v30-point" data-v30-role="${role}" data-v30-index="${idx}"><div class="v30-point-head"><strong>${title}</strong><select class="v30-point-kind"><option value="stop">Arrêt Fluo 54/57</option><option value="address">Adresse</option></select>${role==='stage'?'<button class="v30-remove-stage" type="button">Supprimer</button>':''}</div><input class="v30-point-search" type="search" autocomplete="off" placeholder="Rechercher un arrêt Fluo…"><span class="v30-selected">Aucun point sélectionné.</span><div class="v30-point-results hidden"></div></div>`}
+  function initCollectiveRows(){if(q('v30CollectiveStart')&&!q('v30CollectiveStart').children.length)q('v30CollectiveStart').innerHTML=pointHtml('start');if(q('v30CollectiveEnd')&&!q('v30CollectiveEnd').children.length)q('v30CollectiveEnd').innerHTML=pointHtml('end')}
+  function bindPointContainer(root){if(!root||root.dataset.v30Bound)return;root.dataset.v30Bound='1';root.addEventListener('change',e=>{const kind=e.target.closest('.v30-point-kind');if(!kind)return;const row=kind.closest('.v30-point'),input=row.querySelector('.v30-point-search'),results=row.querySelector('.v30-point-results');row._v30Point=null;input.value='';row.querySelector('.v30-selected').textContent='Aucun point sélectionné.';results.classList.add('hidden');input.placeholder=kind.value==='address'?'Saisir une adresse complète…':'Rechercher un arrêt Fluo…'});root.addEventListener('input',e=>{const input=e.target.closest('.v30-point-search');if(!input)return;const row=input.closest('.v30-point'),kind=row.querySelector('.v30-point-kind').value,box=row.querySelector('.v30-point-results');row._v30Point=null;row.querySelector('.v30-selected').textContent=kind==='address'?'Adresse à géocoder lors du calcul.':'Aucun arrêt sélectionné.';if(kind!=='stop'||input.value.trim().length<2){box.classList.add('hidden');return}const xs=searchStops(input.value);box._xs=xs;box.innerHTML=xs.length?xs.map((x,i)=>`<div class="v30-point-result" data-v30-result="${i}"><b>${esc(x.name)}</b><span>${esc(x.code||'sans code')} · département ${esc(x.dept)}</span></div>`).join(''):'<div class="v30-point-result"><span>Aucun arrêt trouvé.</span></div>';box.classList.remove('hidden')});root.addEventListener('click',e=>{const rr=e.target.closest('[data-v30-result]');if(rr){const row=rr.closest('.v30-point'),box=row.querySelector('.v30-point-results'),x=box._xs?.[Number(rr.dataset.v30Result)];if(x){row._v30Point={lat:Number(x.lat),lon:Number(x.lon),name:x.name,id:x.id||null,dept:x.dept,kind:'stop'};row.querySelector('.v30-point-search').value=x.name;row.querySelector('.v30-selected').textContent=stopLabel(x);box.classList.add('hidden');row.querySelector('.v30-point-search').blur()}return}const del=e.target.closest('.v30-remove-stage');if(del){del.closest('.v30-point')?.remove();renumberStages()}});root.addEventListener('focusout',e=>{const row=e.target.closest('.v30-point');if(row)setTimeout(()=>row.querySelector('.v30-point-results')?.classList.add('hidden'),160)})}
+  function renumberStages(){[...q('v30CollectiveStages').querySelectorAll('.v30-point')].forEach((r,i)=>{r.dataset.v30Index=String(i+1);const b=r.querySelector('strong');if(b)b.textContent=`Étape ${i+1}`})}
+  initCollectiveRows();[q('v30CollectiveStart'),q('v30CollectiveStages'),q('v30CollectiveEnd')].forEach(bindPointContainer);
+  q('v30AddStage')?.addEventListener('click',()=>{const box=q('v30CollectiveStages'),n=box.querySelectorAll('.v30-point').length+1;box.insertAdjacentHTML('beforeend',pointHtml('stage',n));renumberStages()});
+  async function geocodeAddress(text){const qv=String(text||'').trim();if(!qv)throw new Error('adresse vide');try{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=fr&accept-language=fr&q=${encodeURIComponent(qv)}`,{headers:{Accept:'application/json'}});if(r.ok){const x=(await r.json())?.[0];if(x)return{lat:Number(x.lat),lon:Number(x.lon),name:x.display_name||qv,kind:'address'}}}catch{}const r=await fetch(`https://photon.komoot.io/api/?limit=1&lang=fr&q=${encodeURIComponent(qv)}`);if(!r.ok)throw new Error(`adresse introuvable : ${qv}`);const f=(await r.json())?.features?.[0];if(!f)throw new Error(`adresse introuvable : ${qv}`);return{lat:Number(f.geometry.coordinates[1]),lon:Number(f.geometry.coordinates[0]),name:[f.properties?.name,f.properties?.street,f.properties?.city].filter(Boolean).join(', ')||qv,kind:'address'}}
+  async function resolveRow(row){const kind=row.querySelector('.v30-point-kind').value,input=row.querySelector('.v30-point-search');if(kind==='stop'){if(!row._v30Point)throw new Error(`sélectionne ${row.querySelector('strong').textContent.toLowerCase()} dans la liste des arrêts`);return row._v30Point}collectiveStatus(`Recherche de l’adresse « ${input.value.trim()} »…`,'busy');const p=await geocodeAddress(input.value);row._v30Point=p;row.querySelector('.v30-selected').textContent=p.name;return p}
+  async function routeCollective(points){const shape=[];let distance=0,duration=0;for(let i=0;i<points.length-1;){const end=Math.min(points.length,i+20),chunk=points.slice(i,end),coords=chunk.map(p=>`${p.lon},${p.lat}`).join(';'),r=await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=false&continue_straight=true`,{cache:'no-store'});if(!r.ok)throw new Error(`routage HTTP ${r.status}`);const d=await r.json(),rt=d?.routes?.[0],g=rt?.geometry?.coordinates;if(d?.code!=='Ok'||!Array.isArray(g)||g.length<2)throw new Error('aucun itinéraire routier trouvé');for(const c of g){const p=[Number(c[1]),Number(c[0])],z=shape.at(-1);if(!z||dist(z[0],z[1],p[0],p[1])>.8)shape.push(p)}distance+=Number(rt.distance||0);duration+=Number(rt.duration||0);if(end>=points.length)break;i=end-1}return{shape,distance,duration}}
+  function renderCollectiveMap(route){const el=q('v30CollectiveMap');if(!el||typeof L==='undefined')return;if(V30.collective.map){try{V30.collective.map.remove()}catch{}}const map=L.map(el).setView(route.shape[0]||[48.7,6.2],11);V30.collective.map=map;L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];L.polyline(route.shape,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...route.shape);route.points.forEach((p,i)=>{const pos=[p.lat,p.lon];b.push(pos);L.circleMarker(pos,{radius:i===0||i===route.points.length-1?8:6,color:'#173447',weight:2,fillColor:i===0?'#55d981':i===route.points.length-1?'#ffb000':'#fff',fillOpacity:1}).addTo(map).bindPopup(`<b>${i===0?'Départ':i===route.points.length-1?'Destination':`Étape ${i}`}</b><br>${esc(p.name)}`)});if(b.length>1)map.fitBounds(b,{padding:[25,25],maxZoom:15});setTimeout(()=>map.invalidateSize(),80)}
+  async function calculateCollective(){try{await loadCollectiveStops();const rows=[q('v30CollectiveStart').querySelector('.v30-point'),...q('v30CollectiveStages').querySelectorAll('.v30-point'),q('v30CollectiveEnd').querySelector('.v30-point')],points=[];for(const row of rows)points.push(await resolveRow(row));collectiveStatus('Calcul du parcours routier…','busy');const r=await routeCollective(points);V30.collective.route={...r,points,name:(q('v30CollectiveName')?.value||'Billet collectif').trim()||'Billet collectif',createdAt:new Date().toISOString()};q('v30CollectivePreview').classList.remove('hidden');q('v30CollectiveSummary').textContent=`${points.length} points · ${(r.distance/1000).toFixed(1).replace('.',',')} km · environ ${Math.max(1,Math.round(r.duration/60))} min hors arrêts.`;renderCollectiveMap(V30.collective.route);collectiveStatus('✅ Parcours prêt. Tu peux lancer la navigation réelle ou la simulation.','ok')}catch(e){collectiveStatus(`Impossible de créer le billet collectif : ${e.message||e}`,'err')}}
+  function setCollectiveUi(on){V30.collective.active=!!on;q('setup')?.classList.toggle('v30-collective-active',!!on);q('v30CollectiveMode')?.classList.toggle('active',!!on);if(on){[q('regularMode'),q('tadMode'),q('formationMode')].forEach(x=>x?.classList.remove('active'));if(ui.serviceModeHelp)ui.serviceModeHelp.textContent='Billet collectif : construis librement le trajet depuis un arrêt Fluo ou une adresse, ajoute des étapes, puis lance la navigation réelle ou la simulation.';const t=q('v30CollectiveTime');if(t&&!t.value){const n=new Date();t.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`};loadCollectiveStops().then(()=>collectiveStatus('Choisis le départ, les éventuelles étapes puis la destination.')).catch(()=>collectiveStatus('Les arrêts Fluo n’ont pas pu être préchargés ; les adresses restent disponibles.','err'))}}
+  try{const baseSet=setServiceMode;setServiceMode=function(mode){if(mode==='collective'){baseSet('regular');state.service.mode='collective';setCollectiveUi(true);return}setCollectiveUi(false);return baseSet(mode)}}catch(e){console.warn('V30 service mode',e)}
+  q('v30CollectiveMode')?.addEventListener('click',()=>setServiceMode('collective'));
+  q('v30CollectiveCalc')?.addEventListener('click',calculateCollective);
+  function activateCollective(mode){const route=V30.collective.route;if(!route?.shape?.length||route.points?.length<2)return collectiveStatus('Calcule d’abord le parcours.','err');state.service.mode='collective';state.dept='COLLECTIF';state.route={id:`collective-${Date.now()}`,short:'BC',long:route.name,custom:true};const stops=route.points.map((p,i)=>({id:`collective-${i}`,name:p.name,lat:Number(p.lat),lon:Number(p.lon),arrival:'',departure:''})),pattern={headsign:stops.at(-1).name,direction:'collective',shape_id:`collective-${Date.now()}`,trace_source:'collective_osrm_v30',shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),stops,trips:[]};state.patterns=[pattern];state.pattern=pattern;state.runOptions=[];state.run=null;state.current=0;state.target=1;state.service.tadStops.clear();state.service.requestedStops.clear();state.service.requestAlertIndex=null;state.service.requestChimedStops.clear();ui.startStop.innerHTML=stops.map((x,i)=>`<option value="${i}">${i+1}. ${esc(x.name)}</option>`).join('');ui.startStop.disabled=false;ui.startStop.value='0';prepareCourseGeometry();labels();if(mode==='gps')startGps();else startSimulation();setTimeout(()=>journal('COLLECTIVE_ROUTE',{name:route.name,points:route.points.length,distanceM:Math.round(route.distance),durationS:Math.round(route.duration),waypoints:route.points.map((p,i)=>({order:i+1,name:p.name,lat:p.lat,lon:p.lon,kind:p.kind}))}),500)}
+  q('v30CollectiveGps')?.addEventListener('click',()=>activateCollective('gps'));q('v30CollectiveSim')?.addEventListener('click',()=>activateCollective('simulation'));
+
+  // Version / journal policy.
+  const label=()=>{document.title='Fluo SAEIV V30 · Billet collectif + journal arrêts + vitesse route';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30 EXPLOITATION';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
+})();
+</script>
+
+
+<script id="v301RoadResponsivePatch">
+'use strict';
+/* Fluo SAEIV V30.1 — routes à éviter par rue/carte, ARRÊT DEMANDÉ intégré au prochain arrêt,
+   et consolidation responsive sans modifier le moteur stable. */
+(() => {
+  const q=id=>document.getElementById(id);
+  const AVOID_KEY='fluoAvoidRoadsV29';
+  const GROUP_KEY='fluoAvoidRoadGroupsV301';
+  const V301={avoidMap:null,avoidLayers:[],mode:null,portionStart:null,portionMarker:null,pending:null,busy:false};
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const uid=()=>crypto.randomUUID?crypto.randomUUID():`avoid-road-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const distance=(a,b)=>typeof dist==='function'?dist(a[0],a[1],b[0],b[1]):0;
+
+  // ---------- Responsive général + ARRÊT DEMANDÉ sans changement de hauteur ----------
+  const css=document.createElement('style');css.id='v301Style';css.textContent=`
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{max-width:100%;overflow-x:hidden}
+    input,select,textarea,button{min-width:0;max-width:100%}
+    #requestAlert{position:fixed!important;left:-10000px!important;top:-10000px!important;width:1px!important;height:1px!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;pointer-events:none!important;opacity:0!important}
+    #v15RequestBox{display:none!important}
+    #driver .next.v301-requested,.v15-next-box.v301-requested{border-color:#ffd000!important;box-shadow:inset 0 0 0 1px rgba(255,208,0,.45),0 0 14px rgba(255,208,0,.12)!important}
+    #driver .next .lbl.v301-request-label,.v15-next-box>span.v301-request-label{color:#ffd000!important;font-weight:1000!important;letter-spacing:.08em!important}
+
+    .v301-admin-help{margin:0 0 10px;padding:9px 10px;border:1px solid #355163;border-radius:12px;background:#091923;color:#b9cad5;font-size:.7rem;line-height:1.4}
+    .v301-address-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.v301-address-row input{width:100%;background:#07141e;color:#fff;border:1px solid #355163;border-radius:12px;min-height:47px;padding:10px 11px;font:inherit}.v301-address-row button{min-height:47px}
+    .v301-map-tools{display:grid;grid-template-columns:1fr 1fr auto;gap:7px;margin-top:9px}.v301-map-tools button{min-height:42px}.v301-map-tools button.active{background:#4a3c09;border-color:#ffd000;color:#fff3bd}
+    #v301AvoidMap{height:330px;margin-top:9px;border:1px solid #355163;border-radius:14px;overflow:hidden;background:#10202a}
+    .v301-pending{margin-top:9px;padding:10px;border:1px solid #355163;border-radius:12px;background:#081720;color:#b9cad5;font-size:.72rem;line-height:1.4}.v301-pending b{color:#fff}.v301-pending.ok{border-color:#34764c;color:#d1ffdc}.v301-pending.busy{border-color:#79651f;color:#ffe69a}.v301-pending.err{border-color:#7d3638;color:#ffd6d4}
+    .v301-admin-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:9px}.v301-admin-actions button{min-height:46px}
+    .v301-road-item{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px;border:1px solid #2e4656;border-radius:11px;background:#081720;margin-top:6px}.v301-road-item strong{display:block}.v301-road-item span{display:block;color:#91a8b6;font-size:.67rem;margin-top:3px;line-height:1.3}.v301-road-item button{padding:7px 8px;font-size:.68rem;align-self:center}.v301-source{display:inline-block!important;width:max-content;padding:3px 6px;border-radius:999px;background:#173142;color:#d9edf6!important;font-size:.58rem!important;font-weight:900!important}
+
+    @media(max-width:680px){
+      .app{width:100%!important;max-width:100%!important;padding-left:max(7px,env(safe-area-inset-left))!important;padding-right:max(7px,env(safe-area-inset-right))!important}
+      .panel{width:100%!important;min-width:0!important;overflow-x:hidden!important}
+      .service-choice-buttons{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important}.service-mode{white-space:normal!important;line-height:1.15!important;min-height:48px!important}
+      .v13-userbar{max-width:100%;row-gap:5px}.v13-userbar>*{max-width:100%}
+      .v301-address-row,.v301-map-tools{grid-template-columns:1fr}.v301-map-tools button{width:100%}#v301AvoidMap{height:min(42dvh,330px);min-height:235px}
+      .v29-sheet,.v26-sheet,.v25-sheet,.v24-detail,.v23-detail,.v13-sheet{width:100%!important;max-width:100%!important;max-height:calc(100dvh - env(safe-area-inset-top))!important;min-height:0!important}
+      .v29-scroll,.v26-scroll,.v25-scroll,.v24-detail-scroll,.v23-detail-scroll{flex:1 1 auto!important;min-height:0!important;overflow:auto!important;-webkit-overflow-scrolling:touch}
+      .v29-head,.v26-head,.v25-head,.v24-detail-head,.v23-detail-head{min-width:0}.v29-head>div,.v26-head>div,.v25-head>div,.v24-detail-head>div,.v23-detail-head>div{min-width:0}
+      #driver .next strong{overflow-wrap:anywhere}
+    }
+    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){
+      #v15LandscapeSide{overflow:hidden!important;min-height:0!important}
+      #v15LandscapeSide .v15-next-box{position:relative!important;min-height:0!important;overflow:hidden!important}
+      #v15LandscapeSide .v15-next-box strong{overflow-wrap:anywhere!important}
+      #v281LandscapeDock{bottom:max(3px,env(safe-area-inset-bottom))!important}
+      .v29-sheet,.v26-sheet,.v25-sheet,.v24-detail,.v23-detail,.v13-sheet{max-height:calc(100dvh - 4px)!important}
+      .v29-scroll,.v26-scroll,.v25-scroll,.v24-detail-scroll,.v23-detail-scroll{min-height:0!important;overflow:auto!important}
+      #v301AvoidMap{height:min(58dvh,310px);min-height:190px}
+    }
+  `;document.head.appendChild(css);
+
+  function syncRequestLabel(){
+    const alert=q('requestAlert'),requested=!!alert&&!alert.classList.contains('hidden');
+    const mainBox=q('next')?.closest('.next')||document.querySelector('#driver .next'),mainLabel=mainBox?.querySelector('.lbl');
+    const sideBox=q('v15LandscapeSide')?.querySelector('.v15-next-box'),sideLabel=sideBox?.querySelector(':scope > span:first-child');
+    if(mainLabel){mainLabel.textContent=requested?'🔔 ARRÊT DEMANDÉ':'PROCHAIN ARRÊT';mainLabel.classList.toggle('v301-request-label',requested)}
+    if(sideLabel){sideLabel.textContent=requested?'🔔 ARRÊT DEMANDÉ':'PROCHAIN ARRÊT';sideLabel.classList.toggle('v301-request-label',requested)}
+    mainBox?.classList.toggle('v301-requested',requested);sideBox?.classList.toggle('v301-requested',requested);
+  }
+  if(q('requestAlert')){new MutationObserver(syncRequestLabel).observe(q('requestAlert'),{attributes:true,childList:true,subtree:true});syncRequestLabel()}
+
+  function settleResponsive(){
+    const apply=()=>{
+      const h=window.visualViewport?.height||window.innerHeight;document.documentElement.style.setProperty('--fluo-vh',`${h}px`);
+      try{state?.nav?.map?.invalidateSize?.({pan:false,animate:false})}catch{}
+      try{window.__fluoV16?.map3d?.resize?.()}catch{}
+      try{V301.avoidMap?.invalidateSize?.()}catch{}
+      try{window.dispatchEvent(new Event('resize'))}catch{}
+    };
+    [0,80,220,500].forEach(ms=>setTimeout(apply,ms));
+  }
+  window.visualViewport?.addEventListener('resize',settleResponsive,{passive:true});
+  window.addEventListener('orientationchange',settleResponsive,{passive:true});
+  document.querySelectorAll('.v29-backdrop,.v26-backdrop,.v25-backdrop,.v24-detail-backdrop,.v23-detail-backdrop,.v13-sheet-backdrop').forEach(el=>new MutationObserver(()=>{if(el.classList.contains('hidden'))settleResponsive()}).observe(el,{attributes:true,attributeFilter:['class']}));
+
+  // ---------- Routes à éviter : rue entière par adresse OU sélection carte ----------
+  function readPoints(){try{const x=JSON.parse(localStorage.getItem(AVOID_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return []}}
+  function writePoints(xs){localStorage.setItem(AVOID_KEY,JSON.stringify(xs.slice(0,1600)))}
+  function readGroups(){try{const x=JSON.parse(localStorage.getItem(GROUP_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return []}}
+  function writeGroups(xs){localStorage.setItem(GROUP_KEY,JSON.stringify(xs.slice(0,120)))}
+  function status(text,kind=''){const e=q('v301AvoidStatus');if(e){e.textContent=text;e.className=`v301-pending ${kind}`}}
+  function clearAvoidLayers(){if(!V301.avoidMap)return;V301.avoidLayers.forEach(x=>{try{V301.avoidMap.removeLayer(x)}catch{}});V301.avoidLayers=[];if(V301.portionMarker){try{V301.avoidMap.removeLayer(V301.portionMarker)}catch{}V301.portionMarker=null}}
+  function flattenCoords(geo){
+    if(!geo)return[];const type=geo.type,c=geo.coordinates;
+    if(type==='LineString')return[c.map(x=>[Number(x[1]),Number(x[0])])];
+    if(type==='MultiLineString')return(c||[]).map(line=>line.map(x=>[Number(x[1]),Number(x[0])])).filter(x=>x.length>1);
+    if(type==='Polygon')return(c||[]).slice(0,1).map(line=>line.map(x=>[Number(x[1]),Number(x[0])])).filter(x=>x.length>1);
+    if(type==='MultiPolygon')return(c||[]).flatMap(poly=>(poly||[]).slice(0,1).map(line=>line.map(x=>[Number(x[1]),Number(x[0])]))).filter(x=>x.length>1);
+    return[];
+  }
+  function sanitizeSegments(segments){return(segments||[]).map(seg=>seg.map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]))).filter(x=>x.length>1)}
+  function segmentBounds(segments){const xs=segments.flat();return xs.length?xs:null}
+  function totalLength(segments){let m=0;for(const seg of segments)for(let i=1;i<seg.length;i++)m+=distance(seg[i-1],seg[i]);return m}
+  function sampleSegments(segments,group){
+    const total=Math.max(1,totalLength(segments)),spacing=Math.max(24,total/220),radius=Math.max(13,Math.min(20,spacing*.62)),out=[];
+    for(const seg of segments){for(let i=1;i<seg.length;i++){const a=seg[i-1],b=seg[i],len=Math.max(.1,distance(a,b)),n=Math.max(1,Math.ceil(len/spacing));for(let j=0;j<n;j++){const f=j/n;out.push({id:`${group.id}-${out.length}`,groupId:group.id,road:true,name:group.name,lat:a[0]+(b[0]-a[0])*f,lon:a[1]+(b[1]-a[1])*f,radius,createdAt:group.createdAt})}}}
+    const last=segments.at(-1)?.at(-1);if(last)out.push({id:`${group.id}-${out.length}`,groupId:group.id,road:true,name:group.name,lat:last[0],lon:last[1],radius,createdAt:group.createdAt});return out;
+  }
+  function sourceLabel(s){return s==='address'?'Adresse / rue entière':s==='map-street'?'Rue entière sélectionnée sur carte':s==='map-portion'?'Portion sélectionnée sur carte':'Zone ancienne'}
+  function renderAvoidList(){
+    const box=q('v29AvoidList');if(!box)return;const groups=readGroups(),points=readPoints(),groupIds=new Set(groups.map(g=>g.id)),legacy=points.filter(p=>!p.groupId||!groupIds.has(p.groupId));
+    const groupHtml=groups.map(g=>`<div class="v301-road-item" data-v301-group="${esc(g.id)}"><div><strong>${esc(g.name||'Route à éviter')}</strong><span class="v301-source">${esc(sourceLabel(g.source))}</span><span>${Math.max(1,Math.round(Number(g.lengthM||0)))} m de voirie · ${Number(g.sampleCount||0)} points de contrôle internes</span></div><button type="button" class="danger" data-v301-delete-group="${esc(g.id)}">Supprimer</button></div>`).join('');
+    const legacyHtml=legacy.map(p=>`<div class="v301-road-item"><div><strong>${esc(p.name||'Ancienne zone à éviter')}</strong><span class="v301-source">Ancienne zone ponctuelle</span><span>Zone conservée depuis une version précédente.</span></div><button type="button" class="danger" data-v301-delete-point="${esc(p.id)}">Supprimer</button></div>`).join('');
+    box.innerHTML=groupHtml+legacyHtml||'<div class="v29-status">Aucune route à éviter enregistrée.</div>';
+  }
+
+  function adminBody(){
+    const body=q('v29AdminBody');if(!body)return;
+    body.innerHTML=`<div class="v301-admin-help"><b>Deux méthodes :</b> saisis une rue/adresse pour que l’application récupère toute la voirie correspondante, ou sélectionne directement une rue / une portion sur la carte. Aucune latitude ni longitude à saisir.</div>
+      <div class="v301-address-row"><label>Rue ou adresse complète<input id="v301AvoidAddress" type="search" autocomplete="street-address" placeholder="Ex. Rue de Brive, 57170 Château-Salins"></label><button id="v301FindRoad" class="primary" type="button">🔎 Trouver la rue entière</button></div>
+      <div class="v301-map-tools"><button id="v301PickStreet" type="button">🛣 Rue entière sur la carte</button><button id="v301PickPortion" type="button">✂️ Portion sur la carte</button><button id="v301CancelPick" type="button">Annuler</button></div>
+      <div id="v301AvoidMap"></div>
+      <label style="display:block;margin-top:9px">Nom affiché (facultatif)<input id="v301AvoidLabel" type="text" maxlength="100" placeholder="Le nom de la rue sera repris automatiquement" style="width:100%;background:#07141e;color:#fff;border:1px solid #355163;border-radius:12px;min-height:47px;padding:10px 11px;font:inherit"></label>
+      <div id="v301AvoidStatus" class="v301-pending">Saisis une rue ou choisis un mode de sélection sur la carte.</div>
+      <div class="v301-admin-actions"><button id="v301SaveRoad" class="primary" type="button" disabled>💾 ENREGISTRER CETTE ROUTE À ÉVITER</button></div>
+      <div id="v29AvoidList" class="v29-admin-list"></div>`;
+    bindAdminControls();renderAvoidList();
+  }
+
+  function ensureAvoidMap(){
+    const el=q('v301AvoidMap');if(V301.avoidMap||!el||typeof L==='undefined')return V301.avoidMap;
+    V301.avoidMap=L.map(el,{zoomControl:true,attributionControl:true}).setView([48.7,6.2],9);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(V301.avoidMap);
+    V301.avoidMap.on('click',onAvoidMapClick);
+    const c=state?.pos?.coords;if(c&&Number.isFinite(c.latitude)&&Number.isFinite(c.longitude))V301.avoidMap.setView([c.latitude,c.longitude],14);
+    setTimeout(()=>V301.avoidMap?.invalidateSize(),100);return V301.avoidMap;
+  }
+  function showPending(group){
+    V301.pending=group;const map=ensureAvoidMap();clearAvoidLayers();const bounds=[];
+    for(const seg of group.segments){const l=L.polyline(seg,{color:'#ff6860',weight:7,opacity:.92}).addTo(map);V301.avoidLayers.push(l);bounds.push(...seg)}
+    if(bounds.length>1)try{map.fitBounds(bounds,{padding:[24,24],maxZoom:17})}catch{}
+    const label=q('v301AvoidLabel');if(label&&!label.value.trim())label.value=group.name||'';
+    q('v301SaveRoad').disabled=false;status(`✅ ${group.name} reconnue · environ ${Math.max(1,Math.round(group.lengthM))} m. Vérifie le tracé rouge puis enregistre.`,'ok');
+  }
+  async function fetchJson(url,opts={}){const r=await fetch(url,{cache:'no-store',...opts});if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json()}
+  async function geocodeRoad(query){
+    const text=String(query||'').trim();if(!text)throw new Error('saisis une rue ou une adresse');
+    try{
+      const xs=await fetchJson(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=fr&accept-language=fr&addressdetails=1&polygon_geojson=1&q=${encodeURIComponent(text)}`,{headers:{Accept:'application/json'}});
+      const x=(xs||[])[0];if(x){const a=x.address||{},road=a.road||a.pedestrian||a.cycleway||a.footway||((x.class==='highway'||x.category==='highway')?x.name:null)||text.split(',')[0].trim();return{lat:Number(x.lat),lon:Number(x.lon),roadName:road,displayName:x.display_name||text,geojson:x.geojson||null}}
+    }catch{}
+    const d=await fetchJson(`https://photon.komoot.io/api/?limit=1&lang=fr&q=${encodeURIComponent(text)}`),f=d?.features?.[0];if(!f)throw new Error('adresse introuvable');const p=f.properties||{};return{lat:Number(f.geometry.coordinates[1]),lon:Number(f.geometry.coordinates[0]),roadName:p.street||p.name||text.split(',')[0].trim(),displayName:[p.name,p.street,p.city,p.postcode].filter(Boolean).join(', ')||text,geojson:null};
+  }
+  async function reverseRoad(lat,lon){
+    const d=await fetchJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=fr&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,{headers:{Accept:'application/json'}}),a=d.address||{};
+    const road=a.road||a.pedestrian||a.cycleway||a.footway||a.path;if(!road)throw new Error('aucun nom de rue trouvé ici ; touche plus précisément la chaussée');return{roadName:road,displayName:d.display_name||road,lat:Number(d.lat||lat),lon:Number(d.lon||lon)};
+  }
+  function ovEscape(s){return String(s||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"')}
+  async function overpassRoad(name,lat,lon){
+    const query=`[out:json][timeout:18];way(around:5000,${Number(lat).toFixed(7)},${Number(lon).toFixed(7)})["highway"]["name"="${ovEscape(name)}"];out geom;`;
+    let lastErr=null;for(const base of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']){try{const d=await fetchJson(`${base}?data=${encodeURIComponent(query)}`);const segs=(d.elements||[]).map(e=>(e.geometry||[]).map(p=>[Number(p.lat),Number(p.lon)])).filter(x=>x.length>1);if(segs.length)return sanitizeSegments(segs)}catch(e){lastErr=e}}
+    throw lastErr||new Error('géométrie de rue introuvable dans OpenStreetMap');
+  }
+  async function roadFromAddress(){
+    if(V301.busy)return;V301.busy=true;q('v301FindRoad').disabled=true;status('Recherche de la rue et de sa géométrie OpenStreetMap…','busy');
+    try{const g=await geocodeRoad(q('v301AvoidAddress').value);let segments=[];try{segments=await overpassRoad(g.roadName,g.lat,g.lon)}catch{segments=sanitizeSegments(flattenCoords(g.geojson))}if(!segments.length)throw new Error(`la rue « ${g.roadName} » est localisée, mais son tracé complet n’a pas pu être récupéré. Utilise la sélection sur carte.`);showPending({id:uid(),name:g.roadName||g.displayName,source:'address',address:g.displayName,segments,lengthM:totalLength(segments),createdAt:new Date().toISOString()})}catch(e){status(`Recherche impossible : ${e.message||e}`,'err')}finally{V301.busy=false;q('v301FindRoad').disabled=false}
+  }
+  function setPickMode(mode){V301.mode=mode;V301.portionStart=null;if(V301.portionMarker){try{V301.avoidMap?.removeLayer(V301.portionMarker)}catch{}V301.portionMarker=null}[q('v301PickStreet'),q('v301PickPortion')].forEach(b=>b?.classList.remove('active'));if(mode==='street'){q('v301PickStreet')?.classList.add('active');status('Mode rue entière : touche la chaussée sur la carte. Son nom et toute sa géométrie seront recherchés.','busy')}else if(mode==='portion'){q('v301PickPortion')?.classList.add('active');status('Mode portion : touche le début de la portion, puis son extrémité.','busy')}else status('Sélection carte annulée.','')}
+  async function osrmPortion(a,b){const d=await fetchJson(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=false&alternatives=false`),rt=d?.routes?.[0],g=rt?.geometry?.coordinates;if(d?.code!=='Ok'||!Array.isArray(g)||g.length<2)throw new Error('portion routière introuvable');return{segment:g.map(c=>[Number(c[1]),Number(c[0])]),distance:Number(rt.distance||0)}}
+  async function onAvoidMapClick(e){
+    if(!V301.mode||V301.busy)return;const p={lat:e.latlng.lat,lon:e.latlng.lng};V301.busy=true;
+    try{
+      if(V301.mode==='street'){
+        status('Identification de la rue sélectionnée…','busy');const r=await reverseRoad(p.lat,p.lon);status(`Rue reconnue : ${r.roadName}. Récupération du tracé complet…`,'busy');const segments=await overpassRoad(r.roadName,p.lat,p.lon);setPickMode(null);showPending({id:uid(),name:r.roadName,source:'map-street',address:r.displayName,segments,lengthM:totalLength(segments),createdAt:new Date().toISOString()});
+      }else if(V301.mode==='portion'){
+        if(!V301.portionStart){V301.portionStart=p;V301.portionMarker=L.circleMarker([p.lat,p.lon],{radius:7,color:'#173447',weight:2,fillColor:'#55d981',fillOpacity:1}).addTo(V301.avoidMap);status('Début enregistré. Touche maintenant la fin de la portion à éviter.','busy')}
+        else{status('Calcul de la portion routière sélectionnée…','busy');const start=V301.portionStart,r=await osrmPortion(start,p);let roadName='Portion de route';try{roadName=(await reverseRoad(start.lat,start.lon)).roadName||roadName}catch{}setPickMode(null);showPending({id:uid(),name:`${roadName} — portion`,source:'map-portion',address:'Sélection manuelle sur carte',segments:[r.segment],lengthM:r.distance||totalLength([r.segment]),createdAt:new Date().toISOString()})}
+      }
+    }catch(err){status(`Sélection impossible : ${err.message||err}`,'err')}finally{V301.busy=false}
+  }
+  function savePending(){
+    const p=V301.pending;if(!p)return;const name=(q('v301AvoidLabel')?.value||p.name||'Route à éviter').trim()||'Route à éviter',group={...p,name,id:p.id||uid(),segments:sanitizeSegments(p.segments),lengthM:totalLength(p.segments),createdAt:p.createdAt||new Date().toISOString()};const samples=sampleSegments(group.segments,group);group.sampleCount=samples.length;
+    const groups=readGroups().filter(x=>x.id!==group.id);groups.unshift(group);writeGroups(groups);const points=readPoints().filter(x=>x.groupId!==group.id);writePoints([...samples,...points]);V301.pending=null;q('v301SaveRoad').disabled=true;q('v301AvoidLabel').value='';q('v301AvoidAddress').value='';clearAvoidLayers();status(`✅ ${name} enregistrée comme route à éviter. Les calculs de rattrapage et de mise en place rejetteront les itinéraires qui empruntent ce tracé.`,'ok');renderAvoidList();
+  }
+  function deleteGroup(id){writeGroups(readGroups().filter(x=>x.id!==id));writePoints(readPoints().filter(x=>x.groupId!==id));renderAvoidList()}
+  function deletePoint(id){writePoints(readPoints().filter(x=>x.id!==id));renderAvoidList()}
+  function bindAdminControls(){
+    q('v301FindRoad')?.addEventListener('click',roadFromAddress);q('v301AvoidAddress')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();roadFromAddress()}});q('v301PickStreet')?.addEventListener('click',()=>setPickMode('street'));q('v301PickPortion')?.addEventListener('click',()=>setPickMode('portion'));q('v301CancelPick')?.addEventListener('click',()=>setPickMode(null));q('v301SaveRoad')?.addEventListener('click',savePending);
+    q('v29AvoidList')?.addEventListener('click',e=>{const g=e.target.closest('[data-v301-delete-group]'),p=e.target.closest('[data-v301-delete-point]');if(g){if(confirm('Supprimer cette route à éviter ?'))deleteGroup(g.dataset.v301DeleteGroup);return}if(p){if(confirm('Supprimer cette ancienne zone à éviter ?'))deletePoint(p.dataset.v301DeletePoint)}});
+  }
+
+  // Remplace uniquement le formulaire latitude/longitude du module Admin ; le verrouillage V29 reste inchangé.
+  const admin=q('v29Admin');if(admin){const h=admin.querySelector('.v29-head h2'),p=admin.querySelector('.v29-head p');if(h)h.textContent='⚙️ Routes à éviter';if(p)p.textContent='Recherche une rue par son adresse ou sélectionne directement la voirie sur la carte. Les routes enregistrées sont prises en compte pour les rattrapages de déviation et les mises en place.';adminBody()}
+  function refreshAdminAfterOpen(){setTimeout(()=>{if(!q('v29AdminBody')?.classList.contains('hidden')){renderAvoidList();ensureAvoidMap();settleResponsive()}},80)}
+  q('v29AdminBtn')?.addEventListener('click',refreshAdminAfterOpen);q('v29AdminUnlock')?.addEventListener('click',()=>{[80,260,650].forEach(ms=>setTimeout(refreshAdminAfterOpen,ms))});if(q('v29AdminBody'))new MutationObserver(()=>{if(!q('v29AdminBody').classList.contains('hidden'))refreshAdminAfterOpen()}).observe(q('v29AdminBody'),{attributes:true,attributeFilter:['class']});
+
+  // Évite de gonfler le journal avec le même nom répété pour chaque point d'une rue évitée.
+  if(window.FluoJournalCore?.log&&!window.FluoJournalCore.__v301Wrapped){const base=window.FluoJournalCore.log.bind(window.FluoJournalCore);window.FluoJournalCore.log=(type,payload={})=>{const p={...payload};if(Array.isArray(p.avoidZones))p.avoidZones=[...new Set(p.avoidZones.filter(Boolean))];return base(type,p)};window.FluoJournalCore.__v301Wrapped=true}
+
+  document.title='Fluo SAEIV V30.1 · Routes à éviter + responsive';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.1 EXPLOITATION';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
+  if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
+  settleResponsive();
 })();
 
 </script>

@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-// Fluo SAEIV V28.1 — base V28 stable + amorçage audio muet, retour haptique UI et commandes paysage fixes.
+// Fluo SAEIV V30.1 — base V30 + routes à éviter par adresse/carte, arrêt demandé intégré et responsive consolidé.
 // Le moteur de suivi utilise la progression le long du shape, le cap tangent au parcours et un lissage circulaire.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),
@@ -681,7 +681,7 @@ function setScheduleDisplay(kind,label,value,reference){
   ui.scheduleMetric.textContent=(label==='PRÉ-DÉPART'||label==='HORAIRE INDISPONIBLE')?'—':`${label} ${value}`;
 }
 function updateScheduleAdherence(){
-  if(state.service.mode==='formation') return;
+  if(state.service.mode==='formation'||state.service.mode==='collective') return;
   if(!state.running||!state.run){ setScheduleDisplay('ontime','HORAIRE INDISPONIBLE','—','Aucune course horaire active'); return; }
   const dep=selectedDepartureDate(), now=Date.now();
   if(!state.departed&&dep&&now<dep.getTime()&&state.mode!=='simulation'){
@@ -699,7 +699,7 @@ function updateScheduleAdherence(){
 }
 function startPunctualityTicker(){
   if(state.punctuality.ticker) clearInterval(state.punctuality.ticker);
-  if(state.service.mode==='formation') return;
+  if(state.service.mode==='formation'||state.service.mode==='collective') return;
   state.punctuality.ticker=setInterval(updateScheduleAdherence,1000); updateScheduleAdherence();
 }
 function clearPunctualityTicker(){ if(state.punctuality.ticker){ clearInterval(state.punctuality.ticker); state.punctuality.ticker=null; } }
@@ -986,10 +986,10 @@ function enterDriver(mode){
   state.running=true; state.mode=mode; keepScreenAwake();
   startPunctualityTicker();
   ui.setup.classList.add('hidden'); ui.driver.classList.remove('hidden');
-  ui.driver.classList.toggle('formation-running',state.service.mode==='formation');
+  ui.driver.classList.toggle('formation-running',state.service.mode==='formation'); ui.driver.classList.toggle('collective-running',state.service.mode==='collective');
   ui.routeBadge.textContent=state.route.short; ui.headsign.textContent=state.pattern.headsign;
-  ui.serviceBadge.textContent=state.service.mode==='tad'?'TAD':state.service.mode==='formation'?'FORMATION':'RÉGULIER';
-  ui.serviceBadge.className=state.service.mode==='tad'?'servicebadge tad':state.service.mode==='formation'?'servicebadge formation':'servicebadge';
+  ui.serviceBadge.textContent=state.service.mode==='tad'?'TAD':state.service.mode==='formation'?'FORMATION':state.service.mode==='collective'?'BILLET COLLECTIF':'RÉGULIER';
+  ui.serviceBadge.className=state.service.mode==='tad'?'servicebadge tad':state.service.mode==='formation'?'servicebadge formation':state.service.mode==='collective'?'servicebadge collective':'servicebadge';
   renderRequestsButton(); updateRequestAlert(false); labels();
   state.nav.follow=true; syncFollowButton(); drawRoute();
   if(mode==='simulation'){
@@ -1005,8 +1005,11 @@ async function startGps(){
   const sec=secureMessage(); if(sec){ status(sec,'err'); return; }
   if(!state.pattern) return;
   enterDriver('gps');
-  if(state.service.mode==='formation'){ clearDepartureScheduling(); state.departed=true; say(`Mode formation. ${lineIdentity()}`,{priority:30,kind:'system'}); }
-  else { scheduleDepartureAnnouncements(); say('Annonces activées.',{priority:20,kind:'system'}); }
+  if(state.service.mode==='formation'||state.service.mode==='collective'){
+    clearDepartureScheduling(); state.departed=true;
+    if(state.service.mode==='formation') say(`Mode formation. ${lineIdentity()}`,{priority:30,kind:'system'});
+    else say('Billet collectif. Navigation activée.',{priority:30,kind:'system'});
+  } else { scheduleDepartureAnnouncements(); say('Annonces activées.',{priority:20,kind:'system'}); }
   state.watch=navigator.geolocation.watchPosition(processPos,geoErr,{enableHighAccuracy:true,timeout:15000,maximumAge:250});
 }
 
@@ -1121,7 +1124,7 @@ function finish(){
   stopSimulationLoop(); clearDepartureScheduling();
   window.speechSynthesis?.cancel(); state.audio.queue=[]; state.audio.current=null; releaseScreenAwake();
   clearPunctualityTicker(); state.punctuality.deltaSeconds=null; state.punctuality.plannedTime=null; state.punctuality.status='unknown';
-  state.mode=null; state.nav.follow=true; syncFollowButton(); ui.driver.classList.add('hidden'); ui.driver.classList.remove('formation-running'); ui.setup.classList.remove('hidden');
+  state.mode=null; state.nav.follow=true; syncFollowButton(); ui.driver.classList.add('hidden'); ui.driver.classList.remove('formation-running','collective-running'); ui.setup.classList.remove('hidden');
 }
 function recenter(){
   if(!state.pos||!state.pattern||state.mode==='simulation') return;
