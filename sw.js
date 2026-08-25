@@ -1,4 +1,4 @@
-const C='fluo-saeiv-v28-1-stable-ergonomie';
+const C='fluo-saeiv-v29-exploitation-journal-integral';
 const CORE=['./','index.html','styles.css','app.js','manifest.webmanifest'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(C)))});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)));await self.clients.claim()})()));

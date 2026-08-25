@@ -921,7 +921,11 @@ function previous(){
 function processPos(p){
   state.pos=p;
   const c=p.coords, snap=snapToCourse(c,p.timestamp||Date.now()); state.fusion.snapped=snap;
-  updateNavigation(p,snap);
+  const manualDeviation=window.FluoOpsV29?.isDeviationActive?.()===true;
+  const navSnap=manualDeviation
+    ? {...snap,lat:Number(c.latitude),lon:Number(c.longitude),heading:(Number.isFinite(c.heading)&&c.heading>=0?c.heading:snap.heading),confidence:0}
+    : snap;
+  updateNavigation(p,navSnap);
   if(state.running) updateScheduleAdherence();
   if(state.mode==='simulation'){
     ui.gpsPill.className='pill on'; ui.gpsPill.textContent='SIMULATION';
@@ -932,6 +936,13 @@ function processPos(p){
   const sp=Number.isFinite(c.speed)&&c.speed>=0?c.speed:null;
   ui.speed.textContent=sp===null?'—':`${Math.round(sp*3.6)} km/h`;
   if(!state.running) return;
+  // V29 : en déviation manuelle, le véhicule reste volontairement libre du shape officiel.
+  // Le module exploitation gère le rattrapage et le retour sur la ligne ; on ne fait donc
+  // pas avancer automatiquement les arrêts à partir d'une projection potentiellement fausse.
+  if(manualDeviation){
+    try{window.FluoOpsV29?.onPosition?.(p,snap)}catch(e){console.warn('V29 déviation',e)}
+    return;
+  }
   const t=state.pattern?.stops[state.target]; if(!t) return;
   const physicalD=dist(c.latitude,c.longitude,t.lat,t.lon), routeD=routeDistanceToStop(state.target,c), reach=65;
   ui.distance.textContent=fmt(routeD);
@@ -996,7 +1007,7 @@ async function startGps(){
   enterDriver('gps');
   if(state.service.mode==='formation'){ clearDepartureScheduling(); state.departed=true; say(`Mode formation. ${lineIdentity()}`,{priority:30,kind:'system'}); }
   else { scheduleDepartureAnnouncements(); say('Annonces activées.',{priority:20,kind:'system'}); }
-  state.watch=navigator.geolocation.watchPosition(processPos,geoErr,{enableHighAccuracy:true,timeout:15000,maximumAge:1000});
+  state.watch=navigator.geolocation.watchPosition(processPos,geoErr,{enableHighAccuracy:true,timeout:15000,maximumAge:250});
 }
 
 function syntheticPosition(lat,lon,speed,heading=null){
