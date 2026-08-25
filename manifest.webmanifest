@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.3",
+  "name": "Fluo SAEIV V31.4",
   "short_name": "Fluo SAEIV",
-  "start_url": "./?v=31.3",
+  "start_url": "./?v=31.4",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.3 — interface monobloc, édition GitHub plate et compacte, limitations OSM non bloquantes et horaires officiels Fluo."
+  "description": "SAEIV conducteur V31.4 — interface monobloc avec paysage conducteur épuré, informations essentielles compactes et GPS prioritaire."
 }

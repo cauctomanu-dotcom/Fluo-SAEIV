@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=31.3">
+  <link rel="manifest" href="manifest.webmanifest?v=31.4">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Fluo SAEIV V22 · TAD + suivi stable</title>
@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.3 — édition GitHub monobloc, plate et compacte.
+// Fluo SAEIV V31.4 — édition GitHub monobloc, paysage conducteur épuré.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -1446,10 +1446,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=31.3').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=31.4').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.3').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.4').catch(()=>{});
 
 </script>
 <script>
@@ -5422,11 +5422,28 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v31LandscapeDriverLayout">
 'use strict';
-/* V31 — informations complètes en paysage, commandes principales en bas et surplus à droite. */
+/* V31.4 — paysage conducteur épuré : ponctualité carrée, ligne + destination fusionnées, Suivre sur la carte. */
 (()=>{
   const q=id=>document.getElementById(id),driver=q('driver'),side=q('v15LandscapeSide');if(!driver||!side)return;
+
+  // V31.4 : en paysage, le haut de la colonne droite devient volontairement très compact :
+  // un carré ponctualité + un seul rectangle ligne/destination, puis le prochain arrêt dessous.
+  const punctuality=q('v15Punctuality'),lineBox=side.querySelector('.v15-line-box'),nextBox=side.querySelector('.v15-next-box');
+  if(lineBox){
+    const lineCard=lineBox.firstElementChild,destinationCard=lineBox.querySelector('.v15-destination'),destination=q('v15Destination');
+    if(lineCard&&destinationCard&&destination){
+      destination.classList.add('v314-line-destination');
+      lineCard.appendChild(destination);
+      destinationCard.remove();
+    }
+  }
+  if(!q('v314TopInfo')&&punctuality&&lineBox){
+    const topInfo=document.createElement('div');topInfo.id='v314TopInfo';
+    side.insertBefore(topInfo,nextBox||side.firstChild);topInfo.appendChild(punctuality);topInfo.appendChild(lineBox);
+  }
+
   const bottom=document.createElement('div');bottom.id='v31LandscapeBottom';bottom.setAttribute('aria-label','Commandes principales conducteur');
-  bottom.innerHTML=`<button type="button" data-v31-target="followMap">🎯 Suivre</button><button type="button" data-v31-target="navVoiceBtn">🔊 GPS</button><button type="button" data-v31-target="prev">← Arrêt</button><button type="button" class="primary" data-v31-target="speak">🔊 Annoncer</button><button type="button" data-v31-target="nextBtn">Arrêt →</button><button type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button type="button" class="danger" data-v31-target="v15FinishBtn">FIN</button>`;
+  bottom.innerHTML=`<button type="button" data-v31-target="prev">← Arrêt</button><button type="button" class="primary" data-v31-target="speak">🔊 Annoncer</button><button type="button" data-v31-target="nextBtn">Arrêt →</button><button type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button type="button" class="danger" data-v31-target="v15FinishBtn">FIN</button>`;
   driver.appendChild(bottom);
   const dock=q('v281LandscapeDock');if(dock&&!q('v31SideExtra')){const extra=document.createElement('div');extra.id='v31SideExtra';extra.innerHTML='<button type="button" data-v31-target="v16MapMode">🧭 Carte 2D/3D</button><button type="button" data-v31-target="simPlayPause">⏯ Simulation</button><button type="button" data-v31-target="simSkip">⏭ Arrêt simu</button>';dock.appendChild(extra)}
   function targetFor(button){return q(button?.dataset?.v31Target)}
@@ -5443,28 +5460,43 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     #v31LandscapeBottom{display:none}
     .v31-hidden{display:none!important}
     @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){
-      #driver{grid-template-columns:minmax(0,1fr) minmax(205px,28vw)!important;grid-template-rows:minmax(0,1fr) auto!important}
+      #driver{grid-template-columns:minmax(0,1fr) minmax(220px,29vw)!important;grid-template-rows:minmax(0,1fr) auto!important}
       #driver .navmap-wrap{grid-column:1!important;grid-row:1!important}
       #v15LandscapeSide{grid-column:2!important;grid-row:1/3!important;padding:5px!important;overflow-y:auto!important;scrollbar-width:thin}
+      #v314TopInfo{display:grid!important;grid-template-columns:74px minmax(0,1fr)!important;gap:5px!important;align-items:stretch!important;flex:0 0 auto!important}
+      #v314TopInfo .v15-punctuality{width:74px!important;height:74px!important;min-height:74px!important;padding:5px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;text-align:center!important;gap:4px!important;border-radius:11px!important}
+      #v314TopInfo .v15-punctuality span{font-size:.54rem!important;line-height:1.05!important;letter-spacing:.035em!important}
+      #v314TopInfo .v15-punctuality strong{font-size:1.02rem!important;line-height:1!important}
+      #v314TopInfo .v15-line-box{display:block!important;min-width:0!important;height:74px!important}
+      #v314TopInfo .v15-line-box>div{height:74px!important;min-width:0!important;padding:6px 8px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;border-radius:11px!important}
+      #v314TopInfo .v15-line-box>div>span{font-size:.51rem!important;line-height:1!important}
+      #v314TopInfo .v15-line-box>div:first-child strong#v15Line{display:block!important;margin-top:3px!important;font-size:1.12rem!important;line-height:1!important;color:#ffd000!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+      #v314TopInfo .v314-line-destination{display:block!important;margin-top:5px!important;color:#eef8fc!important;font-size:.64rem!important;font-weight:800!important;line-height:1.08!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
       #v15LandscapeSide .v15-next-box strong{max-height:none!important;overflow:visible!important;white-space:normal!important;overflow-wrap:anywhere!important;font-size:clamp(.82rem,1.65vw,1.05rem)!important}
-      #v15LandscapeSide .v15-line-box{grid-template-columns:1fr!important}
-      #v15LandscapeSide .v15-line-box strong,#v15LandscapeSide .v15-destination strong{display:block!important;max-height:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere!important;-webkit-line-clamp:unset!important;font-size:.72rem!important;line-height:1.12!important}
-      #v15LandscapeSide .v15-line-box>div:first-child strong{font-size:.82rem!important;color:#ffd000!important}
+      #v15LandscapeSide #v30RoadSide{display:none!important}
       #v281LandscapeDock{position:static!important;inset:auto!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:4px!important;margin-top:auto!important;padding:4px!important;flex:0 0 auto!important}
       #v281LandscapeDock .v15-side-actions{display:none!important}
       #v281LandscapeDock .v281-dock-row,#v281LandscapeDock .v29-dock-row,#v31SideExtra{display:contents!important}
       #v281LandscapeDock button{width:100%!important;min-width:0!important;min-height:27px!important;padding:4px!important;font-size:.53rem!important;line-height:1.05!important;white-space:normal!important}
       #driver > #v31LandscapeBottom{grid-column:1!important;grid-row:2!important;display:flex!important;gap:4px!important;min-width:0!important;overflow-x:auto!important;padding:4px 1px 0!important;scrollbar-width:thin!important}
       #v31LandscapeBottom button{flex:1 0 auto!important;min-width:64px!important;min-height:34px!important;padding:5px 7px!important;font-size:.59rem!important;line-height:1.05!important;white-space:nowrap!important}
-      #driver .maphud #followMap,#v15MapGuidance #v15NavVoice,.v16-map-controls #v16MapMode{display:none!important}
-      #driver .maphud{pointer-events:none!important}.v16-map-controls{pointer-events:none!important}.v16-map-controls .v16-speed-limit{pointer-events:none!important}
+      /* « Suivre » revient directement sur la carte. Le bouton GPS vocal n'est plus dupliqué dans la barre du bas. */
+      #driver .maphud #followMap{display:inline-flex!important;align-items:center!important}
+      #v15MapGuidance #v15NavVoice{display:none!important}
+      .v16-map-controls #v16MapMode{display:none!important}
+      #driver .maphud{pointer-events:none!important}#driver .maphud>*{pointer-events:auto!important}.v16-map-controls{pointer-events:none!important}.v16-map-controls .v16-speed-limit{pointer-events:none!important}
       #v15LandscapeSide .v15-side-spacer{display:none!important}
     }
     @media(orientation:landscape) and (max-height:390px) and (max-width:760px){
-      #driver{grid-template-columns:minmax(0,1fr) minmax(190px,30vw)!important;gap:4px!important}
+      #driver{grid-template-columns:minmax(0,1fr) minmax(202px,31vw)!important;gap:4px!important}
       #v31LandscapeBottom button{min-height:29px!important;padding:4px 6px!important;font-size:.53rem!important}
-      #v15LandscapeSide .v15-punctuality{min-height:39px!important}
-      #v15LandscapeSide .v15-next-box,#v15LandscapeSide .v15-line-box>div{padding:4px 5px!important}
+      #v314TopInfo{grid-template-columns:64px minmax(0,1fr)!important;gap:4px!important}
+      #v314TopInfo .v15-punctuality,#v314TopInfo .v15-line-box,#v314TopInfo .v15-line-box>div{width:auto!important;height:64px!important;min-height:64px!important}
+      #v314TopInfo .v15-punctuality{width:64px!important}
+      #v314TopInfo .v15-punctuality strong{font-size:.9rem!important}
+      #v314TopInfo .v15-line-box>div:first-child strong#v15Line{font-size:1rem!important}
+      #v314TopInfo .v314-line-destination{font-size:.57rem!important;margin-top:4px!important}
+      #v15LandscapeSide .v15-next-box{padding:4px 5px!important}
       #v281LandscapeDock button{min-height:23px!important;font-size:.49rem!important}
     }
   `;document.head.appendChild(css);
@@ -5474,8 +5506,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 
 <script id="v309FinalLabel">
-(()=>{const apply=()=>{document.title='Fluo SAEIV V31.3 · édition GitHub monobloc';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V31.3 GITHUB MONOBLOC'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
-// V31.3 : liaison finale après toutes les extensions historiques de l'interface.
+(()=>{const apply=()=>{document.title='Fluo SAEIV V31.4 · édition GitHub monobloc';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V31.4 GITHUB MONOBLOC'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
+// V31.4 : liaison finale après toutes les extensions historiques de l'interface.
 // La délégation reste valide même si un bouton est déplacé ou recréé par une extension.
 (()=>{const modes={regularMode:'regular',tadMode:'tad',formationMode:'formation'};
   Object.entries(modes).forEach(([id,mode])=>document.getElementById(id)?.addEventListener('click',()=>window.FluoSetServiceModeV313?.(mode),{capture:true}));

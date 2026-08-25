@@ -1,4 +1,4 @@
-FLUO SAEIV V31.3 — ÉDITION GITHUB MONOBLOC, PLATE ET COMPACTE
+FLUO SAEIV V31.4 — ÉDITION GITHUB MONOBLOC · PAYSAGE CONDUCTEUR ÉPURÉ
 ============================================================================
 
 Base : V29, elle-même basée sur la V28.1 stable.
@@ -180,3 +180,12 @@ V31.3 — INTERFACE MONOBLOC ANTI-DÉPLOIEMENT PARTIEL
 - Le cache PWA porte une nouvelle identité et récupère automatiquement cette version complète.
 - Les profils conducteur, TAD, billets et journaux déjà enregistrés sur le téléphone restent
   conservés, car cette mise à jour ne touche pas aux données locales de l'utilisateur.
+
+
+V31.4 — PAYSAGE CONDUCTEUR ÉPURÉ
+- Bloc ponctualité réduit en carré : état au-dessus, avance/retard en dessous.
+- Ligne et destination fusionnées dans un seul rectangle.
+- Suppression du bloc vitesse de simulation dans la colonne droite.
+- Bouton Suivre replacé directement sur la carte GPS.
+- Suppression des boutons Suivre et GPS vocal de la barre de commandes basse.
+- Prochain arrêt conservé comme information principale sous la rangée supérieure.
