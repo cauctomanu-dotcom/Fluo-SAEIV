@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.24",
-  "short_name": "Fluo V31.24",
-  "start_url": "./?v=31.24",
+  "name": "Fluo SAEIV V31.25",
+  "short_name": "Fluo V31.25",
+  "start_url": "./?v=31.25",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.24 — arrêts conditionnels pilotés par les règles GTFS officielles ; courses intégralement sur réservation conservées en TAD ; annonces vocales organisées en menus Catégories → Annonces avec classement des annonces personnalisées."
+  "description": "SAEIV conducteur V31.25 — bibliothèque complète des fiches horaires du réseau depuis le menu hamburger (département → lignes régulières/scolaires → ligne), avec V31.24 intégralement conservée."
 }

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-26T22:35:00+02:00",
-  "version": "V31.24 GITHUB MONOBLOC + ARRÊTS CONDITIONNELS GTFS + COURSES RÉSERVATION INTÉGRALE EN TAD + MENU VOCAL CATÉGORIES → ANNONCES + V31.23 CONSERVÉE",
+  "generated_at": "2026-08-26T23:58:00+02:00",
+  "version": "V31.25 GITHUB MONOBLOC + BIBLIOTHÈQUE FICHES HORAIRES RÉSEAU + V31.24 CONSERVÉE",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -138,5 +138,21 @@
     "custom_announcements": "une annonce personnalisée doit être enregistrée dans une catégorie existante ou une nouvelle catégorie créée par le conducteur",
     "legacy_custom_migration": "les anciennes annonces personnalisées sans catégorie sont rangées dans Mes annonces personnalisées",
     "storage_key": "fluoCustomAnnouncementsV28"
+  },
+  "network_timetable_library_v31_25": {
+    "menu_entry": "📚 Fiches horaires dans le menu hamburger, en plus de Créer une fiche horaire et Fiches horaires enregistrées",
+    "navigation": "Département → Lignes régulières / Lignes scolaires → Ligne → fiche horaire",
+    "departments": [
+      "54",
+      "57",
+      "67",
+      "68"
+    ],
+    "independent_view": "la consultation ne modifie ni la ligne/course sélectionnée, ni Ma journée, ni le planning, ni le cockpit",
+    "service_date": "date de service sélectionnable dans la bibliothèque ; changement de source/numérotation 54 pris en compte au 01/09/2026",
+    "timetable": "sens/destination, départs de la date, détail arrêt par arrêt et impression",
+    "conditional_symbols": "↑ montée sur réservation et ↓ descente à la demande conservés lorsque les métadonnées GTFS/règles métier sont disponibles ; une course intégralement sur réservation est signalée comme TAD",
+    "line_search": "recherche par numéro, nom ou destination dans la liste des lignes",
+    "existing_features_preserved": true
   }
 }

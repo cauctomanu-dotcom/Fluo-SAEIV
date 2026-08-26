@@ -363,3 +363,12 @@ V31.24 — DESSERTES CONDITIONNELLES + ANNONCES PAR CATÉGORIES
 - Annonces vocales : premier écran de catégories, puis annonces de la catégorie.
 - Annonces personnalisées : catégorie obligatoire, existante ou nouvelle ; anciennes annonces sans catégorie migrées automatiquement.
 - Design général, cockpit, planning, Ma journée, HLP, journaux et données embarquées conservés.
+
+
+V31.25 — BIBLIOTHÈQUE DES FICHES HORAIRES DU RÉSEAU
+- Nouvel onglet « 📚 Fiches horaires » dans le menu hamburger.
+- Navigation : département 54/57/67/68 → lignes régulières ou scolaires → ligne → fiche horaire.
+- Consultation indépendante : aucune modification de la course en préparation, du planning, de Ma journée ou du cockpit.
+- Date de service, sens/destination, départs, horaires arrêt par arrêt et impression.
+- Symboles ↑/↓ des dessertes conditionnelles conservés quand les données officielles les fournissent ; course intégralement sur réservation signalée TAD.
+- Les fonctions V31.24 et antérieures sont conservées.
