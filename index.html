@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.23 — nouvelle bibliothèque d’annonces vocales classée par catégories ; annonces personnalisées et fonctions V31.22 conservées.
+// Fluo SAEIV V31.24 — arrêts conditionnels GTFS généralisés + menu vocal Catégories → Annonces ; toutes les fonctions V31.23 conservées.
 // V31.17 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
 'use strict';
 
@@ -332,10 +332,11 @@ const FLUO_RENUMBER_CUTOVER_2026='2026-09-01';
 const FluoRemoteGTFS={
   sources:{
     '54':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358'],
+    '57':['https://www.data.gouv.fr/api/1/datasets/r/42be7185-b2a8-4d1e-80c4-f7c402655260'],
     '67':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358'],
     '68':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358']
   },
-  labels:{'54':'Meurthe-et-Moselle (54)','67':'Bas-Rhin (67)','68':'Haut-Rhin (68)'}, feeds:new Map(), payloads:new Map()
+  labels:{'54':'Meurthe-et-Moselle (54)','57':'Moselle (57)','67':'Bas-Rhin (67)','68':'Haut-Rhin (68)'}, feeds:new Map(), payloads:new Map()
 };
 function fluoLocalIsoDate(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function fluoSelectedIsoDate(){const raw=document.getElementById('serviceDate')?.value;return /^\d{4}-\d{2}-\d{2}$/.test(String(raw||''))?String(raw):fluoLocalIsoDate()}
@@ -389,7 +390,7 @@ function fluoRegionalStopBelongs(row,dept){
 }
 async function fluoFetchRemoteZip(dept){
   let last='';for(const url of (FluoRemoteGTFS.sources[dept]||[]))try{
-    const cacheName='fluo-regional-gtfs-v31-16',stampKey='fluo-regional-gtfs-v31-16-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
+    const cacheName='fluo-regional-gtfs-v31-24',stampKey='fluo-regional-gtfs-v31-24-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
     if(fresh&&'caches'in window){try{r=await (await caches.open(cacheName)).match(url)}catch{}}
     if(!r){r=await fetch(url,{cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error(`HTTP ${r.status}`);if('caches'in window){try{const c=await caches.open(cacheName);await c.put(url,r.clone());localStorage.setItem(stampKey,String(Date.now()))}catch{}}}
     const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url}
@@ -426,14 +427,14 @@ async function fluoRemoteRoutePayload(dept,route){
   const promise=(async()=>{
     const f=await fluoRemoteFeed(d),tripRows=f.tripsByRoute.get(String(route.id))||[];if(!tripRows.length)return{route,patterns:[]};
     const wanted=new Set(tripRows.map(t=>String(t.trip_id))),byTrip=new Map();const stText=await fluoRemoteEntryText(f,'stop_times.txt'),lines=stText.replace(/^\uFEFF/,'').split(/\r?\n/),head=fluoCsvRow(lines.shift()||''),ix=Object.fromEntries(head.map((h,i)=>[h,i]));
-    for(const line of lines){if(!line)continue;const a=fluoCsvRow(line),tid=String(a[ix.trip_id]||'');if(!wanted.has(tid))continue;const z={stop_id:String(a[ix.stop_id]||''),arrival:a[ix.arrival_time]||'',departure:a[ix.departure_time]||'',seq:Number(a[ix.stop_sequence]||0)};if(!byTrip.has(tid))byTrip.set(tid,[]);byTrip.get(tid).push(z)}
+    for(const line of lines){if(!line)continue;const a=fluoCsvRow(line),tid=String(a[ix.trip_id]||'');if(!wanted.has(tid))continue;const z={stop_id:String(a[ix.stop_id]||''),arrival:a[ix.arrival_time]||'',departure:a[ix.departure_time]||'',seq:Number(a[ix.stop_sequence]||0),pickup_type:ix.pickup_type==null?'0':String(a[ix.pickup_type]||'0'),drop_off_type:ix.drop_off_type==null?'0':String(a[ix.drop_off_type]||'0')};if(!byTrip.has(tid))byTrip.set(tid,[]);byTrip.get(tid).push(z)}
     byTrip.forEach(xs=>xs.sort((a,b)=>a.seq-b.seq));
     let shapeIndex=null;if(f.entries.has('shapes.txt')){const shapeText=await fluoRemoteEntryText(f,'shapes.txt'),sl=shapeText.replace(/^\uFEFF/,'').split(/\r?\n/),sh=fluoCsvRow(sl.shift()||'');shapeIndex={lines:sl,ix:Object.fromEntries(sh.map((h,i)=>[h,i]))};}
     const shapeIds=new Set(tripRows.map(t=>String(t.shape_id||'')).filter(Boolean)),shapeMap=new Map();
     if(shapeIndex&&shapeIds.size){for(const line of shapeIndex.lines){if(!line)continue;const a=fluoCsvRow(line),sid=String(a[shapeIndex.ix.shape_id]||'');if(!shapeIds.has(sid))continue;const lat=Number(a[shapeIndex.ix.shape_pt_lat]),lon=Number(a[shapeIndex.ix.shape_pt_lon]),seq=Number(a[shapeIndex.ix.shape_pt_sequence]||0);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;if(!shapeMap.has(sid))shapeMap.set(sid,[]);shapeMap.get(sid).push({lat,lon,seq})}shapeMap.forEach(xs=>xs.sort((a,b)=>a.seq-b.seq))}
     const groups=new Map();
     for(const t of tripRows){const tid=String(t.trip_id),times=byTrip.get(tid)||[];if(!times.length)continue;const sid=String(t.shape_id||''),headsign=t.trip_headsign||'',dir=String(t.direction_id??''),sig=`${dir}|${headsign}|${sid}|${times.map(x=>x.stop_id).join('>')}`;let g=groups.get(sig);if(!g){const shp=(shapeMap.get(sid)||[]).map(x=>[x.lat,x.lon]);g={headsign,direction:dir,examples:[],trips:[],shape_id:sid,trace_source:shp.length?'fluo_gtfs_regional':'road_fallback',shape_points:shp.length,shape:shp,stops:times.map(x=>{const s=f.stops.get(x.stop_id)||{id:x.stop_id,name:x.stop_id,lat:NaN,lon:NaN,code:''};return{id:s.id,name:s.name,lat:s.lat,lon:s.lon,code:s.code,arrival:x.arrival,departure:x.departure}})};groups.set(sig,g)}
-      const arr=times.map(x=>[x.arrival,x.departure]);g.trips.push({id:tid,service:String(t.service_id||''),headsign,trip_short_name:t.trip_short_name||'',block_id:t.block_id||'',times:arr});const ex=arr[0]?.[1]||arr[0]?.[0];if(ex&&g.examples.length<3&&!g.examples.includes(ex))g.examples.push(ex);
+      const arr=times.map(x=>[x.arrival,x.departure]);g.trips.push({id:tid,service:String(t.service_id||''),headsign,trip_short_name:t.trip_short_name||'',block_id:t.block_id||'',times:arr,demand:times.map(x=>({pickup_type:String(x.pickup_type||'0'),drop_off_type:String(x.drop_off_type||'0')}))});const ex=arr[0]?.[1]||arr[0]?.[0];if(ex&&g.examples.length<3&&!g.examples.includes(ex))g.examples.push(ex);
     }
     return{route:{id:route.id,short:route.short,long:route.long,type:route.type,color:route.color,text_color:route.text_color},patterns:[...groups.values()]};
   })();FluoRemoteGTFS.payloads.set(key,promise);try{return await promise}catch(e){FluoRemoteGTFS.payloads.delete(key);throw e}
@@ -1141,6 +1142,7 @@ function populateRuns(){
     const pattern=state.patterns[pi];
     for(const trip of (pattern.trips||[])){
       if(!serviceActive(trip.service,serviceDate)) continue;
+      if(state.service.mode==='regular'&&window.FluoDemandStopsV3124?.isFullReservationFor?.(state.route,pattern,trip)) continue;
       const dep=departureFor(trip,0,serviceDate); if(!dep) continue;
       candidates.push({trip,pattern,patternIndex:pi,serviceDate,originDeparture:dep});
     }
@@ -4210,7 +4212,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
 
   const ANNOUNCEMENTS=[
-    // V31.23 — bibliothèque officielle conducteur, classée par catégorie.
+    // V31.24 — bibliothèque officielle conducteur, classée par catégorie.
     {id:'safety_seatbelt',category:'Sécurité',title:'Port de la ceinture de sécurité',text:()=>`Pour votre sécurité, nous vous rappelons que le port de la ceinture de sécurité est obligatoire pendant toute la durée du trajet. Merci de rester attaché lorsque le véhicule est en circulation.`},
     {id:'safety_seated',category:'Sécurité',title:'Rester assis pendant le trajet',text:()=>`Pour votre sécurité, merci de rester assis à votre place lorsque le véhicule est en circulation et de ne vous lever qu’après l’arrêt complet du véhicule.`},
     {id:'safety_reminder',category:'Sécurité',title:'Rappel de sécurité',text:()=>`Pour votre sécurité, merci de regagner votre place et de conserver votre ceinture attachée jusqu’à l’arrêt complet du véhicule.`},
@@ -5565,7 +5567,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     .v309-open{width:100%;margin:8px 0 2px;min-height:48px;border:1px solid #4b6b7d;background:#102a39;color:#eefaff;border-radius:13px;font-weight:950}.v309-open.hidden,.v309-backdrop.hidden{display:none!important}
     .v309-backdrop{position:fixed;z-index:16000;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;padding:12px}.v309-sheet{width:min(980px,100%);max-height:94dvh;overflow:auto;background:#0b1b26;color:#eff9ff;border:1px solid #39586a;border-radius:22px;padding:16px;box-shadow:0 -22px 70px rgba(0,0,0,.55)}
     .v309-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.v309-head h2{margin:2px 0 3px}.v309-head p{margin:0;color:#a9bdc9;font-size:.76rem}.v309-kicker{color:#ffd000;font-size:.66rem;font-weight:1000;letter-spacing:.08em}.v309-head button{padding:9px 12px}.v309-tools{display:grid;grid-template-columns:minmax(170px,.4fr) 1fr;gap:10px;margin:14px 0}.v309-tools label{font-size:.7rem;color:#a9bdc9}.v309-tools input,.v309-tools select{display:block;width:100%;margin-top:4px;min-height:46px;background:#07131c;color:#fff;border:1px solid #39586a;border-radius:11px;padding:9px;font:inherit;color-scheme:dark}
-    .v309-departures{display:flex;gap:7px;overflow:auto;padding:2px 1px 10px}.v309-dep{flex:0 0 auto;padding:9px 11px;border-radius:999px;background:#142c3b;border:1px solid #3d6074;color:#fff;font-weight:950}.v309-dep.active{background:#ffd000;color:#111;border-color:#ffd000}.v309-empty{padding:18px;border:1px dashed #456275;border-radius:13px;color:#a9bdc9;text-align:center}.v309-detail{border:1px solid #39586a;border-radius:14px;overflow:auto;background:#07131c}.v309-detail-head{padding:11px 12px;background:#102633;position:sticky;left:0}.v309-detail-head b{display:block}.v309-detail-head span{display:block;color:#abc0cc;font-size:.7rem;margin-top:2px}.v309-table{width:100%;border-collapse:collapse;font-size:.78rem}.v309-table th,.v309-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}.v309-table th{color:#a9bdc9;background:#0c202c;position:sticky;top:0}.v309-table td:first-child{font-weight:850;min-width:220px}.v309-table td:last-child{font-weight:1000;color:#ffd000;white-space:nowrap}.v309-actions{display:flex;justify-content:flex-end;margin-top:10px}.v309-actions button{min-height:44px}.v3121-demand-flags{display:inline-block;margin-left:7px;color:#ffd000;font-weight:1000;letter-spacing:.05em}.v3121-demand-legend{margin-top:5px!important;color:#ffd86a!important;font-weight:850}.v3121-demand-legend::before{content:'57R027 · ';color:#a9bdc9}
+    .v309-departures{display:flex;gap:7px;overflow:auto;padding:2px 1px 10px}.v309-dep{flex:0 0 auto;padding:9px 11px;border-radius:999px;background:#142c3b;border:1px solid #3d6074;color:#fff;font-weight:950}.v309-dep.active{background:#ffd000;color:#111;border-color:#ffd000}.v309-empty{padding:18px;border:1px dashed #456275;border-radius:13px;color:#a9bdc9;text-align:center}.v309-detail{border:1px solid #39586a;border-radius:14px;overflow:auto;background:#07131c}.v309-detail-head{padding:11px 12px;background:#102633;position:sticky;left:0}.v309-detail-head b{display:block}.v309-detail-head span{display:block;color:#abc0cc;font-size:.7rem;margin-top:2px}.v309-table{width:100%;border-collapse:collapse;font-size:.78rem}.v309-table th,.v309-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}.v309-table th{color:#a9bdc9;background:#0c202c;position:sticky;top:0}.v309-table td:first-child{font-weight:850;min-width:220px}.v309-table td:last-child{font-weight:1000;color:#ffd000;white-space:nowrap}.v309-actions{display:flex;justify-content:flex-end;margin-top:10px}.v309-actions button{min-height:44px}.v3121-demand-flags{display:inline-block;margin-left:7px;color:#ffd000;font-weight:1000;letter-spacing:.05em}.v3121-demand-legend{margin-top:5px!important;color:#ffd86a!important;font-weight:850}.v3121-demand-legend::before{content:'';color:#a9bdc9}
     @media(max-width:620px){.v309-backdrop{padding:0}.v309-sheet{border-radius:22px 22px 0 0;padding:13px;padding-bottom:calc(13px + env(safe-area-inset-bottom))}.v309-tools{grid-template-columns:1fr}.v309-table{font-size:.72rem}.v309-table th,.v309-table td{padding:8px}.v309-table td:first-child{min-width:170px}}
     @media print{body>*:not(#v309Timetable){display:none!important}#v309Timetable{display:block!important;position:static;background:#fff;padding:0}.v309-sheet{max-height:none;overflow:visible;width:100%;border:0;box-shadow:none;background:#fff;color:#111}.v309-head button,.v309-tools,.v309-departures,.v309-actions{display:none!important}.v309-detail{overflow:visible;background:#fff;border-color:#aaa}.v309-detail-head,.v309-table th{background:#eee;color:#111}.v309-table td,.v309-table th{color:#111;border-color:#ccc}.v309-table td:last-child{color:#111}.v3121-demand-flags,.v3121-demand-legend,.v3121-demand-legend::before{color:#111!important}}
   `;document.head.appendChild(css);
@@ -5575,17 +5577,17 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const dateObject=()=>{const m=rawDate().match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]):parseServiceDate()};
   const clock=raw=>{const m=String(raw||'').match(/^(\d+):(\d{2})/);if(!m)return '—';return `${String((+m[1])%24).padStart(2,'0')}:${m[2]}`};
   const tripTime=(trip,index)=>{const pair=trip?.times?.[index]||[],a=clock(pair[0]),d=clock(pair[1]);return a==='—'?d:d==='—'||a===d?a:`${a} / ${d}`};
-  function officialReady(){return ['54','57'].includes(String(state?.dept))&&state?.route&&!state.route.custom&&(state.patterns||[]).some(p=>(p.trips||[]).length)}
+  function officialReady(){return ['54','57','67','68'].includes(String(state?.dept))&&state?.route&&!state.route.custom&&(state.patterns||[]).some(p=>(p.trips||[]).length)}
   function syncButton(){button.classList.toggle('hidden',!officialReady())}
   function buildGroups(){
     const date=dateObject(),map=new Map();for(let pi=0;pi<(state.patterns||[]).length;pi++){const p=state.patterns[pi],origin=p.stops?.[0]?.name||'Départ',dest=p.stops?.at(-1)?.name||p.headsign||'Terminus',key=`${origin}→${dest}`;for(let ti=0;ti<(p.trips||[]).length;ti++){const trip=p.trips[ti];if(!serviceActive(trip.service,date))continue;const raw=trip.times?.[0]?.[1]||trip.times?.[0]?.[0];if(!raw)continue;if(!map.has(key))map.set(key,{key,label:`${origin} → ${dest}`,runs:[]});map.get(key).runs.push({pi,ti,p,trip,raw,seconds:gtfsSeconds(raw)??Infinity})}}
     groups=[...map.values()].map(g=>({...g,runs:g.runs.sort((a,b)=>a.seconds-b.seconds)})).sort((a,b)=>a.label.localeCompare(b.label,'fr'));return groups;
   }
   function renderTrip(run){
-    const p=run.p,trip=run.trip,is57R027=String(state?.route?.short||'').toUpperCase().replace(/\s+/g,'')==='57R027',demandApi=window.Fluo57R027V3119;
-    const demandFlags=p.stops.map((_,i)=>Boolean(is57R027&&demandApi?.isDemandStopFor?.(p,trip,i)));
-    const rows=p.stops.map((st,i)=>`<tr><td>${i+1}. ${html(st.name)}${demandFlags[i]?'<span class="v3121-demand-flags" title="Montée sur réservation · descente à la demande">↑↓</span>':''}</td><td>${html(tripTime(trip,i))}</td></tr>`).join(''),dest=p.stops.at(-1)?.name||p.headsign||'Terminus';
-    const legend=demandFlags.some(Boolean)?'<span class="v3121-demand-legend">↑ montée sur réservation · ↓ descente à la demande</span>':'';
+    const p=run.p,trip=run.trip,demandApi=window.FluoDemandStopsV3124,full=Boolean(demandApi?.isFullReservationFor?.(state?.route,p,trip));
+    const demandFlags=p.stops.map((_,i)=>full?{pickupReservation:false,dropRequest:false}:demandApi?.flagsFor?.(p,trip,i,state?.route)||{pickupReservation:false,dropRequest:false});
+    const rows=p.stops.map((st,i)=>{const f=demandFlags[i]||{},sym=`${f.pickupReservation?'↑':''}${f.dropRequest?'↓':''}`,tip=[f.pickupReservation?'Montée sur réservation':null,f.dropRequest?'Descente à la demande':null].filter(Boolean).join(' · ');return `<tr><td>${i+1}. ${html(st.name)}${sym?`<span class="v3121-demand-flags" title="${html(tip)}">${sym}</span>`:''}</td><td>${html(tripTime(trip,i))}</td></tr>`}).join(''),dest=p.stops.at(-1)?.name||p.headsign||'Terminus';
+    const legend=demandFlags.some(f=>f?.pickupReservation||f?.dropRequest)?`<span class="v3121-demand-legend">${html(state?.route?.short||'')} · ↑ montée sur réservation · ↓ descente à la demande</span>`:full?'<span class="v3121-demand-legend">Course intégralement sur réservation · à exploiter en mode TAD</span>':'';
     q('v309TripDetail').innerHTML=`<div class="v309-detail-head"><b>${html(p.stops[0]?.name||'Départ')} → ${html(dest)}</b><span>Départ ${html(clock(run.raw))} · ${p.stops.length} arrêts · données GTFS officielles Fluo</span>${legend}</div><table class="v309-table"><thead><tr><th>Arrêt</th><th>Arrivée / départ</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   function renderDepartures(){
@@ -5596,9 +5598,9 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const gs=buildGroups(),date=dateObject();q('v309Title').textContent=`${state.route.short} · ${state.route.long||'Fiche horaire'}`;q('v309Subtitle').textContent=`${date.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})} · lignes régulières, scolaires et TAD issues du flux officiel`;
     q('v309Direction').innerHTML=gs.length?gs.map((g,i)=>`<option value="${i}">${html(g.label)} · ${g.runs.length} départ${g.runs.length>1?'s':''}</option>`).join(''):'<option>Aucun service ce jour</option>';q('v309Direction').disabled=!gs.length;renderDepartures();
   }
-  function openTimetable(){
+  async function openTimetable(){
     const modal=q('v309Timetable');modal.classList.remove('hidden');q('v309Date').value=q('serviceDate')?.value||new Date().toISOString().slice(0,10);
-    try{renderSheet()}catch(e){console.error('V30.9 affichage fiche horaire',e);q('v309Title').textContent=state?.route?.short||'Fiche horaire';q('v309Subtitle').textContent='La ligne est sélectionnée, mais ses horaires ne peuvent pas être affichés.';q('v309Departures').innerHTML='';q('v309TripDetail').innerHTML=`<div class="v309-empty">Affichage impossible : ${html(e?.message||e)}</div>`}
+    try{if(window.FluoDemandStopsV3124?.enrichRoute)await window.FluoDemandStopsV3124.enrichRoute();renderSheet()}catch(e){console.error('V30.9 affichage fiche horaire',e);q('v309Title').textContent=state?.route?.short||'Fiche horaire';q('v309Subtitle').textContent='La ligne est sélectionnée, mais ses horaires ne peuvent pas être affichés.';q('v309Departures').innerHTML='';q('v309TripDetail').innerHTML=`<div class="v309-empty">Affichage impossible : ${html(e?.message||e)}</div>`}
   }
   function close(){q('v309Timetable').classList.add('hidden')}
   // Délégation en capture : l'ouverture reste fiable même si un ancien module intercepte
@@ -6195,7 +6197,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.23 · Annonces vocales par catégories';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.23';
+  document.title='Fluo SAEIV V31.24 · Annonces vocales par catégories';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.24';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -6360,30 +6362,134 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 
 
-<script id="v3120Line57R027PredepartureReservations">
+<script id="v3124ConditionalStopsEngine">
 'use strict';
-/* V31.20 — contrôle conducteur avant départ des montées réservées aux arrêts à la demande.
-   Aucun changement de design du cockpit : cette extension ne s'affiche que sur l'écran de préparation,
-   uniquement pour une course régulière 57R027 possédant au moins un arrêt conditionnel après le point de prise de service.
-   Les arrêts conditionnels non activés restent exclus du parcours ; une demande ajoutée en ligne réactive l'arrêt
-   et le moteur V31.19 recalcule alors la branche correspondante. */
+/* V31.24 — moteur générique des dessertes conditionnelles Fluo.
+   Le mécanisme ne s'active que lorsque la course possède réellement des règles pickup_type/drop_off_type
+   ou lorsqu'une règle métier embarquée (57R027) le confirme. Une course totalement sur réservation
+   reste du TAD et n'est pas traitée comme une ligne régulière à branches conditionnelles. */
 (()=>{
   const q=id=>document.getElementById(id);
-  const api=()=>window.Fluo57R027V3119;
+  const V={cache:new Map(),timer:null,serial:0,pattern:null,signature:'',lastError:'',remoteBusy:false,busy:false,ready:false};
+  const CACHE='fluo-demand-routes-v3124';
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[’']/g,"'").replace(/\s+/g,' ').trim();
+  const codeOf=r=>norm(r?.short||'').replace(/\s+/g,'');
+  const depClockFor=trip=>String(trip?.times?.[0]?.[1]||trip?.times?.[0]?.[0]||'').slice(0,5);
+  const direct=(trip,i)=>{const d=trip?.demand?.[i];if(!d)return null;const pu=String(d.pickup_type??'0'),dr=String(d.drop_off_type??'0');return{pickupType:pu,dropOffType:dr,pickupReservation:pu==='2',dropRequest:dr==='3'||dr==='2',conditional:pu==='2'||dr==='2'||dr==='3',source:'gtfs'}};
+  function legacy(pattern,trip,i,route=state?.route){
+    if(codeOf(route)!=='57R027')return null;const old=window.Fluo57R027V3119;if(!old?.isDemandStopFor?.(pattern,trip,i))return null;
+    return{pickupType:'2',dropOffType:'3',pickupReservation:true,dropRequest:true,conditional:true,source:'57R027'};
+  }
+  function flagsFor(pattern,trip,i,route=state?.route){const d=direct(trip,i);if(d?.conditional)return d;return legacy(pattern,trip,i,route)||d||{pickupType:'0',dropOffType:'0',pickupReservation:false,dropRequest:false,conditional:false,source:'none'}}
+  const flags=i=>flagsFor(state?.pattern,state?.run?.trip,i,state?.route);
+  const demandIndices=()=> (state?.pattern?.stops||[]).map((_,i)=>i).filter(i=>flags(i).conditional);
+  const boardingIndices=()=> (state?.pattern?.stops||[]).map((_,i)=>i).filter(i=>flags(i).pickupReservation);
+  const dropIndices=()=> (state?.pattern?.stops||[]).map((_,i)=>i).filter(i=>flags(i).dropRequest);
+  const hasConditional=()=>state?.service?.mode==='regular'&&demandIndices().length>0;
+  function knownFullReservation(route,pattern,trip){
+    const code=codeOf(route),d=depClockFor(trip),first=norm(pattern?.stops?.[0]?.name);
+    if(code==='57R027')return (first.startsWith('CHATEAU-SALINS')&&(d==='11:00'||d==='13:00'))||(first.startsWith('METZ')&&(d==='09:15'||d==='13:45'));
+    return false;
+  }
+  function isFullReservationFor(route,pattern,trip){
+    if(knownFullReservation(route,pattern,trip))return true;
+    const xs=trip?.demand;if(!Array.isArray(xs)||xs.length<2)return false;
+    let reservable=0,regular=0,usable=0;
+    for(let i=0;i<xs.length-1;i++){const pu=String(xs[i]?.pickup_type??'0');if(pu==='1')continue;usable++;if(pu==='2')reservable++;else if(pu==='0'||pu==='')regular++}
+    return usable>=2&&reservable>0&&regular===0&&reservable===usable;
+  }
+  const isFullReservationService=()=>Boolean(state?.run&&isFullReservationFor(state.route,state.pattern,state.run.trip));
+  function loadCache(){try{const o=JSON.parse(localStorage.getItem(CACHE)||'{}');Object.entries(o).forEach(([k,v])=>{if(v?.shape?.length>=2)V.cache.set(k,v)})}catch{}}
+  function saveCache(){try{const o={};[...V.cache.entries()].slice(-45).forEach(([k,v])=>o[k]=v);localStorage.setItem(CACHE,JSON.stringify(o))}catch{}}
+  loadCache();
+  const clone=s=>Array.isArray(s)?s.map(p=>[Number(p[0]),Number(p[1])]):[];
+  function remember(){if(state?.pattern&&!state.pattern.__v3124OriginalShape)state.pattern.__v3124OriginalShape=clone(state.pattern.shape||[])}
+  function restore(pattern=state?.pattern,redraw=false){if(!pattern?.__v3124OriginalShape)return;pattern.shape=clone(pattern.__v3124OriginalShape);if(pattern===state.pattern){V.pattern=null;V.signature='';try{prepareCourseGeometry()}catch{};if(redraw&&state?.nav?.map)try{drawRoute();updateStopMarkers()}catch{}}}
+  function operationalIndices(){const xs=state?.pattern?.stops||[];if(!hasConditional())return xs.map((_,i)=>i);return xs.map((_,i)=>i).filter(i=>!flags(i).conditional||state.service.requestedStops.has(i))}
+  const sig=()=>state?.run?.trip?`${codeOf(state.route)}|${state.run.trip.id||depClockFor(state.run.trip)}|${operationalIndices().join(',')}`:'';
+  function ensureInfo(){if(q('v3124DemandInfo'))return;const c=q('courseInfo');if(c)c.insertAdjacentHTML('afterend','<div id="v3124DemandInfo" class="v3119-demand-info hidden"><div><b id="v3124DemandTitle">🚌 Desserte conditionnelle</b><span id="v3124DemandStatus"></span></div><button id="v3124DemandRetry" type="button">↻ Recalculer</button></div>');q('v3124DemandRetry')?.addEventListener('click',()=>rebuild('retry'))}
+  function setInfo(kind,text){ensureInfo();const box=q('v3124DemandInfo');if(!box)return;box.className=`v3119-demand-info ${kind||''}${text?'':' hidden'}`;q('v3124DemandTitle').textContent=`🚌 ${state?.route?.short||''} · desserte conditionnelle`;q('v3124DemandStatus').textContent=text||''}
+  async function rebuild(reason='update'){
+    if(codeOf(state?.route)==='57R027'&&window.Fluo57R027V3119?.rebuild)return window.Fluo57R027V3119.rebuild(reason);
+    if(!state?.pattern||state?.service?.mode!=='regular'){setInfo('','');return true}
+    const ds=demandIndices();if(!ds.length){restore(state.pattern,true);setInfo('','');return true}
+    remember();const key=sig();if(V.signature===key&&V.pattern===state.pattern&&state.pattern.trace_source==='conditional_demand_osrm_v3124'){V.ready=true;return true}
+    const my=++V.serial,priorShape=clone(state.pattern.shape||[]),priorSource=state.pattern.trace_source||'';V.busy=true;V.ready=false;if(!state.running){ui.start&&(ui.start.disabled=true);ui.simulate&&(ui.simulate.disabled=true)}setInfo('loading',`Calcul du parcours : ${ds.filter(i=>state.service.requestedStops.has(i)).length} arrêt(s) conditionnel(s) à desservir sur ${ds.length}.`);
+    try{
+      let shape=V.cache.get(key)?.shape;if(!shape?.length){const ids=operationalIndices(),pts=ids.map(i=>{const s=state.pattern.stops[i],p=typeof sourceStopPoint==='function'?sourceStopPoint(s):s;return{name:s.name,lat:Number(p.lat),lon:Number(p.lon)}});if(pts.length<2)throw new Error('pas assez d’arrêts opérationnels');shape=await roadGeometryForStops(pts);V.cache.set(key,{shape,savedAt:Date.now()});saveCache()}
+      if(my!==V.serial)return false;state.pattern.shape=clone(shape);state.pattern.trace_source='conditional_demand_osrm_v3124';prepareCourseGeometry();V.pattern=state.pattern;V.signature=key;V.lastError='';V.busy=false;V.ready=true;if(state?.nav?.map){drawRoute();updateStopMarkers()}if(state?.mode==='simulation'&&state?.running)try{syncSimulationToState()}catch{};setInfo('ok',`${ds.length} arrêt(s) conditionnel(s) · ${ds.filter(i=>state.service.requestedStops.has(i)).length} à desservir · les autres sont contournés.`);try{refreshStartAvailability()}catch{};return true;
+    }catch(e){if(my!==V.serial)return false;V.busy=false;V.ready=false;V.lastError=String(e?.message||e);const keep=priorSource==='conditional_demand_osrm_v3124'&&priorShape.length>=2;if(keep){state.pattern.shape=priorShape;state.pattern.trace_source=priorSource;try{prepareCourseGeometry();if(state?.nav?.map){drawRoute();updateStopMarkers()}}catch{}}else restore(state.pattern,true);setInfo('err',keep?`Nouveau recalcul impossible (${V.lastError}). Le dernier parcours conditionnel valide est conservé.`:`Parcours conditionnel indisponible (${V.lastError}). Le départ reste bloqué si un détour doit être évité.`);try{refreshStartAvailability()}catch{};return false}
+  }
+  function schedule(delay=140){clearTimeout(V.timer);if(codeOf(state?.route)==='57R027'){window.Fluo57R027V3119?.schedule?.(delay);return}if(!hasConditional())return;V.timer=setTimeout(()=>rebuild('selection'),delay)}
+  function scorePattern(cur,rem){let score=0;if(norm(cur?.stops?.[0]?.name)===norm(rem?.stops?.[0]?.name))score+=8;if(norm(cur?.stops?.at(-1)?.name)===norm(rem?.stops?.at(-1)?.name))score+=8;score-=Math.abs((cur?.stops?.length||0)-(rem?.stops?.length||0))*.15;return score}
+  function alignDemand(curP,remoteP,remoteTrip){const out=(curP?.stops||[]).map(()=>({pickup_type:'0',drop_off_type:'0'})),rs=remoteP?.stops||[],rd=remoteTrip?.demand||[];let pos=0,matches=0;for(let i=0;i<(curP?.stops||[]).length;i++){const n=norm(curP.stops[i]?.name);let j=-1;for(let k=pos;k<rs.length;k++)if(norm(rs[k]?.name)===n){j=k;break}if(j<0){for(let k=0;k<rs.length;k++)if(norm(rs[k]?.name)===n){j=k;break}}if(j>=0){out[i]={pickup_type:String(rd[j]?.pickup_type||'0'),drop_off_type:String(rd[j]?.drop_off_type||'0')};pos=j+1;matches++}}return matches>=Math.max(2,Math.floor((curP?.stops?.length||0)*.55))?out:null}
+  async function enrichRoute(){
+    if(!state?.route||!state?.patterns?.length)return false;const code=codeOf(state.route);if(code==='57R027')return true;
+    const directAlready=(state.patterns||[]).some(p=>(p.trips||[]).some(t=>Array.isArray(t.demand)&&t.demand.length));if(directAlready||state.route.__v3124DemandEnriched)return directAlready;
+    const dept=String(state?.dept||'');if(!['54','57'].includes(dept)||typeof fluoRemoteFeed!=='function'||typeof fluoRemoteRoutePayload!=='function')return false;
+    try{
+      V.remoteBusy=true;const feed=await fluoRemoteFeed(dept),rr=(feed.routes||[]).find(r=>codeOf(r)===code);if(!rr)return false;const payload=await fluoRemoteRoutePayload(dept,rr),remote=[];
+      for(const rp of (payload.patterns||[]))for(const rt of (rp.trips||[]))remote.push({rp,rt,clock:depClockFor(rt)});
+      let mappedCount=0;
+      for(const cp of (state.patterns||[]))for(const ct of (cp.trips||[])){
+        if(Array.isArray(ct.demand)&&ct.demand.length)continue;const clock=depClockFor(ct),candidates=remote.filter(x=>x.clock===clock).map(x=>({...x,score:scorePattern(cp,x.rp)+(String(x.rt?.id||'')===String(ct?.id||'')?30:0)})).sort((a,b)=>b.score-a.score);
+        for(const c of candidates){const mapped=alignDemand(cp,c.rp,c.rt);if(mapped){ct.demand=mapped;ct.__v3124DemandSource=`remote-${dept}`;mappedCount++;break}}
+      }
+      state.route.__v3124DemandEnriched=true;return mappedCount>0;
+    }catch(e){console.warn('V31.24 métadonnées arrêt à la demande',e);return false}finally{V.remoteBusy=false}
+  }
+  async function enrichCurrentRun(){
+    if(!state?.run?.trip||!state?.pattern||state.service.mode!=='regular')return false;if(Array.isArray(state.run.trip.demand)&&state.run.trip.demand.length)return true;if(codeOf(state.route)==='57R027')return true;await enrichRoute();return Array.isArray(state.run.trip.demand)&&state.run.trip.demand.length>0;
+  }
+
+  try{const base=refreshStartAvailability;refreshStartAvailability=function(){const r=base();if(codeOf(state?.route)!=='57R027'&&hasConditional()&&!state?.running){const ok=V.ready&&V.pattern===state.pattern&&V.signature===sig()&&state.pattern?.trace_source==='conditional_demand_osrm_v3124';ui.start&&(ui.start.disabled=ui.start.disabled||!ok);ui.simulate&&(ui.simulate.disabled=ui.simulate.disabled||!ok)}return r}}catch(e){console.warn('V31.24 disponibilité conditionnelle',e)}
+
+  // Navigation : on ne saute que les arrêts réellement conditionnels et non activés.
+  try{const base=nextOperationalStop;nextOperationalStop=function(fromIndex){if(codeOf(state?.route)==='57R027'||!hasConditional())return base(fromIndex);for(let i=fromIndex+1;i<(state.pattern?.stops?.length||0);i++)if(!flags(i).conditional||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.24 next',e)}
+  try{const base=previousOperationalStop;previousOperationalStop=function(fromIndex){if(codeOf(state?.route)==='57R027'||!hasConditional())return base(fromIndex);for(let i=fromIndex-1;i>=0;i--)if(!flags(i).conditional||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.24 prev',e)}
+  try{const base=operationalEndIndex;operationalEndIndex=function(){if(codeOf(state?.route)==='57R027'||!hasConditional())return base();for(let i=(state.pattern?.stops?.length||1)-1;i>=0;i--)if(!flags(i).conditional||state.service.requestedStops.has(i))return i;return 0}}catch(e){console.warn('V31.24 end',e)}
+  try{const base=operationalRemaining;operationalRemaining=function(){if(codeOf(state?.route)==='57R027'||!hasConditional())return base();const t=Number(state.target);return operationalIndices().filter(i=>i>=t).length}}catch(e){console.warn('V31.24 remaining',e)}
+
+  // Feuille Demandes générique : montée réservée et descente à la demande sont distinguées.
+  try{const base=renderRequestSheet;renderRequestSheet=function(){if(!hasConditional())return base();if(!ui.requestsList||!state.pattern)return;const ds=demandIndices();if(q('requestsTitle'))q('requestsTitle').textContent='🔔 Demandes / arrêts conditionnels';const intro=q('requestsTitle')?.parentElement?.querySelector('p');if(intro)intro.textContent='Les arrêts conditionnels non activés sont contournés. Active un arrêt pour une descente demandée ou lorsqu’une montée a été réservée.';ui.requestsList.innerHTML=state.pattern.stops.map((st,i)=>{const past=i<=state.current,checked=state.service.requestedStops.has(i),f=flags(i),parts=[f.pickupReservation?'montée sur réservation':null,f.dropRequest?'descente à la demande':null],conditional=f.conditional,meta=[typeof stopScheduleLabel==='function'?stopScheduleLabel(i):'',conditional?parts.join(' · '):past?'déjà passé':'arrêt régulier'].filter(Boolean).join(' · '),tag=conditional?(checked?'✓ À DESSERVIR':`${f.pickupReservation?'↑':''}${f.dropRequest?'↓':''} À LA DEMANDE`):(checked?'🔔 DEMANDÉ':'ARRÊT');return `<label class="stop-check ${checked?'requested':''} ${conditional?'v3119-conditional':''}"><input class="request-stop-checkbox" type="checkbox" data-index="${i}" ${checked?'checked':''} ${past?'disabled':''}><span class="stop-check-main"><span class="stop-check-name">${i+1}. ${esc(st.name)}</span><span class="stop-check-meta">${esc(meta)}</span></span><span class="stop-check-tag">${tag}</span></label>`}).join('')}}catch(e){console.warn('V31.24 requests',e)}
+  try{const base=requestStop;requestStop=function(index,checked){const generic=codeOf(state?.route)!=='57R027'&&flags(index).conditional,r=base(index,checked);if(generic){schedule(70);setTimeout(()=>{if(state?.running){const nx=nextOperationalStop(state.current);state.target=nx===null?state.pattern.stops.length:nx;labels();updateRequestAlert(false)}},0)}return r}}catch(e){console.warn('V31.24 request',e)}
+  try{const base=stopIcon;stopIcon=function(index){if(codeOf(state?.route)!=='57R027'&&hasConditional()&&flags(index).conditional&&!state.service.requestedStops.has(index)&&typeof L!=='undefined')return L.divIcon({className:'',html:'<div class="stop-pin v14-skipped-stop v3119-demand-skipped"></div>',iconSize:[7,7],iconAnchor:[3.5,3.5]});return base(index)}}catch(e){console.warn('V31.24 markers',e)}
+
+  // Sélection : enrichit 54/57 depuis leur GTFS officiel sans remplacer les horaires/overrides embarqués.
+  try{const base=selectRun;selectRun=async function(i){if(state?.pattern?.__v3124OriginalShape)restore(state.pattern,false);const out=await base(i);if(!state?.run||!state?.pattern)return out;if(state.service.mode==='regular')await enrichCurrentRun();if(isFullReservationService()&&state.service.mode==='regular'){setInfo('err','Cette course est intégralement sur réservation : elle reste un TAD. Passe en mode TAD pour la préparer et la lancer.');if(ui.courseInfo&&!ui.courseInfo.textContent.includes('TAD'))ui.courseInfo.textContent+=' · 📞 COURSE SUR RÉSERVATION INTÉGRALE → TAD';ui.start.disabled=true;ui.simulate.disabled=true;return out}const ds=demandIndices();if(ds.length&&state.service.mode==='regular'){remember();setInfo('ok',`${ds.length} arrêt(s) conditionnel(s) détecté(s) sur cette course.`);schedule(60)}else setInfo('','');return out}}catch(e){console.warn('V31.24 selectRun',e)}
+  try{const base=setServiceMode;setServiceMode=function(mode){if(state?.pattern?.__v3124OriginalShape&&mode!=='regular')restore(state.pattern,false);const r=base(mode);if(mode==='regular'&&state.pattern)setTimeout(()=>{enrichCurrentRun().then(()=>schedule(80))},0);return r}}catch(e){console.warn('V31.24 mode',e)}
+  try{const base=enterDriver;enterDriver=function(mode){const r=base(mode);if(state?.service?.mode==='tad'&&ui.serviceBadge){ui.serviceBadge.textContent='TAD';ui.serviceBadge.className='servicebadge tad'}return r}}catch(e){console.warn('V31.24 badge TAD',e)}
+  q('requestsClear')?.addEventListener('click',()=>setTimeout(()=>{if(hasConditional())schedule(60)},0));
+  q('recenter')?.addEventListener('click',()=>setTimeout(()=>{if(hasConditional()&&state?.running){const nx=nextOperationalStop(state.current);state.target=nx===null?state.pattern.stops.length:nx;labels()}},0));
+  ensureInfo();
+  window.FluoDemandStopsV3124={flagsFor,flags,demandIndices,boardingIndices,dropIndices,operationalIndices,rebuild,schedule,enrichRoute,enrichCurrentRun,isFullReservationFor,isFullReservationService,hasConditional};
+})();
+</script>
+
+<script id="v3120RegularPredepartureReservations">
+'use strict';
+/* V31.24 — contrôle conducteur avant départ des montées réservées aux arrêts à la demande.
+   Aucun changement de design du cockpit : cette extension ne s'affiche que sur l'écran de préparation,
+   uniquement pour une course régulière possédant au moins une montée sur réservation après le point de prise de service.
+   Les arrêts conditionnels non activés restent exclus du parcours ; une demande ajoutée en ligne réactive l'arrêt
+   et le moteur de desserte conditionnelle recalcule alors la branche correspondante. */
+(()=>{
+  const q=id=>document.getElementById(id);
+  const api=()=>window.FluoDemandStopsV3124||window.Fluo57R027V3119;
   const R={pendingButton:null,allowOnce:null,boarding:new Set(),key:''};
   const currentKey=()=>`${state?.run?.trip?.id||''}|${q('startStop')?.value||'0'}`;
   const conditionalAfterStart=()=>{
-    const a=api(); if(!a?.demandIndices||state?.service?.mode!=='regular')return [];
-    const start=Number(q('startStop')?.value||0);
-    return a.demandIndices().filter(i=>i>start);
+    const a=api(); if(state?.service?.mode!=='regular')return [];
+    const start=Number(q('startStop')?.value||0),xs=a?.boardingIndices?.()||a?.demandIndices?.()||[];
+    return xs.filter(i=>i>start);
   };
-  const eligible=()=>!state?.running&&conditionalAfterStart().length>0;
+  const eligible=()=>!state?.running&&!api()?.isFullReservationService?.()&&conditionalAfterStart().length>0;
 
   function ensureDialog(){
     if(q('v3120DemandPreflight'))return;
     document.body.insertAdjacentHTML('beforeend',`<div id="v3120DemandPreflight" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="v3120PreflightTitle">
       <div class="sheet">
-        <div class="sheet-head"><div><div class="eyebrow">57R027 · AVANT DÉPART</div><h2 id="v3120PreflightTitle">Montées aux arrêts à la demande</h2><p id="v3120PreflightIntro">Des montées ont-elles été réservées à des arrêts à la demande pour cette course ?</p></div><button id="v3120PreflightClose" class="sheet-close" type="button">Fermer</button></div>
+        <div class="sheet-head"><div><div id="v3120PreflightEyebrow" class="eyebrow">AVANT DÉPART</div><h2 id="v3120PreflightTitle">Montées aux arrêts à la demande</h2><p id="v3120PreflightIntro">Des montées ont-elles été réservées à des arrêts à la demande pour cette course ?</p></div><button id="v3120PreflightClose" class="sheet-close" type="button">Fermer</button></div>
         <div id="v3120PreflightQuestion">
           <div class="note">Les arrêts à la demande non activés ne seront pas desservis et le GPS évitera leurs détours. Une demande de descente pourra toujours être ajoutée pendant la course depuis « Demandes ».</div>
           <div class="grid two" style="margin-top:10px"><button id="v3120PreflightNo" type="button">Non · aucune montée réservée</button><button id="v3120PreflightYes" class="primary" type="button">Oui · sélectionner les arrêts</button></div>
@@ -6419,7 +6525,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function closeDialog(){q('v3120DemandPreflight')?.classList.add('hidden');R.pendingButton=null;setStatus('', '')}
   function openDialog(button){
     ensureDialog();R.pendingButton=button;R.key=currentKey();showQuestion();
-    const xs=conditionalAfterStart();q('v3120PreflightIntro').textContent=`Des montées ont-elles été réservées à des arrêts à la demande pour cette course ? ${xs.length} arrêt${xs.length>1?'s sont':' est'} concerné${xs.length>1?'s':''}.`;
+    const xs=conditionalAfterStart();if(q('v3120PreflightEyebrow'))q('v3120PreflightEyebrow').textContent=`${state?.route?.short||'LIGNE'} · AVANT DÉPART`;q('v3120PreflightIntro').textContent=`Des montées ont-elles été réservées à des arrêts à la demande pour cette course ? ${xs.length} arrêt${xs.length>1?'s sont':' est'} concerné${xs.length>1?'s':''}.`;
     q('v3120DemandPreflight').classList.remove('hidden');
   }
   async function applyAndStart(selected){
@@ -6430,11 +6536,12 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     all.forEach(i=>state.service.requestedStops.delete(i));allowed.forEach(i=>state.service.requestedStops.add(i));
     try{renderRequestsButton();renderRequestSheet();updateStopMarkers()}catch{}
     q('v3120PreflightNo')&&(q('v3120PreflightNo').disabled=true);q('v3120PreflightYes')&&(q('v3120PreflightYes').disabled=true);q('v3120PreflightConfirm')&&(q('v3120PreflightConfirm').disabled=true);
-    setStatus('busy',`Préparation du parcours : ${allowed.size} montée${allowed.size>1?'s':''} réservée${allowed.size>1?'s':''}. Les ${all.length-allowed.size} autre${all.length-allowed.size>1?'s':''} arrêt${all.length-allowed.size>1?'s':''} à la demande seront contournés.`);
+    const allConditional=a.demandIndices?.()||all,skipped=allConditional.filter(i=>!state.service.requestedStops.has(i));
+    setStatus('busy',`Préparation du parcours : ${allowed.size} montée${allowed.size>1?'s':''} réservée${allowed.size>1?'s':''}. ${skipped.length} arrêt${skipped.length>1?'s':''} conditionnel${skipped.length>1?'s':''} sera${skipped.length>1?'ont':''} contourné${skipped.length>1?'s':''}.`);
     let ok=true;try{ok=await a.rebuild?.('predeparture-reservations')!==false}catch{ok=false}
     q('v3120PreflightNo')&&(q('v3120PreflightNo').disabled=false);q('v3120PreflightYes')&&(q('v3120PreflightYes').disabled=false);q('v3120PreflightConfirm')&&(q('v3120PreflightConfirm').disabled=false);
     // Si un arrêt doit être contourné, on refuse de démarrer sur l'ancien tracé complet : sinon le GPS pourrait justement envoyer le car dans le détour interdit.
-    if(!ok&&allowed.size<all.length){setStatus('err','Le parcours sans les arrêts non demandés n’a pas pu être calculé. La course n’est pas démarrée afin de ne pas envoyer le véhicule dans un détour inutile. Vérifie la connexion puis réessaie.');return}
+    if(!ok&&skipped.length){setStatus('err','Le parcours sans les arrêts non demandés n’a pas pu être calculé. La course n’est pas démarrée afin de ne pas envoyer le véhicule dans un détour inutile. Vérifie la connexion puis réessaie.');return}
     R.allowOnce=btn.id;q('v3120DemandPreflight').classList.add('hidden');setStatus('', '');R.pendingButton=null;
     // On repasse par le vrai bouton pour conserver tous les gestionnaires historiques de prise de service.
     setTimeout(()=>btn.click(),0);
@@ -6452,7 +6559,44 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('startStop')?.addEventListener('change',()=>{R.boarding.clear();R.key='';closeDialog()});
 
   // Exposition diagnostic minimale : permet de vérifier quelles branches seront évitées sans modifier l'UI.
-  window.Fluo57R027PredepartureV3120={conditionalAfterStart,boardingReservations:()=>[...R.boarding]};
+  window.FluoPredepartureReservationsV3124={conditionalAfterStart,boardingReservations:()=>[...R.boarding]};window.Fluo57R027PredepartureV3120=window.FluoPredepartureReservationsV3124;
+})();
+</script>
+
+<script id="v3124AnnouncementNavigator">
+'use strict';
+/* V31.24 — navigation Catégories → Annonces. Le moteur vocal V26/V28 reste inchangé.
+   Les annonces personnelles sont toujours enregistrées dans fluoCustomAnnouncementsV28, avec un champ category. */
+(()=>{
+  const q=id=>document.getElementById(id),KEY='fluoCustomAnnouncementsV28',LEGACY='Mes annonces personnalisées';
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const uid=()=>crypto.randomUUID?crypto.randomUUID():`ann-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const read=()=>{try{const x=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(x)?x:[]}catch{return []}};
+  const write=xs=>localStorage.setItem(KEY,JSON.stringify(xs.slice(0,100)));
+  const builtin=[];q('v26AnnList')?.querySelectorAll('.v26-ann-category').forEach(sec=>{const category=sec.querySelector('h3')?.textContent?.trim()||'Autres';sec.querySelectorAll('[data-v26-ann]').forEach(b=>builtin.push({id:b.dataset.v26Ann,category,title:b.querySelector('b')?.textContent?.trim()||'Annonce',text:b.querySelector('span')?.textContent?.trim()||''}))});
+  const builtinCategories=[...new Set(builtin.map(x=>x.category))];
+  function migrate(){const xs=read();let changed=false;xs.forEach(x=>{if(!String(x.category||'').trim()){x.category=LEGACY;changed=true}});if(changed)write(xs);return xs}
+  function categories(){const custom=migrate(),names=[...builtinCategories,...custom.map(x=>String(x.category||LEGACY).trim()).filter(Boolean)];return [...new Set(names)]}
+  function ensure(){
+    const scroll=q('v26AnnounceSheet')?.querySelector('.v26-scroll');if(!scroll||q('v3124AnnHome'))return;
+    scroll.insertAdjacentHTML('afterbegin',`<div id="v3124AnnHome"><div class="v3124-ann-help">Choisis une catégorie pour afficher uniquement les annonces correspondantes.</div><div id="v3124AnnCategories" class="v3124-ann-category-menu"></div><button id="v3124AnnCreate" class="v3124-ann-create" type="button">＋ Créer une annonce personnalisée</button></div><div id="v3124AnnPage" class="hidden"><div class="v3124-ann-nav"><button id="v3124AnnBack" type="button">← Catégories</button><strong id="v3124AnnPageTitle"></strong></div><div id="v3124AnnItems" class="v26-ann-category-grid"></div></div>`);
+    const custom=q('v28CustomBox');if(custom){custom.classList.add('hidden');if(!q('v3124CustomBack'))custom.insertAdjacentHTML('afterbegin','<div class="v3124-ann-nav"><button id="v3124CustomBack" type="button">← Catégories</button><strong>Créer une annonce personnalisée</strong></div>');const actions=custom.querySelector('.v28-custom-actions');const save=q('v28CustomSave');if(save)save.textContent='💾 Enregistrer dans la catégorie';const grid=custom.querySelector('.v28-custom-grid');if(grid&&!q('v3124CustomCategoryWrap')){const wrap=document.createElement('div');wrap.id='v3124CustomCategoryWrap';wrap.className='v3124-custom-category';wrap.innerHTML='<label>Catégorie<select id="v3124CustomCategory"></select></label><label id="v3124NewCategoryWrap" class="hidden">Nouvelle catégorie<input id="v3124NewCategory" type="text" maxlength="45" placeholder="Nom de la nouvelle catégorie"></label>';grid.insertBefore(wrap,actions||null)}}
+    q('v26AnnList')?.classList.add('hidden');q('v26AnnounceSheet')?.querySelector('.v26-ann-preview')?.classList.add('hidden');
+    q('v3124AnnBack')?.addEventListener('click',showHome);q('v3124CustomBack')?.addEventListener('click',showHome);q('v3124AnnCreate')?.addEventListener('click',showEditor);q('v3124AnnCategories')?.addEventListener('click',e=>{const b=e.target.closest('[data-v3124-category]');if(b)showCategory(decodeURIComponent(b.dataset.v3124Category))});
+    q('v3124AnnItems')?.addEventListener('click',e=>{const del=e.target.closest('[data-v3124-delete]');if(del){e.preventDefault();e.stopPropagation();const id=del.dataset.v3124Delete;if(confirm('Supprimer cette annonce personnalisée ?')){write(read().filter(x=>String(x.id)!==String(id)));showCategory(q('v3124AnnPageTitle')?.dataset.category||'');}return}const std=e.target.closest('[data-v3124-standard]');if(std){const original=q('v26AnnList')?.querySelector(`[data-v26-ann="${CSS.escape(std.dataset.v3124Standard)}"]`);original?.click();return}const custom=e.target.closest('[data-v3124-custom]');if(custom){const x=read().find(z=>String(z.id)===String(custom.dataset.v3124Custom));if(x&&typeof say==='function'){say(x.text,{priority:80,kind:'manual'});const st=q('v26AnnStatus');if(st)st.textContent=`✅ « ${x.title} » diffusée.`}return}});
+    q('v3124CustomCategory')?.addEventListener('change',()=>q('v3124NewCategoryWrap')?.classList.toggle('hidden',q('v3124CustomCategory').value!=='__new__'));
+    q('v28CustomSave')?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();const title=(q('v28CustomTitle')?.value||'').trim(),text=(q('v28CustomText')?.value||'').trim();if(!title||!text)return alert('Donne un titre et écris le texte de l’annonce.');let category=q('v3124CustomCategory')?.value||LEGACY;if(category==='__new__'){category=(q('v3124NewCategory')?.value||'').trim();if(!category)return alert('Indique le nom de la nouvelle catégorie.')}const xs=read();xs.unshift({id:uid(),title,text,category,createdAt:new Date().toISOString()});write(xs);q('v28CustomTitle').value='';q('v28CustomText').value='';if(q('v3124NewCategory'))q('v3124NewCategory').value='';showCategory(category)},true);
+    const css=document.createElement('style');css.id='v3124AnnStyle';css.textContent=`.v3124-ann-help{margin:2px 0 10px;color:#9fb0bb;font-size:.72rem}.v3124-ann-category-menu{display:grid;grid-template-columns:1fr 1fr;gap:8px}.v3124-ann-category-btn{min-height:62px;text-align:left;padding:11px 12px;border:1px solid #355163;border-radius:13px;background:#081720;color:#fff}.v3124-ann-category-btn b{display:block}.v3124-ann-category-btn span{display:block;margin-top:4px;color:#9fb0bb;font-size:.67rem}.v3124-ann-create{width:100%;margin-top:10px;min-height:46px;background:#17384b;border-color:#35647d}.v3124-ann-nav{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:10px}.v3124-ann-nav strong{font-size:.95rem}.v3124-ann-custom{position:relative;padding-right:43px!important}.v3124-ann-delete{position:absolute;right:6px;top:6px;width:30px;height:30px;padding:0;border-radius:8px;background:#3a1d20;color:#ffd5d2}.v3124-custom-category{display:grid;grid-template-columns:1fr 1fr;gap:8px}.v3124-custom-category label{font-size:.68rem;color:#9fb0bb}.v3124-custom-category select,.v3124-custom-category input{display:block;width:100%;margin-top:4px;min-height:42px;background:#091620;color:#fff;border:1px solid #355163;border-radius:11px;padding:8px;font:inherit}.hidden{display:none!important}@media(max-width:680px){.v3124-ann-category-menu,.v3124-custom-category{grid-template-columns:1fr}}`;document.head.appendChild(css)
+  }
+  function renderHome(){const box=q('v3124AnnCategories');if(!box)return;const custom=read(),cats=categories();box.innerHTML=cats.map(c=>{const n=builtin.filter(x=>x.category===c).length+custom.filter(x=>(x.category||LEGACY)===c).length;return `<button class="v3124-ann-category-btn" type="button" data-v3124-category="${encodeURIComponent(c)}"><b>${esc(c)}</b><span>${n} annonce${n>1?'s':''}</span></button>`}).join('')}
+  function showHome(){ensure();renderHome();q('v3124AnnHome')?.classList.remove('hidden');q('v3124AnnPage')?.classList.add('hidden');q('v28CustomBox')?.classList.add('hidden');q('v26AnnounceSheet')?.querySelector('.v26-ann-preview')?.classList.add('hidden')}
+  function showCategory(category){ensure();const std=builtin.filter(x=>x.category===category),custom=read().filter(x=>(x.category||LEGACY)===category),box=q('v3124AnnItems'),title=q('v3124AnnPageTitle');if(title){title.textContent=category;title.dataset.category=category}box.innerHTML=[...std.map(x=>`<button type="button" class="v26-ann-choice" data-v3124-standard="${esc(x.id)}"><b>${esc(x.title)}</b><span>${esc(x.text)}</span></button>`),...custom.map(x=>`<button type="button" class="v26-ann-choice v3124-ann-custom" data-v3124-custom="${esc(x.id)}"><b>${esc(x.title)}</b><span>${esc(x.text)}</span><span class="v3124-ann-delete" data-v3124-delete="${esc(x.id)}" role="button" aria-label="Supprimer">🗑</span></button>`)].join('')||'<div class="v26-ann-note">Aucune annonce dans cette catégorie.</div>';q('v3124AnnHome')?.classList.add('hidden');q('v3124AnnPage')?.classList.remove('hidden');q('v28CustomBox')?.classList.add('hidden');q('v26AnnounceSheet')?.querySelector('.v26-ann-preview')?.classList.remove('hidden')}
+  function fillCategorySelect(preferred=''){const sel=q('v3124CustomCategory');if(!sel)return;const cats=categories();sel.innerHTML=cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')+'<option value="__new__">＋ Nouvelle catégorie…</option>';sel.value=cats.includes(preferred)?preferred:(cats[0]||'__new__');q('v3124NewCategoryWrap')?.classList.toggle('hidden',sel.value!=='__new__')}
+  function showEditor(){ensure();const from=q('v3124AnnPageTitle')?.dataset.category||'';fillCategorySelect(from);q('v3124AnnHome')?.classList.add('hidden');q('v3124AnnPage')?.classList.add('hidden');q('v28CustomBox')?.classList.remove('hidden');q('v26AnnounceSheet')?.querySelector('.v26-ann-preview')?.classList.add('hidden')}
+  ensure();migrate();showHome();
+  // À chaque ouverture, on revient volontairement à l'écran des catégories pour éviter l'encombrement.
+  const sheet=q('v26AnnounceSheet');if(sheet){new MutationObserver(()=>{if(!sheet.classList.contains('hidden'))showHome()}).observe(sheet,{attributes:true,attributeFilter:['class']})}
+  window.FluoAnnouncementCategoriesV3124={showHome,showCategory,showEditor,categories};
 })();
 </script>
 

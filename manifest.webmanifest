@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.23",
-  "short_name": "Fluo V31.23",
-  "start_url": "./?v=31.23",
+  "name": "Fluo SAEIV V31.24",
+  "short_name": "Fluo V31.24",
+  "start_url": "./?v=31.24",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.23 — nouvelle bibliothèque d’annonces vocales manuelles classée par catégories ; annonces personnalisées et fonctionnalités V31.22 conservées."
+  "description": "SAEIV conducteur V31.24 — arrêts conditionnels pilotés par les règles GTFS officielles ; courses intégralement sur réservation conservées en TAD ; annonces vocales organisées en menus Catégories → Annonces avec classement des annonces personnalisées."
 }

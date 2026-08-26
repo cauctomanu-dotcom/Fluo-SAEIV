@@ -351,3 +351,15 @@ V31.23 — BIBLIOTHÈQUE D’ANNONCES VOCALES PAR CATÉGORIES
 - Catégories : Sécurité ; Vie à bord ; Conditions de circulation ; Déviations ; Conditions météorologiques ; Retards et régulation ; Immobilisation du véhicule.
 - La création, l’enregistrement et la diffusion des annonces personnalisées V28 sont conservés.
 - Aucun changement du cockpit, du planning, de Ma journée, des HLP, des fiches horaires ou des fonctions 57R027.
+
+
+V31.24 — DESSERTES CONDITIONNELLES + ANNONCES PAR CATÉGORIES
+- Lignes régulières classiques : aucun changement.
+- Arrêts conditionnels : lecture des règles GTFS pickup_type/drop_off_type lorsque la source officielle les fournit.
+- Montée sur réservation : contrôle conducteur avant départ, puis choix des arrêts concernés.
+- Descente à la demande : l'arrêt reste hors parcours tant qu'il n'est pas demandé pendant la course.
+- Courses intégralement sur réservation : conservées en mode TAD, pas en ligne régulière conditionnelle.
+- 57R027 : règles embarquées conservées comme repli fiable.
+- Annonces vocales : premier écran de catégories, puis annonces de la catégorie.
+- Annonces personnalisées : catégorie obligatoire, existante ou nouvelle ; anciennes annonces sans catégorie migrées automatiquement.
+- Design général, cockpit, planning, Ma journée, HLP, journaux et données embarquées conservés.

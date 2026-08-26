@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-26T22:01:32+02:00",
-  "version": "V31.23 GITHUB MONOBLOC + ANNONCES VOCALES PAR CATÉGORIES + PERSONNALISÉES CONSERVÉES + V31.22 CONSERVÉE",
+  "generated_at": "2026-08-26T22:35:00+02:00",
+  "version": "V31.24 GITHUB MONOBLOC + ARRÊTS CONDITIONNELS GTFS + COURSES RÉSERVATION INTÉGRALE EN TAD + MENU VOCAL CATÉGORIES → ANNONCES + V31.23 CONSERVÉE",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -56,7 +56,7 @@
   },
   "line_57R027_conditional_service": {
     "source": "Fiche Horaire officielle 027 Château Salins / Metz, offre indiquant Services à la demande : Oui",
-    "behavior": "la ligne reste régulière ; avant une course comportant des arrêts à la demande, le conducteur confirme si des montées ont été réservées puis sélectionne les arrêts concernés ; pendant la course, une demande de descente active aussi l’arrêt ; tout arrêt conditionnel non activé est exclu de la progression et du parcours GPS",
+    "behavior": "les courses régulières avec seulement certains arrêts à la demande utilisent la logique conditionnelle ; avant départ, seules les montées sur réservation sont demandées au conducteur ; les descentes à la demande restent activables en ligne ; les courses entièrement sur réservation sont désormais conservées dans le flux TAD et exclues du flux régulier",
     "reserved_services": [
       {
         "direction": "Château-Salins → Metz",
@@ -82,7 +82,8 @@
         "FRESNES-EN-SAULNOIS - Place Des Tilleuls"
       ],
       "behavior": "si aucun des deux arrêts n’est activé, le parcours GPS les contourne ; chaque arrêt peut être réactivé pendant la course via Demandes"
-    }
+    },
+    "reserved_services_handling": "les départs identifiés comme intégralement sur réservation sont proposés/exploités en mode TAD, pas comme une course régulière conditionnelle"
   },
   "line_57R027_timetable_symbols": {
     "scope": "fiches horaires officielles intégrées du SAEIV pour la 57R027, course par course",
@@ -90,13 +91,6 @@
     "down_arrow": "↓ descente à la demande pendant la course",
     "combined": "↑↓ lorsque la règle d’arrêt desservi à la demande s’applique sur cette course ; la même desserte permet une montée réservée ou une descente demandée",
     "display": "symboles affichés uniquement sur les arrêts conditionnels de la course sélectionnée, avec légende ; impression conservée"
-  },
-  "manual_voice_announcements": {
-    "seatbelt": {
-      "title": "Ceinture de sécurité",
-      "text": "Pour votre sécurité, nous vous rappelons que le port de la ceinture de sécurité est obligatoire lorsque votre siège en est équipé. Merci de bien vouloir l’attacher et de la conserver attachée pendant toute la durée du trajet.",
-      "scope": "bibliothèque d’annonces vocales manuelles existante ; aucune modification du moteur vocal ni du design"
-    }
   },
   "voice_announcements_v31_23": {
     "preset_count": 22,
@@ -111,5 +105,38 @@
     ],
     "custom_announcements_preserved": true,
     "replaces_previous_presets": true
+  },
+  "conditional_stops_v31_24": {
+    "scope": "uniquement les courses qui portent réellement des règles de desserte conditionnelle ; aucune modification des lignes régulières classiques",
+    "sources": [
+      "pickup_type / drop_off_type du GTFS officiel régional quand disponibles",
+      "GTFS officiel Moselle utilisé comme métadonnées de desserte sans remplacer les horaires embarqués",
+      "règles métier embarquées de la 57R027 comme repli hors ligne"
+    ],
+    "pickup": "pickup_type=2 → montée sur réservation préalable ; question conducteur avant départ uniquement pour ces arrêts",
+    "dropoff": "drop_off_type conditionnel → descente à la demande ; si non demandée, la branche est contournée",
+    "routing": "recalcul routier entre les seuls arrêts opérationnels ; départ bloqué si un détour conditionnel ne peut pas être calculé",
+    "full_reservation": "une course dont toute la montée est sur réservation est considérée comme TAD et n’est pas lancée depuis le flux régulier",
+    "departments": [
+      "54",
+      "57",
+      "67",
+      "68"
+    ]
+  },
+  "voice_announcements_v31_24": {
+    "navigation": "premier écran = catégories ; second écran = annonces de la catégorie ; bouton Fermer permanent et retour Catégories",
+    "preset_categories": [
+      "Sécurité",
+      "Vie à bord",
+      "Conditions de circulation",
+      "Déviations",
+      "Conditions météorologiques",
+      "Retards et régulation",
+      "Immobilisation du véhicule"
+    ],
+    "custom_announcements": "une annonce personnalisée doit être enregistrée dans une catégorie existante ou une nouvelle catégorie créée par le conducteur",
+    "legacy_custom_migration": "les anciennes annonces personnalisées sans catégorie sont rangées dans Mes annonces personnalisées",
+    "storage_key": "fluoCustomAnnouncementsV28"
   }
 }
