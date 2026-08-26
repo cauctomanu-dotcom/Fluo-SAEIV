@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.25 — arrêts conditionnels GTFS généralisés + menu vocal Catégories → Annonces ; toutes les fonctions V31.23 conservées.
+// Fluo SAEIV V31.26 — arrêts conditionnels GTFS généralisés + menu vocal Catégories → Annonces ; toutes les fonctions V31.23 conservées.
 // V31.17 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
 'use strict';
 
@@ -4212,7 +4212,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
 
   const ANNOUNCEMENTS=[
-    // V31.25 — bibliothèque officielle conducteur, classée par catégorie.
+    // V31.26 — bibliothèque officielle conducteur, classée par catégorie.
     {id:'safety_seatbelt',category:'Sécurité',title:'Port de la ceinture de sécurité',text:()=>`Pour votre sécurité, nous vous rappelons que le port de la ceinture de sécurité est obligatoire pendant toute la durée du trajet. Merci de rester attaché lorsque le véhicule est en circulation.`},
     {id:'safety_seated',category:'Sécurité',title:'Rester assis pendant le trajet',text:()=>`Pour votre sécurité, merci de rester assis à votre place lorsque le véhicule est en circulation et de ne vous lever qu’après l’arrêt complet du véhicule.`},
     {id:'safety_reminder',category:'Sécurité',title:'Rappel de sécurité',text:()=>`Pour votre sécurité, merci de regagner votre place et de conserver votre ceinture attachée jusqu’à l’arrêt complet du véhicule.`},
@@ -5989,13 +5989,19 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   if(!q('v316MenuBackdrop'))document.body.insertAdjacentHTML('beforeend',`<div id="v316MenuBackdrop" class="v316-menu-backdrop hidden"><aside id="v316Menu" class="v316-menu" role="dialog" aria-modal="true" aria-label="Menu conducteur"><div class="v316-menu-head"><div><div class="eyebrow">OUTILS CONDUCTEUR</div><h2>Menu</h2></div><button id="v316MenuClose" type="button">✕</button></div><div id="v316MenuItems" class="v316-menu-items"></div><div class="v316-menu-foot">Les données de planning restent enregistrées localement sur cet appareil.</div></aside></div>`);
   const menuItems=q('v316MenuItems');
+  // V31.26 : l'accès aux fiches horaires réseau fait partie du menu natif lui-même.
+  // Il n'est plus injecté après coup par le module de consultation, ce qui évite sa disparition selon l'ordre de chargement/cache.
+  if(menuItems&&!q('v3125NetworkSheetsBtn')){
+    const b=document.createElement('button');b.id='v3125NetworkSheetsBtn';b.type='button';b.className='v316-menu-entry';b.textContent='📚 Fiches horaires';menuItems.appendChild(b);
+  }
   const menuDefs=[
-    ['v13JournalBtn','📁 Journaux'],['v16CalcOpen','📄 Créer une fiche horaire'],['v24SheetsBtn','🗂 Fiches horaires enregistrées'],
+    ['v13JournalBtn','📁 Journaux'],['v16CalcOpen','📄 Créer une fiche horaire'],['v24SheetsBtn','🗂 Fiches horaires enregistrées'],['v3125NetworkSheetsBtn','📚 Fiches horaires'],
     ['v25CreatorBtn','🛠 Création de ligne'],['v26MyTadsBtn','📞 Mes TAD'],['v304MyCollectivesBtn','🎫 Mes billets'],['v29AdminBtn','⚙️ Admin']
   ];
   function populateMenu(){
     if(!menuItems)return;
-    for(const [id,label] of menuDefs){const el=q(id);if(el&&el.parentElement!==menuItems){el.textContent=label;el.classList.add('v316-menu-entry');menuItems.appendChild(el)}}
+    if(!q('v3125NetworkSheetsBtn')){const b=document.createElement('button');b.id='v3125NetworkSheetsBtn';b.type='button';b.className='v316-menu-entry';b.textContent='📚 Fiches horaires';menuItems.appendChild(b)}
+    for(const [id,label] of menuDefs){const el=q(id);if(el){el.textContent=label;el.classList.add('v316-menu-entry');if(el.parentElement!==menuItems)menuItems.appendChild(el)}}
     let pl=q('v316PlanningBtn');if(!pl){pl=document.createElement('button');pl.id='v316PlanningBtn';pl.type='button';pl.className='v316-menu-entry v316-planning-entry';pl.textContent='📅 Mon planning';const admin=q('v29AdminBtn');admin?.insertAdjacentElement('beforebegin',pl);if(!admin)menuItems.appendChild(pl)}
   }
   populateMenu();
@@ -6197,7 +6203,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.25 · Fiches horaires réseau + annonces vocales';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.25';
+  document.title='Fluo SAEIV V31.26 · Fiches horaires réseau + annonces vocales';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.26';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -6364,7 +6370,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v3124ConditionalStopsEngine">
 'use strict';
-/* V31.25 — moteur générique des dessertes conditionnelles Fluo.
+/* V31.26 — moteur générique des dessertes conditionnelles Fluo.
    Le mécanisme ne s'active que lorsque la course possède réellement des règles pickup_type/drop_off_type
    ou lorsqu'une règle métier embarquée (57R027) le confirme. Une course totalement sur réservation
    reste du TAD et n'est pas traitée comme une ligne régulière à branches conditionnelles. */
@@ -6436,29 +6442,29 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
         for(const c of candidates){const mapped=alignDemand(cp,c.rp,c.rt);if(mapped){ct.demand=mapped;ct.__v3124DemandSource=`remote-${dept}`;mappedCount++;break}}
       }
       state.route.__v3124DemandEnriched=true;return mappedCount>0;
-    }catch(e){console.warn('V31.25 métadonnées arrêt à la demande',e);return false}finally{V.remoteBusy=false}
+    }catch(e){console.warn('V31.26 métadonnées arrêt à la demande',e);return false}finally{V.remoteBusy=false}
   }
   async function enrichCurrentRun(){
     if(!state?.run?.trip||!state?.pattern||state.service.mode!=='regular')return false;if(Array.isArray(state.run.trip.demand)&&state.run.trip.demand.length)return true;if(codeOf(state.route)==='57R027')return true;await enrichRoute();return Array.isArray(state.run.trip.demand)&&state.run.trip.demand.length>0;
   }
 
-  try{const base=refreshStartAvailability;refreshStartAvailability=function(){const r=base();if(codeOf(state?.route)!=='57R027'&&hasConditional()&&!state?.running){const ok=V.ready&&V.pattern===state.pattern&&V.signature===sig()&&state.pattern?.trace_source==='conditional_demand_osrm_v3124';ui.start&&(ui.start.disabled=ui.start.disabled||!ok);ui.simulate&&(ui.simulate.disabled=ui.simulate.disabled||!ok)}return r}}catch(e){console.warn('V31.25 disponibilité conditionnelle',e)}
+  try{const base=refreshStartAvailability;refreshStartAvailability=function(){const r=base();if(codeOf(state?.route)!=='57R027'&&hasConditional()&&!state?.running){const ok=V.ready&&V.pattern===state.pattern&&V.signature===sig()&&state.pattern?.trace_source==='conditional_demand_osrm_v3124';ui.start&&(ui.start.disabled=ui.start.disabled||!ok);ui.simulate&&(ui.simulate.disabled=ui.simulate.disabled||!ok)}return r}}catch(e){console.warn('V31.26 disponibilité conditionnelle',e)}
 
   // Navigation : on ne saute que les arrêts réellement conditionnels et non activés.
-  try{const base=nextOperationalStop;nextOperationalStop=function(fromIndex){if(codeOf(state?.route)==='57R027'||!hasConditional())return base(fromIndex);for(let i=fromIndex+1;i<(state.pattern?.stops?.length||0);i++)if(!flags(i).conditional||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.25 next',e)}
-  try{const base=previousOperationalStop;previousOperationalStop=function(fromIndex){if(codeOf(state?.route)==='57R027'||!hasConditional())return base(fromIndex);for(let i=fromIndex-1;i>=0;i--)if(!flags(i).conditional||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.25 prev',e)}
-  try{const base=operationalEndIndex;operationalEndIndex=function(){if(codeOf(state?.route)==='57R027'||!hasConditional())return base();for(let i=(state.pattern?.stops?.length||1)-1;i>=0;i--)if(!flags(i).conditional||state.service.requestedStops.has(i))return i;return 0}}catch(e){console.warn('V31.25 end',e)}
-  try{const base=operationalRemaining;operationalRemaining=function(){if(codeOf(state?.route)==='57R027'||!hasConditional())return base();const t=Number(state.target);return operationalIndices().filter(i=>i>=t).length}}catch(e){console.warn('V31.25 remaining',e)}
+  try{const base=nextOperationalStop;nextOperationalStop=function(fromIndex){if(codeOf(state?.route)==='57R027'||!hasConditional())return base(fromIndex);for(let i=fromIndex+1;i<(state.pattern?.stops?.length||0);i++)if(!flags(i).conditional||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.26 next',e)}
+  try{const base=previousOperationalStop;previousOperationalStop=function(fromIndex){if(codeOf(state?.route)==='57R027'||!hasConditional())return base(fromIndex);for(let i=fromIndex-1;i>=0;i--)if(!flags(i).conditional||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.26 prev',e)}
+  try{const base=operationalEndIndex;operationalEndIndex=function(){if(codeOf(state?.route)==='57R027'||!hasConditional())return base();for(let i=(state.pattern?.stops?.length||1)-1;i>=0;i--)if(!flags(i).conditional||state.service.requestedStops.has(i))return i;return 0}}catch(e){console.warn('V31.26 end',e)}
+  try{const base=operationalRemaining;operationalRemaining=function(){if(codeOf(state?.route)==='57R027'||!hasConditional())return base();const t=Number(state.target);return operationalIndices().filter(i=>i>=t).length}}catch(e){console.warn('V31.26 remaining',e)}
 
   // Feuille Demandes générique : montée réservée et descente à la demande sont distinguées.
-  try{const base=renderRequestSheet;renderRequestSheet=function(){if(!hasConditional())return base();if(!ui.requestsList||!state.pattern)return;const ds=demandIndices();if(q('requestsTitle'))q('requestsTitle').textContent='🔔 Demandes / arrêts conditionnels';const intro=q('requestsTitle')?.parentElement?.querySelector('p');if(intro)intro.textContent='Les arrêts conditionnels non activés sont contournés. Active un arrêt pour une descente demandée ou lorsqu’une montée a été réservée.';ui.requestsList.innerHTML=state.pattern.stops.map((st,i)=>{const past=i<=state.current,checked=state.service.requestedStops.has(i),f=flags(i),parts=[f.pickupReservation?'montée sur réservation':null,f.dropRequest?'descente à la demande':null],conditional=f.conditional,meta=[typeof stopScheduleLabel==='function'?stopScheduleLabel(i):'',conditional?parts.join(' · '):past?'déjà passé':'arrêt régulier'].filter(Boolean).join(' · '),tag=conditional?(checked?'✓ À DESSERVIR':`${f.pickupReservation?'↑':''}${f.dropRequest?'↓':''} À LA DEMANDE`):(checked?'🔔 DEMANDÉ':'ARRÊT');return `<label class="stop-check ${checked?'requested':''} ${conditional?'v3119-conditional':''}"><input class="request-stop-checkbox" type="checkbox" data-index="${i}" ${checked?'checked':''} ${past?'disabled':''}><span class="stop-check-main"><span class="stop-check-name">${i+1}. ${esc(st.name)}</span><span class="stop-check-meta">${esc(meta)}</span></span><span class="stop-check-tag">${tag}</span></label>`}).join('')}}catch(e){console.warn('V31.25 requests',e)}
-  try{const base=requestStop;requestStop=function(index,checked){const generic=codeOf(state?.route)!=='57R027'&&flags(index).conditional,r=base(index,checked);if(generic){schedule(70);setTimeout(()=>{if(state?.running){const nx=nextOperationalStop(state.current);state.target=nx===null?state.pattern.stops.length:nx;labels();updateRequestAlert(false)}},0)}return r}}catch(e){console.warn('V31.25 request',e)}
-  try{const base=stopIcon;stopIcon=function(index){if(codeOf(state?.route)!=='57R027'&&hasConditional()&&flags(index).conditional&&!state.service.requestedStops.has(index)&&typeof L!=='undefined')return L.divIcon({className:'',html:'<div class="stop-pin v14-skipped-stop v3119-demand-skipped"></div>',iconSize:[7,7],iconAnchor:[3.5,3.5]});return base(index)}}catch(e){console.warn('V31.25 markers',e)}
+  try{const base=renderRequestSheet;renderRequestSheet=function(){if(!hasConditional())return base();if(!ui.requestsList||!state.pattern)return;const ds=demandIndices();if(q('requestsTitle'))q('requestsTitle').textContent='🔔 Demandes / arrêts conditionnels';const intro=q('requestsTitle')?.parentElement?.querySelector('p');if(intro)intro.textContent='Les arrêts conditionnels non activés sont contournés. Active un arrêt pour une descente demandée ou lorsqu’une montée a été réservée.';ui.requestsList.innerHTML=state.pattern.stops.map((st,i)=>{const past=i<=state.current,checked=state.service.requestedStops.has(i),f=flags(i),parts=[f.pickupReservation?'montée sur réservation':null,f.dropRequest?'descente à la demande':null],conditional=f.conditional,meta=[typeof stopScheduleLabel==='function'?stopScheduleLabel(i):'',conditional?parts.join(' · '):past?'déjà passé':'arrêt régulier'].filter(Boolean).join(' · '),tag=conditional?(checked?'✓ À DESSERVIR':`${f.pickupReservation?'↑':''}${f.dropRequest?'↓':''} À LA DEMANDE`):(checked?'🔔 DEMANDÉ':'ARRÊT');return `<label class="stop-check ${checked?'requested':''} ${conditional?'v3119-conditional':''}"><input class="request-stop-checkbox" type="checkbox" data-index="${i}" ${checked?'checked':''} ${past?'disabled':''}><span class="stop-check-main"><span class="stop-check-name">${i+1}. ${esc(st.name)}</span><span class="stop-check-meta">${esc(meta)}</span></span><span class="stop-check-tag">${tag}</span></label>`}).join('')}}catch(e){console.warn('V31.26 requests',e)}
+  try{const base=requestStop;requestStop=function(index,checked){const generic=codeOf(state?.route)!=='57R027'&&flags(index).conditional,r=base(index,checked);if(generic){schedule(70);setTimeout(()=>{if(state?.running){const nx=nextOperationalStop(state.current);state.target=nx===null?state.pattern.stops.length:nx;labels();updateRequestAlert(false)}},0)}return r}}catch(e){console.warn('V31.26 request',e)}
+  try{const base=stopIcon;stopIcon=function(index){if(codeOf(state?.route)!=='57R027'&&hasConditional()&&flags(index).conditional&&!state.service.requestedStops.has(index)&&typeof L!=='undefined')return L.divIcon({className:'',html:'<div class="stop-pin v14-skipped-stop v3119-demand-skipped"></div>',iconSize:[7,7],iconAnchor:[3.5,3.5]});return base(index)}}catch(e){console.warn('V31.26 markers',e)}
 
   // Sélection : enrichit 54/57 depuis leur GTFS officiel sans remplacer les horaires/overrides embarqués.
-  try{const base=selectRun;selectRun=async function(i){if(state?.pattern?.__v3124OriginalShape)restore(state.pattern,false);const out=await base(i);if(!state?.run||!state?.pattern)return out;if(state.service.mode==='regular')await enrichCurrentRun();if(isFullReservationService()&&state.service.mode==='regular'){setInfo('err','Cette course est intégralement sur réservation : elle reste un TAD. Passe en mode TAD pour la préparer et la lancer.');if(ui.courseInfo&&!ui.courseInfo.textContent.includes('TAD'))ui.courseInfo.textContent+=' · 📞 COURSE SUR RÉSERVATION INTÉGRALE → TAD';ui.start.disabled=true;ui.simulate.disabled=true;return out}const ds=demandIndices();if(ds.length&&state.service.mode==='regular'){remember();setInfo('ok',`${ds.length} arrêt(s) conditionnel(s) détecté(s) sur cette course.`);schedule(60)}else setInfo('','');return out}}catch(e){console.warn('V31.25 selectRun',e)}
-  try{const base=setServiceMode;setServiceMode=function(mode){if(state?.pattern?.__v3124OriginalShape&&mode!=='regular')restore(state.pattern,false);const r=base(mode);if(mode==='regular'&&state.pattern)setTimeout(()=>{enrichCurrentRun().then(()=>schedule(80))},0);return r}}catch(e){console.warn('V31.25 mode',e)}
-  try{const base=enterDriver;enterDriver=function(mode){const r=base(mode);if(state?.service?.mode==='tad'&&ui.serviceBadge){ui.serviceBadge.textContent='TAD';ui.serviceBadge.className='servicebadge tad'}return r}}catch(e){console.warn('V31.25 badge TAD',e)}
+  try{const base=selectRun;selectRun=async function(i){if(state?.pattern?.__v3124OriginalShape)restore(state.pattern,false);const out=await base(i);if(!state?.run||!state?.pattern)return out;if(state.service.mode==='regular')await enrichCurrentRun();if(isFullReservationService()&&state.service.mode==='regular'){setInfo('err','Cette course est intégralement sur réservation : elle reste un TAD. Passe en mode TAD pour la préparer et la lancer.');if(ui.courseInfo&&!ui.courseInfo.textContent.includes('TAD'))ui.courseInfo.textContent+=' · 📞 COURSE SUR RÉSERVATION INTÉGRALE → TAD';ui.start.disabled=true;ui.simulate.disabled=true;return out}const ds=demandIndices();if(ds.length&&state.service.mode==='regular'){remember();setInfo('ok',`${ds.length} arrêt(s) conditionnel(s) détecté(s) sur cette course.`);schedule(60)}else setInfo('','');return out}}catch(e){console.warn('V31.26 selectRun',e)}
+  try{const base=setServiceMode;setServiceMode=function(mode){if(state?.pattern?.__v3124OriginalShape&&mode!=='regular')restore(state.pattern,false);const r=base(mode);if(mode==='regular'&&state.pattern)setTimeout(()=>{enrichCurrentRun().then(()=>schedule(80))},0);return r}}catch(e){console.warn('V31.26 mode',e)}
+  try{const base=enterDriver;enterDriver=function(mode){const r=base(mode);if(state?.service?.mode==='tad'&&ui.serviceBadge){ui.serviceBadge.textContent='TAD';ui.serviceBadge.className='servicebadge tad'}return r}}catch(e){console.warn('V31.26 badge TAD',e)}
   q('requestsClear')?.addEventListener('click',()=>setTimeout(()=>{if(hasConditional())schedule(60)},0));
   q('recenter')?.addEventListener('click',()=>setTimeout(()=>{if(hasConditional()&&state?.running){const nx=nextOperationalStop(state.current);state.target=nx===null?state.pattern.stops.length:nx;labels()}},0));
   ensureInfo();
@@ -6468,7 +6474,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v3120RegularPredepartureReservations">
 'use strict';
-/* V31.25 — contrôle conducteur avant départ des montées réservées aux arrêts à la demande.
+/* V31.26 — contrôle conducteur avant départ des montées réservées aux arrêts à la demande.
    Aucun changement de design du cockpit : cette extension ne s'affiche que sur l'écran de préparation,
    uniquement pour une course régulière possédant au moins une montée sur réservation après le point de prise de service.
    Les arrêts conditionnels non activés restent exclus du parcours ; une demande ajoutée en ligne réactive l'arrêt
@@ -6565,7 +6571,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v3124AnnouncementNavigator">
 'use strict';
-/* V31.25 — navigation Catégories → Annonces. Le moteur vocal V26/V28 reste inchangé.
+/* V31.26 — navigation Catégories → Annonces. Le moteur vocal V26/V28 reste inchangé.
    Les annonces personnelles sont toujours enregistrées dans fluoCustomAnnouncementsV28, avec un champ category. */
 (()=>{
   const q=id=>document.getElementById(id),KEY='fluoCustomAnnouncementsV28',LEGACY='Mes annonces personnalisées';
@@ -6607,7 +6613,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v3125NetworkTimetableLibrary">
 'use strict';
-/* V31.25 — bibliothèque des fiches horaires du réseau depuis le menu hamburger.
+/* V31.26 — bibliothèque des fiches horaires du réseau depuis le menu hamburger.
    Consultation indépendante de la prise de service : Département → famille de ligne → ligne → horaires.
    Aucune sélection de course, aucun planning et aucun état conducteur ne sont modifiés. */
 (()=>{
@@ -6626,11 +6632,10 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const B={view:'departments',dept:null,family:null,route:null,routes:[],payload:null,services:{},groups:[],date:q('serviceDate')?.value||today(),dataEra:null,token:0};
   const localCoreCache=new Map(), routesCache=new Map(), servicesCache=new Map(), payloadCache=new Map();
 
-  // Bouton ajouté au vrai menu conducteur, sans déplacer ni recréer les autres outils.
+  // Accès déjà créé par le vrai menu V31.26 ; repli de sécurité si le module est chargé isolément.
   const menu=q('v316MenuItems');
   if(menu&&!q('v3125NetworkSheetsBtn')){
-    const b=document.createElement('button');b.id='v3125NetworkSheetsBtn';b.type='button';b.className='v316-menu-entry';b.textContent='📚 Fiches horaires';
-    const journal=q('v13JournalBtn');journal?.insertAdjacentElement('afterend',b);if(!journal)menu.prepend(b);
+    const b=document.createElement('button');b.id='v3125NetworkSheetsBtn';b.type='button';b.className='v316-menu-entry';b.textContent='📚 Fiches horaires';menu.appendChild(b);
   }
 
   if(!q('v3125TimetableBrowser'))document.body.insertAdjacentHTML('beforeend',`
@@ -6685,7 +6690,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function alignDemand(cur,rem,trip){const out=(cur?.stops||[]).map(()=>({pickup_type:'0',drop_off_type:'0'})),rs=rem?.stops||[],rd=trip?.demand||[];let pos=0,matches=0;for(let i=0;i<(cur?.stops||[]).length;i++){const n=norm(cur.stops[i]?.name);let j=-1;for(let k=pos;k<rs.length;k++)if(norm(rs[k]?.name)===n){j=k;break}if(j<0)for(let k=0;k<rs.length;k++)if(norm(rs[k]?.name)===n){j=k;break}if(j>=0){out[i]={pickup_type:String(rd[j]?.pickup_type||'0'),drop_off_type:String(rd[j]?.drop_off_type||'0')};pos=j+1;matches++}}return matches>=Math.max(2,Math.floor((cur?.stops?.length||0)*.55))?out:null}
   async function enrichDemand(dept,route,payload){
     if(!['54','57'].includes(dept)||route?.remote_gtfs)return payload;if((payload.patterns||[]).some(p=>(p.trips||[]).some(t=>Array.isArray(t.demand)&&t.demand.length)))return payload;
-    try{const feed=await fluoRemoteFeed(dept),rr=(feed.routes||[]).find(r=>code(r)===code(route));if(!rr)return payload;const remote=await fluoRemoteRoutePayload(dept,rr),runs=[];for(const p of remote.patterns||[])for(const t of p.trips||[])runs.push({p,t,clock:depClock(t)});for(const cp of payload.patterns||[])for(const ct of cp.trips||[]){const cands=runs.filter(x=>x.clock===depClock(ct)).map(x=>({...x,score:scorePattern(cp,x.p)+(String(x.t?.id||'')===String(ct?.id||'')?30:0)})).sort((a,b)=>b.score-a.score);for(const c of cands){const mapped=alignDemand(cp,c.p,c.t);if(mapped){ct.demand=mapped;break}}}}catch(e){console.info('V31.25 métadonnées à la demande non enrichies pour la bibliothèque',dept,route?.short,e?.message||e)}return payload
+    try{const feed=await fluoRemoteFeed(dept),rr=(feed.routes||[]).find(r=>code(r)===code(route));if(!rr)return payload;const remote=await fluoRemoteRoutePayload(dept,rr),runs=[];for(const p of remote.patterns||[])for(const t of p.trips||[])runs.push({p,t,clock:depClock(t)});for(const cp of payload.patterns||[])for(const ct of cp.trips||[]){const cands=runs.filter(x=>x.clock===depClock(ct)).map(x=>({...x,score:scorePattern(cp,x.p)+(String(x.t?.id||'')===String(ct?.id||'')?30:0)})).sort((a,b)=>b.score-a.score);for(const c of cands){const mapped=alignDemand(cp,c.p,c.t);if(mapped){ct.demand=mapped;break}}}}catch(e){console.info('V31.26 métadonnées à la demande non enrichies pour la bibliothèque',dept,route?.short,e?.message||e)}return payload
   }
   function clock(raw){const m=String(raw||'').match(/^(\d+):(\d{2})/);return m?`${pad((+m[1])%24)}:${m[2]}`:'—'}
   function tripTime(trip,index){const a=clock(trip?.times?.[index]?.[0]),d=clock(trip?.times?.[index]?.[1]);return a==='—'?d:d==='—'||a===d?a:`${a} / ${d}`}

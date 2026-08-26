@@ -372,3 +372,10 @@ V31.25 — BIBLIOTHÈQUE DES FICHES HORAIRES DU RÉSEAU
 - Date de service, sens/destination, départs, horaires arrêt par arrêt et impression.
 - Symboles ↑/↓ des dessertes conditionnelles conservés quand les données officielles les fournissent ; course intégralement sur réservation signalée TAD.
 - Les fonctions V31.24 et antérieures sont conservées.
+
+
+V31.26 — CORRECTIF MENU HAMBURGER / FICHES HORAIRES
+- Le bouton « 📚 Fiches horaires » est désormais créé directement dans le constructeur du menu hamburger, au même niveau que Journaux, Créer une fiche horaire, Fiches horaires enregistrées, Création de ligne, Mes TAD, Mes billets, Mon planning et Admin.
+- Le module V31.25 de consultation des horaires réutilise ce bouton natif au lieu de l’injecter tardivement.
+- Correctif conçu pour éliminer le cas où l’onglet n’apparaissait pas selon l’ordre de chargement ou le cache PWA.
+- Aucun changement du planning, de Ma journée, du cockpit, des HLP, des annonces, des dessertes conditionnelles ou des données embarquées.

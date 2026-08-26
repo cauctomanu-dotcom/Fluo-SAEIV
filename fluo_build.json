@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-26T23:58:00+02:00",
-  "version": "V31.25 GITHUB MONOBLOC + BIBLIOTHÈQUE FICHES HORAIRES RÉSEAU + V31.24 CONSERVÉE",
+  "generated_at": "2026-08-27T00:08:00+02:00",
+  "version": "V31.26 GITHUB MONOBLOC + CORRECTIF MENU HAMBURGER FICHES HORAIRES + V31.25 CONSERVÉE",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -154,5 +154,19 @@
     "conditional_symbols": "↑ montée sur réservation et ↓ descente à la demande conservés lorsque les métadonnées GTFS/règles métier sont disponibles ; une course intégralement sur réservation est signalée comme TAD",
     "line_search": "recherche par numéro, nom ou destination dans la liste des lignes",
     "existing_features_preserved": true
+  },
+  "menu_timetable_library_fix": {
+    "version": "V31.26",
+    "change": "Le bouton « 📚 Fiches horaires » est créé directement par le constructeur du menu hamburger V31.10/V31.26, puis réutilisé par la bibliothèque réseau V31.25.",
+    "reason": "Évite la disparition du bouton liée à une injection tardive ou à l’ordre de chargement/cache.",
+    "unchanged": [
+      "planning",
+      "Ma journée",
+      "cockpit",
+      "HLP",
+      "annonces vocales",
+      "dessertes conditionnelles",
+      "données embarquées"
+    ]
   }
 }
