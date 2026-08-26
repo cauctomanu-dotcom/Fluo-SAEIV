@@ -1,4 +1,4 @@
-const C='fluo-saeiv-v31-19-57r027-demand';
+const C='fluo-saeiv-v31-19-github-monobloc';
 const CORE=['./','index.html','manifest.webmanifest?v=31.19','fluo_build.json'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(C)))});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)));await self.clients.claim()})()));

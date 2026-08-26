@@ -1,21 +1,13 @@
-FLUO SAEIV V31.15 — NOTE DE VERSION
+FLUO SAEIV V31.19 — ÉDITION GITHUB MONOBLOC, PLATE ET COMPACTE
 
-- 54 : anciens numéros conservés pour les dates de service jusqu’au 31/08/2026.
-- 54 : à partir du 01/09/2026, chargement du GTFS régional officiel (CG54) et nouvelle numérotation.
-- Le basculement suit la DATE DE SERVICE sélectionnée, ce qui permet de préparer à l’avance un planning de septembre tout en conservant août dans l’ancien système.
-- 67/68 : GTFS régional officiel conservé.
-- Le cache PWA est versionné V31.15 afin de forcer le renouvellement après déploiement GitHub Pages.
-
-FLUO SAEIV V31.14 — BAS-RHIN 67 + HAUT-RHIN 68
-=================================================
-
-- Ajout du Bas-Rhin (67) et du Haut-Rhin (68) dans le SAEIV, le planning, les fiches horaires et la recherche d’arrêts.
-- Règle de classement demandée : 67R + chiffres et 68R + chiffres = lignes régulières ; toutes les autres lignes 67/68 = scolaires.
-- Les données 67/68 sont synchronisées depuis les flux GTFS officiels lors de la première utilisation, puis mises en cache localement pendant 24 h afin de ne pas alourdir inutilement le dépôt GitHub.
-- Les 54/57 restent embarqués dans l’archive comme auparavant.
-- Une connexion Internet est donc nécessaire lors du premier chargement d’un département 67 ou 68 (et lors du rafraîchissement du cache).
-
-FLUO SAEIV V31.6 — ÉDITION GITHUB MONOBLOC · PLANNING CONDUCTEUR
+V31.19 — MONTÉES RÉSERVÉES 57R027 AVANT DÉPART
+--------------------------------------------------
+- Sur une course régulière 57R027 comportant des arrêts à la demande, une fenêtre s'ouvre avant la prise de service.
+- NON lance la course sans activer de montée réservée et sans imposer les branches correspondantes.
+- OUI ouvre la liste des arrêts concernés ; le conducteur coche les montées commandées avant de lancer la course.
+- Les demandes de descente restent disponibles pendant le service et activent aussi la branche conditionnelle.
+- Le parcours GPS est recalculé selon les branches actives. Si le moteur routier est indisponible, le tracé officiel est conservé et un avertissement est affiché.
+- Les services 57R027 entièrement déclenchés sur réservation conservent l'indication RÉGULIER · RÉSERVATION et ne reçoivent pas cette question redondante.
 ============================================================================
 
 Base : V29, elle-même basée sur la V28.1 stable.
@@ -197,126 +189,3 @@ V31.3 — INTERFACE MONOBLOC ANTI-DÉPLOIEMENT PARTIEL
 - Le cache PWA porte une nouvelle identité et récupère automatiquement cette version complète.
 - Les profils conducteur, TAD, billets et journaux déjà enregistrés sur le téléphone restent
   conservés, car cette mise à jour ne touche pas aux données locales de l'utilisateur.
-
-
-V31.4 — PAYSAGE CONDUCTEUR ÉPURÉ
-- Bloc ponctualité réduit en carré : état au-dessus, avance/retard en dessous.
-- Ligne et destination fusionnées dans un seul rectangle.
-- Suppression du bloc vitesse de simulation dans la colonne droite.
-- Bouton Suivre replacé directement sur la carte GPS.
-- Suppression des boutons Suivre et GPS vocal de la barre de commandes basse.
-- Prochain arrêt conservé comme information principale sous la rangée supérieure.
-
-
-V31.5 — COCKPIT PAYSAGE VALIDÉ
---------------------------------
-- Barre inférieure sur toute la largeur : arrêt précédent, Annoncer, arrêt suivant, Mode déviation,
-  Demandes, Incident, Recaler poteau et Fin.
-- Arrêt précédent/suivant resserrés pour intégrer Mode déviation sans défilement.
-- Bouton 3D sur la carte à côté de la vitesse ; Fusion et Reprendre le suivi compactés.
-- Colonne droite : ponctualité, numéro de ligne, origine-destination compacte, prochain arrêt.
-- ARRÊT DEMANDÉ est intégré au prochain arrêt et utilise le ding-dong conducteur existant ;
-  aucune phrase vocale n'est diffusée pour signaler la demande.
-- Interrupteurs paysage : annonces vocales voyageurs et annonce destination.
-- Commandes de simulation secondaires, visibles uniquement en simulation.
-- GPS, TAD, journaux, déviation, incident, recalage et horaires restent basés sur les fonctions existantes.
-
-
-V31.6 — MENU CONDUCTEUR + MON PLANNING + MA JOURNÉE
-------------------------------------------------------
-- Menu hamburger : Journaux, création de fiche horaire, fiches horaires enregistrées,
-  création de ligne, Mes TAD, Mes billets, Mon planning et Admin.
-- « Ma journée » ajouté aux choix de service, facultatif et automatiquement calé sur la date du jour.
-- Planning hebdomadaire local : courses régulières, TAD, billets/services collectifs, haut-le-pied,
-  prises/fins de service, travaux annexes, mise à disposition, pauses et coupures.
-- Possibilité de lier une course exacte déjà sélectionnée dans le SAEIV : département, ligne, trip_id,
-  arrêt de prise de service et sélection TAD sont mémorisés puis restaurés depuis « Ma journée ».
-- Haut-le-pied : départ/destination libres ; vers une prochaine course liée, le module HLP existant
-  du SAEIV peut être préparé automatiquement vers l'arrêt de prise de service.
-- Totaux journée et semaine : amplitude, temps de travail, conduite, haut-le-pied, coupures/pauses.
-- Contrôle RSE indicatif : travail quotidien, amplitude, repos quotidien, conduite UE 561/2006,
-  pause après 4 h 30, limites hebdomadaires et cumul deux semaines lorsque les données existent.
-- Distinction automatique possible entre service régulier <= 50 km et règlement UE selon la longueur
-  renseignée/capturée ; un régime inconnu est signalé au conducteur au lieu d'être supposé.
-- Le contrôle RSE reste une aide de planification : accords d'entreprise, dérogations et tachygraphe
-  restent prioritaires.
-
-
-=== V31.7 — PLANNING INTUITIF ===
-- Course régulière : sélection guidée Département > Ligne > Sens.
-- À partir de l'heure de début du planning, la course GTFS active la plus proche dans le sens choisi est liée automatiquement au SAEIV.
-- Le départ, la destination, les horaires, la longueur de ligne et le régime RSE sont repris depuis la course liée.
-- Haut-le-pied : le départ et la destination peuvent chacun être un arrêt Fluo 54/57 ou une adresse libre.
-- Recherche d'arrêt dans la base locale Fluo avec conservation des coordonnées GPS exactes.
-- Les adresses sont vérifiées et géocodées (Nominatim avec repli Photon) avant enregistrement.
-- Ma journée lance un haut-le-pied vers la destination réellement enregistrée ; un accès séparé reste disponible vers la prochaine course liée.
-- Le cockpit paysage V31.6.1 validé est conservé.
-
-
-=== V31.8 — PLANNING INTUITIF V2 ===
-- Mon planning : filtre Ligne régulière / Ligne scolaire avant la liste des lignes.
-- Classification Fluo : les lignes scolaires S/E sont séparées des lignes régulières.
-- Après choix ligne + sens, l’application charge les heures de départ réellement disponibles pour la date du planning.
-- Le choix d’une heure lie la course exacte et récupère automatiquement horaires, origine et terminus.
-- Haut-le-pied : carnet d’adresses locales. Une adresse vérifiée peut être enregistrée sous un nom, rappelée en départ ou destination, modifiée ou supprimée.
-- Le carnet d’adresses est stocké localement dans le navigateur et a été structuré pour pouvoir être réutilisé plus tard dans les billets collectifs.
-- Cockpit paysage validé V31.6.1/V31.7 conservé.
-
-
-=== V31.10 — CORRECTIF MENU / PLANNING ===
-- Restauration du menu hamburger conducteur.
-- Restauration de « Ma journée » et « Mon planning ».
-- Restauration de « Créer une fiche horaire » dans le menu, ainsi que les fiches enregistrées.
-- Conservation du planning intuitif : lignes régulières/scolaires, sens, départs disponibles, favoris d’adresses.
-- Conservation du haut-le-pied avec départ repris automatiquement depuis l’arrivée de l’étape précédente lorsque possible.
-- Conservation du cockpit paysage validé.
-
-
-=== V31.11 — FIN DE COURSE INTELLIGENTE / TERMINUS ===
-- Le bouton FIN du cockpit est désormais traité comme une fin de course et ferme toujours proprement le journal actif.
-- Si FIN est utilisé avant d'avoir franchi l'avant-dernier arrêt opérationnel, le journal est classé INTERROMPU.
-- À partir de l'avant-dernier arrêt franchi (prochain arrêt = terminus), FIN classe le journal TERMINÉ.
-- La logique tient compte du terminus opérationnel TAD lorsque le service est en TAD.
-- Au terminus, l'annonce d'arrivée contient désormais un message professionnel de rappel des effets personnels et de remerciement voyageurs.
-- Le cache PWA passe en V31.11 pour éviter le rechargement d'une ancienne interface.
-
-V31.14 — BAS-RHIN / HAUT-RHIN : SOURCE REGIONALE COMPLETE
-- Les départements 67 et 68 utilisent désormais le GTFS régional unifié Fluo Grand Est (ressource 83635).
-- Le 67 est isolé par les identifiants de réseau CG67: ; le 68 par CG68:.
-- Cette méthode inclut les lignes scolaires qui peuvent manquer dans certains anciens exports départementaux.
-- Classement planning : 67R+chiffres / 68R+chiffres = régulières ; autres lignes des départements = scolaires.
-- Le ZIP régional est mis en cache 24 h et partagé entre 67 et 68 pour éviter un double téléchargement.
-
-
-V31.14 — Classement 67/68 pendant la renumérotation 2026/2027
-- anciennes références 67R/68R reconnues quand elles sont encore présentes dans les métadonnées ;
-- nouvelle numérotation officielle : 3 chiffres = ligne régulière, 4 chiffres = ligne scolaire ;
-- compatibilité avec la transition particulière du Bas-Rhin, dont les lignes régulières changent plus tard.
-
-V31.16 — correctif opérationnel 57R026
-- Course 07:56 au départ de BARONVILLE - Route Nationale : ajout de CHATEAU-SALINS - Ancienne Gare en terminus à 08:27, après Place Du Ruisseau Salé 08:25.
-- Course 17:45 au départ de CHATEAU-SALINS - Place Du Ruisseau Salé : ajout de CHATEAU-SALINS - Ancienne Gare à 17:47 avant Centre Hospitalier 17:50.
-- Les géométries des deux variantes ont été alignées sur les variantes GTFS déjà présentes qui desservent Ancienne Gare, afin que le guidage GPS passe réellement par le nouvel arrêt.
-
-
-V31.17 — COCKPIT PAYSAGE / ANNONCES
-- Le bouton jaune « Annoncer » du cockpit paysage ouvre désormais le menu complet des annonces vocales manuelles.
-- Il ne répète plus l'annonce du prochain arrêt.
-- Le bouton « Annonces vocales » est retiré de la colonne droite du cockpit paysage.
-- Le bouton « Annonce destination » ON/OFF reste disponible.
-
-V31.18 — CORRECTIF BOUTON ANNONCER PAYSAGE
-- Le bouton jaune « Annoncer » du cockpit paysage n'utilise plus le bouton historique caché comme proxy.
-- Il appelle directement l'ouverture de la bibliothèque d'annonces vocales manuelles.
-- Le panneau d'annonces V26 expose désormais une fonction d'ouverture dédiée pour les interfaces récentes.
-- Le toggle « Annonce destination » reste en colonne droite ; le toggle « Annonces vocales » reste retiré du cockpit paysage.
-
-
-V31.19 — 57R027 / ARRÊTS À LA DEMANDE ET SERVICES SUR RÉSERVATION
-- La 57R027 reste une ligne régulière : elle n'est pas transformée en mode TAD.
-- Les arrêts identifiés « à la demande » par la fiche officielle 027 apparaissent comme tels dans le menu Demandes.
-- Un arrêt conditionnel non activé est ignoré dans la progression ; l'activer signifie soit une descente demandée, soit une montée réservée.
-- Le SAEIV recalcule le tracé routier de la 57R027 entre les arrêts réellement opérationnels ; une modification de demande entraîne un nouveau calcul.
-- Si OSRM est indisponible, la course reste lançable avec le tracé officiel et un avertissement permet de relancer le calcul.
-- Services entièrement sur réservation signalés au conducteur : Château-Salins → Metz 11:00 et 13:00 ; Metz → Château-Salins 09:15 et 13:45 (référence fiche officielle 027).
-- Les arrêts réguliers classiques continuent d'être desservis normalement ; leur bouton Demandes conserve son rôle d'alerte de descente.
