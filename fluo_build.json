@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-26T10:33:00+02:00",
-  "version": "V31.16 GITHUB MONOBLOC + CORRECTIF 57R026 ANCIENNE GARE + BASCULE AUTOMATIQUE NUMEROTATION + GTFS REGIONAL 67/68 + FIN COURSE INTELLIGENTE + PLANNING + COCKPIT PAYSAGE",
+  "generated_at": "2026-08-26T10:45:00+02:00",
+  "version": "V31.17 GITHUB MONOBLOC + ANNONCER OUVRE MENU ANNONCES EN PAYSAGE + TOGGLE VOCAL RETIRE DU COCKPIT + CORRECTIF 57R026 + RENUMEROTATION AUTO + GTFS REGIONAL 67/68 + PLANNING",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -48,5 +48,10 @@
         "time": "17:47"
       }
     ]
+  },
+  "landscape_announcement_ui": {
+    "announce_button": "ouvre directement le menu des annonces vocales manuelles",
+    "passenger_voice_toggle": "retiré de la colonne droite du cockpit paysage",
+    "destination_toggle": "conservé"
   }
 }

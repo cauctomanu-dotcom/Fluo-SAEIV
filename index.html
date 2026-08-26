@@ -174,8 +174,8 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.16 — édition GitHub monobloc, bascule automatique de numérotation Fluo 54 au 1er septembre 2026 + 67/68 régional.
-// V31.16 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
+// Fluo SAEIV V31.17 — édition GitHub monobloc, bascule automatique de numérotation Fluo 54 au 1er septembre 2026 + 67/68 régional.
+// V31.17 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -325,7 +325,7 @@ async function jget(url){
 // locale sans modifier les fonctions métier (GPS, annonces, arrêts, TAD, journaux).
 const fluoFlatCache={cores:new Map(),bundles:new Map()};
 
-// V31.16 — GTFS régional unifié pour 67/68 et pour le 54 à compter du 01/09/2026.
+// V31.17 — GTFS régional unifié pour 67/68 et pour le 54 à compter du 01/09/2026.
 // Avant cette date de service, le 54 conserve les données et numéros historiques embarqués.
 // Après cette date, le GTFS régional devient la source de vérité pour la nouvelle numérotation.
 const FLUO_RENUMBER_CUTOVER_2026='2026-09-01';
@@ -5613,7 +5613,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
 
   const bottom=document.createElement('div');bottom.id='v31LandscapeBottom';bottom.setAttribute('aria-label','Commandes principales conducteur');
-  bottom.innerHTML=`<button type="button" data-v31-target="prev">← Arrêt</button><button type="button" class="primary" data-v31-target="speak">🔊 Annoncer</button><button type="button" data-v31-target="nextBtn">Arrêt →</button><button type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button type="button" class="danger" data-v31-target="v15FinishBtn">FIN</button>`;
+  bottom.innerHTML=`<button type="button" data-v31-target="prev">← Arrêt</button><button type="button" class="primary" data-v31-target="v26AnnounceBtn">🔊 Annoncer</button><button type="button" data-v31-target="nextBtn">Arrêt →</button><button type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button type="button" class="danger" data-v31-target="v15FinishBtn">FIN</button>`;
   driver.appendChild(bottom);
   const dock=q('v281LandscapeDock');if(dock&&!q('v31SideExtra')){const extra=document.createElement('div');extra.id='v31SideExtra';extra.innerHTML='<button type="button" data-v31-target="v16MapMode">🧭 Carte 2D/3D</button><button type="button" data-v31-target="simPlayPause">⏯ Simulation</button><button type="button" data-v31-target="simSkip">⏭ Arrêt simu</button>';dock.appendChild(extra)}
   function targetFor(button){return q(button?.dataset?.v31Target)}
@@ -5686,7 +5686,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v315ValidatedLandscapeDesign">
 'use strict';
-/* V31.6.1 — cockpit paysage validé sur tous les écrans paysage. Les actions existantes restent les sources de vérité. */
+/* V31.17 — cockpit paysage : Annoncer ouvre la bibliothèque d’annonces ; seul le toggle destination reste en colonne. */
 (()=>{
   const q=id=>document.getElementById(id);
   const driver=q('driver'),side=q('v15LandscapeSide'),mapWrap=document.querySelector('#driver .navmap-wrap');
@@ -5722,7 +5722,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   let voice=q('v315VoiceControls');
   if(!voice){
     voice=document.createElement('div');voice.id='v315VoiceControls';voice.className='v315-voice-controls';
-    voice.innerHTML='<button id="v315PassengerToggle" type="button"><span>🔊 Annonces vocales</span><b>ON</b></button><button id="v315DestinationToggle" type="button"><span>🔁 Annonce destination</span><b>ON</b></button>';
+    voice.innerHTML='<button id="v315DestinationToggle" type="button"><span>🔁 Annonce destination</span><b>ON</b></button>';
     (nextBox||side.firstElementChild)?.insertAdjacentElement('afterend',voice);
   }
   function syncVoice(){
@@ -5743,7 +5743,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   });
 
   const bottom=q('v31LandscapeBottom');
-  if(bottom)bottom.innerHTML='<button class="v315-stop" type="button" data-v31-target="prev">← Arrêt</button><button class="primary v315-announce" type="button" data-v31-target="speak">📢 Annoncer</button><button class="v315-stop" type="button" data-v31-target="nextBtn">Arrêt →</button><button class="v315-deviation" type="button" data-v31-target="v29DeviationBtn">↪ Mode déviation</button><button class="v315-requests" type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button class="v315-incident" type="button" data-v31-target="v29IncidentBtn">📝 Incident</button><button class="v315-recenter" type="button" data-v31-target="recenter">🎯 Recaler poteau</button><button class="danger v315-finish" type="button" data-v31-target="v15FinishBtn">FIN</button>';
+  if(bottom)bottom.innerHTML='<button class="v315-stop" type="button" data-v31-target="prev">← Arrêt</button><button class="primary v315-announce" type="button" data-v31-target="v26AnnounceBtn">📢 Annoncer</button><button class="v315-stop" type="button" data-v31-target="nextBtn">Arrêt →</button><button class="v315-deviation" type="button" data-v31-target="v29DeviationBtn">↪ Mode déviation</button><button class="v315-requests" type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button class="v315-incident" type="button" data-v31-target="v29IncidentBtn">📝 Incident</button><button class="v315-recenter" type="button" data-v31-target="recenter">🎯 Recaler poteau</button><button class="danger v315-finish" type="button" data-v31-target="v15FinishBtn">FIN</button>';
 
   const dock=q('v281LandscapeDock'),extra=q('v31SideExtra');
   if(extra)extra.innerHTML='<button type="button" data-v31-target="simPlayPause">⏯ Simulation</button><button type="button" data-v31-target="simSkip">⏭ Arrêt simu</button>';
@@ -6168,7 +6168,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.16 · renumérotation automatique';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.16';
+  document.title='Fluo SAEIV V31.17 · renumérotation automatique';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.17';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>

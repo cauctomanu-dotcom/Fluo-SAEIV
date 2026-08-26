@@ -297,3 +297,10 @@ V31.16 — correctif opérationnel 57R026
 - Course 07:56 au départ de BARONVILLE - Route Nationale : ajout de CHATEAU-SALINS - Ancienne Gare en terminus à 08:27, après Place Du Ruisseau Salé 08:25.
 - Course 17:45 au départ de CHATEAU-SALINS - Place Du Ruisseau Salé : ajout de CHATEAU-SALINS - Ancienne Gare à 17:47 avant Centre Hospitalier 17:50.
 - Les géométries des deux variantes ont été alignées sur les variantes GTFS déjà présentes qui desservent Ancienne Gare, afin que le guidage GPS passe réellement par le nouvel arrêt.
+
+
+V31.17 — COCKPIT PAYSAGE / ANNONCES
+- Le bouton jaune « Annoncer » du cockpit paysage ouvre désormais le menu complet des annonces vocales manuelles.
+- Il ne répète plus l'annonce du prochain arrêt.
+- Le bouton « Annonces vocales » est retiré de la colonne droite du cockpit paysage.
+- Le bouton « Annonce destination » ON/OFF reste disponible.
