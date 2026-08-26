@@ -1,12 +1,3 @@
-FLUO SAEIV V31.19 — VERSION COMPLÈTE RESTAURÉE
-
-- Socle complet conservé : menu hamburger, Ma journée, Mon planning, TAD, billets collectifs, journaux, fiches horaires, lignes personnalisées et administration.
-- Cockpit paysage conforme à la maquette validée : carte principale, colonne conducteur compacte et barre inférieure complète.
-- Le bouton Annoncer du cockpit paysage ouvre directement la bibliothèque des annonces vocales.
-- 57R027 : avant une course régulière comportant des montées sur réservation, question Non/Oui puis sélection éventuelle des arrêts concernés.
-- Les demandes de descente et le recalcul des branches conditionnelles restent disponibles pendant la course.
-- Les correctifs 57R026, les départements 67/68 et la renumérotation automatique du 54 sont conservés.
-
 FLUO SAEIV V31.15 — NOTE DE VERSION
 
 - 54 : anciens numéros conservés pour les dates de service jusqu’au 31/08/2026.
@@ -329,3 +320,12 @@ V31.19 — 57R027 / ARRÊTS À LA DEMANDE ET SERVICES SUR RÉSERVATION
 - Si OSRM est indisponible, la course reste lançable avec le tracé officiel et un avertissement permet de relancer le calcul.
 - Services entièrement sur réservation signalés au conducteur : Château-Salins → Metz 11:00 et 13:00 ; Metz → Château-Salins 09:15 et 13:45 (référence fiche officielle 027).
 - Les arrêts réguliers classiques continuent d'être desservis normalement ; leur bouton Demandes conserve son rôle d'alerte de descente.
+
+V31.20 — 57R027 / CONTRÔLE DES MONTÉES RÉSERVÉES AVANT DÉPART
+- Aucune modification du cockpit paysage ni du graphisme existant.
+- Pour une course régulière 57R027 comportant des arrêts à la demande, le SAEIV demande avant le départ si des montées ont été réservées.
+- Réponse NON : aucun arrêt conditionnel n'est activé avant départ et leurs détours sont exclus du parcours.
+- Réponse OUI : une liste limitée aux arrêts à la demande de la course s'ouvre ; le conducteur coche les montées réservées puis valide.
+- Pendant la course, le menu Demandes continue de permettre d'activer un arrêt à la demande pour une descente voyageur.
+- Un arrêt conditionnel non activé reste absent de la progression et le GPS recalcule le parcours sans son détour.
+- Exemple vérifié sur le départ 18:25 de Metz : LIOCOURT - Fontaine et FRESNES-EN-SAULNOIS - Place Des Tilleuls sont conditionnels ; s'ils ne sont pas demandés/réservés, ils sont contournés.

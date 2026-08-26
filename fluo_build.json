@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-26T13:05:00+02:00",
-  "version": "V31.19 GITHUB MONOBLOC COMPLET + CHARTE VALIDEE + PLANNING + ANNONCES + 57R027 MONTEES RESERVEES AVANT DEPART",
+  "generated_at": "2026-08-26T16:46:00+02:00",
+  "version": "V31.20 GITHUB MONOBLOC + 57R027 MONTÉES RÉSERVÉES AVANT DÉPART / DÉTOURS CONDITIONNELS + V31.19",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -56,7 +56,7 @@
   },
   "line_57R027_conditional_service": {
     "source": "Fiche Horaire officielle 027 Château Salins / Metz, offre indiquant Services à la demande : Oui",
-    "behavior": "avant le départ d’une course régulière concernée, le conducteur répond Non ou sélectionne les montées réservées ; les arrêts non activés sont ignorés ; les demandes de descente restent disponibles en service et déclenchent le recalcul routier",
+    "behavior": "la ligne reste régulière ; avant une course comportant des arrêts à la demande, le conducteur confirme si des montées ont été réservées puis sélectionne les arrêts concernés ; pendant la course, une demande de descente active aussi l’arrêt ; tout arrêt conditionnel non activé est exclu de la progression et du parcours GPS",
     "reserved_services": [
       {
         "direction": "Château-Salins → Metz",
@@ -73,6 +73,15 @@
         ]
       }
     ],
-    "routing": "OSRM dynamique avec cache local ; repli sur le tracé officiel si le recalcul réseau échoue"
+    "routing": "OSRM dynamique avec cache local ; si des arrêts doivent être contournés, le démarrage est bloqué en cas d’échec du recalcul ; en ligne, le dernier parcours conditionnel valide est conservé si un nouveau recalcul échoue",
+    "predeparture_prompt": "Oui : liste des arrêts à la demande à cocher pour les montées réservées. Non : aucun de ces arrêts n’est activé avant départ.",
+    "validated_example_18_25": {
+      "departure": "18:25 Metz Gare Routière",
+      "conditional_stops": [
+        "LIOCOURT - Fontaine",
+        "FRESNES-EN-SAULNOIS - Place Des Tilleuls"
+      ],
+      "behavior": "si aucun des deux arrêts n’est activé, le parcours GPS les contourne ; chaque arrêt peut être réactivé pendant la course via Demandes"
+    }
   }
 }

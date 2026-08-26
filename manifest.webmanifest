@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.19",
-  "short_name": "Fluo V31.19",
-  "start_url": "./?v=31.19",
+  "name": "Fluo SAEIV V31.20",
+  "short_name": "Fluo V31.20",
+  "start_url": "./?v=31.20",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.19 — 57R027 avec arrêts réguliers à la demande, services sur réservation, planning, renumérotation automatique et GTFS régional 67/68."
+  "description": "SAEIV conducteur V31.20 — 57R027 avec contrôle des montées réservées avant départ, arrêts à la demande contournés si non activés, planning et cockpit paysage validé."
 }
