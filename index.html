@@ -6244,8 +6244,6 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     }
     return false;
   }
-  window.Fluo57R027V3119={isDemandStop,isReservedService};
-
   function demandIndices(){return (state?.pattern?.stops||[]).map((_,i)=>i).filter(isDemandStop)}
   function operationalIndices(){
     const stops=state?.pattern?.stops||[];if(!isLine()||state?.service?.mode!=='regular')return stops.map((_,i)=>i);
@@ -6286,6 +6284,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
       setInfo('err',`Tracé conditionnel non recalculé (${V.lastError}). La course reste accessible sur le tracé officiel ; touche « Recalculer » dès que la connexion le permet.`);try{refreshStartAvailability()}catch{};return false;
     }
   }
+  window.Fluo57R027V3119={isDemandStop,isReservedService,demandIndices,rebuild};
   function schedule(delay=180){clearTimeout(V.timer);if(!isLine()||state?.service?.mode!=='regular'||!state?.pattern)return;V.timer=setTimeout(()=>rebuild('selection'),delay)}
 
   // Les arrêts à la demande sont réellement optionnels dans la progression de la ligne régulière.
@@ -6326,8 +6325,49 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 
 
+<script id="v3119ReservedBoardingPrompt">
+'use strict';
+/* V31.19 — confirmation des montées réservées avant une course régulière 57R027.
+   Ce module complète le moteur conditionnel sans modifier le cockpit, le planning ni les annonces. */
+(()=>{
+  const q=id=>document.getElementById(id),P={mode:null,launching:false};
+  const api=()=>window.Fluo57R027V3119;
+  const isLine=()=>String(state?.route?.short||'').toUpperCase().replace(/\s+/g,'')==='57R027';
+  const demandIndices=()=>api()?.demandIndices?.()||[];
+  const shouldAsk=()=>isLine()&&state?.service?.mode==='regular'&&!!state?.run&&!!state?.pattern&&!api()?.isReservedService?.()&&demandIndices().some(i=>i>Number(q('startStop')?.value||0));
+  const escHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  document.body.insertAdjacentHTML('beforeend',`<div id="v3119BoardingPrompt" class="v3119p-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="v3119pTitle"><div class="v3119p-sheet"><div class="v3119p-kicker">57R027 · AVANT LE DÉPART</div><h2 id="v3119pTitle">Des montées ont-elles été réservées à des arrêts à la demande ?</h2><p id="v3119pIntro">Les arrêts non activés ne provoqueront aucun détour. Les demandes de descente resteront disponibles pendant la course.</p><div id="v3119pChoice" class="v3119p-choice"><button id="v3119pNo" type="button">NON · AUCUNE MONTÉE</button><button id="v3119pYes" class="primary" type="button">OUI · CHOISIR LES ARRÊTS</button></div><div id="v3119pPicker" class="hidden"><div class="v3119p-picker-head"><b>Montées réservées</b><span>Coche uniquement les arrêts où une prise en charge a été commandée.</span></div><div id="v3119pList" class="v3119p-list"></div><div class="v3119p-foot"><button id="v3119pBack" type="button">Retour</button><button id="v3119pLaunch" class="primary" type="button">VALIDER ET LANCER LA COURSE</button></div></div><div id="v3119pStatus" class="v3119p-status hidden"></div></div></div>`);
+  const css=document.createElement('style');css.id='v3119PromptStyle';css.textContent=`
+    .v3119p-backdrop.hidden,.v3119p-sheet .hidden{display:none!important}.v3119p-backdrop{position:fixed;z-index:32000;inset:0;padding:14px;background:rgba(2,7,11,.88);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}.v3119p-sheet{width:min(690px,100%);max-height:94dvh;overflow:auto;padding:19px;border:1px solid #39586a;border-radius:22px;background:linear-gradient(180deg,#102936,#071620);color:#f2faff;box-shadow:0 25px 85px rgba(0,0,0,.68)}.v3119p-kicker{color:#ffd000;font-size:.68rem;font-weight:1000;letter-spacing:.11em}.v3119p-sheet h2{margin:5px 0 8px;font-size:clamp(1.25rem,4vw,1.75rem);line-height:1.16}.v3119p-sheet p{margin:0;color:#afc3cd;font-size:.78rem;line-height:1.45}.v3119p-choice,.v3119p-foot{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.v3119p-choice button,.v3119p-foot button{min-height:55px;font-weight:950}.v3119p-choice .primary,.v3119p-foot .primary{background:linear-gradient(135deg,#ffd000,#ffaf00);border-color:#ffd000;color:#151515}.v3119p-picker-head{display:flex;flex-direction:column;gap:3px;margin-top:18px}.v3119p-picker-head b{font-size:.95rem}.v3119p-picker-head span{color:#a9bdc8;font-size:.72rem}.v3119p-list{display:grid;gap:7px;margin-top:11px}.v3119p-stop{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px;border:1px solid #355566;border-radius:12px;background:#081720}.v3119p-stop:has(input:checked){border-color:#ffd000;background:#30290d;box-shadow:inset 3px 0 0 #ffd000}.v3119p-stop input{width:23px;height:23px;accent-color:#ffd000}.v3119p-stop strong,.v3119p-stop small{display:block}.v3119p-stop strong{font-size:.78rem;line-height:1.25}.v3119p-stop small{margin-top:3px;color:#9fb3be;font-size:.66rem}.v3119p-stop em{font-style:normal;color:#ffe28a;font-size:.58rem;font-weight:1000;text-align:right}.v3119p-status{margin-top:12px;padding:10px;border:1px solid #806b20;border-radius:11px;background:#28220b;color:#ffeaa4;font-size:.71rem;line-height:1.4}.v3119p-status.err{border-color:#874448;background:#331d20;color:#ffd0cd}@media(max-width:560px){.v3119p-backdrop{align-items:flex-end;padding:0}.v3119p-sheet{border-radius:22px 22px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom))}.v3119p-choice,.v3119p-foot{grid-template-columns:1fr}.v3119p-stop{grid-template-columns:auto minmax(0,1fr)}.v3119p-stop em{grid-column:2;text-align:left}}
+  `;document.head.appendChild(css);
+
+  function clearDemandSelections(){for(const i of demandIndices())state.service.requestedStops.delete(i);renderRequestsButton?.();updateRequestAlert?.(false);updateStopMarkers?.()}
+  function renderList(){const start=Number(q('startStop')?.value||0),ids=demandIndices().filter(i=>i>start);q('v3119pList').innerHTML=ids.map(i=>{const st=state.pattern.stops[i],checked=state.service.requestedStops.has(i),clock=typeof stopScheduleLabel==='function'?stopScheduleLabel(i):'';return`<label class="v3119p-stop"><input type="checkbox" data-v3119p-stop="${i}" ${checked?'checked':''}><span><strong>${i+1}. ${escHtml(st.name)}</strong><small>${escHtml(clock||'Horaire de la course')} · montée sur réservation</small></span><em>À LA DEMANDE</em></label>`}).join('')}
+  function open(mode){P.mode=mode;P.launching=false;clearDemandSelections();q('v3119pChoice').classList.remove('hidden');q('v3119pIntro').classList.remove('hidden');q('v3119pPicker').classList.add('hidden');q('v3119pStatus').classList.add('hidden');q('v3119BoardingPrompt').classList.remove('hidden')}
+  function close(){q('v3119BoardingPrompt').classList.add('hidden')}
+  function status(text,kind=''){const e=q('v3119pStatus');e.textContent=text;e.className=`v3119p-status ${kind}`}
+  async function applySelectionAndLaunch(selected=[]){
+    if(P.launching)return;P.launching=true;clearDemandSelections();for(const i of selected)if(Number.isInteger(i)&&demandIndices().includes(i))state.service.requestedStops.add(i);renderRequestsButton?.();renderRequestSheet?.();updateStopMarkers?.();status('Préparation du parcours selon les montées réservées…');
+    try{await api()?.rebuild?.('prestart')}catch(e){status(`Le tracé officiel sera utilisé : ${e?.message||e}`,'err')}
+    const mode=P.mode;P.mode=null;P.launching=false;close();if(mode==='gps')startGps();else startSimulation();
+  }
+  q('v3119pNo').addEventListener('click',()=>applySelectionAndLaunch([]));
+  q('v3119pYes').addEventListener('click',()=>{renderList();q('v3119pChoice').classList.add('hidden');q('v3119pIntro').classList.add('hidden');q('v3119pPicker').classList.remove('hidden')});
+  q('v3119pBack').addEventListener('click',()=>{q('v3119pPicker').classList.add('hidden');q('v3119pChoice').classList.remove('hidden');q('v3119pIntro').classList.remove('hidden')});
+  q('v3119pLaunch').addEventListener('click',()=>applySelectionAndLaunch([...q('v3119pList').querySelectorAll('[data-v3119p-stop]:checked')].map(x=>Number(x.dataset.v3119pStop))));
+  document.addEventListener('click',e=>{const b=e.target.closest?.('#start,#simulate');if(!b||P.mode||P.launching||state?.running||!shouldAsk())return;e.preventDefault();e.stopImmediatePropagation();open(b.id==='start'?'gps':'simulation')},true);
+  const baseFinish=finish;finish=function(){P.mode=null;P.launching=false;close();return baseFinish()};
+  window.FluoReservedBoardingPromptV3119={shouldAsk,open};
+})();
+</script>
+
+
 <script id="v314DepartmentRules">
 (()=>{window.FluoDepartmentRulesV312={isRegular(code,department,route){const d=String(department||route?.department||route?.dept||'');if((d==='67'||d==='68')&&window.FluoAlsaceLineCategoryV314)return window.FluoAlsaceLineCategoryV314(route||{short:code},d)==='regular';const s=String(code||'').toUpperCase().replace(/\s+/g,'');if(/^67R\d+/.test(s)||/^68R\d+/.test(s)||/^54R\d+/.test(s))return true;if(/^\d{3}[A-Z]?$/.test(s))return true;if(/^\d{4}[A-Z]?$/.test(s))return false;return !/^(54|57)[SE]/.test(s)},departmentName(d){return({'54':'Meurthe-et-Moselle','57':'Moselle','67':'Bas-Rhin','68':'Haut-Rhin'})[String(d)]||String(d)}}})();
+</script>
+<script id="v3119FinalVersionLabel">
+(()=>{const apply=()=>{document.title='Fluo SAEIV V31.19 · édition complète restaurée';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V31.19 COMPLÈTE'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,180));else setTimeout(apply,180)})();
 </script>
 </body>
 </html>

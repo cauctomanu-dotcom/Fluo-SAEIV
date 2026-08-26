@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-08-26T13:05:00+02:00",
-  "version": "V31.19 GITHUB MONOBLOC + 57R027 DESSERTE A LA DEMANDE / SERVICES SUR RESERVATION + V31.18",
+  "version": "V31.19 GITHUB MONOBLOC COMPLET + CHARTE VALIDEE + PLANNING + ANNONCES + 57R027 MONTEES RESERVEES AVANT DEPART",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -56,7 +56,7 @@
   },
   "line_57R027_conditional_service": {
     "source": "Fiche Horaire officielle 027 Château Salins / Metz, offre indiquant Services à la demande : Oui",
-    "behavior": "la ligne reste régulière ; les arrêts marqués à la demande sont ignorés si non activés dans Demandes ; l’activation signifie descente demandée ou montée réservée et déclenche le recalcul routier",
+    "behavior": "avant le départ d’une course régulière concernée, le conducteur répond Non ou sélectionne les montées réservées ; les arrêts non activés sont ignorés ; les demandes de descente restent disponibles en service et déclenchent le recalcul routier",
     "reserved_services": [
       {
         "direction": "Château-Salins → Metz",

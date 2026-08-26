@@ -1,3 +1,12 @@
+FLUO SAEIV V31.19 — VERSION COMPLÈTE RESTAURÉE
+
+- Socle complet conservé : menu hamburger, Ma journée, Mon planning, TAD, billets collectifs, journaux, fiches horaires, lignes personnalisées et administration.
+- Cockpit paysage conforme à la maquette validée : carte principale, colonne conducteur compacte et barre inférieure complète.
+- Le bouton Annoncer du cockpit paysage ouvre directement la bibliothèque des annonces vocales.
+- 57R027 : avant une course régulière comportant des montées sur réservation, question Non/Oui puis sélection éventuelle des arrêts concernés.
+- Les demandes de descente et le recalcul des branches conditionnelles restent disponibles pendant la course.
+- Les correctifs 57R026, les départements 67/68 et la renumérotation automatique du 54 sont conservés.
+
 FLUO SAEIV V31.15 — NOTE DE VERSION
 
 - 54 : anciens numéros conservés pour les dates de service jusqu’au 31/08/2026.
