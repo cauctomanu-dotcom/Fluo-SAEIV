@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=31.3">
+  <link rel="manifest" href="manifest.webmanifest?v=31.12">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Fluo SAEIV V22 · TAD + suivi stable</title>
@@ -51,7 +51,7 @@
 <body>
 <div class="app">
   <header class="top">
-    <div><div class="eyebrow">SAEIV CONDUCTEUR · V13 TRAÇABILITÉ</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · Moselle 57 + Meurthe-et-Moselle 54</div></div>
+    <div><div class="eyebrow">SAEIV CONDUCTEUR · V13 TRAÇABILITÉ</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
     <div id="gpsPill" class="pill">GPS non testé</div>
   </header>
 
@@ -70,7 +70,7 @@
 
     <div class="grid two">
       <label>Département
-        <select id="dept"><option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option></select>
+        <select id="dept"><option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option><option value="67">Bas-Rhin (67)</option><option value="68">Haut-Rhin (68)</option></select>
       </label>
       <label>Ligne
         <select id="route" disabled><option>Choisir d’abord un département</option></select>
@@ -118,7 +118,7 @@
       <label id="simDelayWrap">Écart horaire simulé<select id="simDelay"><option value="-180">Avance 3 min</option><option value="0" selected>À l’heure</option><option value="180">Retard 3 min</option><option value="420">Retard 7 min</option><option value="720">Retard 12 min</option><option value="1200">Retard 20 min</option></select></label>
     </div>
     <div id="buildInfo" class="install"></div>
-    <div class="audio-note"><b>🔊 Annonces</b><span>Après chaque départ, « Prochain arrêt » est annoncé environ 15 secondes plus tard. À l’arrivée au poteau, une seconde annonce dit « Arrêt : [nom] ». T−5/T−1 restent actifs en service horaire, et le rappel ligne/destination reste à mi-inter-arrêt. En Formation, seules les annonces liées aux horaires sont désactivées.</span></div>
+    <div class="audio-note"><b>🔊 Annonces</b><span>Après chaque départ, « Prochain arrêt » est annoncé environ 15 secondes plus tard. À l’arrivée au poteau, une seconde annonce dit « Arrêt : [nom] ». Au terminus, elle ajoute un message professionnel de fin de voyage et de rappel des effets personnels. T−5/T−1 restent actifs en service horaire, et le rappel ligne/destination reste à mi-inter-arrêt. En Formation, seules les annonces liées aux horaires sont désactivées.</span></div>
     <div class="fusion-note"><b>🧭 Fusion V11</b><span>Fluo fournit la course officielle. Le GPS iPhone fournit la position réelle. Le moteur recale ensuite cette position sur l’unique tracé de la course sélectionnée en tenant compte de la progression et du sens, afin d’éviter les sauts sur une rue ou une variante voisine.</span></div>
     <div class="note">Les données de course viennent de <code>trips.txt</code> + <code>stop_times.txt</code> + <code>calendar*.txt</code>. Les poteaux viennent de <code>stops.txt</code> et le tracé officiel de <code>shapes.txt</code>. Manipule l’interface uniquement véhicule immobilisé.</div>
   </section>
@@ -174,7 +174,8 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.3 — édition GitHub monobloc, plate et compacte.
+// Fluo SAEIV V31.19 — 57R027 arrêts à la demande / services sur réservation + V31.18.
+// V31.17 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -323,14 +324,141 @@ async function jget(url){
 // reste en mémoire. Le repli vers l'ancienne arborescence facilite la maintenance
 // locale sans modifier les fonctions métier (GPS, annonces, arrêts, TAD, journaux).
 const fluoFlatCache={cores:new Map(),bundles:new Map()};
+
+// V31.17 — GTFS régional unifié pour 67/68 et pour le 54 à compter du 01/09/2026.
+// Avant cette date de service, le 54 conserve les données et numéros historiques embarqués.
+// Après cette date, le GTFS régional devient la source de vérité pour la nouvelle numérotation.
+const FLUO_RENUMBER_CUTOVER_2026='2026-09-01';
+const FluoRemoteGTFS={
+  sources:{
+    '54':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358'],
+    '67':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358'],
+    '68':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358']
+  },
+  labels:{'54':'Meurthe-et-Moselle (54)','67':'Bas-Rhin (67)','68':'Haut-Rhin (68)'}, feeds:new Map(), payloads:new Map()
+};
+function fluoLocalIsoDate(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function fluoSelectedIsoDate(){const raw=document.getElementById('serviceDate')?.value;return /^\d{4}-\d{2}-\d{2}$/.test(String(raw||''))?String(raw):fluoLocalIsoDate()}
+function fluoUsesRegionalData(dept,dateIso=fluoSelectedIsoDate()){
+  const d=String(dept);if(d==='67'||d==='68')return true;if(d==='54')return String(dateIso)>=FLUO_RENUMBER_CUTOVER_2026;return false;
+}
+function fluoDeptDataEra(dept,dateIso=fluoSelectedIsoDate()){const d=String(dept);return `${d}:${fluoUsesRegionalData(d,dateIso)?'regional-2026':'historique'}`}
+function fluoServiceCoversIso(rec,iso){if(!rec)return true;const key=String(iso||'').replaceAll('-','');const ex=rec.exceptions?.[key];if(ex===1)return true;if(ex===2)return false;if(rec.start&&key<rec.start)return false;if(rec.end&&key>rec.end)return false;return true}
+
+function fluoCsvRow(line){
+  const out=[];let v='',q=false;
+  for(let i=0;i<=line.length;i++){
+    const c=i<line.length?line[i]:',';
+    if(q){if(c==='"'){if(line[i+1]==='"'){v+='"';i++;}else q=false;}else v+=c;}
+    else if(c==='"')q=true;else if(c===','){out.push(v);v='';}else v+=c;
+  }
+  return out;
+}
+function fluoCsvObjects(text){
+  const lines=String(text||'').replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);if(!lines.length)return[];
+  const h=fluoCsvRow(lines[0]);const rows=[];
+  for(let i=1;i<lines.length;i++){const a=fluoCsvRow(lines[i]),o={};for(let j=0;j<h.length;j++)o[h[j]]=a[j]??'';rows.push(o)}
+  return rows;
+}
+function fluoZipDirectory(bytes){
+  const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let e=-1;
+  for(let i=bytes.length-22;i>=Math.max(0,bytes.length-66000);i--){if(v.getUint32(i,true)===0x06054b50){e=i;break}}
+  if(e<0)throw new Error('archive GTFS ZIP illisible');const n=v.getUint16(e+10,true),off=v.getUint32(e+16,true),map=new Map();let p=off;
+  for(let k=0;k<n&&p+46<=bytes.length;k++){
+    if(v.getUint32(p,true)!==0x02014b50)break;const method=v.getUint16(p+10,true),cs=v.getUint32(p+20,true),us=v.getUint32(p+24,true),nl=v.getUint16(p+28,true),xl=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true),name=new TextDecoder().decode(bytes.subarray(p+46,p+46+nl));
+    const lnl=v.getUint16(lo+26,true),lxl=v.getUint16(lo+28,true),start=lo+30+lnl+lxl;map.set(name.replace(/^.*\//,''),{method,compressed:bytes.slice(start,start+cs),uncompressed:us});p+=46+nl+xl+cl;
+  }
+  return map;
+}
+async function fluoZipText(entry){
+  if(!entry)throw new Error('fichier GTFS absent');if(entry.method===0)return new TextDecoder().decode(entry.compressed);
+  if(entry.method!==8)throw new Error(`compression ZIP non prise en charge (${entry.method})`);
+  if(typeof DecompressionStream!=='function')throw new Error('ce navigateur ne sait pas décompresser le GTFS');
+  let stream;try{stream=new Blob([entry.compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));}catch{throw new Error('décompression ZIP indisponible sur ce navigateur')}
+  return new Response(stream).text();
+}
+function fluoRegionalRouteBelongs(row,dept){
+  const d=String(dept),rid=String(row?.route_id||'').toUpperCase(),agency=String(row?.agency_id||'').toUpperCase(),short=String(row?.route_short_name||'').toUpperCase().replace(/\s+/g,'');
+  // Dans le GTFS régional unifié, les objets historiques des deux réseaux portent CG67:/CG68:.
+  // Les tests agency/short servent uniquement de filet de sécurité si le producteur fait évoluer les IDs.
+  return rid.startsWith(`CG${d}:`) || agency.includes(`FLUO GRAND EST ${d}`) || agency===`CG${d}` || short.startsWith(`${d}R`) || short.startsWith(`${d}S`);
+}
+function fluoRegionalStopBelongs(row,dept){
+  const d=String(dept),sid=String(row?.stop_id||'').toUpperCase(),parent=String(row?.parent_station||'').toUpperCase();
+  return sid.startsWith(`CG${d}:`) || parent.startsWith(`CG${d}:`);
+}
+async function fluoFetchRemoteZip(dept){
+  let last='';for(const url of (FluoRemoteGTFS.sources[dept]||[]))try{
+    const cacheName='fluo-regional-gtfs-v31-16',stampKey='fluo-regional-gtfs-v31-16-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
+    if(fresh&&'caches'in window){try{r=await (await caches.open(cacheName)).match(url)}catch{}}
+    if(!r){r=await fetch(url,{cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error(`HTTP ${r.status}`);if('caches'in window){try{const c=await caches.open(cacheName);await c.put(url,r.clone());localStorage.setItem(stampKey,String(Date.now()))}catch{}}}
+    const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url}
+  }catch(e){last=e?.message||String(e)}
+  throw new Error(`flux GTFS régional Fluo Grand Est inaccessible${last?` : ${last}`:''}`);
+}
+async function fluoRemoteFeed(dept){
+  const d=String(dept);if(FluoRemoteGTFS.feeds.has(d))return FluoRemoteGTFS.feeds.get(d);
+  const promise=(async()=>{
+    const got=await fluoFetchRemoteZip(d),entries=fluoZipDirectory(got.bytes);
+    const [routesTxt,stopsTxt,tripsTxt,calTxt,datesTxt]=await Promise.all([
+      fluoZipText(entries.get('routes.txt')),fluoZipText(entries.get('stops.txt')),fluoZipText(entries.get('trips.txt')),
+      entries.has('calendar.txt')?fluoZipText(entries.get('calendar.txt')):Promise.resolve(''),entries.has('calendar_dates.txt')?fluoZipText(entries.get('calendar_dates.txt')):Promise.resolve('')
+    ]);
+    const allRoutes=fluoCsvObjects(routesTxt),stopsRaw=fluoCsvObjects(stopsTxt),allTrips=fluoCsvObjects(tripsTxt),calendar=fluoCsvObjects(calTxt),dates=fluoCsvObjects(datesTxt);
+    const routes=allRoutes.filter(r=>fluoRegionalRouteBelongs(r,d)),routeIds=new Set(routes.map(r=>String(r.route_id)));
+    const trips=allTrips.filter(t=>routeIds.has(String(t.route_id)));
+    const stops=new Map(),stopList=[];
+    for(const x of stopsRaw){const lat=Number(x.stop_lat),lon=Number(x.stop_lon);if(!x.stop_id||!Number.isFinite(lat)||!Number.isFinite(lon))continue;const z={id:String(x.stop_id),name:x.stop_name||x.stop_id,lat,lon,code:x.stop_code||'',dept:d};stops.set(z.id,z);if(fluoRegionalStopBelongs(x,d))stopList.push(z)}
+    const services={};for(const c of calendar){services[c.service_id]={start:c.start_date||'',end:c.end_date||'',days:['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(k=>Number(c[k]||0)),exceptions:{}}}
+    for(const x of dates){if(!services[x.service_id])services[x.service_id]={start:'',end:'',days:[0,0,0,0,0,0,0],exceptions:{}};services[x.service_id].exceptions[x.date]=Number(x.exception_type||0)}
+    const tripsByRoute=new Map(),tripById=new Map();for(const t of trips){tripById.set(String(t.trip_id),t);const id=String(t.route_id);if(!tripsByRoute.has(id))tripsByRoute.set(id,[]);tripsByRoute.get(id).push(t)}
+    const routeIndex=routes.map(r=>({id:String(r.route_id),short:r.route_short_name||r.route_id,long:r.route_long_name||'',type:r.route_type||'3',color:r.route_color||'FFFFFF',text_color:r.route_text_color||'000000',remote_gtfs:true,department:d,patterns:0})).sort((a,b)=>String(a.short).localeCompare(String(b.short),'fr',{numeric:true}));
+    if(!routeIndex.length)throw new Error(`aucune ligne du réseau ${d} trouvée dans le GTFS régional`);
+    return{dept:d,url:got.url,entries,routesRaw:routes,routes:routeIndex,stops,stopList,services,tripsByRoute,tripById,textCache:new Map(),regional:true};
+  })();FluoRemoteGTFS.feeds.set(d,promise);try{return await promise}catch(e){FluoRemoteGTFS.feeds.delete(d);throw e}
+}
+async function fluoRemoteEntryText(feed,name){if(!feed.textCache.has(name))feed.textCache.set(name,fluoZipText(feed.entries.get(name)));return feed.textCache.get(name)}
+async function fluoRemoteCore(dept){
+  const f=await fluoRemoteFeed(dept);return{format:'fluo-regional-remote-v2',department:String(dept),routesIndex:{department:String(dept),label:FluoRemoteGTFS.labels[String(dept)]||String(dept),source:f.url,routes:f.routes,stop_count:f.stopList.length,regional_gtfs:true},servicesIndex:{services:f.services},stopsIndex:{department:String(dept),stops:f.stopList}};
+}
+async function fluoRemoteRoutePayload(dept,route){
+  const d=String(dept),key=`${d}|${route.id}`;if(FluoRemoteGTFS.payloads.has(key))return FluoRemoteGTFS.payloads.get(key);
+  const promise=(async()=>{
+    const f=await fluoRemoteFeed(d),tripRows=f.tripsByRoute.get(String(route.id))||[];if(!tripRows.length)return{route,patterns:[]};
+    const wanted=new Set(tripRows.map(t=>String(t.trip_id))),byTrip=new Map();const stText=await fluoRemoteEntryText(f,'stop_times.txt'),lines=stText.replace(/^\uFEFF/,'').split(/\r?\n/),head=fluoCsvRow(lines.shift()||''),ix=Object.fromEntries(head.map((h,i)=>[h,i]));
+    for(const line of lines){if(!line)continue;const a=fluoCsvRow(line),tid=String(a[ix.trip_id]||'');if(!wanted.has(tid))continue;const z={stop_id:String(a[ix.stop_id]||''),arrival:a[ix.arrival_time]||'',departure:a[ix.departure_time]||'',seq:Number(a[ix.stop_sequence]||0)};if(!byTrip.has(tid))byTrip.set(tid,[]);byTrip.get(tid).push(z)}
+    byTrip.forEach(xs=>xs.sort((a,b)=>a.seq-b.seq));
+    let shapeIndex=null;if(f.entries.has('shapes.txt')){const shapeText=await fluoRemoteEntryText(f,'shapes.txt'),sl=shapeText.replace(/^\uFEFF/,'').split(/\r?\n/),sh=fluoCsvRow(sl.shift()||'');shapeIndex={lines:sl,ix:Object.fromEntries(sh.map((h,i)=>[h,i]))};}
+    const shapeIds=new Set(tripRows.map(t=>String(t.shape_id||'')).filter(Boolean)),shapeMap=new Map();
+    if(shapeIndex&&shapeIds.size){for(const line of shapeIndex.lines){if(!line)continue;const a=fluoCsvRow(line),sid=String(a[shapeIndex.ix.shape_id]||'');if(!shapeIds.has(sid))continue;const lat=Number(a[shapeIndex.ix.shape_pt_lat]),lon=Number(a[shapeIndex.ix.shape_pt_lon]),seq=Number(a[shapeIndex.ix.shape_pt_sequence]||0);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;if(!shapeMap.has(sid))shapeMap.set(sid,[]);shapeMap.get(sid).push({lat,lon,seq})}shapeMap.forEach(xs=>xs.sort((a,b)=>a.seq-b.seq))}
+    const groups=new Map();
+    for(const t of tripRows){const tid=String(t.trip_id),times=byTrip.get(tid)||[];if(!times.length)continue;const sid=String(t.shape_id||''),headsign=t.trip_headsign||'',dir=String(t.direction_id??''),sig=`${dir}|${headsign}|${sid}|${times.map(x=>x.stop_id).join('>')}`;let g=groups.get(sig);if(!g){const shp=(shapeMap.get(sid)||[]).map(x=>[x.lat,x.lon]);g={headsign,direction:dir,examples:[],trips:[],shape_id:sid,trace_source:shp.length?'fluo_gtfs_regional':'road_fallback',shape_points:shp.length,shape:shp,stops:times.map(x=>{const s=f.stops.get(x.stop_id)||{id:x.stop_id,name:x.stop_id,lat:NaN,lon:NaN,code:''};return{id:s.id,name:s.name,lat:s.lat,lon:s.lon,code:s.code,arrival:x.arrival,departure:x.departure}})};groups.set(sig,g)}
+      const arr=times.map(x=>[x.arrival,x.departure]);g.trips.push({id:tid,service:String(t.service_id||''),headsign,trip_short_name:t.trip_short_name||'',block_id:t.block_id||'',times:arr});const ex=arr[0]?.[1]||arr[0]?.[0];if(ex&&g.examples.length<3&&!g.examples.includes(ex))g.examples.push(ex);
+    }
+    return{route:{id:route.id,short:route.short,long:route.long,type:route.type,color:route.color,text_color:route.text_color},patterns:[...groups.values()]};
+  })();FluoRemoteGTFS.payloads.set(key,promise);try{return await promise}catch(e){FluoRemoteGTFS.payloads.delete(key);throw e}
+}
 async function fluoDeptCore(dept){
-  const d=String(dept);
-  if(!fluoFlatCache.cores.has(d)) fluoFlatCache.cores.set(d,jget(`fluo${d}_core.json.gz`));
-  return fluoFlatCache.cores.get(d);
+  const d=String(dept),remote=fluoUsesRegionalData(d),key=fluoDeptDataEra(d);
+  if(!fluoFlatCache.cores.has(key))fluoFlatCache.cores.set(key,remote?fluoRemoteCore(d):jget(`fluo${d}_core.json.gz`));
+  return fluoFlatCache.cores.get(key);
 }
 async function fluoRoutesData(dept){
-  try{return (await fluoDeptCore(dept)).routesIndex;}
-  catch{return jget(`data/${dept}/routes.json`);}
+  const d=String(dept);
+  try{
+    const core=await fluoDeptCore(d),idx=core.routesIndex;
+    if(!idx?.regional_gtfs)return idx;
+    const feed=await fluoRemoteFeed(d),iso=fluoSelectedIsoDate();
+    let routes=(idx.routes||[]).filter(r=>{const trips=feed.tripsByRoute.get(String(r.id))||[];return !trips.length||trips.some(t=>fluoServiceCoversIso(feed.services[String(t.service_id||'')],iso))});
+    // 54 : dès le 01/09/2026, privilégier strictement la nouvelle numérotation régionale
+    // (3 chiffres régulières / 4 chiffres scolaires) si elle est déjà publiée dans le GTFS.
+    if(d==='54'&&String(iso)>=FLUO_RENUMBER_CUTOVER_2026){
+      const renum=routes.filter(r=>/^\d{3,4}$/.test(String(r.short||'').trim()));
+      if(!renum.length)throw new Error('la nouvelle numérotation Fluo 54 n’est pas encore publiée dans le GTFS régional pour cette date');
+      routes=renum;
+    }
+    return{...idx,routes,numbering_era:d==='54'?(String(iso)>=FLUO_RENUMBER_CUTOVER_2026?'nouvelle-2026':'historique'):idx.numbering_era};
+  }catch{return jget(`data/${dept}/routes.json`);}
 }
 async function fluoServicesData(dept){
   try{return (await fluoDeptCore(dept)).servicesIndex;}
@@ -341,6 +469,7 @@ async function fluoStopsData(dept){
   catch{return jget(`data/${dept}/stops.json`);}
 }
 async function fluoRoutePayload(dept,route){
+  if(route?.remote_gtfs) return fluoRemoteRoutePayload(String(dept),route);
   if(route?.bundle){
     if(!fluoFlatCache.bundles.has(route.bundle)) fluoFlatCache.bundles.set(route.bundle,jget(route.bundle));
     const pack=await fluoFlatCache.bundles.get(route.bundle), payload=pack?.routes?.[route.file];
@@ -851,17 +980,21 @@ function resetSelections(level='dept'){
   }
 }
 
+let fluoLast54DataEra=null;
 async function loadDept(d){
   if(!d){ resetSelections('dept'); state.dept=null; status('Choisis un département.'); return; }
   state.dept=d; resetSelections('dept');
+  const era=fluoDeptDataEra(d);if(String(d)==='54')fluoLast54DataEra=era;
   ui.route.innerHTML='<option>Chargement…</option>';
-  status(`Chargement des lignes ${d}…`);
+  const regional=fluoUsesRegionalData(d),switchNote=String(d)==='54'?(regional?' · nouvelle numérotation depuis le 01/09/2026':' · numérotation historique jusqu’au 31/08/2026'):'';
+  status(`Chargement des lignes ${d}…${regional?' · synchronisation GTFS régional officiel':''}${switchNote}`);
   try{
     const [data,svc]=await Promise.all([fluoRoutesData(d),fluoServicesData(d).catch(()=>({services:{}}))]);
     state.routes=data.routes||[]; state.services=svc.services||{};
     ui.route.innerHTML='<option value="">Choisir une ligne…</option>'+state.routes.map(r=>`<option value="${esc(r.id)}">${esc(r.short)} — ${esc(r.long)}</option>`).join('');
     ui.route.disabled=false;
-    status(`${state.routes.length} lignes · ${data.stop_count} points d’arrêt chargés.`, 'ok');
+    const numberNote=String(d)==='54'?` · ${regional?'nouveaux numéros actifs':'anciens numéros actifs'}`:'';
+    status(`${state.routes.length} lignes · ${data.stop_count} points d’arrêt chargés${numberNote}.`, 'ok');
   }catch(e){
     ui.route.innerHTML='<option>Données indisponibles</option>';
     status(`Impossible de charger les données ${d}: ${e.message}. Vérifie que l’action GitHub Pages a terminé la publication.`, 'err');
@@ -1158,7 +1291,7 @@ function announce(force=false){
 function announceArrival(){
   const s=state.pattern?.stops[state.target]; if(!s||state.arrivalAnnounced) return;
   const isTerminus=nextOperationalStop(state.target)===null;
-  say(isTerminus?`Arrêt, ${spoken(s.name)}. Terminus.`:`Arrêt, ${spoken(s.name)}.`,{priority:120,kind:'stop'});
+  say(isTerminus?`Arrêt, ${spoken(s.name)}. Terminus de la ligne. Avant de quitter le véhicule, merci de vérifier que vous n'avez oublié aucun effet personnel à bord. Nous vous remercions d'avoir voyagé avec nous et vous souhaitons une excellente journée. À bientôt sur nos lignes.`:`Arrêt, ${spoken(s.name)}.`,{priority:120,kind:'stop'});
   state.arrivalAnnounced=true;
   // Si l'inter-arrêt était exceptionnellement très court, on ne prononce plus "Prochain arrêt" après l'arrivée.
   state.announced=true; state.nextStopDueAt=null;
@@ -1406,13 +1539,16 @@ function recenter(){
 
 ui.dept.addEventListener('change',e=>loadDept(e.target.value));
 ui.route.addEventListener('change',()=>{ const r=state.routes.find(x=>x.id===ui.route.value); if(r) loadRoute(r); else resetSelections('route'); });
-ui.serviceDate.addEventListener('change',()=>{ if(state.route&&state.service.mode!=='formation') populateRuns(); });
+ui.serviceDate.addEventListener('change',async()=>{
+  if(state.dept==='54'&&fluoLast54DataEra!==fluoDeptDataEra('54')){await loadDept('54');return;}
+  if(state.route&&state.service.mode!=='formation')populateRuns();
+});
 ui.trip.addEventListener('change',()=>{ if(ui.trip.value==='') selectRun(null); else selectRun(Number(ui.trip.value)); });
 ui.startStop.addEventListener('change',()=>{ updateDepartureDisplay(); if(state.service.mode==='tad') renderTadStopList(false); refreshStartAvailability(); labels(); });
 ui.gpsTest.addEventListener('click',testGps);
 ui.start.addEventListener('click',startGps);
 ui.simulate.addEventListener('click',startSimulation);
-ui.finish.addEventListener('click',finish);
+ui.finish.addEventListener('click',()=>finish());
 ui.speak.addEventListener('click',()=>announce(true));
 ui.nextBtn.addEventListener('click',()=>{ advance(true); if(state.mode==='simulation') syncSimulationToState(); });
 ui.prev.addEventListener('click',previous);
@@ -1446,10 +1582,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=31.3').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=31.6').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.3').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.6').catch(()=>{});
 
 </script>
 <script>
@@ -1988,9 +2124,24 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     const id=V13.activeSessionId; if(!id) return;
     try{
       const s=await getSession(id); if(s){ const st=V13.sessionStats||{}; s.endedAt=iso(); s.status=reason; s.samples=st.samples||0; s.stopEvents=st.stops||0; s.maxSpeedKmh=Number((st.maxSpeed||0).toFixed(1)); s.avgSpeedKmh=st.speedCount?Number((st.sumSpeed/st.speedCount).toFixed(1)):null; s.distanceKm=Number(((st.distance||0)/1000).toFixed(2)); await putSession(s); }
-      await addEvent({sessionId:id,ts:iso(),type:'SERVICE_END',reason,stats:V13.sessionStats||null});
+      const interrupted=reason==='interrupted';
+      await addEvent({sessionId:id,ts:iso(),type:interrupted?'SERVICE_INTERRUPTED':'SERVICE_END',reason:interrupted?'fin de course demandée avant la zone de fin de ligne':reason,stats:V13.sessionStats||null});
     }catch(e){ console.warn('Journal fin service',e); }
     V13.activeSessionId=null; V13.sessionStats=null; recordingUi(false); refreshJournalList();
+  }
+
+  // Le bouton FIN est une fin de COURSE : à partir de l'avant-dernier arrêt franchi,
+  // le journal est terminé normalement. Avant cette zone, la course est classée interrompue.
+  function finishJournalReason(){
+    if(!state?.pattern?.stops?.length) return 'normal';
+    const end=typeof operationalEndIndex==='function'?operationalEndIndex():state.pattern.stops.length-1;
+    const penultimate=typeof previousOperationalStop==='function'?previousOperationalStop(end):(end>0?end-1:null);
+    if(penultimate===null) return 'normal';
+    const current=Number(state.current),target=Number(state.target);
+    const passedPenultimate=current===penultimate||current===end||target===end||target> end;
+    // Sur une desserte à seulement deux points, il faut au moins avoir réellement quitté le point de départ.
+    if(end===1&&current===0&&target===1&&!state.firstLegDepartureSeen) return 'interrupted';
+    return passedPenultimate?'normal':'interrupted';
   }
 
   async function checkpointSession(){
@@ -2040,7 +2191,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     const baseAdvance=advance;
     advance=function(manual=false){ const idx=state?.target; const r=baseAdvance(manual); if(Number.isInteger(idx)&&idx<(state?.pattern?.stops?.length||0)) logStop('STOP_PASSED',idx); return r; };
     const baseFinish=finish;
-    finish=function(){ closeJournal('normal').catch(console.warn); return baseFinish(); };
+    finish=function(){ const reason=finishJournalReason(); closeJournal(reason).catch(console.warn); return baseFinish(); };
   }catch(e){ console.warn('V13 journal patch',e); }
 
   // --- Historique / exports ---
@@ -2050,7 +2201,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     const box=$v13('v13JournalList'); if(!box)return;
     try{
       const xs=(await allSessions()).filter(s=>s.matricule===V13.matricule);
-      box.innerHTML=xs.length?xs.map(s=>`<div class="v13-session"><div class="v13-session-grid"><div><strong>${esc(s.route||'—')} · ${esc(s.destination||'')}</strong><span>${fmtDate(s.startedAt)} · ${esc(s.serviceMode||'')} · ${s.tripId?`trip ${esc(s.tripId)}`:'sans horaire'}</span><span>${s.stopEvents||0} arrêts journalisés · ${s.samples||0} points GPS · max ${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh:'—'} km/h · ${Number.isFinite(s.distanceKm)?s.distanceKm:'—'} km</span></div><span class="v13-session-badge">${s.status==='open'?'EN COURS':'TERMINÉ'}</span></div></div>`).join(''):'<div class="v13-session"><strong>Aucun service enregistré</strong><span>Les journaux apparaîtront ici après une prise de service.</span></div>';
+      box.innerHTML=xs.length?xs.map(s=>`<div class="v13-session"><div class="v13-session-grid"><div><strong>${esc(s.route||'—')} · ${esc(s.destination||'')}</strong><span>${fmtDate(s.startedAt)} · ${esc(s.serviceMode||'')} · ${s.tripId?`trip ${esc(s.tripId)}`:'sans horaire'}</span><span>${s.stopEvents||0} arrêts journalisés · ${s.samples||0} points GPS · max ${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh:'—'} km/h · ${Number.isFinite(s.distanceKm)?s.distanceKm:'—'} km</span></div><span class="v13-session-badge">${s.status==='open'?'EN COURS':s.status==='interrupted'?'INTERROMPU':'TERMINÉ'}</span></div></div>`).join(''):'<div class="v13-session"><strong>Aucun service enregistré</strong><span>Les journaux apparaîtront ici après une prise de service.</span></div>';
     }catch(e){ box.innerHTML=`<div class="v13-session"><strong>Journal indisponible</strong><span>${esc(e.message||e)}</span></div>`; }
   }
   function csvCell(v){ if(v===null||v===undefined)return '';const s=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n;]/.test(s)?`"${s.replaceAll('"','""')}"`:s; }
@@ -2553,8 +2704,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     }
     if(dest.next) dest.next.textContent=text(source.next);
     if(dest.distance) dest.distance.textContent=text(source.distance);
-    if(dest.line) dest.line.textContent=[state?.route?.short,state?.route?.long].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' · ')||text(source.route);
-    if(dest.destination) dest.destination.textContent=state?.pattern?.stops?.at(-1)?.name||text(source.destination);
+    if(dest.line) dest.line.textContent=state?.route?.short||text(source.route);
+    if(dest.destination) dest.destination.textContent=window.FluoCompactLineDestination?.()||state?.pattern?.stops?.at(-1)?.name||text(source.destination);
     if(dest.request&&source.request){
       const visible=!source.request.classList.contains('hidden'); dest.request.classList.toggle('hidden',!visible);
       if(dest.requestStop) dest.requestStop.textContent=text(source.requestStop);
@@ -2671,7 +2822,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
           <button id="v16CalcClose" class="sheet-close" type="button">Fermer</button>
         </div>
         <div class="v16-calc-grid">
-          <label>Département<select id="v16CalcDept"><option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option></select></label>
+          <label>Département<select id="v16CalcDept"><option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option><option value="67">Bas-Rhin (67)</option><option value="68">Haut-Rhin (68)</option></select></label>
           <label>Ligne<select id="v16CalcRoute" disabled><option>Choisir le département</option></select></label>
           <label>Sens / parcours<select id="v16CalcPattern" disabled><option>Choisir la ligne</option></select></label>
           <label>Arrêt de départ<select id="v16CalcStart" disabled><option>Choisir le parcours</option></select></label>
@@ -2707,7 +2858,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     #driver.v16-maplibre-active .leaflet-control-container{visibility:hidden}
     @media(max-width:680px){.v16-calc-grid{grid-template-columns:1fr 1fr}.v16-calc-grid label:nth-child(3),.v16-calc-grid label:nth-child(4){grid-column:1/-1}.v16-calc-sheet{max-height:92vh}.v16-map-controls{right:5px;top:5px}.v16-map-controls button{padding:5px 7px}.v16-speed-limit{min-width:43px;padding:4px 5px}}
     @media(max-width:470px){.v16-calc-grid{grid-template-columns:1fr}.v16-calc-grid label:nth-child(3),.v16-calc-grid label:nth-child(4){grid-column:auto}}
-    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){.v16-map-controls{right:7px;top:7px}.v16-speed-limit{transform:scale(.9);transform-origin:top right}.v15-map-guidance{z-index:920}.v16-map3d{border-radius:11px;overflow:hidden}.v16-bus-marker,.bus-pin-v16{width:36px;height:114px}#v16CalcSheet:not(.hidden){align-items:center!important;padding:6px!important}#v16CalcSheet .v16-calc-sheet{max-height:96dvh!important;border-radius:16px!important}}
+    @media(orientation:landscape){.v16-map-controls{right:7px;top:7px}.v16-speed-limit{transform:scale(.9);transform-origin:top right}.v15-map-guidance{z-index:920}.v16-map3d{border-radius:11px;overflow:hidden}.v16-bus-marker,.bus-pin-v16{width:36px;height:114px}#v16CalcSheet:not(.hidden){align-items:center!important;padding:6px!important}#v16CalcSheet .v16-calc-sheet{max-height:96dvh!important;border-radius:16px!important}}
     /* Fallback Leaflet : Crossway blanc, plus long. */
     .bus-pin-v16{width:40px;height:127px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.62));transform-origin:50% 50%;pointer-events:none}.bus-pin-v16 img{width:100%;height:100%;display:block;object-fit:contain;user-select:none;-webkit-user-drag:none}
   `;
@@ -3124,22 +3275,41 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     if(/^(S|SC|SCO)[0-9A-Z]+$/.test(code)) return true;
     return false;
   }
+  function alsaceLineCategory(routeLike,department){
+    const dep=String(department||routeLike?.department||routeLike?.dept||'');
+    const short=shortCode(typeof routeLike==='string'?routeLike:(routeLike?.short||routeLike?.route_short_name||''));
+    const hay=norm(typeof routeLike==='string'?routeLike:[routeLike?.id,routeLike?.short,routeLike?.long,routeLike?.route_id,routeLike?.route_short_name,routeLike?.route_long_name,routeLike?.legacy_short,routeLike?.old_short].filter(Boolean).join(' ')).replace(/\s+/g,'');
+    // Pendant la transition 2026/2027, une ancienne référence 67R/68R éventuellement conservée
+    // dans les métadonnées reste la meilleure preuve qu'il s'agit d'une ligne régulière.
+    if(dep==='67'&&/67R\d+[A-Z0-9]*/.test(hay))return'regular';
+    if(dep==='68'&&/68R\d+[A-Z0-9]*/.test(hay))return'regular';
+    // Nouvelle numérotation régionale officielle : 3 chiffres = régulière, 4 chiffres = scolaire.
+    // On accepte un suffixe alphabétique technique éventuel sans changer la famille de la ligne.
+    if(/^\d{3}[A-Z]?$/.test(short))return'regular';
+    if(/^\d{4}[A-Z]?$/.test(short))return'school';
+    // Compatibilité avec les anciennes références encore publiées pendant la transition.
+    if(new RegExp('^'+dep+'R\\d+[A-Z0-9]*$').test(short))return'regular';
+    if(short.startsWith(dep))return'school';
+    if(genericSchoolText(typeof routeLike==='string'?routeLike:[routeLike?.short,routeLike?.long].filter(Boolean).join(' ')))return'school';
+    return'unknown';
+  }
+  window.FluoAlsaceLineCategoryV314=alsaceLineCategory;
   function lineCategory(text,department){
     const code=shortCode(text), dep=String(department||'');
     const letters=(code.match(/[A-Z]/g)||[]).length;
     if(dep==='57'){
       // Moselle : les régulières Fluo sont codées 57R + numéro.
       if(/^57R\d+[A-Z0-9]*$/.test(code)) return 'regular';
-      // Les codes à plusieurs lettres sont les dessertes scolaires ; S/SC/SCO le sont également.
       if(letters>=2 || /^57?(S|SC|SCO)/.test(code) || genericSchoolText(text)) return 'school';
       return 'unknown';
     }
     if(dep==='54'){
-      // V30 — règle terrain Meurthe-et-Moselle : 54R + chiffres = ligne régulière.
-      // Toutes les autres lignes du 54 sont classées scolaires.
       if(/^54R\d+[A-Z0-9]*$/.test(code)) return 'regular';
+      if(/^\d{3}[A-Z]?$/.test(code)) return 'regular';
+      if(/^\d{4}[A-Z]?$/.test(code)) return 'school';
       return 'school';
     }
+    if(dep==='67'||dep==='68')return alsaceLineCategory(text,dep);
     if(genericSchoolText(text)) return 'school';
     return 'regular';
   }
@@ -3163,7 +3333,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
         <option value="all">Toutes les lignes</option>
         <option value="custom">Lignes personnalisées</option>
       </select>
-      <small>57 : régulières 57R… · 54 : régulières 54R… ; toutes les autres lignes du 54 sont classées scolaires. · « Toutes » affiche l’ensemble.</small>
+      <small>54 : anciens codes jusqu’au 31/08/2026 puis nouvelle numérotation (3 chiffres = régulière, 4 chiffres = scolaire). · 57 : classement historique. · 67/68 : transition pilotée par le GTFS régional officiel. · « Toutes » affiche l’ensemble.</small>
       <span id="lineTypeCount" class="v18-filter-count"></span>`;
     route.closest('label')?.before(label);
   }
@@ -4060,6 +4230,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const list=q('v26AnnList');if(list)list.innerHTML=ANNOUNCEMENTS.map(a=>`<button type="button" class="v26-ann-choice" data-v26-ann="${a.id}"><b>${esc26(a.title)}</b><span>${esc26(a.text())}</span></button>`).join('');
   }
   function openAnnouncements26(){q('v26AnnounceSheet')?.classList.remove('hidden');refreshAnnouncementTexts26()}
+  window.FluoOpenAnnouncementsV26=openAnnouncements26;
   function closeAnnouncements26(){q('v26AnnounceSheet')?.classList.add('hidden')}
   function refreshAnnouncementTexts26(){q('v26AnnList')?.querySelectorAll('[data-v26-ann]').forEach(b=>{const a=ANNOUNCEMENTS.find(x=>x.id===b.dataset.v26Ann);const span=b.querySelector('span');if(a&&span)span.textContent=a.text()})}
   function selectAnnouncement26(id){V26.selectedAnnouncement=id;q('v26AnnList')?.querySelectorAll('.v26-ann-choice').forEach(b=>b.classList.toggle('selected',b.dataset.v26Ann===id));const a=ANNOUNCEMENTS.find(x=>x.id===id);if(a&&q('v26AnnText'))q('v26AnnText').value=a.text()}
@@ -5422,18 +5593,36 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v31LandscapeDriverLayout">
 'use strict';
-/* V31 — informations complètes en paysage, commandes principales en bas et surplus à droite. */
+/* V31.4 — paysage conducteur épuré : ponctualité carrée, ligne + destination fusionnées, Suivre sur la carte. */
 (()=>{
   const q=id=>document.getElementById(id),driver=q('driver'),side=q('v15LandscapeSide');if(!driver||!side)return;
+
+  // V31.4 : en paysage, le haut de la colonne droite devient volontairement très compact :
+  // un carré ponctualité + un seul rectangle ligne/destination, puis le prochain arrêt dessous.
+  const punctuality=q('v15Punctuality'),lineBox=side.querySelector('.v15-line-box'),nextBox=side.querySelector('.v15-next-box');
+  if(lineBox){
+    const lineCard=lineBox.firstElementChild,destinationCard=lineBox.querySelector('.v15-destination'),destination=q('v15Destination');
+    if(lineCard&&destinationCard&&destination){
+      destination.classList.add('v314-line-destination');
+      lineCard.appendChild(destination);
+      destinationCard.remove();
+    }
+  }
+  if(!q('v314TopInfo')&&punctuality&&lineBox){
+    const topInfo=document.createElement('div');topInfo.id='v314TopInfo';
+    side.insertBefore(topInfo,nextBox||side.firstChild);topInfo.appendChild(punctuality);topInfo.appendChild(lineBox);
+  }
+
   const bottom=document.createElement('div');bottom.id='v31LandscapeBottom';bottom.setAttribute('aria-label','Commandes principales conducteur');
-  bottom.innerHTML=`<button type="button" data-v31-target="followMap">🎯 Suivre</button><button type="button" data-v31-target="navVoiceBtn">🔊 GPS</button><button type="button" data-v31-target="prev">← Arrêt</button><button type="button" class="primary" data-v31-target="speak">🔊 Annoncer</button><button type="button" data-v31-target="nextBtn">Arrêt →</button><button type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button type="button" class="danger" data-v31-target="v15FinishBtn">FIN</button>`;
+  bottom.innerHTML=`<button type="button" data-v31-target="prev">← Arrêt</button><button id="v318LandscapeAnnounceMenuBootstrap" type="button" class="primary">🔊 Annoncer</button><button type="button" data-v31-target="nextBtn">Arrêt →</button><button type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button type="button" class="danger" data-v31-target="v15FinishBtn">FIN</button>`;
   driver.appendChild(bottom);
+  q('v318LandscapeAnnounceMenuBootstrap')?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(typeof window.FluoOpenAnnouncementsV26==='function')window.FluoOpenAnnouncementsV26();else q('v26AnnounceSheet')?.classList.remove('hidden')});
   const dock=q('v281LandscapeDock');if(dock&&!q('v31SideExtra')){const extra=document.createElement('div');extra.id='v31SideExtra';extra.innerHTML='<button type="button" data-v31-target="v16MapMode">🧭 Carte 2D/3D</button><button type="button" data-v31-target="simPlayPause">⏯ Simulation</button><button type="button" data-v31-target="simSkip">⏭ Arrêt simu</button>';dock.appendChild(extra)}
   function targetFor(button){return q(button?.dataset?.v31Target)}
   function syncButtons(){document.querySelectorAll('[data-v31-target]').forEach(b=>{const t=targetFor(b);b.disabled=!t||t.disabled;const sim=/^(simPlayPause|simSkip)$/.test(b.dataset.v31Target),hidden=sim&&(!t||t.closest('.sim-controls')?.classList.contains('hidden'));b.classList.toggle('v31-hidden',!!hidden);if(b.dataset.v31Target==='v16MapMode'&&t)b.textContent=`🧭 ${t.textContent.replace(/^\s*🧭\s*/, '')}`;if(b.dataset.v31Target==='navVoiceBtn'&&t)b.textContent=t.classList.contains('off')?'🔇 GPS':'🔊 GPS'})}
   document.addEventListener('click',e=>{const b=e.target.closest?.('[data-v31-target]');if(!b)return;const t=targetFor(b);if(t&&!t.disabled){e.preventDefault();t.click();setTimeout(syncButtons,0)}},true);
   function syncFullTexts(){
-    const line=[state?.route?.short,state?.route?.long].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' · '),dest=state?.pattern?.stops?.at(-1)?.name||state?.pattern?.headsign||'—',next=state?.pattern?.stops?.[state?.target]?.name||q('next')?.textContent||'—';
+    const line=state?.route?.short||'—',dest=window.FluoCompactLineDestination?.()||state?.pattern?.stops?.at(-1)?.name||state?.pattern?.headsign||'—',next=state?.pattern?.stops?.[state?.target]?.name||q('next')?.textContent||'—';
     if(q('v15Line')&&line&&q('v15Line').textContent!==line)q('v15Line').textContent=line;
     if(q('v15Destination')&&q('v15Destination').textContent!==dest)q('v15Destination').textContent=dest;
     if(q('v15NextStop')&&next&&q('v15NextStop').textContent!==next)q('v15NextStop').textContent=next;
@@ -5443,28 +5632,43 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     #v31LandscapeBottom{display:none}
     .v31-hidden{display:none!important}
     @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){
-      #driver{grid-template-columns:minmax(0,1fr) minmax(205px,28vw)!important;grid-template-rows:minmax(0,1fr) auto!important}
+      #driver{grid-template-columns:minmax(0,1fr) minmax(220px,29vw)!important;grid-template-rows:minmax(0,1fr) auto!important}
       #driver .navmap-wrap{grid-column:1!important;grid-row:1!important}
       #v15LandscapeSide{grid-column:2!important;grid-row:1/3!important;padding:5px!important;overflow-y:auto!important;scrollbar-width:thin}
+      #v314TopInfo{display:grid!important;grid-template-columns:74px minmax(0,1fr)!important;gap:5px!important;align-items:stretch!important;flex:0 0 auto!important}
+      #v314TopInfo .v15-punctuality{width:74px!important;height:74px!important;min-height:74px!important;padding:5px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;text-align:center!important;gap:4px!important;border-radius:11px!important}
+      #v314TopInfo .v15-punctuality span{font-size:.54rem!important;line-height:1.05!important;letter-spacing:.035em!important}
+      #v314TopInfo .v15-punctuality strong{font-size:1.02rem!important;line-height:1!important}
+      #v314TopInfo .v15-line-box{display:block!important;min-width:0!important;height:74px!important}
+      #v314TopInfo .v15-line-box>div{height:74px!important;min-width:0!important;padding:6px 8px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;border-radius:11px!important}
+      #v314TopInfo .v15-line-box>div>span{font-size:.51rem!important;line-height:1!important}
+      #v314TopInfo .v15-line-box>div:first-child strong#v15Line{display:block!important;margin-top:3px!important;font-size:1.12rem!important;line-height:1!important;color:#ffd000!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+      #v314TopInfo .v314-line-destination{display:block!important;margin-top:5px!important;color:#eef8fc!important;font-size:.64rem!important;font-weight:800!important;line-height:1.08!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
       #v15LandscapeSide .v15-next-box strong{max-height:none!important;overflow:visible!important;white-space:normal!important;overflow-wrap:anywhere!important;font-size:clamp(.82rem,1.65vw,1.05rem)!important}
-      #v15LandscapeSide .v15-line-box{grid-template-columns:1fr!important}
-      #v15LandscapeSide .v15-line-box strong,#v15LandscapeSide .v15-destination strong{display:block!important;max-height:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere!important;-webkit-line-clamp:unset!important;font-size:.72rem!important;line-height:1.12!important}
-      #v15LandscapeSide .v15-line-box>div:first-child strong{font-size:.82rem!important;color:#ffd000!important}
+      #v15LandscapeSide #v30RoadSide{display:none!important}
       #v281LandscapeDock{position:static!important;inset:auto!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:4px!important;margin-top:auto!important;padding:4px!important;flex:0 0 auto!important}
       #v281LandscapeDock .v15-side-actions{display:none!important}
       #v281LandscapeDock .v281-dock-row,#v281LandscapeDock .v29-dock-row,#v31SideExtra{display:contents!important}
       #v281LandscapeDock button{width:100%!important;min-width:0!important;min-height:27px!important;padding:4px!important;font-size:.53rem!important;line-height:1.05!important;white-space:normal!important}
       #driver > #v31LandscapeBottom{grid-column:1!important;grid-row:2!important;display:flex!important;gap:4px!important;min-width:0!important;overflow-x:auto!important;padding:4px 1px 0!important;scrollbar-width:thin!important}
       #v31LandscapeBottom button{flex:1 0 auto!important;min-width:64px!important;min-height:34px!important;padding:5px 7px!important;font-size:.59rem!important;line-height:1.05!important;white-space:nowrap!important}
-      #driver .maphud #followMap,#v15MapGuidance #v15NavVoice,.v16-map-controls #v16MapMode{display:none!important}
-      #driver .maphud{pointer-events:none!important}.v16-map-controls{pointer-events:none!important}.v16-map-controls .v16-speed-limit{pointer-events:none!important}
+      /* « Suivre » revient directement sur la carte. Le bouton GPS vocal n'est plus dupliqué dans la barre du bas. */
+      #driver .maphud #followMap{display:inline-flex!important;align-items:center!important}
+      #v15MapGuidance #v15NavVoice{display:none!important}
+      .v16-map-controls #v16MapMode{display:none!important}
+      #driver .maphud{pointer-events:none!important}#driver .maphud>*{pointer-events:auto!important}.v16-map-controls{pointer-events:none!important}.v16-map-controls .v16-speed-limit{pointer-events:none!important}
       #v15LandscapeSide .v15-side-spacer{display:none!important}
     }
     @media(orientation:landscape) and (max-height:390px) and (max-width:760px){
-      #driver{grid-template-columns:minmax(0,1fr) minmax(190px,30vw)!important;gap:4px!important}
+      #driver{grid-template-columns:minmax(0,1fr) minmax(202px,31vw)!important;gap:4px!important}
       #v31LandscapeBottom button{min-height:29px!important;padding:4px 6px!important;font-size:.53rem!important}
-      #v15LandscapeSide .v15-punctuality{min-height:39px!important}
-      #v15LandscapeSide .v15-next-box,#v15LandscapeSide .v15-line-box>div{padding:4px 5px!important}
+      #v314TopInfo{grid-template-columns:64px minmax(0,1fr)!important;gap:4px!important}
+      #v314TopInfo .v15-punctuality,#v314TopInfo .v15-line-box,#v314TopInfo .v15-line-box>div{width:auto!important;height:64px!important;min-height:64px!important}
+      #v314TopInfo .v15-punctuality{width:64px!important}
+      #v314TopInfo .v15-punctuality strong{font-size:.9rem!important}
+      #v314TopInfo .v15-line-box>div:first-child strong#v15Line{font-size:1rem!important}
+      #v314TopInfo .v314-line-destination{font-size:.57rem!important;margin-top:4px!important}
+      #v15LandscapeSide .v15-next-box{padding:4px 5px!important}
       #v281LandscapeDock button{min-height:23px!important;font-size:.49rem!important}
     }
   `;document.head.appendChild(css);
@@ -5474,94 +5678,656 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 
 <script id="v309FinalLabel">
-(()=>{const apply=()=>{document.title='Fluo SAEIV V31.19 · édition GitHub monobloc';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V31.19 GITHUB MONOBLOC'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
-// V31.3 : liaison finale après toutes les extensions historiques de l'interface.
+(()=>{const apply=()=>{document.title='Fluo SAEIV V31.4 · édition GitHub monobloc';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V31.4 GITHUB MONOBLOC'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
+// V31.4 : liaison finale après toutes les extensions historiques de l'interface.
 // La délégation reste valide même si un bouton est déplacé ou recréé par une extension.
 (()=>{const modes={regularMode:'regular',tadMode:'tad',formationMode:'formation'};
   Object.entries(modes).forEach(([id,mode])=>document.getElementById(id)?.addEventListener('click',()=>window.FluoSetServiceModeV313?.(mode),{capture:true}));
 })();
 </script>
 
-<script id="v3119ReservedBoardings57R027">
+<script id="v315ValidatedLandscapeDesign">
 'use strict';
-/* V31.19 — 57R027 : confirmation des montées réservées avant le départ.
-   Les demandes de descente restent dans requestedStops et peuvent activer une branche en service. */
+/* V31.18 — cockpit paysage : Annoncer ouvre directement la bibliothèque d’annonces, sans proxy caché ; seul le toggle destination reste en colonne. */
 (()=>{
-  const q=id=>document.getElementById(id), R={reserved:new Set(),pendingMode:null,busy:false,serial:0,cache:new Map(),base:new WeakMap(),lastSignature:''};
-  const CONDITIONAL_TOWNS=new Set(['FRESNES-EN-SAULNOIS','ORIOCOURT','JALLAUCOURT','LEMONCOURT','FONTENY','VIVIERS','PUZIEUX','JUVILLE','MONCHEUX','PONTOY','CHERISEY','MECLEUVES','JURY']);
-  const normalize=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[’']/g,"'").trim();
-  const isLine=()=>normalize(state?.route?.short).replace(/\s/g,'')==='57R027'&&state?.service?.mode==='regular'&&!!state?.run&&!!state?.pattern;
-  const townOf=st=>normalize(st?.name).split(' - ')[0];
-  const conditionalIndices=()=>isLine()?(state.pattern.stops||[]).map((st,i)=>CONDITIONAL_TOWNS.has(townOf(st))?i:-1).filter(i=>i>=0):[];
-  const startIndex=()=>Math.max(0,Number(q('startStop')?.value||0));
-  const isWholeReservation=()=>{
-    if(!isLine())return false;const hh=typeof formatClock==='function'?formatClock(state.run.originDeparture):'';
-    const origin=normalize(state.pattern.stops?.[0]?.name);
-    return origin.startsWith('CHATEAU-SALINS')?['11:00','13:00'].includes(hh):origin.startsWith('METZ')?['09:15','13:45'].includes(hh):false;
-  };
-  const needsPrompt=()=>isLine()&&!isWholeReservation()&&conditionalIndices().some(i=>i>startIndex());
-  const isConditional=i=>conditionalIndices().includes(i);
-  const activeConditional=i=>R.reserved.has(i)||state?.service?.requestedStops?.has(i);
-  const operational=i=>!isConditional(i)||activeConditional(i);
-  const signature=()=>`${state?.run?.trip?.id||''}|${startIndex()}|${conditionalIndices().filter(activeConditional).join(',')}`;
-  const escHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const q=id=>document.getElementById(id);
+  const driver=q('driver'),side=q('v15LandscapeSide'),mapWrap=document.querySelector('#driver .navmap-wrap');
+  if(!driver||!side||!mapWrap)return;
 
-  document.body.insertAdjacentHTML('beforeend',`<div id="v3119Prompt" class="v3119-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="v3119Title"><div class="v3119-sheet"><div class="v3119-kicker">57R027 · AVANT LE DÉPART</div><h2 id="v3119Title">Des montées ont-elles été réservées à des arrêts à la demande ?</h2><p id="v3119QuestionHelp">Les arrêts non sélectionnés ne provoqueront aucun détour. Les voyageurs à bord pourront toujours demander une descente pendant la course.</p><div id="v3119Choices" class="v3119-actions"><button id="v3119No" type="button">NON · AUCUNE MONTÉE</button><button id="v3119Yes" class="primary" type="button">OUI · CHOISIR LES ARRÊTS</button></div><div id="v3119Picker" class="hidden"><div class="v3119-picker-head"><b>Montées réservées</b><span>Coche uniquement les arrêts où une prise en charge est commandée.</span></div><div id="v3119List" class="v3119-list"></div><div class="v3119-foot"><button id="v3119Back" type="button">Retour</button><button id="v3119Launch" class="primary" type="button">VALIDER ET LANCER LA COURSE</button></div></div><div id="v3119Status" class="v3119-status hidden"></div></div></div>`);
-  const css=document.createElement('style');css.id='v3119Style';css.textContent=`
-    .v3119-backdrop.hidden,.v3119-sheet .hidden{display:none!important}.v3119-backdrop{position:fixed;z-index:30000;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:14px}.v3119-sheet{width:min(680px,100%);max-height:94dvh;overflow:auto;padding:18px;background:#0b1b26;color:#f2faff;border:1px solid #45677a;border-radius:21px;box-shadow:0 22px 80px rgba(0,0,0,.65)}.v3119-kicker{color:#ffd000;font-size:.68rem;font-weight:1000;letter-spacing:.1em}.v3119-sheet h2{margin:5px 0 7px;font-size:clamp(1.2rem,4vw,1.65rem);line-height:1.15}.v3119-sheet p{margin:0;color:#afc2cc;font-size:.77rem;line-height:1.45}.v3119-actions,.v3119-foot{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:17px}.v3119-actions button,.v3119-foot button{min-height:54px;font-weight:950}.v3119-picker-head{display:flex;flex-direction:column;gap:3px;margin-top:17px}.v3119-picker-head span{color:#a9bdc8;font-size:.72rem}.v3119-list{display:grid;gap:7px;margin-top:10px}.v3119-stop{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px;border:1px solid #355566;border-radius:12px;background:#081720}.v3119-stop:has(input:checked){border-color:#d7b000;background:#292207}.v3119-stop input{width:22px;height:22px;accent-color:#ffd000}.v3119-stop strong,.v3119-stop span{display:block}.v3119-stop span{margin-top:2px;color:#a9bdc8;font-size:.68rem}.v3119-stop em{font-style:normal;color:#ffd000;font-size:.62rem;font-weight:950}.v3119-status{margin-top:12px;padding:10px;border:1px solid #7b681f;border-radius:11px;background:#241e08;color:#ffe89c;font-size:.72rem}.v3119-status.err{border-color:#8c3b3f;background:#2b1719;color:#ffd0cd}@media(max-width:560px){.v3119-actions,.v3119-foot{grid-template-columns:1fr}.v3119-backdrop{align-items:flex-end;padding:0}.v3119-sheet{border-radius:21px 21px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom))}}
+  const shortStopName=name=>String(name||'').trim().split(/\s+-\s+/)[0].trim()||String(name||'').trim();
+  window.FluoCompactLineDestination=()=>{
+    const stops=state?.pattern?.stops||[]; if(!stops.length)return '—';
+    let a=0,z=stops.length-1;
+    if(state?.service?.mode==='tad'){
+      const start=Number(q('startStop')?.value||0); if(Number.isInteger(start)&&start>=0&&start<stops.length)a=start;
+      try{const t=typeof tadTerminusIndex==='function'?tadTerminusIndex():null;if(Number.isInteger(t)&&t>=a&&t<stops.length)z=t}catch{}
+    }
+    const from=shortStopName(stops[a]?.name),to=shortStopName(stops[z]?.name);
+    return from&&to&&from!==to?`${from} - ${to}`:(to||from||'—');
+  };
+
+  // ARRÊT DEMANDÉ intégré au bloc du prochain arrêt. Le signal reste le ding-dong central existant.
+  const nextBox=side.querySelector('.v15-next-box'),requestBox=q('v15RequestBox');
+  if(nextBox&&requestBox&&requestBox.parentElement!==nextBox)nextBox.appendChild(requestBox);
+  if(requestBox&&!q('v315RequestCue')){
+    const cue=document.createElement('small');cue.id='v315RequestCue';cue.textContent='🔔 Ding-dong conducteur';requestBox.appendChild(cue);
+  }
+
+  // Réglage indépendant de l'identité ligne/destination.
+  if(state?.audio&&typeof state.audio.destinationEnabled==='undefined')state.audio.destinationEnabled=localStorage.getItem('fluoDestinationAnnouncementEnabled')!=='off';
+  if(typeof lineIdentity==='function'&&!window.FluoLineIdentityV315Wrapped){
+    const baseLineIdentity=lineIdentity;
+    lineIdentity=function(){return state?.audio?.destinationEnabled===false?'':baseLineIdentity()};
+    window.FluoLineIdentityV315Wrapped=true;
+  }
+
+  let voice=q('v315VoiceControls');
+  if(!voice){
+    voice=document.createElement('div');voice.id='v315VoiceControls';voice.className='v315-voice-controls';
+    voice.innerHTML='<button id="v315DestinationToggle" type="button"><span>🔁 Annonce destination</span><b>ON</b></button>';
+    (nextBox||side.firstElementChild)?.insertAdjacentElement('afterend',voice);
+  }
+  function syncVoice(){
+    const p=q('v315PassengerToggle'),d=q('v315DestinationToggle');
+    const pon=state?.audio?.passengerEnabled!==false,don=state?.audio?.destinationEnabled!==false;
+    if(p){p.classList.toggle('off',!pon);p.querySelector('b').textContent=pon?'ON':'OFF';p.setAttribute('aria-pressed',String(pon));}
+    if(d){d.classList.toggle('off',!don);d.querySelector('b').textContent=don?'ON':'OFF';d.setAttribute('aria-pressed',String(don));}
+  }
+  q('v315PassengerToggle')?.addEventListener('click',()=>{
+    const existing=q('v28PassengerToggleSide')||q('v28PassengerToggle');
+    if(existing)existing.click();
+    else if(state?.audio){state.audio.passengerEnabled=state.audio.passengerEnabled===false;localStorage.setItem('fluoPassengerAnnouncementsEnabled',state.audio.passengerEnabled?'on':'off');}
+    setTimeout(syncVoice,0);
+  });
+  q('v315DestinationToggle')?.addEventListener('click',()=>{
+    if(!state?.audio)return;state.audio.destinationEnabled=state.audio.destinationEnabled===false;
+    localStorage.setItem('fluoDestinationAnnouncementEnabled',state.audio.destinationEnabled?'on':'off');syncVoice();
+  });
+
+  const bottom=q('v31LandscapeBottom');
+  if(bottom)bottom.innerHTML='<button class="v315-stop" type="button" data-v31-target="prev">← Arrêt</button><button id="v318LandscapeAnnounceMenu" class="primary v315-announce" type="button">📢 Annoncer</button><button class="v315-stop" type="button" data-v31-target="nextBtn">Arrêt →</button><button class="v315-deviation" type="button" data-v31-target="v29DeviationBtn">↪ Mode déviation</button><button class="v315-requests" type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button class="v315-incident" type="button" data-v31-target="v29IncidentBtn">📝 Incident</button><button class="v315-recenter" type="button" data-v31-target="recenter">🎯 Recaler poteau</button><button class="danger v315-finish" type="button" data-v31-target="v15FinishBtn">FIN</button>';
+  // V31.18 : ouverture directe du panneau, sans relais par un bouton historique caché.
+  q('v318LandscapeAnnounceMenu')?.addEventListener('click',e=>{
+    e.preventDefault();e.stopPropagation();
+    if(typeof window.FluoOpenAnnouncementsV26==='function')window.FluoOpenAnnouncementsV26();
+    else{const sheet=q('v26AnnounceSheet');if(sheet)sheet.classList.remove('hidden');}
+  });
+
+  const dock=q('v281LandscapeDock'),extra=q('v31SideExtra');
+  if(extra)extra.innerHTML='<button type="button" data-v31-target="simPlayPause">⏯ Simulation</button><button type="button" data-v31-target="simSkip">⏭ Arrêt simu</button>';
+  if(dock)dock.setAttribute('aria-label','Commandes de simulation');
+
+  function syncValidated(){
+    if(q('v15Line'))q('v15Line').textContent=state?.route?.short||'—';
+    if(q('v15Destination'))q('v15Destination').textContent=window.FluoCompactLineDestination?.()||'—';
+    const devProxy=bottom?.querySelector('[data-v31-target="v29DeviationBtn"]'),dev=q('v29DeviationBtn');
+    if(devProxy&&dev){
+      devProxy.disabled=!!dev.disabled;devProxy.classList.toggle('v29-deviation-active',dev.classList.contains('v29-deviation-active'));
+      const t=(dev.textContent||'').trim();devProxy.textContent=t.includes('Recalculer')?'↻ Recalculer':t.includes('Rejoindre')?'↩ Rejoindre ligne':'↪ Mode déviation';
+    }
+    const simActive=state?.mode==='simulation'&&state?.running;if(dock)dock.classList.toggle('v315-sim-hidden',!simActive);
+    syncVoice();
+  }
+  [q('v29DeviationBtn'),q('headsign'),q('routeBadge'),q('simControls')].filter(Boolean).forEach(el=>new MutationObserver(()=>setTimeout(syncValidated,0)).observe(el,{attributes:true,childList:true,subtree:true,characterData:true}));
+  q('startStop')?.addEventListener('change',syncValidated);setInterval(syncValidated,550);
+
+  const css=document.createElement('style');css.id='v315ValidatedLandscapeStyle';css.textContent=`
+    @media(orientation:landscape){
+      #driver{grid-template-columns:minmax(0,1fr) minmax(220px,29vw)!important;grid-template-rows:minmax(0,1fr) auto!important;gap:5px!important}
+      #driver .navmap-wrap{grid-column:1!important;grid-row:1!important}
+      #v15LandscapeSide{grid-column:2!important;grid-row:1!important;padding:5px!important;gap:6px!important;overflow:hidden!important;border-left:1px solid rgba(126,164,185,.24)!important}
+      #driver>#v31LandscapeBottom{grid-column:1/3!important;grid-row:2!important;display:grid!important;grid-template-columns:.72fr 1.02fr .72fr 1.08fr .94fr .86fr 1.08fr .68fr!important;gap:5px!important;padding:5px!important;margin:0!important;overflow:visible!important;border:1px solid rgba(126,164,185,.18)!important;border-radius:12px!important;background:#08141d!important}
+      #v31LandscapeBottom button{min-width:0!important;width:100%!important;min-height:38px!important;padding:5px 6px!important;font-size:.56rem!important;line-height:1.05!important;white-space:nowrap!important;border-radius:10px!important}
+      #v31LandscapeBottom .v315-stop{font-size:.54rem!important}
+      #v31LandscapeBottom .v315-announce{background:linear-gradient(180deg,#ffd928,#ffb900)!important;border-color:#ffe256!important;color:#14202a!important}
+      #v31LandscapeBottom .v315-requests{background:linear-gradient(180deg,#f29116,#db6c00)!important;border-color:#ffac35!important;color:#fff!important}
+      #v31LandscapeBottom .v315-incident{background:#173040!important;border-color:#355163!important;color:#eef9ff!important}
+      #v31LandscapeBottom .v315-finish{background:linear-gradient(180deg,#8b3134,#642123)!important;border-color:#a9494c!important}
+      #v31LandscapeBottom .v29-deviation-active{background:#55380b!important;border-color:#d39424!important;color:#ffe5a7!important}
+
+      #v314TopInfo{grid-template-columns:78px minmax(0,1fr)!important;gap:6px!important}
+      #v314TopInfo .v15-punctuality{width:78px!important;height:78px!important;min-height:78px!important;border-radius:13px!important}
+      #v314TopInfo .v15-punctuality span{font-size:.56rem!important}
+      #v314TopInfo .v15-punctuality strong{font-size:1.08rem!important}
+      #v314TopInfo .v15-line-box,#v314TopInfo .v15-line-box>div{height:78px!important;min-height:78px!important}
+      #v314TopInfo .v15-line-box>div{padding:7px 10px!important;border-radius:13px!important}
+      #v314TopInfo .v15-line-box>div>span{font-size:.5rem!important}
+      #v314TopInfo .v15-line-box>div:first-child strong#v15Line{font-size:1.18rem!important;overflow:visible!important;text-overflow:clip!important}
+      #v314TopInfo .v314-line-destination{margin-top:6px!important;font-size:.61rem!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.15!important}
+
+      #v15LandscapeSide .v15-next-box{padding:10px 11px!important;border-radius:13px!important;min-height:0!important}
+      #v15LandscapeSide .v15-next-box>span:first-child{font-size:.56rem!important;letter-spacing:.11em!important}
+      #v15LandscapeSide .v15-next-box strong#v15NextStop{margin-top:5px!important;font-size:clamp(.88rem,1.8vw,1.13rem)!important;line-height:1.05!important;max-height:none!important;white-space:normal!important;overflow:visible!important}
+      #v15LandscapeSide .v15-next-box b#v15NextDistance{font-size:1.12rem!important;margin-top:7px!important}
+      #v15LandscapeSide .v29-side-eta{margin-top:6px!important;font-size:.52rem!important;color:#92a8b5!important}
+      #v15LandscapeSide .v15-request-box{margin-top:9px!important;padding:8px 9px!important;border-width:1px!important;border-color:#d49d00!important;background:#18220d!important;border-radius:10px!important;box-shadow:none!important}
+      #v15LandscapeSide .v15-request-box span{font-size:.62rem!important;color:#ffd000!important;letter-spacing:0!important}
+      #v15LandscapeSide .v15-request-box strong{margin-top:3px!important;font-size:.67rem!important;color:#eef8fc!important;white-space:normal!important;max-height:none!important;overflow:visible!important}
+      #v315RequestCue{display:block;margin-top:4px;color:#9fb2bd;font-size:.52rem;font-weight:750}
+
+      #v315VoiceControls{display:grid!important;grid-template-columns:1fr!important;gap:5px!important;flex:0 0 auto!important}
+      #v315VoiceControls button{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;min-height:32px!important;padding:5px 8px!important;border-radius:10px!important;background:#102737!important;border-color:#355163!important;font-size:.58rem!important}
+      #v315VoiceControls button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:850}
+      #v315VoiceControls button b{min-width:31px;padding:3px 6px;border-radius:999px;background:#4f9f28;color:#fff;font-size:.5rem;text-align:center}
+      #v315VoiceControls button.off b{background:#684043;color:#ffd8d6}
+
+      #v281LandscapeDock{position:static!important;display:grid!important;grid-template-columns:1fr!important;gap:4px!important;margin-top:auto!important;padding:4px!important;border:1px solid rgba(255,255,255,.08)!important;border-radius:10px!important;background:#081720!important}
+      #v281LandscapeDock.v315-sim-hidden{display:none!important}
+      #v281LandscapeDock>*:not(#v31SideExtra){display:none!important}
+      #v31SideExtra{display:grid!important;grid-template-columns:1fr 1fr!important;gap:4px!important}
+      #v31SideExtra button{min-height:28px!important;padding:4px 5px!important;font-size:.52rem!important}
+
+      #driver .maphud{left:8px!important;right:8px!important;bottom:7px!important;align-items:flex-end!important}
+      #driver .maphud #followMap{display:inline-flex!important;flex:0 0 auto!important;width:auto!important;min-height:27px!important;padding:4px 7px!important;font-size:.51rem!important;border-radius:8px!important}
+      #driver .maphud #routeState{flex:0 0 auto!important;width:auto!important;max-width:120px!important;padding:4px 7px!important;font-size:.51rem!important;border-radius:8px!important;white-space:nowrap!important}
+      .v16-map-controls{display:flex!important;right:8px!important;top:8px!important;gap:4px!important;pointer-events:auto!important}
+      .v16-map-controls #v16MapMode{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:39px!important;min-height:38px!important;padding:4px 6px!important;border-radius:10px!important;font-size:.54rem!important;pointer-events:auto!important}
+      .v16-map-controls .v16-speed-limit{transform:none!important;min-width:43px!important;padding:4px 5px!important;border-radius:10px!important;pointer-events:none!important}
+      .v16-map-controls .v16-speed-limit b{font-size:.95rem!important}
+
+      #v15LandscapeSide #v30RoadSide,#v15LandscapeSide .v15-side-spacer,#v15LandscapeSide>.v15-side-actions,#v15LandscapeSide>#v26AnnounceSide,#v15LandscapeSide>#v28PassengerToggleSide,#v15LandscapeSide>#v28SideTools{display:none!important}
+    }
+    @media(orientation:landscape) and (max-height:390px) and (max-width:760px){
+      #driver{grid-template-columns:minmax(0,1fr) minmax(202px,31vw)!important;gap:4px!important}
+      #driver>#v31LandscapeBottom{grid-template-columns:.68fr .96fr .68fr 1fr .88fr .78fr 1fr .58fr!important;gap:3px!important;padding:3px!important}
+      #v31LandscapeBottom button{min-height:30px!important;padding:3px 4px!important;font-size:.47rem!important}
+      #v31LandscapeBottom .v315-stop{font-size:.45rem!important}
+      #v314TopInfo{grid-template-columns:66px minmax(0,1fr)!important;gap:4px!important}
+      #v314TopInfo .v15-punctuality{width:66px!important;height:66px!important;min-height:66px!important}
+      #v314TopInfo .v15-line-box,#v314TopInfo .v15-line-box>div{height:66px!important;min-height:66px!important}
+      #v314TopInfo .v15-line-box>div:first-child strong#v15Line{font-size:1rem!important}
+      #v314TopInfo .v314-line-destination{font-size:.51rem!important;margin-top:4px!important}
+      #v15LandscapeSide{gap:4px!important;padding:4px!important}
+      #v15LandscapeSide .v15-next-box{padding:6px 7px!important}
+      #v15LandscapeSide .v15-next-box strong#v15NextStop{font-size:.76rem!important}
+      #v15LandscapeSide .v15-next-box b#v15NextDistance{font-size:.9rem!important;margin-top:4px!important}
+      #v15LandscapeSide .v29-side-eta{font-size:.45rem!important;margin-top:3px!important}
+      #v15LandscapeSide .v15-request-box{margin-top:5px!important;padding:5px 6px!important}
+      #v315VoiceControls{gap:3px!important}
+      #v315VoiceControls button{min-height:25px!important;padding:3px 5px!important;font-size:.48rem!important}
+      #v315VoiceControls button b{min-width:27px!important;font-size:.43rem!important;padding:2px 4px!important}
+      #v31SideExtra button{min-height:23px!important;font-size:.45rem!important}
+      #driver .maphud #followMap,#driver .maphud #routeState{font-size:.45rem!important;padding:3px 5px!important;min-height:23px!important}
+      .v16-map-controls #v16MapMode{min-width:34px!important;min-height:32px!important;font-size:.47rem!important}
+      .v16-map-controls .v16-speed-limit{min-width:37px!important;padding:3px 4px!important}
+    }
   `;document.head.appendChild(css);
 
-  function renderList(){
-    const ids=conditionalIndices().filter(i=>i>startIndex());
-    q('v3119List').innerHTML=ids.map(i=>{const st=state.pattern.stops[i],checked=R.reserved.has(i),clock=typeof stopScheduleLabel==='function'?stopScheduleLabel(i):'';return `<label class="v3119-stop"><input type="checkbox" data-v3119-stop="${i}" ${checked?'checked':''}><span><strong>${i+1}. ${escHtml(st.name)}</strong><span>${escHtml(clock||'Horaire de la course')} · montée sur réservation</span></span><em>À LA DEMANDE</em></label>`}).join('');
-  }
-  function openPrompt(mode){R.pendingMode=mode;q('v3119Choices').classList.remove('hidden');q('v3119QuestionHelp').classList.remove('hidden');q('v3119Picker').classList.add('hidden');q('v3119Status').classList.add('hidden');q('v3119Prompt').classList.remove('hidden')}
-  function closePrompt(){q('v3119Prompt').classList.add('hidden')}
-  function showPicker(){renderList();q('v3119Choices').classList.add('hidden');q('v3119QuestionHelp').classList.add('hidden');q('v3119Picker').classList.remove('hidden')}
-  function setStatus(text,kind=''){const el=q('v3119Status');el.textContent=text;el.className=`v3119-status ${kind}`}
-  function launch(){const mode=R.pendingMode;R.pendingMode=null;closePrompt();if(mode==='gps')startGps();else startSimulation()}
-
-  function selectedOperationalIndices(){
-    if(!state?.pattern)return[];const s=state.running?Math.max(0,Number(state.current||0)):startIndex(),n=state.pattern.stops.length,out=[];
-    for(let i=s;i<n;i++)if(operational(i))out.push(i);return out;
-  }
-  function restoreBase(){const p=state?.pattern,b=R.base.get(p);if(p&&b?.length){p.shape=b.map(x=>[x[0],x[1]]);try{prepareCourseGeometry();drawRoute?.();updateStopMarkers?.()}catch{}}}
-  async function roadPath(points){
-    const key=points.map(p=>`${Number(p.lon).toFixed(5)},${Number(p.lat).toFixed(5)}`).join(';');if(R.cache.has(key))return R.cache.get(key);
-    const url=`https://router.project-osrm.org/route/v1/driving/${key}?overview=full&geometries=geojson&steps=false&alternatives=false`,res=await fetch(url,{cache:'no-store'});if(!res.ok)throw new Error(`routage HTTP ${res.status}`);const data=await res.json(),g=data?.routes?.[0]?.geometry?.coordinates;if(data?.code!=='Ok'||!Array.isArray(g)||g.length<2)throw new Error('aucun itinéraire routier trouvé');const sh=g.map(p=>[Number(p[1]),Number(p[0])]);R.cache.set(key,sh);return sh;
-  }
-  async function rebuild(reason='selection'){
-    if(!isLine()||!state.pattern)return true;const my=++R.serial,p=state.pattern,sig=signature();
-    if(!R.base.has(p))R.base.set(p,(p.shape||[]).map(x=>[Number(x[0]),Number(x[1])]));
-    const ids=selectedOperationalIndices();if(ids.length<2)return false;R.busy=true;setStatus('Recalcul du parcours selon les arrêts à la demande…');if(!state.running){q('start').disabled=true;q('simulate').disabled=true}
-    try{let shape=[];for(let at=0;at<ids.length-1;){const end=Math.min(ids.length,at+20),pts=ids.slice(at,end).map(i=>p.stops[i]),part=await roadPath(pts);if(my!==R.serial)return false;shape.push(...(shape.length?part.slice(1):part));at=end-1}if(shape.length<2)throw new Error('tracé vide');p.shape=shape;p.trace_source='57R027_conditional_v3119';prepareCourseGeometry();drawRoute?.();updateStopMarkers?.();R.lastSignature=sig;setStatus(`Parcours prêt · ${conditionalIndices().filter(i=>i>startIndex()&&!activeConditional(i)).length} arrêt(s) à la demande ignoré(s).`);return true}catch(e){if(my!==R.serial)return false;restoreBase();R.lastSignature=sig;setStatus(`Connexion au moteur de routage indisponible : le tracé officiel est conservé. ${e.message||e}`,'err');return true}finally{if(my===R.serial){R.busy=false;refreshStartAvailability?.()}}
-  }
-  function scheduleRebuild(){clearTimeout(R.timer);R.timer=setTimeout(()=>rebuild('selection'),120)}
-  async function prepareAndLaunch(){q('v3119Launch').disabled=true;setStatus('Préparation du parcours…');await rebuild('prestart');q('v3119Launch').disabled=false;launch()}
-
-  q('v3119No').addEventListener('click',async()=>{R.reserved.clear();setStatus('Préparation du parcours sans montée réservée…');await rebuild('no-reservation');launch()});
-  q('v3119Yes').addEventListener('click',showPicker);q('v3119Back').addEventListener('click',()=>{q('v3119Picker').classList.add('hidden');q('v3119Choices').classList.remove('hidden');q('v3119QuestionHelp').classList.remove('hidden')});q('v3119Launch').addEventListener('click',prepareAndLaunch);
-  q('v3119List').addEventListener('change',e=>{const cb=e.target.closest('[data-v3119-stop]');if(!cb)return;const i=Number(cb.dataset.v3119Stop);if(cb.checked)R.reserved.add(i);else R.reserved.delete(i)});
-
-  // Interception avant les gestionnaires historiques : une seule fenêtre précède GPS et simulation.
-  document.addEventListener('click',e=>{const b=e.target.closest?.('#start,#simulate');if(!b||R.pendingMode||state?.running||!needsPrompt())return;e.preventDefault();e.stopImmediatePropagation();openPrompt(b.id==='start'?'gps':'simulation')},true);
-
-  // Les arrêts conditionnels non activés sont sautés dans la progression ; les arrêts normaux restent inchangés.
-  const baseNext=nextOperationalStop,basePrevious=previousOperationalStop,baseRemaining=operationalRemaining;
-  nextOperationalStop=function(from){if(!isLine())return baseNext(from);for(let i=from+1;i<state.pattern.stops.length;i++)if(operational(i))return i;return null};
-  previousOperationalStop=function(from){if(!isLine())return basePrevious(from);for(let i=from-1;i>=startIndex();i--)if(operational(i))return i;return null};
-  operationalRemaining=function(){if(!isLine())return baseRemaining();return selectedOperationalIndices().filter(i=>i>=state.target).length};
-
-  // Le menu Demandes continue de gérer les descentes ; une demande sur un arrêt conditionnel active sa branche.
-  const baseRender=renderRequestSheet;renderRequestSheet=function(){baseRender();if(!isLine())return;q('requestsList')?.querySelectorAll('.request-stop-checkbox').forEach(cb=>{const i=Number(cb.dataset.index);if(!isConditional(i))return;const row=cb.closest('.stop-check'),tag=row?.querySelector('.stop-check-tag'),meta=row?.querySelector('.stop-check-meta');row?.classList.add('v3119-conditional');if(tag&&!cb.checked)tag.textContent='À LA DEMANDE';if(meta&&!/montée réservée|branche conditionnelle/i.test(meta.textContent))meta.textContent=[meta.textContent,R.reserved.has(i)?'montée réservée':'branche conditionnelle'].filter(Boolean).join(' · ')})};
-  const baseRequest=requestStop;requestStop=function(index,checked){const was=isLine()&&isConditional(index),out=baseRequest(index,checked);if(was){scheduleRebuild();if(state.running){try{window.FluoJournalCore?.log?.(checked?'CONDITIONAL_STOP_ACTIVATED':'CONDITIONAL_STOP_REMOVED',{stopIndex:index,stopName:state.pattern.stops[index]?.name,reason:'descente voyageur'})}catch{}}}return out};
-
-  const baseSelect=selectRun;selectRun=function(i){R.reserved.clear();R.lastSignature='';const out=baseSelect(i);Promise.resolve(out).finally(()=>{if(isLine()&&isWholeReservation()&&q('courseInfo'))q('courseInfo').insertAdjacentHTML('beforeend',' <span class="v303-route-pill" style="background:#705b00;color:#fff2a8">RÉGULIER · RÉSERVATION</span>');if(isLine()&&!isWholeReservation())scheduleRebuild()});return out};
-  const baseEnter=enterDriver;enterDriver=function(mode){const out=baseEnter(mode);if(isWholeReservation())q('serviceBadge').textContent='RÉGULIER · RÉSERVATION';else if(isLine()&&R.reserved.size)q('serviceBadge').textContent=`RÉGULIER · ${R.reserved.size} MONTÉE${R.reserved.size>1?'S':''}`;return out};
-  const baseFinish=finish;finish=function(){const out=baseFinish();R.pendingMode=null;R.reserved.clear();closePrompt();return out};
-  q('startStop')?.addEventListener('change',()=>{R.reserved.clear();if(isLine())scheduleRebuild()});
-  window.FluoReservedBoardingsV3119={conditionalIndices,reserved:R.reserved,rebuild,needsPrompt,isWholeReservation};
+  syncValidated();
+  document.title='Fluo SAEIV V31.6.1 · édition GitHub monobloc';
+  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.6.1 GITHUB MONOBLOC';
 })();
+</script>
+
+<script id="v316PlanningHub">
+'use strict';
+/* V31.10 — menu conducteur + planning hebdomadaire intuitif + « Ma journée » + contrôle RSE indicatif.
+   Le planning est local au navigateur et facultatif. Les moteurs existants restent les sources de vérité
+   pour les courses, TAD, GPS, haut-le-pied V29, journaux et annonces. */
+(()=>{
+  const q=id=>document.getElementById(id);
+  const setup=q('setup'),serviceChoice=document.querySelector('.service-choice'),serviceButtons=document.querySelector('.service-choice-buttons');
+  if(!setup||!serviceChoice||!serviceButtons)return;
+
+  const PLAN_KEY='fluo-saeiv-planning-v316';
+  const PROGRESS_KEY='fluo-saeiv-planning-progress-v316';
+  const TYPE={
+    regular:{label:'🚌 Course régulière',work:true,drive:true},
+    tad:{label:'📞 Course TAD',work:true,drive:true},
+    collective:{label:'🎫 Billet / service collectif',work:true,drive:true},
+    hlp:{label:'↗ Haut-le-pied',work:true,drive:true},
+    start:{label:'🟢 Prise de service',work:true,drive:false},
+    end:{label:'🔴 Fin de service',work:true,drive:false},
+    annex:{label:'🧰 Travaux annexes',work:true,drive:false},
+    availability:{label:'⏳ Mise à disposition',work:true,drive:false},
+    cut:{label:'✂️ Coupure',work:false,drive:false,break:true},
+    pause:{label:'☕ Pause',work:false,drive:false,break:true},
+    other:{label:'📌 Autre',work:true,drive:false}
+  };
+  const pad=n=>String(n).padStart(2,'0');
+  const localDate=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const parseDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3],12):new Date()};
+  const addDays=(s,n)=>{const d=parseDate(s);d.setDate(d.getDate()+n);return localDate(d)};
+  const monday=s=>{const d=parseDate(s||localDate(new Date())),wd=(d.getDay()+6)%7;d.setDate(d.getDate()-wd);return localDate(d)};
+  const minute=t=>{const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);return m?Math.max(0,Math.min(1439,+m[1]*60 + +m[2])):null};
+  const clock=m=>{if(!Number.isFinite(m))return'—';m=((Math.round(m)%1440)+1440)%1440;return`${pad(Math.floor(m/60))}:${pad(m%60)}`};
+  const dur=item=>{let a=minute(item.start),b=minute(item.end);if(a===null||b===null)return 0;if(b<a)b+=1440;return Math.max(0,b-a)};
+  const fmtMin=m=>{m=Math.max(0,Math.round(Number(m)||0));return`${Math.floor(m/60)} h ${pad(m%60)}`};
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const uid=()=>`pl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+  const today=()=>localDate(new Date());
+  const dayName=s=>parseDate(s).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'}).replace('.','');
+  const longDay=s=>parseDate(s).toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  const weekLabel=s=>{const z=addDays(s,6);return`${parseDate(s).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})} → ${parseDate(z).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})}`};
+  function loadPlan(){try{const x=JSON.parse(localStorage.getItem(PLAN_KEY)||'{}');return Array.isArray(x.items)?x:{version:1,items:[]}}catch{return{version:1,items:[]}}}
+  function savePlan(){localStorage.setItem(PLAN_KEY,JSON.stringify(plan));renderAll()}
+  function loadProgress(){try{return JSON.parse(localStorage.getItem(PROGRESS_KEY)||'{}')||{}}catch{return{}}}
+  function saveProgress(){localStorage.setItem(PROGRESS_KEY,JSON.stringify(progress));renderToday()}
+  let plan=loadPlan(),progress=loadProgress(),weekStart=monday(today()),selectedDate=today(),editingId=null,draftLink=null,draftOrigin=null,draftDestination=null;
+  const V317={routes:new Map(),patterns:new Map(),stops:new Map(),regularToken:0};
+  const V318_ADDRESS_KEY='fluo-saeiv-saved-addresses-v318';
+  function v318RouteClass(r){const full=String(r?.short||'').toUpperCase().replace(/\s+/g,''),dept=String(r?.department||r?.dept||((String(r?.id||'').match(/CG(54|67|68)/i)||[])[1]||((full.match(/^(54|67|68)/)||[])[1]||'')));if((dept==='67'||dept==='68')&&window.FluoAlsaceLineCategoryV314){const c=window.FluoAlsaceLineCategoryV314(r,dept);if(c!=='unknown')return c}if(window.FluoDepartmentRulesV312?.isRegular)return window.FluoDepartmentRulesV312.isRegular(full,dept,r)?'regular':'school';if(/^\d{4}[A-Z]?$/.test(full))return'school';const code=full.replace(/^\d{2}/,'');return /^[SE]/.test(code)?'school':'regular'}
+  function v318LoadAddresses(){try{const xs=JSON.parse(localStorage.getItem(V318_ADDRESS_KEY)||'[]');return Array.isArray(xs)?xs:[]}catch{return[]}}
+  function v318StoreAddresses(xs){localStorage.setItem(V318_ADDRESS_KEY,JSON.stringify(xs));v318RefreshSavedAddresses()}
+  function v318RefreshSavedAddresses(){const xs=v318LoadAddresses().sort((a,b)=>String(a.label||a.address||'').localeCompare(String(b.label||b.address||''),'fr'));document.querySelectorAll('.v318-saved-address').forEach(sel=>{const keep=sel.value;sel.innerHTML='<option value="">— Saisir une nouvelle adresse —</option>'+xs.map(a=>`<option value="${esc(a.id)}">${esc(a.label||a.address||a.name||'Adresse')} · ${esc(a.address||a.name||'')}</option>`).join('');if(keep&&xs.some(a=>String(a.id)===String(keep)))sel.value=keep});}
+  function v318FindSavedAddress(id){return v318LoadAddresses().find(a=>String(a.id)===String(id))||null}
+  function v318RouteFamilyLabel(v){return v==='school'?'scolaires':'régulières'}
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const itemsFor=date=>plan.items.filter(x=>x.date===date).sort((a,b)=>(minute(a.start)??9999)-(minute(b.start)??9999)||String(a.id).localeCompare(String(b.id)));
+
+  async function v317Routes(dept){const d=String(dept||'57'),date=v317PlannerDate();if(q('serviceDate'))q('serviceDate').value=date;const key=`${d}|${fluoDeptDataEra(d,date)}`;if(!V317.routes.has(key)){const data=await fluoRoutesData(d);V317.routes.set(key,(data?.routes||[]).slice().sort((a,b)=>String(a.short||'').localeCompare(String(b.short||''),'fr',{numeric:true})||String(a.long||'').localeCompare(String(b.long||''),'fr')))}return V317.routes.get(key)}
+  async function v317Patterns(dept,route){const key=`${dept}|${route?.id||route?.file||route?.short||''}`;if(!V317.patterns.has(key)){const data=await fluoRoutePayload(String(dept),route);V317.patterns.set(key,data?.patterns||[])}return V317.patterns.get(key)}
+  async function v317Stops(dept){const d=String(dept||'57'),date=v317PlannerDate();if(q('serviceDate'))q('serviceDate').value=date;const key=`${d}|${fluoDeptDataEra(d,date)}`;if(!V317.stops.has(key)){const data=await fluoStopsData(d);V317.stops.set(key,(data?.stops||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'fr')))}return V317.stops.get(key)}
+  function v317PlannerDate(){return q('v316DayTabs')?.querySelector('button.active')?.dataset?.v316Date||selectedDate||today()}
+  function v317RouteOptionLabel(r){return `${r.short||'Ligne'}${r.long?` — ${r.long}`:''}`}
+  const v317CompactStop=s=>String(s||'').trim().split(/\s+-\s+/)[0].trim()||String(s||'').trim();
+  function v317PatternLabel(p){const stops=p?.stops||[],a=v317CompactStop(stops[0]?.name||'Départ'),z=v317CompactStop(p?.headsign||stops.at(-1)?.name||'Terminus');return `${a} → ${z}`}
+  async function v317LoadRegularLines(preselect){const dept=q('v317RegularDept')?.value||'57',family=q('v318RegularClass')?.value||'regular',sel=q('v317RegularLine');if(!sel)return;sel.disabled=true;sel.innerHTML='<option value="">Chargement des lignes…</option>';try{const all=await v317Routes(dept),routes=all.filter(r=>v318RouteClass(r)===family);sel.innerHTML='<option value="">Choisir une ligne…</option>'+routes.map(r=>`<option value="${esc(r.id)}">${esc(v317RouteOptionLabel(r))}</option>`).join('');sel.disabled=false;if(preselect&&routes.some(r=>String(r.id)===String(preselect)))sel.value=String(preselect);const st=q('v317RegularStatus');if(st)st.textContent=`${routes.length} lignes ${v318RouteFamilyLabel(family)} disponibles dans le ${dept}. Choisis une ligne.`}catch(e){sel.innerHTML='<option value="">Lignes indisponibles</option>';q('v317RegularStatus').textContent=`❌ ${e.message||e}`}}
+  async function v317LoadRegularDirections(preselect){const dept=q('v317RegularDept')?.value||'57',routeId=q('v317RegularLine')?.value,sel=q('v317RegularDirection');if(!sel)return;sel.disabled=true;sel.innerHTML='<option value="">Chargement des sens…</option>';if(!routeId){sel.innerHTML='<option value="">Choisir d’abord une ligne…</option>';return}try{const routes=await v317Routes(dept),route=routes.find(r=>String(r.id)===String(routeId));if(!route)throw new Error('ligne introuvable');const patterns=await v317Patterns(dept,route),groups=new Map();patterns.forEach((p,i)=>{const stops=p?.stops||[],a=v317CompactStop(stops[0]?.name),z=v317CompactStop(p?.headsign||stops.at(-1)?.name),key=[p?.direction??'',norm(a),norm(z)].join('|');if(!groups.has(key))groups.set(key,{indices:[],p,label:`${a||'Départ'} → ${z||'Terminus'}`});groups.get(key).indices.push(i)});const options=[...groups.values()];sel.innerHTML='<option value="">Choisir le sens…</option>'+options.map(o=>`<option value="${o.indices.join(',')}">${esc(o.label)}</option>`).join('');sel.disabled=false;if(preselect!==undefined&&preselect!==null){const hit=options.find(o=>o.indices.includes(Number(preselect)));if(hit)sel.value=hit.indices.join(',')}q('v317RegularStatus').textContent=`${options.length} sens disponibles pour ${route.short||'cette ligne'}.`}catch(e){sel.innerHTML='<option value="">Sens indisponibles</option>';q('v317RegularStatus').textContent=`❌ ${e.message||e}`}}
+  function v317MinuteOfRun(r){if(!r?.originDeparture)return Infinity;const d=r.originDeparture,base=serviceMidnight(r.serviceDate||parseDate(v317PlannerDate()));return Math.round((d.getTime()-base.getTime())/60000)}
+  async function v318LoadRegularDepartures(preselectTripId=null){const dept=q('v317RegularDept')?.value||'57',routeId=q('v317RegularLine')?.value,dirValue=q('v317RegularDirection')?.value||'',pis=dirValue.split(',').map(Number).filter(Number.isInteger),sel=q('v318RegularDeparture'),st=q('v317RegularStatus');if(!sel)return;sel.disabled=true;sel.innerHTML='<option value="">Chargement des départs…</option>';if(!routeId||!pis.length){sel.innerHTML='<option value="">Choisir d’abord le sens…</option>';return}const token=++V317.regularToken;try{const date=v317PlannerDate();if(q('serviceDate'))q('serviceDate').value=date;if(typeof window.FluoSetServiceModeV313==='function')window.FluoSetServiceModeV313('regular');else if(typeof setServiceMode==='function')setServiceMode('regular');await loadDept(dept);if(token!==V317.regularToken)return;const route=(state.routes||[]).find(r=>String(r.id)===String(routeId));if(!route)throw new Error('ligne introuvable dans les données Fluo');if(q('route'))q('route').value=route.id;await loadRoute(route);if(token!==V317.regularToken)return;const cands=(state.runOptions||[]).map((r,i)=>({r,i})).filter(x=>pis.includes(Number(x.r.patternIndex))).sort((a,b)=>Number(a.r.originDeparture)-Number(b.r.originDeparture));if(!cands.length){sel.innerHTML='<option value="">Aucun départ disponible ce jour</option>';if(st)st.textContent=`Aucune course ${v318RouteFamilyLabel(q('v318RegularClass')?.value||'regular')} dans ce sens le ${parseDate(date).toLocaleDateString('fr-FR')}.`;return}sel.innerHTML='<option value="">Choisir l’heure de départ…</option>'+cands.map(c=>{const t=formatClock(c.r.originDeparture),trip=String(c.r.trip?.id||''),p=(state.patterns||[])[Number(c.r.patternIndex)],dest=v317CompactStop(p?.headsign||p?.stops?.at(-1)?.name||'');return`<option value="${c.i}" data-trip="${esc(trip)}">${esc(t)}${dest?` · ${esc(dest)}`:''}</option>`}).join('');sel.disabled=false;if(preselectTripId){const o=[...sel.options].find(o=>String(o.dataset.trip||'')===String(preselectTripId));if(o)sel.value=o.value}if(!sel.value&&q('v316Start')?.value){const target=minute(q('v316Start').value),best=cands.reduce((a,c)=>Math.abs(v317MinuteOfRun(c.r)-target)<Math.abs(v317MinuteOfRun(a.r)-target)?c:a,cands[0]),o=[...sel.options].find(o=>Number(o.value)===Number(best.i));if(o&&preselectTripId)o.selected=true}if(st)st.textContent=`${cands.length} départ${cands.length>1?'s':''} disponible${cands.length>1?'s':''}. Choisis l’heure exacte.`}catch(e){sel.innerHTML='<option value="">Départs indisponibles</option>';if(st)st.textContent=`❌ ${e.message||e}`}}
+  async function v318SelectRegularDeparture(){const sel=q('v318RegularDeparture'),st=q('v317RegularStatus');if(!sel?.value)return;const idx=Number(sel.value);if(!Number.isInteger(idx)||!state.runOptions?.[idx]){await v318LoadRegularDepartures();return}try{await selectRun(idx);if(q('startStop'))q('startStop').value='0';q('v316LinkCourse')?.click();const run=state.runOptions?.[idx];if(st)st.textContent=`✅ ${state.route?.short||''} · ${v317PatternLabel(state.pattern)} · départ ${formatClock(run?.originDeparture)} sélectionné. Horaires et terminus ont été récupérés automatiquement.`}catch(e){draftLink=null;if(st)st.textContent=`❌ ${e.message||e}`}}
+  async function v317AutoLinkRegular(){if(q('v316Type')?.value!=='regular')return;const dep=q('v318RegularDeparture');if(dep){if(!dep.value){const st=q('v317RegularStatus');if(st)st.textContent='Choisis une heure de départ disponible avant d’enregistrer la course.';return}return v318SelectRegularDeparture()}const token=++V317.regularToken,dept=q('v317RegularDept')?.value||'57',routeId=q('v317RegularLine')?.value,dirValue=q('v317RegularDirection')?.value||'',pis=dirValue.split(',').map(Number).filter(Number.isInteger);if(!routeId||!pis.length)return;const st=q('v317RegularStatus');if(st)st.textContent='⏳ Recherche de la course…';try{const date=v317PlannerDate();if(q('serviceDate'))q('serviceDate').value=date;await loadDept(dept);if(token!==V317.regularToken)return;const route=(state.routes||[]).find(r=>String(r.id)===String(routeId));if(!route)throw new Error('ligne introuvable');await loadRoute(route);const target=minute(q('v316Start')?.value)||0,cands=(state.runOptions||[]).map((r,i)=>({r,i})).filter(x=>pis.includes(Number(x.r.patternIndex)));if(!cands.length)throw new Error('aucune course active dans ce sens à cette date');let best=cands[0],score=Infinity;for(const c of cands){const s=Math.abs(v317MinuteOfRun(c.r)-target);if(s<score){score=s;best=c}}await selectRun(best.i);if(q('startStop'))q('startStop').value='0';q('v316LinkCourse')?.click()}catch(e){draftLink=null;if(st)st.textContent=`❌ ${e.message||e}`}}
+  async function v317Geocode(text){const s=String(text||'').trim();if(!s)throw new Error('adresse vide');try{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=fr&accept-language=fr&q=${encodeURIComponent(s)}`,{headers:{Accept:'application/json'}});if(r.ok){const x=(await r.json())?.[0];if(x)return{lat:Number(x.lat),lon:Number(x.lon),name:x.display_name||s,kind:'address'}}}catch{}const r=await fetch(`https://photon.komoot.io/api/?limit=1&lang=fr&q=${encodeURIComponent(s)}`);if(!r.ok)throw new Error('recherche d’adresse indisponible');const f=(await r.json())?.features?.[0];if(!f)throw new Error(`adresse introuvable : ${s}`);return{lat:Number(f.geometry.coordinates[1]),lon:Number(f.geometry.coordinates[0]),name:[f.properties?.name,f.properties?.street,f.properties?.city].filter(Boolean).join(', ')||s,kind:'address'}}
+  function v317SetDraftPlace(which,p,kind='stop'){const input=q(which==='origin'?'v316Origin':'v316Destination');if(input)input.value=p?.name||'';const point=p?{lat:Number(p.lat),lon:Number(p.lon),name:p.name,kind}:null;if(which==='origin')draftOrigin=point;else draftDestination=point;const card=document.querySelector(`.v317-place-card[data-v317-place="${which}"]`),sel=card?.querySelector('.v317-place-selected');if(sel)sel.textContent=p?`✅ ${kind==='stop'?'Arrêt':'Adresse'} : ${p.name}`:`Aucun ${which==='origin'?'départ':'destination'} sélectionné.`}
+  function v317SyncPlaceMode(card){const kind=card?.querySelector('.v317-place-kind')?.value||'stop';card?.querySelector('.v317-stop-mode')?.classList.toggle('hidden',kind!=='stop');card?.querySelector('.v317-address-mode')?.classList.toggle('hidden',kind!=='address');const which=card?.dataset?.v317Place;if(kind==='address'){const raw=q(which==='origin'?'v316Origin':'v316Destination')?.value||'';const a=card.querySelector('.v317-place-address');if(a&&!a.value)a.value=raw}}
+  async function v317ShowStopResults(card){const dept=card.querySelector('.v317-place-dept').value||'57',search=card.querySelector('.v317-place-search'),box=card.querySelector('.v317-place-results'),query=norm(search.value);if(query.length<2){box.innerHTML='<small>Tape au moins 2 caractères.</small>';return}box.innerHTML='<small>Recherche…</small>';try{const terms=query.split(/\s+/).filter(Boolean),stops=await v317Stops(dept),hits=[];for(const s of stops){const n=norm(s.name);if(terms.every(t=>n.includes(t))){hits.push(s);if(hits.length>=24)break}}box.innerHTML=hits.length?hits.map(s=>`<button type="button" data-v317-stop-id="${esc(s.id)}"><b>${esc(s.name)}</b><small>Fluo ${esc(dept)}${s.code?` · ${esc(s.code)}`:''}</small></button>`).join(''):'<small>Aucun arrêt trouvé.</small>';box._v317Stops=hits}catch(e){box.innerHTML=`<small>❌ ${esc(e.message||e)}</small>`}}
+  function v317PopulateHlpCard(card,which,x){const raw=x?.[which]||'',coords=x?.[`${which}Coords`]||null,kind=x?.[`${which}Kind`]||(raw&&!coords?'address':'stop');card.querySelector('.v317-place-kind').value=kind;card.querySelector('.v317-place-search').value=kind==='stop'?raw:'';card.querySelector('.v317-place-address').value=kind==='address'?raw:'';v317SyncPlaceMode(card);v318RefreshSavedAddresses();if(kind==='address'&&raw){const a=v318LoadAddresses().find(a=>norm(a.address||a.name)===norm(raw));if(a)card.querySelector('.v318-saved-address').value=a.id}if(raw){const sel=card.querySelector('.v317-place-selected');sel.textContent=`✅ ${kind==='stop'?'Arrêt':'Adresse'} : ${raw}`;if(coords){const p={lat:Number(coords.lat),lon:Number(coords.lon),name:raw,kind};if(which==='origin')draftOrigin=p;else draftDestination=p}}else{card.querySelector('.v317-place-selected').textContent=`Aucun ${which==='origin'?'départ':'destination'} sélectionné.`}}
+  function v319PreviousArrival(){
+    if(editingId)return null;
+    const xs=itemsFor(selectedDate),startMin=minute(q('v316Start')?.value),eligible=Number.isFinite(startMin)?xs.filter(x=>Number.isFinite(minute(x.end))&&minute(x.end)<=startMin):xs;
+    const prev=(eligible.length?eligible:xs).at(-1);if(!prev?.destination)return null;
+    const c=prev.destinationCoords,hasCoords=c&&Number.isFinite(Number(c.lat))&&Number.isFinite(Number(c.lon));
+    const kind=prev.destinationKind||c?.kind||((prev.linked||prev.type==='regular'||prev.type==='tad')&&hasCoords?'stop':null);
+    if(!hasCoords&&kind!=='address')return null;
+    return {prev,name:String(prev.destination).trim(),kind:kind||'stop',coords:hasCoords?{lat:Number(c.lat),lon:Number(c.lon),name:String(prev.destination).trim(),kind:kind||'stop'}:null};
+  }
+  function v319PrefillHlpOriginFromPrevious(){
+    if(editingId||q('v316Type')?.value!=='hlp'||q('v316Origin')?.value.trim())return false;
+    const found=v319PreviousArrival(),card=document.querySelector('.v317-place-card[data-v317-place="origin"]');if(!found||!card)return false;
+    const {prev,name,kind,coords}=found;card.querySelector('.v317-place-kind').value=kind;v317SyncPlaceMode(card);
+    card.querySelector('.v317-place-search').value=kind==='stop'?name:'';card.querySelector('.v317-place-address').value=kind==='address'?name:'';
+    q('v316Origin').value=name;draftOrigin=coords?{...coords}:null;
+    if(kind==='address'){const a=v318LoadAddresses().find(a=>norm(a.address||a.name)===norm(name));if(a)card.querySelector('.v318-saved-address').value=a.id}
+    const sel=card.querySelector('.v317-place-selected');if(sel)sel.textContent=`↳ Départ repris automatiquement de l’étape précédente : ${name}${coords?'':' · adresse à vérifier à l’enregistrement'}`;
+    const status=q('v317HlpStatus');if(status)status.textContent=`Départ prérempli depuis l’arrivée de l’étape précédente (${prev.end||'heure précédente'}). Tu peux le modifier si nécessaire.`;
+    return true;
+  }
+  function v317SyncEditorMode(x=null){const type=q('v316Type')?.value||'regular',regular=type==='regular',hlp=type==='hlp',simple=['start','end','annex','availability','cut','pause','other'].includes(type);q('v317RegularGuide')?.classList.toggle('hidden',!regular);q('v317HlpGuide')?.classList.toggle('hidden',!hlp);q('v318RawStart')?.classList.toggle('hidden',regular);q('v318RawEnd')?.classList.toggle('hidden',regular);for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawRegime','v317RawDistance','v317RawDrive'])q(id)?.classList.remove('hidden');if(regular){for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawRegime','v317RawDistance','v317RawDrive'])q(id)?.classList.add('hidden')}else if(hlp){for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawDistance'])q(id)?.classList.add('hidden')}else if(simple){for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawRegime','v317RawDistance','v317RawDrive'])q(id)?.classList.add('hidden')}const legacyTools=document.querySelector('#v316Editor .v316-link-tools'),legacyStatus=q('v316LinkStatus'),hideLegacy=regular||hlp||simple;if(legacyTools)legacyTools.classList.toggle('hidden',hideLegacy);if(legacyStatus)legacyStatus.classList.toggle('hidden',hideLegacy);if(hlp){document.querySelectorAll('.v317-place-card').forEach(card=>v317PopulateHlpCard(card,card.dataset.v317Place,x));v318RefreshSavedAddresses()}}
+  async function v317InitRegularEditor(x=null){const linked=x?.linked||draftLink||null,dept=String(linked?.dept||'57');if(q('v317RegularDept'))q('v317RegularDept').value=['54','57','67','68'].includes(dept)?dept:'57';let family='regular';if(linked?.routeId){try{const all=await v317Routes(dept),r=all.find(z=>String(z.id)===String(linked.routeId));if(r)family=v318RouteClass(r)}catch{}}if(q('v318RegularClass'))q('v318RegularClass').value=family;await v317LoadRegularLines(linked?.routeId);if(linked?.routeId&&q('v317RegularLine'))q('v317RegularLine').value=String(linked.routeId);if(q('v317RegularLine')?.value){await v317LoadRegularDirections(linked?.patternIndex);if(linked?.patternIndex!==undefined&&linked?.patternIndex!==null){const hit=[...q('v317RegularDirection').options].find(o=>String(o.value).split(',').map(Number).includes(Number(linked.patternIndex)));if(hit)q('v317RegularDirection').value=hit.value}else if(x?.origin&&x?.destination){const deptNow=q('v317RegularDept').value,routes=await v317Routes(deptNow),route=routes.find(r=>String(r.id)===String(q('v317RegularLine').value));if(route){const ps=await v317Patterns(deptNow,route),pi=ps.findIndex(p=>String(p?.stops?.[0]?.name||'')===String(x.origin)&&String(p?.headsign||p?.stops?.at(-1)?.name||'')===String(x.destination));if(pi>=0){const opt=[...q('v317RegularDirection').options].find(o=>String(o.value).split(',').map(Number).includes(pi));if(opt)q('v317RegularDirection').value=opt.value}}}if(q('v317RegularDirection')?.value)await v318LoadRegularDepartures(linked?.tripId||null)}q('v317RegularStatus').textContent=linked?`✅ Course liée : ${linked.routeShort||x?.line||''}. Tu peux changer le type de ligne, la ligne, le sens ou l’heure de départ.`:'Choisis le type de ligne, la ligne, le sens puis une heure de départ disponible.'}
+  const routeLengthKm=shape=>{let m=0;for(let i=1;i<(shape||[]).length;i++){const a=shape[i-1],b=shape[i];if(a&&b&&typeof dist==='function')m+=dist(Number(a[0]),Number(a[1]),Number(b[0]),Number(b[1]))}return m/1000};
+  const regimeOf=item=>{if(item.regime&&item.regime!=='auto')return item.regime;const km=Number(item.lineDistanceKm);if(Number.isFinite(km)&&km>0)return km<=50?'national50':'eu561';return TYPE[item.type]?.drive?'unknown':'none'};
+  const driveMinutes=item=>TYPE[item.type]?.drive?Math.max(0,Number(item.driveMinutes)||dur(item)):0;
+
+  // ---------- Menu hamburger : on déplace les vrais boutons, donc leurs événements historiques restent intacts. ----------
+  const top=document.querySelector('.top'),gps=q('gpsPill');
+  if(top&&!q('v316HeaderActions')){
+    const wrap=document.createElement('div');wrap.id='v316HeaderActions';wrap.className='v316-header-actions';
+    if(gps)wrap.appendChild(gps);
+    const b=document.createElement('button');b.id='v316MenuBtn';b.type='button';b.className='v316-menu-btn';b.setAttribute('aria-label','Ouvrir le menu');b.textContent='☰';wrap.appendChild(b);top.appendChild(wrap);
+  }
+  if(!q('v316MenuBackdrop'))document.body.insertAdjacentHTML('beforeend',`<div id="v316MenuBackdrop" class="v316-menu-backdrop hidden"><aside id="v316Menu" class="v316-menu" role="dialog" aria-modal="true" aria-label="Menu conducteur"><div class="v316-menu-head"><div><div class="eyebrow">OUTILS CONDUCTEUR</div><h2>Menu</h2></div><button id="v316MenuClose" type="button">✕</button></div><div id="v316MenuItems" class="v316-menu-items"></div><div class="v316-menu-foot">Les données de planning restent enregistrées localement sur cet appareil.</div></aside></div>`);
+  const menuItems=q('v316MenuItems');
+  const menuDefs=[
+    ['v13JournalBtn','📁 Journaux'],['v16CalcOpen','📄 Créer une fiche horaire'],['v24SheetsBtn','🗂 Fiches horaires enregistrées'],
+    ['v25CreatorBtn','🛠 Création de ligne'],['v26MyTadsBtn','📞 Mes TAD'],['v304MyCollectivesBtn','🎫 Mes billets'],['v29AdminBtn','⚙️ Admin']
+  ];
+  function populateMenu(){
+    if(!menuItems)return;
+    for(const [id,label] of menuDefs){const el=q(id);if(el&&el.parentElement!==menuItems){el.textContent=label;el.classList.add('v316-menu-entry');menuItems.appendChild(el)}}
+    let pl=q('v316PlanningBtn');if(!pl){pl=document.createElement('button');pl.id='v316PlanningBtn';pl.type='button';pl.className='v316-menu-entry v316-planning-entry';pl.textContent='📅 Mon planning';const admin=q('v29AdminBtn');admin?.insertAdjacentElement('beforebegin',pl);if(!admin)menuItems.appendChild(pl)}
+  }
+  populateMenu();
+  const openMenu=()=>{populateMenu();q('v316MenuBackdrop')?.classList.remove('hidden')},closeMenu=()=>q('v316MenuBackdrop')?.classList.add('hidden');
+  q('v316MenuBtn')?.addEventListener('click',openMenu);q('v316MenuClose')?.addEventListener('click',closeMenu);q('v316MenuBackdrop')?.addEventListener('click',e=>{if(e.target===q('v316MenuBackdrop'))closeMenu()});
+  menuItems?.addEventListener('click',e=>{if(e.target.closest('button'))setTimeout(closeMenu,80)});
+
+  // ---------- Ma journée dans le choix de service ----------
+  if(!q('v316TodayMode')){const b=document.createElement('button');b.id='v316TodayMode';b.type='button';b.className='service-mode v316-today-mode';b.textContent='📅 Ma journée';serviceButtons.appendChild(b)}
+  if(!q('v316TodayPanel'))serviceChoice.insertAdjacentHTML('afterend',`<section id="v316TodayPanel" class="v316-today-panel hidden"><div class="v316-today-head"><div><div class="eyebrow">PLANNING DU JOUR</div><h3 id="v316TodayTitle"></h3><p id="v316TodaySub"></p></div><button id="v316TodayOpenPlan" type="button">Modifier</button></div><div id="v316TodayMetrics" class="v316-today-metrics"></div><div id="v316TodayCompliance"></div><div id="v316TodayList" class="v316-today-list"></div><div class="v316-today-actions"><button id="v316StartDay" class="primary" type="button">▶ LANCER MA JOURNÉE</button><button id="v316LeaveDay" type="button">Choix manuel</button></div></section>`);
+  function setDayMode(on){
+    setup.classList.toggle('v316-day-mode',!!on);q('v316TodayMode')?.classList.toggle('active',!!on);q('v316TodayPanel')?.classList.toggle('hidden',!on);
+    [...setup.children].forEach(el=>{const keep=el.classList.contains('gps-test')||el===serviceChoice||el.id==='v316TodayPanel'||el.id==='buildInfo';el.classList.toggle('v316-day-hidden',!!on&&!keep)});
+    if(on)renderToday();
+  }
+  q('v316TodayMode')?.addEventListener('click',()=>setDayMode(true));q('v316LeaveDay')?.addEventListener('click',()=>setDayMode(false));
+  ['regularMode','tadMode','formationMode','v30CollectiveMode'].forEach(id=>q(id)?.addEventListener('click',()=>setDayMode(false),{capture:true}));
+
+  // ---------- Fenêtre planning ----------
+  if(!q('v316Planner'))document.body.insertAdjacentHTML('beforeend',`
+  <div id="v316Planner" class="v316-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="v316PlannerTitle"><div class="v316-planner">
+    <div class="v316-planner-head"><div><div class="eyebrow">SEMAINE CONDUCTEUR</div><h2 id="v316PlannerTitle">📅 Mon planning</h2><p>Courses, TAD, haut-le-pied, coupures et temps annexes. Le contrôle RSE est un assistant indicatif.</p></div><button id="v316PlannerClose" type="button">Fermer</button></div>
+    <div class="v316-weekbar"><button id="v316PrevWeek" type="button">←</button><button id="v316ThisWeek" type="button">Aujourd’hui</button><strong id="v316WeekLabel"></strong><button id="v316NextWeek" type="button">→</button></div>
+    <div id="v316DayTabs" class="v316-day-tabs"></div>
+    <div id="v316WeekSummary" class="v316-week-summary"></div>
+    <div class="v316-planner-grid">
+      <main class="v316-plan-main"><div id="v316DaySummary" class="v316-day-summary"></div><div id="v316RseBox"></div><div id="v316PlanList" class="v316-plan-list"></div><div class="v316-plan-actions"><button id="v316AddItem" class="primary" type="button">＋ Ajouter au planning</button><button id="v316CopyDay" type="button">⧉ Copier cette journée</button></div></main>
+      <form id="v316Editor" class="v316-editor hidden"><div class="v316-editor-head"><h3 id="v316EditorTitle">Nouvel élément</h3><button id="v316EditorCancel" type="button">✕</button></div>
+        <div class="v316-form-grid">
+          <label>Type<select id="v316Type">${Object.entries(TYPE).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}</select></label>
+          <label>Référence / service<input id="v316Label" type="text" maxlength="80" placeholder="ex. Service 142, renfort, prise de service"></label>
+          <label id="v318RawStart">Début<input id="v316Start" type="time" step="60"></label><label id="v318RawEnd">Fin<input id="v316End" type="time" step="60"></label>
+          <label id="v317RawLine">Ligne / numéro<input id="v316Line" type="text" maxlength="30" placeholder="ex. 57R026"></label>
+          <label id="v317RawRegime">Régime RSE<select id="v316Regime"><option value="auto">Automatique selon longueur</option><option value="national50">Service régulier ≤ 50 km</option><option value="eu561">Règlement (CE) 561/2006</option><option value="none">Non concerné / non conduite</option></select></label>
+          <label id="v317RawOrigin">Départ<input id="v316Origin" type="text" maxlength="120" placeholder="Dépôt, terminus, arrêt, adresse…"></label>
+          <label id="v317RawDestination">Destination<input id="v316Destination" type="text" maxlength="120" placeholder="Terminus, départ de ligne, dépôt, adresse…"></label>
+          <label id="v317RawDistance">Longueur de ligne (km)<input id="v316Distance" type="number" min="0" max="1000" step="0.1" placeholder="facultatif"></label>
+          <label id="v317RawDrive">Conduite prévue (min)<input id="v316DriveMinutes" type="number" min="0" max="900" step="1" placeholder="sinon durée totale"></label>
+        </div>
+        <section id="v317RegularGuide" class="v317-guide hidden">
+          <div class="v317-guide-title"><b>🚌 Course de ligne</b><span>Choisis le département, le type de ligne, la ligne, le sens puis l’heure de départ réellement disponible ce jour. Les horaires et le terminus sont récupérés automatiquement.</span></div>
+          <div class="v317-guide-grid v318-regular-grid">
+            <label>Département<select id="v317RegularDept"><option value="57">57 · Moselle</option><option value="54">54 · Meurthe-et-Moselle</option><option value="67">67 · Bas-Rhin</option><option value="68">68 · Haut-Rhin</option></select></label>
+            <label>Type de ligne<select id="v318RegularClass"><option value="regular">Ligne régulière</option><option value="school">Ligne scolaire</option></select></label>
+            <label class="wide">Ligne<select id="v317RegularLine"><option value="">Choisir une ligne…</option></select></label>
+            <label class="wide">Sens / parcours<select id="v317RegularDirection" disabled><option value="">Choisir d’abord une ligne…</option></select></label>
+            <label class="wide">Heure de départ<select id="v318RegularDeparture" disabled><option value="">Choisir d’abord le sens…</option></select></label>
+          </div>
+          <div id="v317RegularStatus" class="v317-guide-status">Choisis le type de ligne, la ligne, le sens puis une heure de départ disponible.</div>
+        </section>
+        <section id="v317HlpGuide" class="v317-guide hidden">
+          <div class="v317-guide-title"><b>↗ Haut-le-pied</b><span id="v317HlpStatus">Pour chaque extrémité, choisis un arrêt Fluo ou saisis une adresse. Le départ est repris automatiquement de l’étape précédente quand c’est possible.</span></div>
+          <div class="v317-place-pair">
+            <div class="v317-place-card" data-v317-place="origin"><div class="v317-place-head"><b>📍 Départ</b><select class="v317-place-kind"><option value="stop">Arrêt Fluo</option><option value="address">Adresse</option></select></div><div class="v317-stop-mode"><label>Département<select class="v317-place-dept"><option value="57">57</option><option value="54">54</option><option value="67">67</option><option value="68">68</option></select></label><label class="wide">Rechercher un arrêt<input class="v317-place-search" type="search" autocomplete="off" placeholder="Ex. Château-Salins, gare, mairie…"></label><div class="v317-place-results"></div></div><div class="v317-address-mode hidden"><label>Adresse enregistrée<select class="v318-saved-address"><option value="">— Saisir une nouvelle adresse —</option></select></label><label>Adresse<input class="v317-place-address" type="text" autocomplete="street-address" placeholder="Rue, numéro, commune…"></label><div class="v318-address-actions"><button class="v318-address-save" type="button">⭐ Enregistrer</button><button class="v317-address-check" type="button">🔎 Vérifier</button><button class="v318-address-delete" type="button" title="Supprimer cette adresse enregistrée">🗑</button></div></div><div class="v317-place-selected">Aucun départ sélectionné.</div></div>
+            <div class="v317-place-card" data-v317-place="destination"><div class="v317-place-head"><b>🏁 Destination</b><select class="v317-place-kind"><option value="stop">Arrêt Fluo</option><option value="address">Adresse</option></select></div><div class="v317-stop-mode"><label>Département<select class="v317-place-dept"><option value="57">57</option><option value="54">54</option><option value="67">67</option><option value="68">68</option></select></label><label class="wide">Rechercher un arrêt<input class="v317-place-search" type="search" autocomplete="off" placeholder="Ex. Baronville, dépôt, gare…"></label><div class="v317-place-results"></div></div><div class="v317-address-mode hidden"><label>Adresse enregistrée<select class="v318-saved-address"><option value="">— Saisir une nouvelle adresse —</option></select></label><label>Adresse<input class="v317-place-address" type="text" autocomplete="street-address" placeholder="Rue, numéro, commune…"></label><div class="v318-address-actions"><button class="v318-address-save" type="button">⭐ Enregistrer</button><button class="v317-address-check" type="button">🔎 Vérifier</button><button class="v318-address-delete" type="button" title="Supprimer cette adresse enregistrée">🗑</button></div></div><div class="v317-place-selected">Aucune destination sélectionnée.</div></div>
+          </div>
+        </section>
+        <label class="v316-notes">Notes<textarea id="v316Notes" rows="3" maxlength="500" placeholder="Consignes, lieu de coupure, véhicule…"></textarea></label>
+        <div class="v316-link-tools"><button id="v316LinkCourse" type="button">🔗 Lier la course sélectionnée</button><button id="v316UseStartPlace" type="button">📍 Départ = prise de service sélectionnée</button><button id="v316UseTerminusPlace" type="button">🏁 Destination = terminus sélectionné</button></div>
+        <div id="v316LinkStatus" class="v316-link-status">Aucune course liée.</div>
+        <div class="v316-editor-actions"><button id="v316SaveItem" class="primary" type="submit">💾 Enregistrer</button><button id="v316DeleteItem" class="danger hidden" type="button">🗑 Supprimer</button></div>
+      </form>
+    </div>
+    <div class="v316-legal-note"><b>Contrôle RSE indicatif.</b> Il vérifie les principaux seuils planifiables (travail quotidien, amplitude, repos, conduite UE, pauses UE, hebdomadaire). Les accords d’entreprise, dérogations, services mixtes et données tachygraphe restent prioritaires. Références intégrées : Code des transports D3312-6, D3312-7, R3312-13, R3312-28 et règlement (CE) 561/2006.</div>
+  </div></div>`);
+
+  function openPlanner(date=today()){selectedDate=date;weekStart=monday(date);editingId=null;q('v316Editor')?.classList.add('hidden');q('v316Planner')?.classList.remove('hidden');renderPlanner()}
+  function closePlanner(){q('v316Planner')?.classList.add('hidden');renderToday()}
+  q('v316PlanningBtn')?.addEventListener('click',()=>openPlanner(today()));q('v316TodayOpenPlan')?.addEventListener('click',()=>openPlanner(today()));q('v316PlannerClose')?.addEventListener('click',closePlanner);q('v316Planner')?.addEventListener('click',e=>{if(e.target===q('v316Planner'))closePlanner()});
+  q('v316PrevWeek')?.addEventListener('click',()=>{weekStart=addDays(weekStart,-7);selectedDate=weekStart;renderPlanner()});q('v316NextWeek')?.addEventListener('click',()=>{weekStart=addDays(weekStart,7);selectedDate=weekStart;renderPlanner()});q('v316ThisWeek')?.addEventListener('click',()=>{selectedDate=today();weekStart=monday(selectedDate);renderPlanner()});
+
+  function metrics(date){
+    const xs=itemsFor(date);let work=0,drive=0,euDrive=0,nationalDrive=0,breaks=0,first=Infinity,last=-Infinity;
+    for(const x of xs){const d=dur(x),a=minute(x.start),b=minute(x.end);if(a!==null&&b!==null){if(b<a)b+=1440;first=Math.min(first,a);last=Math.max(last,b)}const m=TYPE[x.type]||TYPE.other;if(m.work)work+=d;if(m.break)breaks+=d;if(m.drive){const dm=driveMinutes(x);drive+=dm;const r=regimeOf(x);if(r==='eu561')euDrive+=dm;if(r==='national50')nationalDrive+=dm}}
+    return{items:xs,work,drive,euDrive,nationalDrive,breaks,amplitude:Number.isFinite(first)&&Number.isFinite(last)?Math.max(0,last-first):0,first:Number.isFinite(first)?first:null,last:Number.isFinite(last)?last:null,hasRegular:xs.some(x=>['regular','tad'].includes(x.type)),hasEu:xs.some(x=>regimeOf(x)==='eu561'),hasNational:xs.some(x=>regimeOf(x)==='national50'),unknownRegime:xs.some(x=>TYPE[x.type]?.drive&&regimeOf(x)==='unknown')};
+  }
+  function complianceForWeek(ws){
+    const alerts=[],days=Array.from({length:7},(_,i)=>addDays(ws,i)),mm=days.map(d=>[d,metrics(d)]),work=mm.reduce((s,[,m])=>s+m.work,0),eu=mm.reduce((s,[,m])=>s+m.euDrive,0);
+    const push=(severity,date,title,detail)=>alerts.push({severity,date,title,detail});
+    let over9=0,over10Work=0;
+    for(const [date,m] of mm){
+      if(!m.items.length)continue;
+      if(m.work>720)push('error',date,'Travail effectif > 12 h',`${fmtMin(m.work)} planifiées.`);else if(m.work>600){over10Work++;push('warn',date,'Travail effectif > 10 h',`${fmtMin(m.work)} : dépassement nécessitant les conditions prévues par la réglementation / l’accord applicable.`)}
+      const ampLimit=m.hasRegular?780:720;if(m.amplitude>840)push('error',date,'Amplitude > 14 h',`${fmtMin(m.amplitude)} entre le premier début et la dernière fin.`);else if(m.amplitude>ampLimit)push('warn',date,`Amplitude > ${m.hasRegular?'13':'12'} h`,`${fmtMin(m.amplitude)} : prolongation à vérifier selon le type de service et les autorisations applicables.`);
+      if(m.euDrive>600)push('error',date,'Conduite UE > 10 h',`${fmtMin(m.euDrive)} sous régime 561/2006.`);else if(m.euDrive>540){over9++;push('warn',date,'Conduite UE > 9 h',`${fmtMin(m.euDrive)} : extension à 10 h au maximum, limitée à deux fois dans la semaine.`)}
+      if(m.unknownRegime)push('warn',date,'Régime RSE à préciser','Au moins une période de conduite ne permet pas de déterminer si la ligne régulière dépasse 50 km.');
+      // Pause 45 min après 4 h 30 : contrôle des segments explicitement marqués UE.
+      let acc=0,split=false,breach=false;
+      for(const x of m.items){const d=dur(x),meta=TYPE[x.type]||TYPE.other,r=regimeOf(x);if(meta.drive&&r==='eu561'){const dm=driveMinutes(x);if(acc+dm>270&&!breach){push('error',date,'Pause de conduite UE insuffisante',`Plus de 4 h 30 de conduite UE sont planifiées sans pause de 45 min (ou fractionnement 15 + 30 min) clairement identifiable.`);breach=true}acc+=dm}else if(meta.break&&d>0){if(d>=45){acc=0;split=false;breach=false}else if(split&&d>=30){acc=0;split=false;breach=false}else if(d>=15){split=true}}}
+    }
+    if(over9>2)push('error',ws,'Plus de deux journées UE > 9 h',`${over9} journées dépassent 9 h de conduite UE sur la semaine.`);
+    if(work>2880)push('error',ws,'Travail hebdomadaire > 48 h',`${fmtMin(work)} planifiées sur la semaine.`);else if(work>2640)push('warn',ws,'Travail hebdomadaire > 44 h',`${fmtMin(work)} : vérifier la moyenne et la période de référence applicables.`);
+    if(eu>3360)push('error',ws,'Conduite UE > 56 h/semaine',`${fmtMin(eu)} de conduite sous règlement 561/2006.`);
+    const pws=addDays(ws,-7),prevEu=Array.from({length:7},(_,i)=>metrics(addDays(pws,i)).euDrive).reduce((a,b)=>a+b,0);if(eu+prevEu>5400)push('error',ws,'Conduite UE > 90 h sur deux semaines',`${fmtMin(eu+prevEu)} cumulées avec la semaine précédente enregistrée.`);
+    const prevWork=Array.from({length:7},(_,i)=>metrics(addDays(pws,i)).work).reduce((a,b)=>a+b,0);if(work+prevWork>5280)push('warn',ws,'Travail > 88 h sur deux semaines',`${fmtMin(work+prevWork)} cumulées : vérifier la convention et la période de référence.`);
+    // Repos entre journées : standard 11 h ; seuil réduit dur selon le régime identifié.
+    for(let i=0;i<7;i++){const date=days[i],m=metrics(date);if(m.first===null)continue;const pd=addDays(date,-1),pm=metrics(pd);if(pm.last===null)continue;let gap=(1440-pm.last)+m.first;if(pm.last>1440)gap=m.first-(pm.last-1440);const hard=(m.hasNational||pm.hasNational)?600:(m.hasEu||pm.hasEu)?540:660;if(gap<hard)push('error',date,'Repos quotidien insuffisant',`${fmtMin(gap)} entre les deux journées (seuil réduit minimal modélisé : ${fmtMin(hard)}).`);else if(gap<660)push('warn',date,'Repos quotidien réduit',`${fmtMin(gap)} : le repos normal de 11 h n’est pas atteint ; vérifier les conditions de réduction/compensation.`)}
+    return{alerts,work,eu};
+  }
+  function dayAlerts(date){return complianceForWeek(monday(date)).alerts.filter(a=>a.date===date)}
+  function statusClass(alerts){return alerts.some(a=>a.severity==='error')?'bad':alerts.some(a=>a.severity==='warn')?'warn':'ok'}
+
+  function renderPlanner(){
+    q('v316WeekLabel').textContent=weekLabel(weekStart);
+    q('v316DayTabs').innerHTML=Array.from({length:7},(_,i)=>{const d=addDays(weekStart,i),m=metrics(d),a=dayAlerts(d);return`<button type="button" data-v316-date="${d}" class="${d===selectedDate?'active ':''}${statusClass(a)}"><b>${esc(dayName(d))}</b><small>${m.items.length?`${m.items.length} élément${m.items.length>1?'s':''}`:'Libre'}</small></button>`}).join('');
+    const weekDays=Array.from({length:7},(_,i)=>metrics(addDays(weekStart,i))),weekItems=Array.from({length:7},(_,i)=>itemsFor(addDays(weekStart,i))).flat(),weekWork=weekDays.reduce((a,m)=>a+m.work,0),weekDrive=weekDays.reduce((a,m)=>a+m.drive,0),weekHlp=weekItems.filter(x=>x.type==='hlp').reduce((a,x)=>a+driveMinutes(x),0),weekBreaks=weekDays.reduce((a,m)=>a+m.breaks,0);
+    q('v316WeekSummary').innerHTML=`<div><span>SEMAINE · TRAVAIL</span><b>${fmtMin(weekWork)}</b></div><div><span>CONDUITE</span><b>${fmtMin(weekDrive)}</b></div><div><span>HAUT-LE-PIED</span><b>${fmtMin(weekHlp)}</b></div><div><span>COUPURES / PAUSES</span><b>${fmtMin(weekBreaks)}</b></div>`;
+    const m=metrics(selectedDate),alerts=dayAlerts(selectedDate);
+    q('v316DaySummary').innerHTML=`<div><span>Amplitude</span><b>${fmtMin(m.amplitude)}</b></div><div><span>Travail</span><b>${fmtMin(m.work)}</b></div><div><span>Conduite</span><b>${fmtMin(m.drive)}</b></div><div><span>Coupures / pauses</span><b>${fmtMin(m.breaks)}</b></div>`;
+    q('v316RseBox').innerHTML=alerts.length?`<div class="v316-rse ${statusClass(alerts)}"><strong>${statusClass(alerts)==='bad'?'⛔':statusClass(alerts)==='warn'?'⚠️':'✅'} Contrôle planning</strong>${alerts.map(a=>`<p class="${a.severity}"><b>${esc(a.title)}</b> — ${esc(a.detail)}</p>`).join('')}</div>`:`<div class="v316-rse ok"><strong>✅ Aucun dépassement détecté dans les règles modélisées</strong><p>Contrôle indicatif uniquement : accords, dérogations et tachygraphe restent prioritaires.</p></div>`;
+    const list=q('v316PlanList');list.innerHTML=m.items.length?m.items.map((x,i)=>{const meta=TYPE[x.type]||TYPE.other,r=regimeOf(x),linked=x.linked?'<span class="v316-linked">LIÉ SAEIV</span>':'';return`<article class="v316-plan-item type-${x.type}" data-v316-id="${esc(x.id)}"><div class="v316-time"><b>${esc(x.start||'—')}</b><span>${esc(x.end||'—')}</span></div><div class="v316-plan-text"><div><strong>${meta.label}${x.line?` · ${esc(x.line)}`:''}</strong>${linked}</div><b>${esc(x.label||[x.origin,x.destination].filter(Boolean).join(' → ')||'Sans intitulé')}</b><small>${esc([x.origin&&`Départ : ${x.origin}`,x.destination&&`Destination : ${x.destination}`,TYPE[x.type]?.drive&&`conduite ${fmtMin(driveMinutes(x))}`,r==='eu561'?'RSE UE 561/2006':r==='national50'?'régulier ≤ 50 km':r==='unknown'?'régime à préciser':''].filter(Boolean).join(' · '))}</small></div><div class="v316-item-actions"><button type="button" data-v316-edit="${esc(x.id)}">Modifier</button><button type="button" data-v316-dup="${esc(x.id)}">⧉</button></div></article>`}).join(''):`<div class="v316-empty"><b>Aucun planning pour ${esc(longDay(selectedDate))}.</b><span>Ajoute une course, un haut-le-pied, une coupure ou un autre temps de service.</span></div>`;
+  }
+  q('v316DayTabs')?.addEventListener('click',e=>{const b=e.target.closest('[data-v316-date]');if(!b)return;selectedDate=b.dataset.v316Date;editingId=null;q('v316Editor').classList.add('hidden');renderPlanner()});
+  q('v316PlanList')?.addEventListener('click',e=>{const edit=e.target.closest('[data-v316-edit]'),dup=e.target.closest('[data-v316-dup]');if(edit)return openEditor(edit.dataset.v316Edit);if(dup){const x=plan.items.find(z=>z.id===dup.dataset.v316Dup);if(x){plan.items.push({...x,id:uid(),label:x.label?`${x.label} (copie)`:'Copie'});savePlan()}}});
+  q('v316AddItem')?.addEventListener('click',()=>openEditor(null));
+  q('v316CopyDay')?.addEventListener('click',()=>{const xs=itemsFor(selectedDate);if(!xs.length)return alert('Cette journée est vide.');const target=prompt('Copier vers quelle date ? (AAAA-MM-JJ)',addDays(selectedDate,1));if(!/^\d{4}-\d{2}-\d{2}$/.test(target||''))return;for(const x of xs)plan.items.push({...x,id:uid(),date:target});savePlan();selectedDate=target;weekStart=monday(target);renderPlanner()});
+
+  function openEditor(id){
+    editingId=id||null;const x=id?plan.items.find(z=>z.id===id):null;draftLink=x?.linked?JSON.parse(JSON.stringify(x.linked)):null;draftOrigin=x?.originCoords?{...x.originCoords}:null;draftDestination=x?.destinationCoords?{...x.destinationCoords}:null;
+    q('v316Editor').classList.remove('hidden');q('v316EditorTitle').textContent=x?'Modifier l’élément':`Ajouter · ${longDay(selectedDate)}`;
+    q('v316Type').value=x?.type||'regular';q('v316Label').value=x?.label||'';q('v316Line').value=x?.line||'';q('v316Origin').value=x?.origin||'';q('v316Destination').value=x?.destination||'';q('v316Regime').value=x?.regime||'auto';q('v316Distance').value=Number.isFinite(Number(x?.lineDistanceKm))?x.lineDistanceKm:'';q('v316DriveMinutes').value=Number.isFinite(Number(x?.driveMinutes))?x.driveMinutes:'';q('v316Notes').value=x?.notes||'';
+    const prev=itemsFor(selectedDate).at(-1),start=x?.start||prev?.end||'08:00';q('v316Start').value=start;const sm=minute(start)??480;q('v316End').value=x?.end||clock(sm+60);q('v316DeleteItem').classList.toggle('hidden',!x);syncLinkStatus();v317SyncEditorMode(x);if((x?.type||'regular')==='regular')v317InitRegularEditor(x);setTimeout(()=>q('v316Type').focus(),50);
+  }
+  const closeEditor=()=>{editingId=null;q('v316Editor').classList.add('hidden')};q('v316EditorCancel')?.addEventListener('click',e=>{e.preventDefault();closeEditor()});
+  q('v316Type')?.addEventListener('change',()=>{const type=q('v316Type').value;draftLink=null;if(type==='regular'){draftOrigin=null;draftDestination=null;v317SyncEditorMode();v317InitRegularEditor()}else if(type==='hlp'){draftOrigin=null;draftDestination=null;q('v316Origin').value='';q('v316Destination').value='';v317SyncEditorMode();v319PrefillHlpOriginFromPrevious()}else v317SyncEditorMode()});
+  q('v317RegularDept')?.addEventListener('change',async()=>{draftLink=null;q('v317RegularStatus').textContent='Chargement des lignes…';await v317LoadRegularLines();q('v317RegularDirection').innerHTML='<option value="">Choisir d’abord une ligne…</option>';q('v317RegularDirection').disabled=true;q('v318RegularDeparture').innerHTML='<option value="">Choisir d’abord le sens…</option>';q('v318RegularDeparture').disabled=true});
+  q('v318RegularClass')?.addEventListener('change',async()=>{draftLink=null;q('v317RegularStatus').textContent='Filtrage des lignes…';await v317LoadRegularLines();q('v317RegularDirection').innerHTML='<option value="">Choisir d’abord une ligne…</option>';q('v317RegularDirection').disabled=true;q('v318RegularDeparture').innerHTML='<option value="">Choisir d’abord le sens…</option>';q('v318RegularDeparture').disabled=true});
+  q('v317RegularLine')?.addEventListener('change',async()=>{draftLink=null;q('v318RegularDeparture').innerHTML='<option value="">Choisir d’abord le sens…</option>';q('v318RegularDeparture').disabled=true;await v317LoadRegularDirections()});
+  q('v317RegularDirection')?.addEventListener('change',async()=>{draftLink=null;await v318LoadRegularDepartures()});
+  q('v318RegularDeparture')?.addEventListener('change',async()=>{draftLink=null;if(q('v318RegularDeparture').value)await v318SelectRegularDeparture()});
+  q('v316Start')?.addEventListener('change',()=>{if(q('v316Type')?.value==='hlp'&&!q('v316Origin')?.value.trim())v319PrefillHlpOriginFromPrevious()});
+  document.querySelectorAll('.v317-place-card').forEach(card=>{
+    const which=card.dataset.v317Place;
+    card.querySelector('.v317-place-kind')?.addEventListener('change',()=>{const kind=card.querySelector('.v317-place-kind').value;if(which==='origin')draftOrigin=null;else draftDestination=null;q(which==='origin'?'v316Origin':'v316Destination').value='';card.querySelector('.v317-place-selected').textContent=`Aucun ${which==='origin'?'départ':'destination'} sélectionné.`;v317SyncPlaceMode(card)});
+    card.querySelector('.v317-place-dept')?.addEventListener('change',()=>{card.querySelector('.v317-place-search').value='';card.querySelector('.v317-place-results').innerHTML=''});
+    card.querySelector('.v317-place-search')?.addEventListener('input',()=>{if(which==='origin')draftOrigin=null;else draftDestination=null;q(which==='origin'?'v316Origin':'v316Destination').value='';card.querySelector('.v317-place-selected').textContent='Sélectionne un arrêt dans les résultats.';clearTimeout(card._v317Timer);card._v317Timer=setTimeout(()=>v317ShowStopResults(card),180)});
+    card.querySelector('.v317-place-results')?.addEventListener('click',e=>{const b=e.target.closest('[data-v317-stop-id]');if(!b)return;const stop=(card.querySelector('.v317-place-results')._v317Stops||[]).find(s=>String(s.id)===String(b.dataset.v317StopId));if(!stop)return;card.querySelector('.v317-place-search').value=stop.name;card.querySelector('.v317-place-results').innerHTML='';v317SetDraftPlace(which,{lat:Number(stop.lat),lon:Number(stop.lon),name:stop.name},'stop')});
+    card.querySelector('.v317-place-address')?.addEventListener('input',e=>{const raw=e.target.value.trim();const fav=card.querySelector('.v318-saved-address');if(fav)fav.value='';q(which==='origin'?'v316Origin':'v316Destination').value=raw;if(which==='origin')draftOrigin=null;else draftDestination=null;card.querySelector('.v317-place-selected').textContent=raw?'Adresse saisie · elle sera vérifiée à l’enregistrement.':`Aucun ${which==='origin'?'départ':'destination'} sélectionné.`});
+    card.querySelector('.v317-address-check')?.addEventListener('click',async e=>{e.preventDefault();const input=card.querySelector('.v317-place-address'),status=card.querySelector('.v317-place-selected'),raw=input.value.trim();if(!raw)return void(status.textContent='Saisis une adresse.');status.textContent='⏳ Vérification de l’adresse…';try{const p=await v317Geocode(raw);v317SetDraftPlace(which,p,'address');input.value=p.name}catch(err){status.textContent=`❌ ${err.message||err}`}});
+    card.querySelector('.v318-saved-address')?.addEventListener('change',e=>{const a=v318FindSavedAddress(e.target.value);if(!a)return;card.querySelector('.v317-place-kind').value='address';v317SyncPlaceMode(card);const input=card.querySelector('.v317-place-address');input.value=a.address||a.name||'';v317SetDraftPlace(which,{lat:Number(a.lat),lon:Number(a.lon),name:a.address||a.name||a.label},'address');card.querySelector('.v317-place-selected').textContent=`⭐ ${a.label||'Adresse enregistrée'} · ${a.address||a.name||''}`});
+    card.querySelector('.v318-address-save')?.addEventListener('click',async e=>{e.preventDefault();const input=card.querySelector('.v317-place-address'),status=card.querySelector('.v317-place-selected'),raw=input.value.trim();if(!raw)return void(status.textContent='Saisis d’abord une adresse à enregistrer.');let point=which==='origin'?draftOrigin:draftDestination;try{if(!point||point.kind!=='address'||!Number.isFinite(Number(point.lat))){status.textContent='⏳ Vérification avant enregistrement…';point=await v317Geocode(raw);v317SetDraftPlace(which,point,'address')}const def=raw.split(',')[0].trim()||'Adresse';const label=prompt('Nom à donner à cette adresse enregistrée :',def);if(label===null)return;const xs=v318LoadAddresses(),sel=card.querySelector('.v318-saved-address'),id=sel.value||`addr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`,rec={id,label:String(label||def).trim()||def,address:raw,name:point.name||raw,lat:Number(point.lat),lon:Number(point.lon),updatedAt:new Date().toISOString()};const i=xs.findIndex(a=>String(a.id)===String(id));if(i>=0)xs[i]=rec;else xs.push(rec);v318StoreAddresses(xs);sel.value=id;status.textContent=`⭐ Adresse enregistrée : ${rec.label}`;}catch(err){status.textContent=`❌ ${err.message||err}`}});
+    card.querySelector('.v318-address-delete')?.addEventListener('click',e=>{e.preventDefault();const sel=card.querySelector('.v318-saved-address'),id=sel.value;if(!id)return;const a=v318FindSavedAddress(id);if(!a)return;if(!confirm(`Supprimer l’adresse enregistrée « ${a.label||a.address} » ?`))return;v318StoreAddresses(v318LoadAddresses().filter(x=>String(x.id)!==String(id)));sel.value='';card.querySelector('.v317-place-selected').textContent='Adresse supprimée des favoris. L’adresse saisie reste dans le formulaire.'});
+  });
+  function syncLinkStatus(){const e=q('v316LinkStatus');if(!e)return;e.className='v316-link-status'+(draftLink?' linked':'');e.textContent=draftLink?`✅ Course SAEIV liée : ${draftLink.routeShort||''} · trip ${draftLink.tripId||'—'} · départ arrêt ${Number(draftLink.startStopIndex||0)+1}`:'Aucune course SAEIV liée. Les éléments manuels restent parfaitement utilisables pour le planning et les calculs.'}
+  q('v316LinkCourse')?.addEventListener('click',e=>{e.preventDefault();if(!state?.route||!state?.pattern||!state?.run?.trip)return alert('Sélectionne d’abord une course exacte dans le SAEIV, puis reviens dans Mon planning.');const startIdx=Number(q('startStop')?.value||0),stops=state.pattern.stops||[];let endIdx=stops.length-1;if(state.service.mode==='tad'){try{const t=typeof tadTerminusIndex==='function'?tadTerminusIndex():null;if(Number.isInteger(t))endIdx=t}catch{}}const sd=state.run.serviceDate||parseDate(selectedDate),dep=departureFor(state.run.trip,startIdx,sd),arr=arrivalFor(state.run.trip,endIdx,sd),km=routeLengthKm(state.pattern.shape||[]);draftLink={dept:String(state.dept||''),routeId:String(state.route.id||''),routeShort:String(state.route.short||''),tripId:String(state.run.trip.id||''),patternIndex:Number.isInteger(state.run?.patternIndex)?state.run.patternIndex:null,direction:state.pattern?.direction??null,patternShapeId:state.pattern?.shape_id||null,startStopIndex:startIdx,endStopIndex:endIdx,serviceMode:state.service.mode==='tad'?'tad':'regular',tadStops:state.service.mode==='tad'?[...(state.service.tadStops||[])]:[]};q('v316Type').value=state.service.mode==='tad'?'tad':'regular';q('v316Line').value=state.route.short||'';q('v316Label').value=`${state.route.short||'Ligne'} · ${state.pattern.headsign||stops[endIdx]?.name||''}`;q('v316Origin').value=stops[startIdx]?.name||'';q('v316Destination').value=stops[endIdx]?.name||'';draftOrigin=stops[startIdx]?{lat:Number(stops[startIdx].lat),lon:Number(stops[startIdx].lon),name:stops[startIdx].name}:null;draftDestination=stops[endIdx]?{lat:Number(stops[endIdx].lat),lon:Number(stops[endIdx].lon),name:stops[endIdx].name}:null;if(dep)q('v316Start').value=formatClock(dep);if(arr)q('v316End').value=formatClock(arr);if(Number.isFinite(km)&&km>0){q('v316Distance').value=km.toFixed(1);q('v316Regime').value=km<=50?'national50':'eu561'}syncLinkStatus()});
+  function capturePlace(which){if(!state?.pattern?.stops?.length)return alert('Sélectionne d’abord une course dans le SAEIV.');let idx=Number(q('startStop')?.value||0);if(which==='terminus'){idx=state.pattern.stops.length-1;if(state.service.mode==='tad')try{const t=typeof tadTerminusIndex==='function'?tadTerminusIndex():null;if(Number.isInteger(t))idx=t}catch{}}const s=state.pattern.stops[idx];if(!s)return;if(which==='start'){q('v316Origin').value=s.name;draftOrigin={lat:Number(s.lat),lon:Number(s.lon),name:s.name}}else{q('v316Destination').value=s.name;draftDestination={lat:Number(s.lat),lon:Number(s.lon),name:s.name}}}
+  q('v316UseStartPlace')?.addEventListener('click',e=>{e.preventDefault();capturePlace('start')});q('v316UseTerminusPlace')?.addEventListener('click',e=>{e.preventDefault();capturePlace('terminus')});
+  q('v316Editor')?.addEventListener('submit',async e=>{e.preventDefault();const type=q('v316Type').value;let start=q('v316Start').value,end=q('v316End').value;if(!start||!end)return alert('Renseigne l’heure de début et de fin.');if(type==='regular'){if(!q('v317RegularLine')?.value||!q('v317RegularDirection')?.value)return alert('Choisis la ligne et le sens de la course régulière.');if(!draftLink)await v317AutoLinkRegular();if(!draftLink)return alert('La course n’a pas pu être liée. Choisis la ligne, le sens et une heure de départ disponible.');start=q('v316Start').value;end=q('v316End').value}let originKind=null,destinationKind=null;if(type==='hlp'){const cards=[['origin',document.querySelector('.v317-place-card[data-v317-place="origin"]')],['destination',document.querySelector('.v317-place-card[data-v317-place="destination"]')]];for(const [which,card] of cards){const kind=card?.querySelector('.v317-place-kind')?.value||'stop',rawField=q(which==='origin'?'v316Origin':'v316Destination');if(kind==='address'){const raw=card?.querySelector('.v317-place-address')?.value.trim()||rawField?.value.trim()||'';if(!raw)return alert(`Renseigne l’adresse de ${which==='origin'?'départ':'destination'}.`);rawField.value=raw;let point=which==='origin'?draftOrigin:draftDestination;if(!point||point.kind!=='address'){try{card.querySelector('.v317-place-selected').textContent='⏳ Vérification de l’adresse…';point=await v317Geocode(raw);v317SetDraftPlace(which,point,'address')}catch(err){card.querySelector('.v317-place-selected').textContent=`❌ ${err.message||err}`;return alert(`Adresse de ${which==='origin'?'départ':'destination'} introuvable. Vérifie-la avant d’enregistrer.`)}}}else{const point=which==='origin'?draftOrigin:draftDestination;if(!point||!Number.isFinite(Number(point.lat))||!Number.isFinite(Number(point.lon)))return alert(`Sélectionne réellement l’arrêt Fluo de ${which==='origin'?'départ':'destination'} dans la liste de résultats.`)}if(which==='origin')originKind=kind;else destinationKind=kind}}const rec={id:editingId||uid(),date:selectedDate,type,label:q('v316Label').value.trim(),line:q('v316Line').value.trim(),start,end,origin:q('v316Origin').value.trim(),destination:q('v316Destination').value.trim(),originKind,destinationKind,regime:q('v316Regime').value,lineDistanceKm:q('v316Distance').value===''?null:Number(q('v316Distance').value),driveMinutes:q('v316DriveMinutes').value===''?null:Number(q('v316DriveMinutes').value),notes:q('v316Notes').value.trim(),linked:draftLink||null,originCoords:draftOrigin||null,destinationCoords:draftDestination||null,updatedAt:new Date().toISOString()};const i=plan.items.findIndex(x=>x.id===rec.id);if(i>=0)plan.items[i]=rec;else plan.items.push(rec);savePlan();closeEditor();renderPlanner()});
+  q('v316DeleteItem')?.addEventListener('click',e=>{e.preventDefault();if(!editingId)return;if(!confirm('Supprimer cet élément du planning ?'))return;plan.items=plan.items.filter(x=>x.id!==editingId);savePlan();closeEditor();renderPlanner()});
+
+  // ---------- Ma journée : préparation automatique des courses exactes ----------
+  function dayProgress(date){if(progress.date!==date)progress={date,done:{},activeId:null};progress.done=progress.done||{};return progress}
+  function nextPending(date){const p=dayProgress(date);return itemsFor(date).find(x=>!p.done[x.id])||null}
+  function renderToday(){
+    const date=today(),m=metrics(date),p=dayProgress(date),alerts=dayAlerts(date),xs=m.items;const current=p.activeId?xs.find(x=>x.id===p.activeId&&!p.done[x.id]):nextPending(date);
+    q('v316TodayTitle').textContent=longDay(date);q('v316TodaySub').textContent=xs.length?`${xs.length} élément${xs.length>1?'s':''} · ${current?`prochaine étape ${current.start}`:'journée terminée'}`:'Aucun planning enregistré pour aujourd’hui.';
+    q('v316TodayMetrics').innerHTML=`<div><span>Amplitude</span><b>${fmtMin(m.amplitude)}</b></div><div><span>Travail</span><b>${fmtMin(m.work)}</b></div><div><span>Conduite</span><b>${fmtMin(m.drive)}</b></div><div><span>Fin prévue</span><b>${m.last===null?'—':clock(m.last)}</b></div>`;
+    q('v316TodayCompliance').innerHTML=`<div class="v316-mini-rse ${statusClass(alerts)}">${alerts.length?(statusClass(alerts)==='bad'?'⛔': '⚠️')+` ${alerts.length} point${alerts.length>1?'s':''} RSE à vérifier`:'✅ Planning sans dépassement détecté'}</div>`;
+    q('v316TodayList').innerHTML=xs.length?xs.map((x,i)=>{const done=!!p.done[x.id],active=current?.id===x.id,meta=TYPE[x.type]||TYPE.other,next=xs.slice(i+1).find(z=>z.linked);let action='';if(!done){if(x.linked)action=`<button type="button" data-v316-prepare="${x.id}">Préparer la course</button>`;else if(x.type==='hlp'){action=`<button type="button" data-v316-hlp="${x.id}">Itinéraire HLP</button>`;if(next?.linked)action+=`<button type="button" data-v316-hlp-next="${x.id}">GPS vers prochaine course</button>`}action+=`<button type="button" data-v316-done="${x.id}">✓ Terminé</button>`}return`<article class="v316-today-item ${done?'done':''} ${active?'active':''}"><div class="v316-time"><b>${esc(x.start)}</b><span>${esc(x.end)}</span></div><div><strong>${meta.label}${x.line?` · ${esc(x.line)}`:''}</strong><b>${esc(x.label||[x.origin,x.destination].filter(Boolean).join(' → ')||'Étape')}</b><small>${esc([x.origin,x.destination].filter(Boolean).join(' → '))}</small></div><div class="v316-today-item-actions">${action}</div></article>`}).join(''):`<div class="v316-empty"><b>Ta journée n’est pas encore préparée.</b><span>Ouvre « Mon planning » pour saisir tes courses, haut-le-pied et coupures.</span></div>`;
+    q('v316StartDay').disabled=!xs.length||!nextPending(date);q('v316StartDay').textContent=p.activeId?'▶ REPRENDRE MA JOURNÉE':'▶ LANCER MA JOURNÉE';saveProgressSilent();
+  }
+  function saveProgressSilent(){try{localStorage.setItem(PROGRESS_KEY,JSON.stringify(progress))}catch{}}
+  function setDone(id){const date=today(),p=dayProgress(date);p.done[id]=true;if(p.activeId===id)p.activeId=null;const n=nextPending(date);p.activeId=n?.id||null;saveProgress();return n}
+  q('v316StartDay')?.addEventListener('click',async()=>{const date=today(),p=dayProgress(date),n=nextPending(date);if(!n)return;p.activeId=n.id;saveProgress();if(n.linked)await prepareLinkedCourse(n);else if(n.type==='hlp')await openHlpPreview(n)});
+  q('v316TodayList')?.addEventListener('click',async e=>{const prep=e.target.closest('[data-v316-prepare]'),done=e.target.closest('[data-v316-done]'),hlpNext=e.target.closest('[data-v316-hlp-next]'),hlp=e.target.closest('[data-v316-hlp]');if(done)return void setDone(done.dataset.v316Done);if(prep){const x=plan.items.find(z=>z.id===prep.dataset.v316Prepare);if(x){progress.activeId=x.id;saveProgressSilent();await prepareLinkedCourse(x)}return}if(hlpNext){const xs=itemsFor(today()),i=xs.findIndex(x=>x.id===hlpNext.dataset.v316HlpNext),x=xs[i],next=xs.slice(i+1).find(z=>z.linked);if(x&&next)await prepareHlpToNext(x,next);return}if(hlp){const x=plan.items.find(z=>z.id===hlp.dataset.v316Hlp);if(x)await openHlpPreview(x)}});
+
+  async function prepareLinkedCourse(item,{forHlp=false}={}){
+    const l=item?.linked;if(!l)throw new Error('Cette étape n’est pas liée à une course SAEIV.');try{
+      setDayMode(false);if(q('serviceDate'))q('serviceDate').value=item.date;
+      if(typeof window.FluoSetServiceModeV313==='function')window.FluoSetServiceModeV313(l.serviceMode==='tad'?'tad':'regular');else if(typeof setServiceMode==='function')setServiceMode(l.serviceMode==='tad'?'tad':'regular');
+      if(q('dept'))q('dept').value=l.dept;await loadDept(l.dept);if(q('dept'))q('dept').value=l.dept;
+      const route=(state.routes||[]).find(r=>String(r.id)===String(l.routeId))||(state.routes||[]).find(r=>String(r.short)===String(l.routeShort));if(!route)throw new Error(`ligne ${l.routeShort||l.routeId} introuvable`);q('route').value=route.id;await loadRoute(route);
+      let idx=(state.runOptions||[]).findIndex(r=>String(r.trip?.id)===String(l.tripId));if(idx<0){const sm=minute(item.start);idx=(state.runOptions||[]).findIndex(r=>Math.abs((r.originDeparture.getHours()*60+r.originDeparture.getMinutes())-sm)<=2)}if(idx<0)throw new Error('la course exacte n’est pas active à cette date');q('trip').value=String(idx);await selectRun(idx);q('startStop').value=String(Math.min(Number(l.startStopIndex||0),state.pattern.stops.length-1));if(l.serviceMode==='tad'){state.service.tadStops=new Set((l.tadStops||[]).map(Number));if(!state.service.tadStops.size)state.service.tadStops.add(Number(l.startStopIndex||0));renderTadStopList(false);q('startStop')?.dispatchEvent(new Event('change',{bubbles:true}))}updateDepartureDisplay();refreshStartAvailability();labels();sessionStorage.setItem('fluo-v316-prepared-item',forHlp?'':item.id);status(`📅 Ma journée · ${item.line||l.routeShort} prête pour ${item.start}. ${forHlp?'Le départ de cette course sert de destination au haut-le-pied.':'Tu peux lancer la prise de service GPS.'}`,'ok');if(!forHlp)q('start')?.scrollIntoView({behavior:'smooth',block:'center'});return true
+    }catch(e){alert(`Impossible de préparer cette étape : ${e.message||e}`);setDayMode(true);return false}
+  }
+  async function prepareHlpToNext(item,next){const ok=await prepareLinkedCourse(next,{forHlp:true});if(!ok)return;const open=q('v29HlpOpen'),calc=q('v29HlpCalc');if(open){open.click();setTimeout(()=>calc?.click(),180)}else alert('Le module haut-le-pied est indisponible sur cette version.');progress.activeId=item.id;saveProgressSilent()}
+
+  // ---------- HLP manuel : aperçu routier lorsque la destination n’est pas une course liée ----------
+  if(!q('v316HlpPreview'))document.body.insertAdjacentHTML('beforeend',`<div id="v316HlpPreview" class="v316-backdrop hidden"><div class="v316-hlp-sheet"><div class="v316-planner-head"><div><div class="eyebrow">HAUT-LE-PIED</div><h2 id="v316HlpTitle">Itinéraire</h2><p id="v316HlpSummary"></p></div><button id="v316HlpClose" type="button">Fermer</button></div><div id="v316HlpMap"></div><div id="v316HlpStatus" class="v316-link-status">Calcul…</div></div></div>`);
+  let hlpMap=null;
+  async function geocode(text){return v317Geocode(text)}
+  async function openHlpPreview(item){q('v316HlpPreview').classList.remove('hidden');q('v316HlpTitle').textContent=`${item.origin||'Départ'} → ${item.destination||'Destination'}`;q('v316HlpStatus').textContent='Calcul du trajet routier…';try{let a=item.originCoords,b=item.destinationCoords;if(!a&&state?.pos?.coords)a={lat:Number(state.pos.coords.latitude),lon:Number(state.pos.coords.longitude),name:'Position actuelle'};if(!a)a=await geocode(item.origin);if(!b)b=await geocode(item.destination);const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=false`,{cache:'no-store'});const d=await r.json(),rt=d?.routes?.[0];if(!rt)throw new Error('aucun trajet routier trouvé');const shape=rt.geometry.coordinates.map(c=>[Number(c[1]),Number(c[0])]);q('v316HlpSummary').textContent=`${(rt.distance/1000).toFixed(1).replace('.',',')} km · environ ${Math.max(1,Math.round(rt.duration/60))} min`;q('v316HlpStatus').textContent='✅ Itinéraire préparé. Pour un haut-le-pied vers une prochaine course liée, utilise « GPS vers prochaine course » : le module HLP du SAEIV prendra le relais.';if(typeof L!=='undefined'){if(hlpMap)try{hlpMap.remove()}catch{}hlpMap=L.map('v316HlpMap').setView(shape[0],12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(hlpMap);L.polyline(shape,{color:'#ffd000',weight:6,opacity:.9}).addTo(hlpMap);L.circleMarker([a.lat,a.lon],{radius:7}).addTo(hlpMap).bindPopup('Départ');L.circleMarker([b.lat,b.lon],{radius:7}).addTo(hlpMap).bindPopup('Destination');hlpMap.fitBounds(shape,{padding:[25,25],maxZoom:15});setTimeout(()=>hlpMap.invalidateSize(),80)}}catch(e){q('v316HlpStatus').textContent=`❌ ${e.message||e}`}}
+  q('v316HlpClose')?.addEventListener('click',()=>q('v316HlpPreview').classList.add('hidden'));q('v316HlpPreview')?.addEventListener('click',e=>{if(e.target===q('v316HlpPreview'))q('v316HlpPreview').classList.add('hidden')});
+
+  // Une course préparée via « Ma journée » est marquée terminée quand le conducteur termine réellement le service.
+  q('finish')?.addEventListener('click',()=>{const id=sessionStorage.getItem('fluo-v316-prepared-item');if(!id)return;sessionStorage.removeItem('fluo-v316-prepared-item');setTimeout(()=>{setDone(id);setDayMode(true)},80)});
+
+  function renderAll(){if(!q('v316Planner')?.classList.contains('hidden'))renderPlanner();renderToday()}
+
+  const css=document.createElement('style');css.id='v316PlanningStyle';css.textContent=`
+    .v316-header-actions{display:flex;align-items:center;gap:8px}.v316-menu-btn{min-width:45px;width:45px;padding:8px;font-size:1.3rem;border-radius:12px}.v316-menu-backdrop{position:fixed;z-index:20000;inset:0;background:rgba(0,0,0,.66);display:flex;justify-content:flex-end}.v316-menu{width:min(380px,90vw);height:100%;padding:18px;background:linear-gradient(180deg,#102936,#071620);border-left:1px solid #355163;box-shadow:-25px 0 70px rgba(0,0,0,.5);overflow:auto}.v316-menu-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.v316-menu-head h2{margin:3px 0 12px}.v316-menu-head button{min-width:42px;padding:7px}.v316-menu-items{display:grid;gap:7px}.v316-menu-items .v316-menu-entry{width:100%;min-height:50px;text-align:left;border-radius:13px;padding:10px 12px;background:#102737;font-size:.78rem}.v316-menu-items .v316-planning-entry{border-color:#d5aa16;background:linear-gradient(135deg,#3d330b,#183020);color:#fff0a1}.v316-menu-foot{margin-top:16px;color:#8299a6;font-size:.66rem;line-height:1.45}.v13-userbar .v316-menu-entry{display:none!important}
+    .v316-today-mode{border-color:#6688a0!important}.v316-today-panel{margin:12px 0;padding:14px;border:1px solid #355163;border-radius:16px;background:linear-gradient(180deg,#0d2634,#081923)}.v316-today-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v316-today-head h3{margin:3px 0;font-size:1.25rem}.v316-today-head p{margin:3px 0;color:#9eb4bf;font-size:.72rem}.v316-today-head button{min-height:38px;padding:7px 10px}.v316-today-metrics,.v316-day-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:11px}.v316-today-metrics div,.v316-day-summary div{padding:9px;border:1px solid #2d4859;border-radius:11px;background:#071720}.v316-today-metrics span,.v316-day-summary span{display:block;color:#8fa6b3;font-size:.58rem}.v316-today-metrics b,.v316-day-summary b{display:block;margin-top:3px;font-size:.85rem}.v316-mini-rse{margin-top:8px;padding:8px 10px;border:1px solid #397c51;border-radius:10px;background:#0e2b1c;color:#cffff0;font-size:.7rem;font-weight:850}.v316-mini-rse.warn{border-color:#846d21;background:#342b0b;color:#ffe8a0}.v316-mini-rse.bad{border-color:#8a4446;background:#3b2022;color:#ffd2cf}.v316-today-list{display:grid;gap:6px;margin-top:9px}.v316-today-item{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:9px;align-items:center;padding:9px;border:1px solid #2d4859;border-radius:12px;background:#081720}.v316-today-item.active{border-color:#ffd000;box-shadow:inset 3px 0 0 #ffd000}.v316-today-item.done{opacity:.48}.v316-today-item>div:nth-child(2)>strong,.v316-today-item>div:nth-child(2)>b,.v316-today-item>div:nth-child(2)>small{display:block}.v316-today-item>div:nth-child(2)>strong{font-size:.67rem;color:#b6c9d2}.v316-today-item>div:nth-child(2)>b{margin-top:2px;font-size:.78rem}.v316-today-item>div:nth-child(2)>small{margin-top:2px;color:#8198a5;font-size:.61rem}.v316-time b,.v316-time span{display:block}.v316-time b{color:#ffd000}.v316-time span{font-size:.65rem;color:#91a7b3}.v316-today-item-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.v316-today-item-actions button{min-height:34px;padding:5px 7px;font-size:.6rem}.v316-today-actions{display:flex;gap:8px;margin-top:10px}.v316-today-actions button:first-child{flex:1}.v316-day-hidden{display:none!important}
+    .v316-backdrop{position:fixed;z-index:21000;inset:0;padding:12px;background:rgba(0,0,0,.76);display:flex;align-items:flex-end;justify-content:center}.v316-planner{width:min(1180px,100%);max-height:96dvh;padding:15px;border:1px solid rgba(255,255,255,.16);border-radius:22px;background:#0d202c;box-shadow:0 -25px 70px rgba(0,0,0,.55);overflow:auto}.v316-planner-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v316-planner-head h2{margin:3px 0}.v316-planner-head p{margin:0;color:#a4b7c1;font-size:.72rem}.v316-weekbar{display:grid;grid-template-columns:auto auto 1fr auto;gap:7px;align-items:center;margin-top:12px}.v316-weekbar strong{text-align:center}.v316-weekbar button{min-height:38px;padding:6px 10px}.v316-day-tabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:9px}.v316-day-tabs button{min-width:0;padding:7px 4px;min-height:50px;font-size:.65rem}.v316-day-tabs b,.v316-day-tabs small{display:block}.v316-day-tabs small{margin-top:2px;color:#8fa6b3;font-size:.52rem}.v316-day-tabs button.active{border-color:#ffd000;background:#2c2a10}.v316-day-tabs button.warn{box-shadow:inset 0 -3px 0 #d5a62d}.v316-day-tabs button.bad{box-shadow:inset 0 -3px 0 #c85154}.v316-day-tabs button.ok{box-shadow:inset 0 -3px 0 #3f9c65}.v316-week-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:8px}.v316-week-summary div{padding:8px 9px;border:1px solid #355163;border-radius:10px;background:#0a1c26}.v316-week-summary span{display:block;color:#8ca3af;font-size:.53rem;font-weight:900;letter-spacing:.04em}.v316-week-summary b{display:block;margin-top:3px;font-size:.8rem;color:#eef8fc}.v316-planner-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(330px,.75fr);gap:12px;margin-top:12px}.v316-plan-main{min-width:0}.v316-rse{margin-top:8px;padding:10px;border:1px solid #397c51;border-radius:12px;background:#0b2819;color:#d6ffe5;font-size:.67rem}.v316-rse strong{display:block}.v316-rse p{margin:5px 0 0;line-height:1.35}.v316-rse.warn{border-color:#8a7123;background:#30290d;color:#ffe5a0}.v316-rse.bad{border-color:#884446;background:#371f22;color:#ffd2d0}.v316-rse p.error{color:#ffc2be}.v316-rse p.warn{color:#ffe6a5}.v316-plan-list{display:grid;gap:6px;margin-top:9px}.v316-plan-item{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px;border:1px solid #2d4859;border-radius:12px;background:#071720}.v316-plan-text>div{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.v316-plan-text strong,.v316-plan-text>b,.v316-plan-text small{display:block}.v316-plan-text strong{font-size:.67rem;color:#b9ccd5}.v316-plan-text>b{margin-top:2px;font-size:.79rem}.v316-plan-text small{margin-top:3px;color:#8399a6;font-size:.6rem;line-height:1.35}.v316-linked{padding:2px 5px;border-radius:999px;background:#174529;color:#bfffd3;font-size:.48rem;font-weight:950}.v316-item-actions{display:flex;gap:4px}.v316-item-actions button{min-height:33px;padding:5px 7px;font-size:.57rem}.v316-plan-actions{display:flex;gap:7px;margin-top:9px}.v316-empty{padding:18px;border:1px dashed #355163;border-radius:12px;text-align:center;color:#a7bbc5}.v316-empty b,.v316-empty span{display:block}.v316-empty span{margin-top:4px;font-size:.68rem}.v316-editor{min-width:0;padding:12px;border:1px solid #355163;border-radius:15px;background:#081720;align-self:start;position:sticky;top:0}.v316-editor-head{display:flex;justify-content:space-between;align-items:center}.v316-editor-head h3{margin:0}.v316-editor-head button{min-height:35px;padding:5px 8px}.v316-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.v316-form-grid label,.v316-notes{font-size:.66rem}.v316-form-grid input,.v316-form-grid select{min-height:41px;padding:7px 8px}.v316-notes{margin-top:8px}.v316-notes textarea{min-height:70px}.v316-link-tools{display:grid;grid-template-columns:1fr;gap:5px;margin-top:8px}.v316-link-tools button{min-height:38px;padding:6px 8px;font-size:.62rem;text-align:left}.v316-link-status{margin-top:8px;padding:8px;border:1px solid #355163;border-radius:10px;background:#0a1c26;color:#a8bbc5;font-size:.63rem;line-height:1.4}.v316-link-status.linked{border-color:#34764c;color:#cffff0}.v316-editor-actions{display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:9px}.v316-legal-note{margin-top:12px;padding:9px 10px;border:1px solid #355163;border-radius:11px;color:#8fa5b2;background:#071720;font-size:.61rem;line-height:1.45}.v316-hlp-sheet{width:min(900px,100%);max-height:92dvh;padding:14px;border:1px solid #355163;border-radius:20px;background:#0d202c}.v316-hlp-sheet #v316HlpMap{height:min(55vh,480px);margin-top:10px;border:1px solid #355163;border-radius:13px;overflow:hidden}
+    .v317-guide{margin-top:10px;padding:10px;border:1px solid #3b5b6d;border-radius:13px;background:linear-gradient(180deg,#0b2230,#071922)}.v317-guide-title b,.v317-guide-title span{display:block}.v317-guide-title b{font-size:.78rem;color:#f2fbff}.v317-guide-title span{margin-top:3px;color:#91a8b5;font-size:.61rem;line-height:1.4}.v317-guide-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}.v317-guide-grid .wide{grid-column:1/-1}.v317-guide-grid label{font-size:.62rem}.v317-guide-grid select{min-height:41px;padding:7px 8px}.v318-regular-grid #v318RegularDeparture{border-color:#5d7e91;background:#0b202c}.v318-address-actions{display:grid;grid-template-columns:1fr 1fr auto;gap:5px;margin-top:6px}.v318-address-actions button{min-height:34px;padding:5px 6px;font-size:.56rem}.v318-saved-address{min-height:37px!important;margin-bottom:6px;padding:6px 7px!important}.v318-address-delete{min-width:38px}.v317-guide-status{margin-top:7px;padding:7px 8px;border:1px solid #2d4859;border-radius:9px;background:#081720;color:#a9bec9;font-size:.61rem;line-height:1.35}.v317-place-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.v317-place-card{position:relative;min-width:0;padding:9px;border:1px solid #2e4b5d;border-radius:12px;background:#081720}.v317-place-head{display:flex;align-items:center;justify-content:space-between;gap:7px}.v317-place-head b{font-size:.72rem}.v317-place-head select{width:auto;min-height:34px;padding:5px 7px;font-size:.59rem}.v317-stop-mode{display:grid;grid-template-columns:72px minmax(0,1fr);gap:6px;margin-top:7px}.v317-stop-mode .wide{min-width:0}.v317-stop-mode label,.v317-address-mode label{font-size:.58rem}.v317-stop-mode select,.v317-stop-mode input,.v317-address-mode input{min-height:37px;padding:6px 7px}.v317-address-mode{margin-top:7px}.v317-address-check{width:100%;min-height:34px;margin-top:6px;padding:5px 7px;font-size:.58rem}.v317-place-results{position:absolute;z-index:50;left:88px;right:9px;top:112px;max-height:190px;overflow:auto;border:1px solid #426174;border-radius:10px;background:#071720;box-shadow:0 12px 30px rgba(0,0,0,.52)}.v317-place-results:empty{display:none}.v317-place-results>small{display:block;padding:8px;color:#8fa7b5;font-size:.56rem}.v317-place-results button{display:block;width:100%;min-height:0;padding:7px 8px;text-align:left;border:0;border-bottom:1px solid rgba(255,255,255,.07);border-radius:0;background:#081b26}.v317-place-results button:last-child{border-bottom:0}.v317-place-results button b,.v317-place-results button small{display:block}.v317-place-results button b{font-size:.62rem}.v317-place-results button small{margin-top:2px;color:#869eab;font-size:.51rem}.v317-place-selected{margin-top:7px;min-height:30px;padding:6px 7px;border:1px solid #294555;border-radius:9px;background:#0b1d27;color:#abc0ca;font-size:.56rem;line-height:1.35}.v317-place-selected:has(+ *){display:block}
+    @media(max-width:820px){.v317-guide-grid,.v317-place-pair{grid-template-columns:1fr}.v317-guide-grid .wide{grid-column:auto}.v317-place-results{left:9px;top:112px}.v316-week-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.v316-planner-grid{grid-template-columns:1fr}.v316-editor{position:static}.v316-day-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}.v316-today-metrics,.v316-day-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.v316-form-grid{grid-template-columns:1fr}.v316-today-item,.v316-plan-item{grid-template-columns:50px minmax(0,1fr)}.v316-today-item-actions,.v316-item-actions{grid-column:1/-1;justify-content:flex-start}.v316-weekbar{grid-template-columns:auto 1fr auto}.v316-weekbar #v316ThisWeek{grid-column:1/-1;grid-row:2}.v316-menu{width:min(360px,94vw)}}
+    @media(orientation:landscape) and (max-height:650px){.v316-menu-backdrop,.v316-backdrop{align-items:stretch}.v316-planner,.v316-hlp-sheet{max-height:100dvh;border-radius:0}.v316-menu{width:min(360px,48vw)}}
+  `;document.head.appendChild(css);
+
+  // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
+  setTimeout(populateMenu,150);setTimeout(populateMenu,700);
+  renderToday();
+  document.title='Fluo SAEIV V31.19 · 57R027 desserte à la demande';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.19';
+  window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
+})();
+</script>
+
+
+<script id="v3119Line57R027ConditionalStops">
+'use strict';
+/* V31.19 — 57R027 : arrêts réguliers à la demande + services réguliers déclenchés sur réservation.
+   Référence métier : fiche officielle 027 (notes A/B/C selon le sens). La ligne reste en mode RÉGULIER.
+   Un arrêt conditionnel non demandé est ignoré ; coché dans « Demandes », il devient un arrêt à desservir
+   (descente demandée ou montée réservée). Le tracé routier est recalculé entre les seuls arrêts opérationnels. */
+(()=>{
+  const q=id=>document.getElementById(id);
+  const ROUTE='57R027', CACHE_KEY='fluo-57r027-demand-routes-v3119';
+  const V={cache:new Map(),serial:0,timer:null,busy:false,ready:false,signature:'',pattern:null,lastError:''};
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[’']/g,"'").replace(/\s+/g,' ').trim();
+  const set=(xs)=>new Set(xs.map(norm));
+  const OUT_ALWAYS=set([
+    'FRESNES-EN-SAULNOIS - Place Des Tilleuls','ORIOCOURT - Village','JALLAUCOURT - Carrefour','LEMONCOURT - Rue Principale',
+    'FONTENY - Eglise','FONTENY - Faxe','VIVIERS - Grand Rue','PUZIEUX - Abreuvoir','PUZIEUX - Rue Principale','JUVILLE - Village',
+    'MONCHEUX - Mairie','MECLEUVES - La Croix Du Mont','MECLEUVES - Les Tarreaux','MECLEUVES - Lanceumont','MECLEUVES - Frontigny / Abbe Rissel',
+    'JURY - Croisement','JURY - Mairie','JURY - Centre Hospitalier','JURY - Les Vallons','ARS-LAQUENEXY - Hopital Mercy'
+  ]);
+  const BACK_ALWAYS=set([
+    'JURY - Mairie','JURY - Centre Hospitalier','JURY - Les Vallons','CHESNY - Village','SOLGNE - Ancy Les Solgne','SECOURT - Place',
+    'SAILLY-ACHATEL - Eglise','SAILLY-ACHATEL - Ecole','MONCHEUX - Mairie','JUVILLE - Village','LIOCOURT - Fontaine','VIVIERS - Grand Rue',
+    'FONTENY - Eglise','FONTENY - Faxe','LEMONCOURT - Rue Principale','JALLAUCOURT - Carrefour','ORIOCOURT - Village',
+    'LANEUVEVILLE-EN-SAULNOIS - Eglise','FRESNES-EN-SAULNOIS - Place Des Tilleuls'
+  ]);
+  const OUT_0600_LONG=set(['SILLY-EN-SAULNOIS - Centre','LIEHON - Rue Principale','PONTOY - Rue Principale','PONTOY - Rue De L\'Etang','CHERISEY - Rue Principale','CHERISEY - Mairie']);
+  const OUT_0755=set(['PONTOY - Rue Principale','PONTOY - Rue De L\'Etang']);
+  const BACK_1220=set(['ORNY - Ferme Pierrejeux','ORNY - Mairie','CHERISEY - Mairie','CHERISEY - Rue Principale','PONTOY - Rue Principale','PONTOY - Rue De L\'Etang','SILLY-EN-SAULNOIS - Centre']);
+  const BACK_1225=set(['JURY - Croisement','MECLEUVES - Frontigny / Abbe Rissel','MECLEUVES - Lanceumont','MECLEUVES - Les Tarreaux','MECLEUVES - La Croix Du Mont']);
+  const BACK_1723=set([
+    'JURY - Croisement','MECLEUVES - Frontigny / Abbe Rissel','MECLEUVES - Lanceumont','MECLEUVES - Les Tarreaux','MECLEUVES - La Croix Du Mont',
+    'ORNY - Ferme Pierrejeux','ORNY - Mairie','CHERISEY - Mairie','CHERISEY - Rue Principale','PONTOY - Rue Principale','PONTOY - Rue De L\'Etang',
+    'LIEHON - Rue Principale','SILLY-EN-SAULNOIS - Centre','BEUX - Rue Principale','SOLGNE - Mairie','SOLGNE - Rue Alsace Lorraine','SECOURT - Croisement',
+    'PUZIEUX - Rue Principale','PUZIEUX - Abreuvoir'
+  ]);
+  const BACK_1832=set(['JURY - Croisement','MECLEUVES - Frontigny / Abbe Rissel','MECLEUVES - Lanceumont','MECLEUVES - Les Tarreaux','MECLEUVES - La Croix Du Mont','PUZIEUX - Rue Principale','PUZIEUX - Abreuvoir']);
+  const isLine=()=>norm(state?.route?.short).replace(/\s+/g,'')===ROUTE;
+  const depClock=()=>String(state?.run?.trip?.times?.[0]?.[1]||state?.run?.trip?.times?.[0]?.[0]||'').slice(0,5);
+  const isOutbound=()=>isLine() && norm(state?.pattern?.stops?.[0]?.name).startsWith('CHATEAU-SALINS');
+  const isReturn=()=>isLine() && norm(state?.pattern?.stops?.[0]?.name).startsWith('METZ');
+  function isReservedService(){
+    if(!isLine()||!state?.run)return false;const d=depClock();
+    return (isOutbound()&&(d==='11:00'||d==='13:00'))||(isReturn()&&(d==='09:15'||d==='13:45'));
+  }
+  function isDemandStop(index){
+    if(!isLine()||state?.service?.mode!=='regular'||!state?.pattern?.stops?.[index])return false;
+    const n=norm(state.pattern.stops[index].name),d=depClock();
+    if(isOutbound()){
+      if(OUT_ALWAYS.has(n))return true;
+      if(d==='07:55'&&OUT_0755.has(n))return true;
+      if(d==='06:00'&&state.pattern.stops.some(s=>norm(s.name)==='SILLY-EN-SAULNOIS - CENTRE')&&OUT_0600_LONG.has(n))return true;
+      return false;
+    }
+    if(isReturn()){
+      if(BACK_ALWAYS.has(n))return true;
+      const first=norm(state.pattern.stops[0]?.name);
+      if(d==='12:20'&&first.includes('GARE ROUTIERE')&&BACK_1220.has(n))return true;
+      if(d==='12:25'&&first.includes('AVENUE FOCH')&&BACK_1225.has(n))return true;
+      if(d==='17:23'&&BACK_1723.has(n))return true;
+      if(d==='18:32'&&BACK_1832.has(n))return true;
+    }
+    return false;
+  }
+  window.Fluo57R027V3119={isDemandStop,isReservedService};
+
+  function demandIndices(){return (state?.pattern?.stops||[]).map((_,i)=>i).filter(isDemandStop)}
+  function operationalIndices(){
+    const stops=state?.pattern?.stops||[];if(!isLine()||state?.service?.mode!=='regular')return stops.map((_,i)=>i);
+    return stops.map((_,i)=>i).filter(i=>!isDemandStop(i)||state.service.requestedStops.has(i));
+  }
+  function sig(){return !isLine()||!state?.pattern?'':`${state.run?.trip?.id||''}|${operationalIndices().join(',')}`}
+  function cloneShape(s){return Array.isArray(s)?s.map(p=>[Number(p[0]),Number(p[1])]):[]}
+  function remember(){if(state?.pattern&&!state.pattern.__v3119OriginalShape)state.pattern.__v3119OriginalShape=cloneShape(state.pattern.shape||[])}
+  function restore(pattern=state?.pattern,redraw=false){if(!pattern?.__v3119OriginalShape)return;pattern.shape=cloneShape(pattern.__v3119OriginalShape);if(pattern===state.pattern){V.ready=false;V.signature='';V.pattern=null;try{prepareCourseGeometry()}catch{};if(redraw&&state?.nav?.map)try{drawRoute()}catch{}}}
+  function loadCache(){try{const o=JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');Object.entries(o).forEach(([k,v])=>{if(v?.shape?.length>=2)V.cache.set(k,v)})}catch{}}
+  function saveCache(){try{const xs=[...V.cache.entries()].sort((a,b)=>(b[1].savedAt||0)-(a[1].savedAt||0)).slice(0,80);localStorage.setItem(CACHE_KEY,JSON.stringify(Object.fromEntries(xs)))}catch{}}
+  loadCache();
+  function setInfo(kind,text){const b=q('v3119DemandInfo'),s=q('v3119DemandStatus');if(b)b.className=`v3119-demand-info ${kind||''}`;if(s)s.textContent=text||'';q('v3119DemandRetry')&&(q('v3119DemandRetry').disabled=V.busy)}
+  function ensureInfo(){
+    const course=q('courseInfo');if(course&&!q('v3119DemandInfo'))course.insertAdjacentHTML('afterend','<div id="v3119DemandInfo" class="v3119-demand-info hidden"><div><b>🚌 57R027 · desserte conditionnelle</b><span id="v3119DemandStatus"></span></div><button id="v3119DemandRetry" type="button">↻ Recalculer</button></div>');
+    q('v3119DemandRetry')?.addEventListener('click',()=>rebuild('manual'));
+  }
+  ensureInfo();
+  async function rebuild(reason='auto'){
+    if(!isLine()||state?.service?.mode!=='regular'||!state?.pattern){q('v3119DemandInfo')?.classList.add('hidden');return false}
+    const ds=demandIndices();if(!ds.length){q('v3119DemandInfo')?.classList.add('hidden');return true}
+    q('v3119DemandInfo')?.classList.remove('hidden');remember();const my=++V.serial,key=sig();V.busy=true;V.ready=false;V.pattern=state.pattern;V.signature='';
+    if(!state.running){if(ui.start)ui.start.disabled=true;if(ui.simulate)ui.simulate.disabled=true}
+    const selected=ds.filter(i=>state.service.requestedStops.has(i));setInfo('loading',`Calcul du parcours : ${selected.length} arrêt${selected.length>1?'s':''} à la demande activé${selected.length>1?'s':''} sur ${ds.length}.`);
+    try{
+      let hit=V.cache.get(key),shape=hit?.shape;if(!shape?.length){
+        const ids=operationalIndices(),pts=ids.map(i=>{const s=state.pattern.stops[i],p=typeof sourceStopPoint==='function'?sourceStopPoint(s):s;return{name:s.name,lat:Number(p.lat),lon:Number(p.lon)}});
+        if(pts.length<2)throw new Error('pas assez d’arrêts opérationnels');
+        shape=await roadGeometryForStops(pts);V.cache.set(key,{shape,savedAt:Date.now()});saveCache();
+      }
+      if(my!==V.serial||V.pattern!==state.pattern)return false;
+      state.pattern.shape=cloneShape(shape);state.pattern.trace_source='57r027_demand_dynamic_osrm';prepareCourseGeometry();V.busy=false;V.ready=true;V.signature=key;V.lastError='';
+      if(state?.nav?.map){drawRoute();updateStopMarkers()}
+      if(state?.mode==='simulation'&&state?.running)try{syncSimulationToState()}catch{}
+      setInfo('ok',`${ds.length} arrêt${ds.length>1?'s':''} conditionnel${ds.length>1?'s':''} · ${selected.length} à desservir · les autres sont contournés.`);try{refreshStartAvailability()}catch{};return true;
+    }catch(e){
+      if(my!==V.serial)return false;V.busy=false;V.ready=false;V.signature='';V.lastError=String(e?.message||e);restore(state.pattern,true);
+      setInfo('err',`Tracé conditionnel non recalculé (${V.lastError}). La course reste accessible sur le tracé officiel ; touche « Recalculer » dès que la connexion le permet.`);try{refreshStartAvailability()}catch{};return false;
+    }
+  }
+  function schedule(delay=180){clearTimeout(V.timer);if(!isLine()||state?.service?.mode!=='regular'||!state?.pattern)return;V.timer=setTimeout(()=>rebuild('selection'),delay)}
+
+  // Les arrêts à la demande sont réellement optionnels dans la progression de la ligne régulière.
+  try{const base=nextOperationalStop;nextOperationalStop=function(fromIndex){if(!isLine()||state?.service?.mode!=='regular')return base(fromIndex);for(let i=fromIndex+1;i<(state.pattern?.stops?.length||0);i++)if(!isDemandStop(i)||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.19 next',e)}
+  try{const base=previousOperationalStop;previousOperationalStop=function(fromIndex){if(!isLine()||state?.service?.mode!=='regular')return base(fromIndex);for(let i=fromIndex-1;i>=0;i--)if(!isDemandStop(i)||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.19 prev',e)}
+  try{const base=operationalEndIndex;operationalEndIndex=function(){if(!isLine()||state?.service?.mode!=='regular')return base();for(let i=(state.pattern?.stops?.length||1)-1;i>=0;i--)if(!isDemandStop(i)||state.service.requestedStops.has(i))return i;return 0}}catch(e){console.warn('V31.19 end',e)}
+  try{const base=operationalRemaining;operationalRemaining=function(){if(!isLine()||state?.service?.mode!=='regular')return base();const t=Number(state.target);return operationalIndices().filter(i=>i>=t).length}}catch(e){console.warn('V31.19 remaining',e)}
+
+  // Feuille Demandes enrichie : le même geste couvre une descente demandée ou une montée réservée.
+  try{const base=renderRequestSheet;renderRequestSheet=function(){
+    if(!isLine()||state?.service?.mode!=='regular')return base();if(!ui.requestsList||!state.pattern)return;
+    if(q('requestsTitle'))q('requestsTitle').textContent='🔔 Demandes / arrêts conditionnels';const intro=q('requestsTitle')?.parentElement?.querySelector('p');if(intro)intro.textContent='Sur la 57R027, les arrêts « À LA DEMANDE » sont ignorés s’ils ne sont pas activés. Active-les pour une descente demandée ou lorsqu’une montée a été réservée.';
+    ui.requestsList.innerHTML=state.pattern.stops.map((st,i)=>{const past=i<=state.current,checked=state.service.requestedStops.has(i),conditional=isDemandStop(i),meta=[stopScheduleLabel(i),conditional?'Desserte à la demande · montée sur réservation préalable':past?'déjà passé':'arrêt régulier'].filter(Boolean).join(' · '),tag=conditional?(checked?'✓ À DESSERVIR':'À LA DEMANDE'):(checked?'🔔 DEMANDÉ':'ARRÊT');return `<label class="stop-check ${checked?'requested':''} ${conditional?'v3119-conditional':''}"><input class="request-stop-checkbox" type="checkbox" data-index="${i}" ${checked?'checked':''} ${past?'disabled':''}><span class="stop-check-main"><span class="stop-check-name">${i+1}. ${esc(st.name)}</span><span class="stop-check-meta">${esc(meta)}</span></span><span class="stop-check-tag">${tag}</span></label>`}).join('');
+  }}catch(e){console.warn('V31.19 requests sheet',e)}
+  try{const base=requestStop;requestStop=function(index,checked){const conditional=isDemandStop(index),r=base(index,checked);if(conditional){schedule(80);setTimeout(()=>{if(state?.running){const nx=nextOperationalStop(state.current);state.target=nx===null?state.pattern.stops.length:nx;labels();updateRequestAlert(false)}},0)}return r}}catch(e){console.warn('V31.19 request',e)}
+  q('requestsClear')?.addEventListener('click',()=>setTimeout(()=>{if(isLine())schedule(80)},0));
+
+  // Arrêts conditionnels non activés : petits marqueurs secondaires sur la carte.
+  try{const base=stopIcon;stopIcon=function(index){if(isLine()&&state?.service?.mode==='regular'&&isDemandStop(index)&&!state.service.requestedStops.has(index)&&typeof L!=='undefined')return L.divIcon({className:'',html:'<div class="stop-pin v14-skipped-stop v3119-demand-skipped"></div>',iconSize:[7,7],iconAnchor:[3.5,3.5]});return base(index)}}catch(e){console.warn('V31.19 markers',e)}
+
+  // Sélection de course : signaler réservation / arrêts conditionnels et préparer le tracé par défaut (sans détour).
+  try{const base=selectRun;selectRun=function(i){if(state?.pattern?.__v3119OriginalShape)restore(state.pattern,false);const r=base(i);return Promise.resolve(r).then(x=>{if(isLine()&&state.pattern){remember();const ds=demandIndices();q('v3119DemandInfo')?.classList.toggle('hidden',!ds.length);if(ui.courseInfo){const reserved=isReservedService(),suffix=[reserved?'⚠ SERVICE SUR RÉSERVATION':null,ds.length?`${ds.length} arrêt${ds.length>1?'s':''} à la demande`:null].filter(Boolean).join(' · ');if(suffix&&!ui.courseInfo.textContent.includes(suffix))ui.courseInfo.textContent+=` · ${suffix}`}if(ds.length)schedule(80)}else q('v3119DemandInfo')?.classList.add('hidden');return x})}}catch(e){console.warn('V31.19 selectRun',e)}
+  try{const base=setServiceMode;setServiceMode=function(mode){if(isLine()&&state?.pattern?.__v3119OriginalShape&&mode!=='regular')restore(state.pattern,false);const r=base(mode);if(mode==='regular'&&isLine()&&state.pattern)schedule(100);return r}}catch(e){console.warn('V31.19 mode',e)}
+
+  // Recalage manuel : cible le prochain arrêt réellement opérationnel, pas un arrêt conditionnel ignoré.
+  q('recenter')?.addEventListener('click',()=>setTimeout(()=>{if(isLine()&&state?.service?.mode==='regular'&&state?.running){const nx=nextOperationalStop(state.current);state.target=nx===null?state.pattern.stops.length:nx;labels()}},0));
+
+  // Badge conducteur pour les courses entièrement déclenchées sur réservation.
+  try{const base=enterDriver;enterDriver=function(mode){const r=base(mode);if(isLine()){const res=isReservedService();if(ui.serviceBadge){ui.serviceBadge.textContent=res?'RÉGULIER · RÉSERVATION':'RÉGULIER';ui.serviceBadge.classList.toggle('v3119-reservation',res)}ui.driver?.classList.toggle('v3119-57r027',true)}return r}}catch(e){console.warn('V31.19 driver',e)}
+  try{const base=finish;finish=function(){const r=base();ui.driver?.classList.remove('v3119-57r027');ui.serviceBadge?.classList.remove('v3119-reservation');return r}}catch(e){console.warn('V31.19 finish',e)}
+
+  const css=document.createElement('style');css.id='v3119Style';css.textContent=`
+    .v3119-demand-info{margin-top:9px;padding:9px 10px;border:1px solid #4b6675;border-radius:12px;background:#0a1d27;display:flex;align-items:center;justify-content:space-between;gap:9px}.v3119-demand-info.hidden{display:none!important}.v3119-demand-info>div{min-width:0}.v3119-demand-info b,.v3119-demand-info span{display:block}.v3119-demand-info b{font-size:.72rem}.v3119-demand-info span{margin-top:3px;color:#a9bdc7;font-size:.64rem;line-height:1.35}.v3119-demand-info button{min-height:34px;padding:5px 7px;font-size:.57rem;flex:0 0 auto}.v3119-demand-info.loading{border-color:#8a7428;background:#27220d}.v3119-demand-info.ok{border-color:#367d52;background:#0c281a}.v3119-demand-info.err{border-color:#874448;background:#331d20}.stop-check.v3119-conditional{border-color:#8b7124;background:#201d0d}.stop-check.v3119-conditional .stop-check-tag{background:#8c6b12;color:#fff3b5}.stop-check.v3119-conditional.requested{border-color:#ffd000;background:#30290d}.stop-check.v3119-conditional.requested .stop-check-tag{background:#ffd000;color:#151515}.v3119-demand-skipped{background:#d59a1d!important;border-color:#6d551b!important;opacity:.42!important}.servicebadge.v3119-reservation{border-color:#ffb53b!important;background:#5a350b!important;color:#ffe2a0!important}
+    @media(orientation:landscape) and (max-height:650px){#setup .v3119-demand-info{font-size:.58rem}.v3119-demand-info span{font-size:.55rem}}
+  `;document.head.appendChild(css);
+  setTimeout(()=>{if(isLine()&&state.pattern){remember();schedule(120)}},600);
+})();
+</script>
+
+
+<script id="v314DepartmentRules">
+(()=>{window.FluoDepartmentRulesV312={isRegular(code,department,route){const d=String(department||route?.department||route?.dept||'');if((d==='67'||d==='68')&&window.FluoAlsaceLineCategoryV314)return window.FluoAlsaceLineCategoryV314(route||{short:code},d)==='regular';const s=String(code||'').toUpperCase().replace(/\s+/g,'');if(/^67R\d+/.test(s)||/^68R\d+/.test(s)||/^54R\d+/.test(s))return true;if(/^\d{3}[A-Z]?$/.test(s))return true;if(/^\d{4}[A-Z]?$/.test(s))return false;return !/^(54|57)[SE]/.test(s)},departmentName(d){return({'54':'Meurthe-et-Moselle','57':'Moselle','67':'Bas-Rhin','68':'Haut-Rhin'})[String(d)]||String(d)}}})();
 </script>
 </body>
 </html>
