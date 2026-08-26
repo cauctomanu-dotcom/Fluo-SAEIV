@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T00:08:00+02:00",
-  "version": "V31.26 GITHUB MONOBLOC + CORRECTIF MENU HAMBURGER FICHES HORAIRES + V31.25 CONSERVÉE",
+  "generated_at": "2026-08-27T00:20:00+02:00",
+  "version": "V31.27",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -168,5 +168,12 @@
       "dessertes conditionnelles",
       "données embarquées"
     ]
+  },
+  "usage_notice_v31_27": {
+    "display": "à chaque ouverture de l’application",
+    "purpose": "outil d’aide au conducteur ; ne remplace pas les applications, procédures, documents ou consignes de l’entreprise, de l’exploitant ou de l’autorité organisatrice",
+    "data_warning": "des erreurs, omissions ou décalages de mise à jour peuvent subsister ; les références de l’entreprise prévalent en cas de divergence",
+    "records_status": "les informations, historiques et journaux n’ont, à ce jour, pas valeur de justificatif officiel ou opposable",
+    "presentation": "libellés visibles de vérification GPS et d’aperçu vocal rendus neutres ; aucune fonctionnalité retirée"
   }
 }

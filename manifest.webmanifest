@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.26",
-  "short_name": "Fluo V31.26",
-  "start_url": "./?v=31.26",
+  "name": "Fluo SAEIV V31.27",
+  "short_name": "Fluo V31.27",
+  "start_url": "./?v=31.27",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.26 — correctif d’intégration de « Fiches horaires » directement dans le menu hamburger natif, avec V31.25 et toutes les fonctions antérieures conservées."
+  "description": "Fluo SAEIV conducteur — outil d’aide à l’exploitation et au suivi des services Fluo Grand Est."
 }

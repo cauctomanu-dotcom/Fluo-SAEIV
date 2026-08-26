@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=31.12">
+  <link rel="manifest" href="manifest.webmanifest?v=31.27">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Fluo SAEIV V22 · TAD + suivi stable</title>
+  <title>Fluo SAEIV · V31.27</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style id="v22CoreStyle">
 .stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
@@ -47,16 +47,32 @@
   @media(max-width:760px){.app{padding:8px}.panel{padding:10px;border-radius:16px}.top{margin-bottom:7px}.top .sub{display:none}.grid.two,.sim-config{grid-template-columns:1fr}.grid.six{grid-template-columns:repeat(2,minmax(0,1fr))}.service-choice-buttons{grid-template-columns:repeat(2,minmax(0,1fr))}.start-actions{grid-template-columns:1fr}.gps-test{align-items:stretch;flex-direction:column}.audio-note,.fusion-note{grid-template-columns:1fr}.tad-panel-head{flex-direction:column}.navmap-wrap{height:42vh;min-height:260px}.sheet-backdrop{padding:0}.sheet{max-height:94vh;border-radius:22px 22px 0 0}.top h1{font-size:1.45rem}}
   @media(orientation:landscape) and (max-height:650px){body{overflow:hidden}.app{height:100dvh;max-width:none;padding:4px}.top{display:none}#driver.panel{height:calc(100dvh - 8px);padding:5px}.navmap-wrap{min-height:0}}
 </style>
+
+<style id="v3127UsageNoticeStyle">
+  .v3127-usage-backdrop{position:fixed;z-index:50000;inset:0;display:flex;align-items:center;justify-content:center;padding:max(18px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));background:rgba(0,0,0,.78);backdrop-filter:blur(7px)}
+  .v3127-usage-card{width:min(650px,100%);max-height:90dvh;overflow:auto;padding:20px;border:1px solid rgba(126,164,185,.34);border-radius:22px;background:linear-gradient(180deg,#102936,#081923);box-shadow:0 28px 80px rgba(0,0,0,.55)}
+  .v3127-usage-card .eyebrow{margin-bottom:5px}.v3127-usage-card h2{margin:0;font-size:1.45rem}.v3127-usage-card p{margin:12px 0 0;color:#c3d3db;font-size:.82rem;line-height:1.55}.v3127-usage-card strong{color:#fff}.v3127-usage-card .v3127-usage-note{padding:11px 12px;border:1px solid #3b5969;border-radius:13px;background:#071721}.v3127-usage-card button{width:100%;margin-top:16px}
+</style>
 </head>
 <body>
+<div id="v3127UsageNotice" class="v3127-usage-backdrop" role="dialog" aria-modal="true" aria-labelledby="v3127UsageTitle">
+  <div class="v3127-usage-card">
+    <div class="eyebrow">INFORMATION D’UTILISATION</div>
+    <h2 id="v3127UsageTitle">Fluo SAEIV</h2>
+    <p>Cette application est un <strong>outil d’aide au conducteur</strong>, conçu pour faciliter certaines tâches du quotidien. Elle ne remplace pas les applications, procédures, documents ou consignes fournis par votre entreprise, l’exploitant ou l’autorité organisatrice.</p>
+    <p class="v3127-usage-note">Malgré le soin apporté aux données et aux fonctionnalités, des erreurs, omissions ou décalages de mise à jour peuvent subsister. En cas de divergence, les outils, documents et consignes de référence de l’entreprise prévalent.</p>
+    <p>Les informations, historiques et journaux produits par l’application constituent une aide de suivi et <strong>n’ont, à ce jour, pas valeur de justificatif officiel ou opposable</strong>.</p>
+    <button id="v3127UsageContinue" type="button" class="primary">J’ai compris</button>
+  </div>
+</div>
 <div class="app">
   <header class="top">
-    <div><div class="eyebrow">SAEIV CONDUCTEUR · V13 TRAÇABILITÉ</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
-    <div id="gpsPill" class="pill">GPS non testé</div>
+    <div><div class="eyebrow">SAEIV CONDUCTEUR · V31.27</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
+    <div id="gpsPill" class="pill">GPS à vérifier</div>
   </header>
 
   <section id="setup" class="panel">
-    <div class="gps-test"><button id="gpsTest" class="primary">📍 Tester le GPS maintenant</button><span id="gpsTestResult">Le test GPS est indépendant du choix de ligne.</span></div>
+    <div class="gps-test"><button id="gpsTest" class="primary">📍 Vérifier le GPS</button><span id="gpsTestResult">La vérification GPS est indépendante du choix de ligne.</span></div>
 
     <div class="service-choice">
       <div class="service-choice-title">TYPE DE SERVICE</div>
@@ -1487,7 +1503,7 @@ function startSimulation(){
   }
   state.departed=false;
   ui.simPlayPause.textContent='Pré-départ…'; ui.simPlayPause.disabled=true; ui.simSkip.disabled=true;
-  ui.announceState.textContent='Pré-départ simulé : test des annonces T−5 et T−1';
+  ui.announceState.textContent='Pré-départ simulé : annonces T−5 et T−1';
   ui.departureTime.textContent='Simulation'; ui.departureCountdown.textContent='T−5:00 simulé';
   say('Départ dans cinq minutes.',{priority:90,kind:'departure'});
   state.departureTimers.push(setTimeout(()=>{ ui.departureCountdown.textContent='T−1:00 simulé'; say(`${lineIdentity()} Départ dans une minute.`,{priority:90,kind:'departure'}); },1800));
@@ -1584,10 +1600,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=31.6').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Données générées : ${new Date(b.generated_at).toLocaleString('fr-FR')} · ${b.version||'V11 ANNONCES ARRÊT'}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=31.27').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'V31.27'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.6').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.27').catch(()=>{});
 
 </script>
 <script>
@@ -1616,7 +1632,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
             <small id="voiceActual">Recherche de la voix française…</small>
           </label>
           <div class="v12-pref-actions">
-            <button id="voiceTest" type="button">🔊 Tester la voix</button>
+            <button id="voiceTest" type="button">🔊 Écouter la voix</button>
             <label class="v12-switch"><input id="navVoiceSetup" type="checkbox" checked><span>Navigation vocale conducteur</span></label>
           </div>
         </div>
@@ -1767,8 +1783,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     window.speechSynthesis?.cancel();
     if(typeof state !== 'undefined' && state.audio){ state.audio.current = null; state.audio.queue = []; }
     say(V12.passengerVoice === 'male'
-      ? 'Test de la voix homme. Prochain arrêt, Delme République.'
-      : 'Test de la voix femme. Prochain arrêt, Delme République.',
+      ? 'Aperçu de la voix homme. Prochain arrêt, Delme République.'
+      : 'Aperçu de la voix femme. Prochain arrêt, Delme République.',
       {priority:140,kind:'stop'});
   });
 
@@ -6203,7 +6219,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.26 · Fiches horaires réseau + annonces vocales';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.26';
+  document.title='Fluo SAEIV · V31.27';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.27';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -6713,5 +6729,22 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 
+
+<script id="v3127OfficialUsageNotice">
+'use strict';
+(()=>{
+  const q=id=>document.getElementById(id);
+  q('v3127UsageContinue')?.addEventListener('click',()=>q('v3127UsageNotice')?.classList.add('hidden'));
+  const label=()=>{
+    document.title='Fluo SAEIV · V31.27';
+    const eyebrow=document.querySelector('.top .eyebrow');
+    if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.27';
+    const b=q('buildInfo');
+    if(b)b.textContent='Version V31.27 · Fluo Grand Est';
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{label();setTimeout(label,4000)});
+  else{label();setTimeout(label,4000)}
+})();
+</script>
 </body>
 </html>

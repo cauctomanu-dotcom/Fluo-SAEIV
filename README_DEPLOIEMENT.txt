@@ -379,3 +379,11 @@ V31.26 — CORRECTIF MENU HAMBURGER / FICHES HORAIRES
 - Le module V31.25 de consultation des horaires réutilise ce bouton natif au lieu de l’injecter tardivement.
 - Correctif conçu pour éliminer le cas où l’onglet n’apparaissait pas selon l’ordre de chargement ou le cache PWA.
 - Aucun changement du planning, de Ma journée, du cockpit, des HLP, des annonces, des dessertes conditionnelles ou des données embarquées.
+
+V31.27 — INFORMATION D’UTILISATION
+------------------------------------
+- À chaque ouverture, une information rappelle que le SAEIV est un outil d’aide au conducteur et ne remplace pas les outils, procédures, documents ou consignes de l’entreprise.
+- Le message précise que des erreurs ou décalages de mise à jour peuvent subsister et que les références de l’entreprise prévalent en cas de divergence.
+- Les informations, historiques et journaux de l’application n’ont, à ce jour, pas valeur de justificatif officiel ou opposable.
+- Les libellés visibles liés au GPS et à la voix utilisent désormais « Vérifier » et « Aperçu » plutôt qu’un vocabulaire de version de test.
+- Toutes les fonctions V31.26 et antérieures sont conservées.
