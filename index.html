@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=31.10">
+  <link rel="manifest" href="manifest.webmanifest?v=31.11">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Fluo SAEIV V22 · TAD + suivi stable</title>
@@ -118,7 +118,7 @@
       <label id="simDelayWrap">Écart horaire simulé<select id="simDelay"><option value="-180">Avance 3 min</option><option value="0" selected>À l’heure</option><option value="180">Retard 3 min</option><option value="420">Retard 7 min</option><option value="720">Retard 12 min</option><option value="1200">Retard 20 min</option></select></label>
     </div>
     <div id="buildInfo" class="install"></div>
-    <div class="audio-note"><b>🔊 Annonces</b><span>Après chaque départ, « Prochain arrêt » est annoncé environ 15 secondes plus tard. À l’arrivée au poteau, une seconde annonce dit « Arrêt : [nom] ». T−5/T−1 restent actifs en service horaire, et le rappel ligne/destination reste à mi-inter-arrêt. En Formation, seules les annonces liées aux horaires sont désactivées.</span></div>
+    <div class="audio-note"><b>🔊 Annonces</b><span>Après chaque départ, « Prochain arrêt » est annoncé environ 15 secondes plus tard. À l’arrivée au poteau, une seconde annonce dit « Arrêt : [nom] ». Au terminus, elle ajoute un message professionnel de fin de voyage et de rappel des effets personnels. T−5/T−1 restent actifs en service horaire, et le rappel ligne/destination reste à mi-inter-arrêt. En Formation, seules les annonces liées aux horaires sont désactivées.</span></div>
     <div class="fusion-note"><b>🧭 Fusion V11</b><span>Fluo fournit la course officielle. Le GPS iPhone fournit la position réelle. Le moteur recale ensuite cette position sur l’unique tracé de la course sélectionnée en tenant compte de la progression et du sens, afin d’éviter les sauts sur une rue ou une variante voisine.</span></div>
     <div class="note">Les données de course viennent de <code>trips.txt</code> + <code>stop_times.txt</code> + <code>calendar*.txt</code>. Les poteaux viennent de <code>stops.txt</code> et le tracé officiel de <code>shapes.txt</code>. Manipule l’interface uniquement véhicule immobilisé.</div>
   </section>
@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.10 — édition GitHub monobloc, menu/planning restaurés + HLP départ automatique + cockpit paysage validé.
+// Fluo SAEIV V31.11 — édition GitHub monobloc, fin de course intelligente + annonce terminus professionnelle + planning consolidé.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -1158,7 +1158,7 @@ function announce(force=false){
 function announceArrival(){
   const s=state.pattern?.stops[state.target]; if(!s||state.arrivalAnnounced) return;
   const isTerminus=nextOperationalStop(state.target)===null;
-  say(isTerminus?`Arrêt, ${spoken(s.name)}. Terminus.`:`Arrêt, ${spoken(s.name)}.`,{priority:120,kind:'stop'});
+  say(isTerminus?`Arrêt, ${spoken(s.name)}. Terminus de la ligne. Avant de quitter le véhicule, merci de vérifier que vous n'avez oublié aucun effet personnel à bord. Nous vous remercions d'avoir voyagé avec nous et vous souhaitons une excellente journée. À bientôt sur nos lignes.`:`Arrêt, ${spoken(s.name)}.`,{priority:120,kind:'stop'});
   state.arrivalAnnounced=true;
   // Si l'inter-arrêt était exceptionnellement très court, on ne prononce plus "Prochain arrêt" après l'arrivée.
   state.announced=true; state.nextStopDueAt=null;
@@ -1412,7 +1412,7 @@ ui.startStop.addEventListener('change',()=>{ updateDepartureDisplay(); if(state.
 ui.gpsTest.addEventListener('click',testGps);
 ui.start.addEventListener('click',startGps);
 ui.simulate.addEventListener('click',startSimulation);
-ui.finish.addEventListener('click',finish);
+ui.finish.addEventListener('click',()=>finish());
 ui.speak.addEventListener('click',()=>announce(true));
 ui.nextBtn.addEventListener('click',()=>{ advance(true); if(state.mode==='simulation') syncSimulationToState(); });
 ui.prev.addEventListener('click',previous);
@@ -1988,9 +1988,24 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     const id=V13.activeSessionId; if(!id) return;
     try{
       const s=await getSession(id); if(s){ const st=V13.sessionStats||{}; s.endedAt=iso(); s.status=reason; s.samples=st.samples||0; s.stopEvents=st.stops||0; s.maxSpeedKmh=Number((st.maxSpeed||0).toFixed(1)); s.avgSpeedKmh=st.speedCount?Number((st.sumSpeed/st.speedCount).toFixed(1)):null; s.distanceKm=Number(((st.distance||0)/1000).toFixed(2)); await putSession(s); }
-      await addEvent({sessionId:id,ts:iso(),type:'SERVICE_END',reason,stats:V13.sessionStats||null});
+      const interrupted=reason==='interrupted';
+      await addEvent({sessionId:id,ts:iso(),type:interrupted?'SERVICE_INTERRUPTED':'SERVICE_END',reason:interrupted?'fin de course demandée avant la zone de fin de ligne':reason,stats:V13.sessionStats||null});
     }catch(e){ console.warn('Journal fin service',e); }
     V13.activeSessionId=null; V13.sessionStats=null; recordingUi(false); refreshJournalList();
+  }
+
+  // Le bouton FIN est une fin de COURSE : à partir de l'avant-dernier arrêt franchi,
+  // le journal est terminé normalement. Avant cette zone, la course est classée interrompue.
+  function finishJournalReason(){
+    if(!state?.pattern?.stops?.length) return 'normal';
+    const end=typeof operationalEndIndex==='function'?operationalEndIndex():state.pattern.stops.length-1;
+    const penultimate=typeof previousOperationalStop==='function'?previousOperationalStop(end):(end>0?end-1:null);
+    if(penultimate===null) return 'normal';
+    const current=Number(state.current),target=Number(state.target);
+    const passedPenultimate=current===penultimate||current===end||target===end||target> end;
+    // Sur une desserte à seulement deux points, il faut au moins avoir réellement quitté le point de départ.
+    if(end===1&&current===0&&target===1&&!state.firstLegDepartureSeen) return 'interrupted';
+    return passedPenultimate?'normal':'interrupted';
   }
 
   async function checkpointSession(){
@@ -2040,7 +2055,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     const baseAdvance=advance;
     advance=function(manual=false){ const idx=state?.target; const r=baseAdvance(manual); if(Number.isInteger(idx)&&idx<(state?.pattern?.stops?.length||0)) logStop('STOP_PASSED',idx); return r; };
     const baseFinish=finish;
-    finish=function(){ closeJournal('normal').catch(console.warn); return baseFinish(); };
+    finish=function(){ const reason=finishJournalReason(); closeJournal(reason).catch(console.warn); return baseFinish(); };
   }catch(e){ console.warn('V13 journal patch',e); }
 
   // --- Historique / exports ---
@@ -2050,7 +2065,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     const box=$v13('v13JournalList'); if(!box)return;
     try{
       const xs=(await allSessions()).filter(s=>s.matricule===V13.matricule);
-      box.innerHTML=xs.length?xs.map(s=>`<div class="v13-session"><div class="v13-session-grid"><div><strong>${esc(s.route||'—')} · ${esc(s.destination||'')}</strong><span>${fmtDate(s.startedAt)} · ${esc(s.serviceMode||'')} · ${s.tripId?`trip ${esc(s.tripId)}`:'sans horaire'}</span><span>${s.stopEvents||0} arrêts journalisés · ${s.samples||0} points GPS · max ${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh:'—'} km/h · ${Number.isFinite(s.distanceKm)?s.distanceKm:'—'} km</span></div><span class="v13-session-badge">${s.status==='open'?'EN COURS':'TERMINÉ'}</span></div></div>`).join(''):'<div class="v13-session"><strong>Aucun service enregistré</strong><span>Les journaux apparaîtront ici après une prise de service.</span></div>';
+      box.innerHTML=xs.length?xs.map(s=>`<div class="v13-session"><div class="v13-session-grid"><div><strong>${esc(s.route||'—')} · ${esc(s.destination||'')}</strong><span>${fmtDate(s.startedAt)} · ${esc(s.serviceMode||'')} · ${s.tripId?`trip ${esc(s.tripId)}`:'sans horaire'}</span><span>${s.stopEvents||0} arrêts journalisés · ${s.samples||0} points GPS · max ${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh:'—'} km/h · ${Number.isFinite(s.distanceKm)?s.distanceKm:'—'} km</span></div><span class="v13-session-badge">${s.status==='open'?'EN COURS':s.status==='interrupted'?'INTERROMPU':'TERMINÉ'}</span></div></div>`).join(''):'<div class="v13-session"><strong>Aucun service enregistré</strong><span>Les journaux apparaîtront ici après une prise de service.</span></div>';
     }catch(e){ box.innerHTML=`<div class="v13-session"><strong>Journal indisponible</strong><span>${esc(e.message||e)}</span></div>`; }
   }
   function csvCell(v){ if(v===null||v===undefined)return '';const s=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n;]/.test(s)?`"${s.replaceAll('"','""')}"`:s; }
@@ -5998,7 +6013,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.10 · planning restauré et consolidé';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.10 PLANNING';
+  document.title='Fluo SAEIV V31.11 · fin de course intelligente';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.11';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>

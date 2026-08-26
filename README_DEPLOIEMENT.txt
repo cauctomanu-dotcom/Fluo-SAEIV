@@ -253,3 +253,12 @@ V31.6 — MENU CONDUCTEUR + MON PLANNING + MA JOURNÉE
 - Conservation du planning intuitif : lignes régulières/scolaires, sens, départs disponibles, favoris d’adresses.
 - Conservation du haut-le-pied avec départ repris automatiquement depuis l’arrivée de l’étape précédente lorsque possible.
 - Conservation du cockpit paysage validé.
+
+
+=== V31.11 — FIN DE COURSE INTELLIGENTE / TERMINUS ===
+- Le bouton FIN du cockpit est désormais traité comme une fin de course et ferme toujours proprement le journal actif.
+- Si FIN est utilisé avant d'avoir franchi l'avant-dernier arrêt opérationnel, le journal est classé INTERROMPU.
+- À partir de l'avant-dernier arrêt franchi (prochain arrêt = terminus), FIN classe le journal TERMINÉ.
+- La logique tient compte du terminus opérationnel TAD lorsque le service est en TAD.
+- Au terminus, l'annonce d'arrivée contient désormais un message professionnel de rappel des effets personnels et de remerciement voyageurs.
+- Le cache PWA passe en V31.11 pour éviter le rechargement d'une ancienne interface.
