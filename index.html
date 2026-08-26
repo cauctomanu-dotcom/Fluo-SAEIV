@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=31.11">
+  <link rel="manifest" href="manifest.webmanifest?v=31.12">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Fluo SAEIV V22 · TAD + suivi stable</title>
@@ -51,7 +51,7 @@
 <body>
 <div class="app">
   <header class="top">
-    <div><div class="eyebrow">SAEIV CONDUCTEUR · V13 TRAÇABILITÉ</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · Moselle 57 + Meurthe-et-Moselle 54</div></div>
+    <div><div class="eyebrow">SAEIV CONDUCTEUR · V13 TRAÇABILITÉ</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
     <div id="gpsPill" class="pill">GPS non testé</div>
   </header>
 
@@ -70,7 +70,7 @@
 
     <div class="grid two">
       <label>Département
-        <select id="dept"><option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option></select>
+        <select id="dept"><option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option><option value="67">Bas-Rhin (67)</option><option value="68">Haut-Rhin (68)</option></select>
       </label>
       <label>Ligne
         <select id="route" disabled><option>Choisir d’abord un département</option></select>
@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.11 — édition GitHub monobloc, fin de course intelligente + annonce terminus professionnelle + planning consolidé.
+// Fluo SAEIV V31.13 — édition GitHub monobloc, fin de course intelligente + annonce terminus professionnelle + planning consolidé.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -323,9 +323,113 @@ async function jget(url){
 // reste en mémoire. Le repli vers l'ancienne arborescence facilite la maintenance
 // locale sans modifier les fonctions métier (GPS, annonces, arrêts, TAD, journaux).
 const fluoFlatCache={cores:new Map(),bundles:new Map()};
+
+// V31.13 — Bas-Rhin 67 + Haut-Rhin 68 depuis le GTFS régional unifié Fluo Grand Est.
+// Le flux régional est la source de vérité pour 67/68. Les routes sont isolées par identifiant
+// de réseau CG67:/CG68: afin d'inclure les scolaires absents de certains anciens flux départementaux.
+const FluoRemoteGTFS={
+  sources:{
+    '67':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358'],
+    '68':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358']
+  },
+  labels:{'67':'Bas-Rhin (67)','68':'Haut-Rhin (68)'}, feeds:new Map(), payloads:new Map()
+};
+function fluoCsvRow(line){
+  const out=[];let v='',q=false;
+  for(let i=0;i<=line.length;i++){
+    const c=i<line.length?line[i]:',';
+    if(q){if(c==='"'){if(line[i+1]==='"'){v+='"';i++;}else q=false;}else v+=c;}
+    else if(c==='"')q=true;else if(c===','){out.push(v);v='';}else v+=c;
+  }
+  return out;
+}
+function fluoCsvObjects(text){
+  const lines=String(text||'').replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);if(!lines.length)return[];
+  const h=fluoCsvRow(lines[0]);const rows=[];
+  for(let i=1;i<lines.length;i++){const a=fluoCsvRow(lines[i]),o={};for(let j=0;j<h.length;j++)o[h[j]]=a[j]??'';rows.push(o)}
+  return rows;
+}
+function fluoZipDirectory(bytes){
+  const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let e=-1;
+  for(let i=bytes.length-22;i>=Math.max(0,bytes.length-66000);i--){if(v.getUint32(i,true)===0x06054b50){e=i;break}}
+  if(e<0)throw new Error('archive GTFS ZIP illisible');const n=v.getUint16(e+10,true),off=v.getUint32(e+16,true),map=new Map();let p=off;
+  for(let k=0;k<n&&p+46<=bytes.length;k++){
+    if(v.getUint32(p,true)!==0x02014b50)break;const method=v.getUint16(p+10,true),cs=v.getUint32(p+20,true),us=v.getUint32(p+24,true),nl=v.getUint16(p+28,true),xl=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true),name=new TextDecoder().decode(bytes.subarray(p+46,p+46+nl));
+    const lnl=v.getUint16(lo+26,true),lxl=v.getUint16(lo+28,true),start=lo+30+lnl+lxl;map.set(name.replace(/^.*\//,''),{method,compressed:bytes.slice(start,start+cs),uncompressed:us});p+=46+nl+xl+cl;
+  }
+  return map;
+}
+async function fluoZipText(entry){
+  if(!entry)throw new Error('fichier GTFS absent');if(entry.method===0)return new TextDecoder().decode(entry.compressed);
+  if(entry.method!==8)throw new Error(`compression ZIP non prise en charge (${entry.method})`);
+  if(typeof DecompressionStream!=='function')throw new Error('ce navigateur ne sait pas décompresser le GTFS');
+  let stream;try{stream=new Blob([entry.compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));}catch{throw new Error('décompression ZIP indisponible sur ce navigateur')}
+  return new Response(stream).text();
+}
+function fluoRegionalRouteBelongs(row,dept){
+  const d=String(dept),rid=String(row?.route_id||'').toUpperCase(),agency=String(row?.agency_id||'').toUpperCase(),short=String(row?.route_short_name||'').toUpperCase().replace(/\s+/g,'');
+  // Dans le GTFS régional unifié, les objets historiques des deux réseaux portent CG67:/CG68:.
+  // Les tests agency/short servent uniquement de filet de sécurité si le producteur fait évoluer les IDs.
+  return rid.startsWith(`CG${d}:`) || agency.includes(`FLUO GRAND EST ${d}`) || agency===`CG${d}` || short.startsWith(`${d}R`) || short.startsWith(`${d}S`);
+}
+function fluoRegionalStopBelongs(row,dept){
+  const d=String(dept),sid=String(row?.stop_id||'').toUpperCase(),parent=String(row?.parent_station||'').toUpperCase();
+  return sid.startsWith(`CG${d}:`) || parent.startsWith(`CG${d}:`);
+}
+async function fluoFetchRemoteZip(dept){
+  let last='';for(const url of (FluoRemoteGTFS.sources[dept]||[]))try{
+    const cacheName='fluo-regional-gtfs-v31-13',stampKey='fluo-regional-gtfs-v31-13-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
+    if(fresh&&'caches'in window){try{r=await (await caches.open(cacheName)).match(url)}catch{}}
+    if(!r){r=await fetch(url,{cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error(`HTTP ${r.status}`);if('caches'in window){try{const c=await caches.open(cacheName);await c.put(url,r.clone());localStorage.setItem(stampKey,String(Date.now()))}catch{}}}
+    const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url}
+  }catch(e){last=e?.message||String(e)}
+  throw new Error(`flux GTFS régional Fluo Grand Est inaccessible${last?` : ${last}`:''}`);
+}
+async function fluoRemoteFeed(dept){
+  const d=String(dept);if(FluoRemoteGTFS.feeds.has(d))return FluoRemoteGTFS.feeds.get(d);
+  const promise=(async()=>{
+    const got=await fluoFetchRemoteZip(d),entries=fluoZipDirectory(got.bytes);
+    const [routesTxt,stopsTxt,tripsTxt,calTxt,datesTxt]=await Promise.all([
+      fluoZipText(entries.get('routes.txt')),fluoZipText(entries.get('stops.txt')),fluoZipText(entries.get('trips.txt')),
+      entries.has('calendar.txt')?fluoZipText(entries.get('calendar.txt')):Promise.resolve(''),entries.has('calendar_dates.txt')?fluoZipText(entries.get('calendar_dates.txt')):Promise.resolve('')
+    ]);
+    const allRoutes=fluoCsvObjects(routesTxt),stopsRaw=fluoCsvObjects(stopsTxt),allTrips=fluoCsvObjects(tripsTxt),calendar=fluoCsvObjects(calTxt),dates=fluoCsvObjects(datesTxt);
+    const routes=allRoutes.filter(r=>fluoRegionalRouteBelongs(r,d)),routeIds=new Set(routes.map(r=>String(r.route_id)));
+    const trips=allTrips.filter(t=>routeIds.has(String(t.route_id)));
+    const stops=new Map(),stopList=[];
+    for(const x of stopsRaw){const lat=Number(x.stop_lat),lon=Number(x.stop_lon);if(!x.stop_id||!Number.isFinite(lat)||!Number.isFinite(lon))continue;const z={id:String(x.stop_id),name:x.stop_name||x.stop_id,lat,lon,code:x.stop_code||'',dept:d};stops.set(z.id,z);if(fluoRegionalStopBelongs(x,d))stopList.push(z)}
+    const services={};for(const c of calendar){services[c.service_id]={start:c.start_date||'',end:c.end_date||'',days:['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(k=>Number(c[k]||0)),exceptions:{}}}
+    for(const x of dates){if(!services[x.service_id])services[x.service_id]={start:'',end:'',days:[0,0,0,0,0,0,0],exceptions:{}};services[x.service_id].exceptions[x.date]=Number(x.exception_type||0)}
+    const tripsByRoute=new Map(),tripById=new Map();for(const t of trips){tripById.set(String(t.trip_id),t);const id=String(t.route_id);if(!tripsByRoute.has(id))tripsByRoute.set(id,[]);tripsByRoute.get(id).push(t)}
+    const routeIndex=routes.map(r=>({id:String(r.route_id),short:r.route_short_name||r.route_id,long:r.route_long_name||'',type:r.route_type||'3',color:r.route_color||'FFFFFF',text_color:r.route_text_color||'000000',remote_gtfs:true,department:d,patterns:0})).sort((a,b)=>String(a.short).localeCompare(String(b.short),'fr',{numeric:true}));
+    if(!routeIndex.length)throw new Error(`aucune ligne du réseau ${d} trouvée dans le GTFS régional`);
+    return{dept:d,url:got.url,entries,routesRaw:routes,routes:routeIndex,stops,stopList,services,tripsByRoute,tripById,textCache:new Map(),regional:true};
+  })();FluoRemoteGTFS.feeds.set(d,promise);try{return await promise}catch(e){FluoRemoteGTFS.feeds.delete(d);throw e}
+}
+async function fluoRemoteEntryText(feed,name){if(!feed.textCache.has(name))feed.textCache.set(name,fluoZipText(feed.entries.get(name)));return feed.textCache.get(name)}
+async function fluoRemoteCore(dept){
+  const f=await fluoRemoteFeed(dept);return{format:'fluo-regional-remote-v2',department:String(dept),routesIndex:{department:String(dept),label:FluoRemoteGTFS.labels[String(dept)]||String(dept),source:f.url,routes:f.routes,stop_count:f.stopList.length,regional_gtfs:true},servicesIndex:{services:f.services},stopsIndex:{department:String(dept),stops:f.stopList}};
+}
+async function fluoRemoteRoutePayload(dept,route){
+  const d=String(dept),key=`${d}|${route.id}`;if(FluoRemoteGTFS.payloads.has(key))return FluoRemoteGTFS.payloads.get(key);
+  const promise=(async()=>{
+    const f=await fluoRemoteFeed(d),tripRows=f.tripsByRoute.get(String(route.id))||[];if(!tripRows.length)return{route,patterns:[]};
+    const wanted=new Set(tripRows.map(t=>String(t.trip_id))),byTrip=new Map();const stText=await fluoRemoteEntryText(f,'stop_times.txt'),lines=stText.replace(/^\uFEFF/,'').split(/\r?\n/),head=fluoCsvRow(lines.shift()||''),ix=Object.fromEntries(head.map((h,i)=>[h,i]));
+    for(const line of lines){if(!line)continue;const a=fluoCsvRow(line),tid=String(a[ix.trip_id]||'');if(!wanted.has(tid))continue;const z={stop_id:String(a[ix.stop_id]||''),arrival:a[ix.arrival_time]||'',departure:a[ix.departure_time]||'',seq:Number(a[ix.stop_sequence]||0)};if(!byTrip.has(tid))byTrip.set(tid,[]);byTrip.get(tid).push(z)}
+    byTrip.forEach(xs=>xs.sort((a,b)=>a.seq-b.seq));
+    let shapeIndex=null;if(f.entries.has('shapes.txt')){const shapeText=await fluoRemoteEntryText(f,'shapes.txt'),sl=shapeText.replace(/^\uFEFF/,'').split(/\r?\n/),sh=fluoCsvRow(sl.shift()||'');shapeIndex={lines:sl,ix:Object.fromEntries(sh.map((h,i)=>[h,i]))};}
+    const shapeIds=new Set(tripRows.map(t=>String(t.shape_id||'')).filter(Boolean)),shapeMap=new Map();
+    if(shapeIndex&&shapeIds.size){for(const line of shapeIndex.lines){if(!line)continue;const a=fluoCsvRow(line),sid=String(a[shapeIndex.ix.shape_id]||'');if(!shapeIds.has(sid))continue;const lat=Number(a[shapeIndex.ix.shape_pt_lat]),lon=Number(a[shapeIndex.ix.shape_pt_lon]),seq=Number(a[shapeIndex.ix.shape_pt_sequence]||0);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;if(!shapeMap.has(sid))shapeMap.set(sid,[]);shapeMap.get(sid).push({lat,lon,seq})}shapeMap.forEach(xs=>xs.sort((a,b)=>a.seq-b.seq))}
+    const groups=new Map();
+    for(const t of tripRows){const tid=String(t.trip_id),times=byTrip.get(tid)||[];if(!times.length)continue;const sid=String(t.shape_id||''),headsign=t.trip_headsign||'',dir=String(t.direction_id??''),sig=`${dir}|${headsign}|${sid}|${times.map(x=>x.stop_id).join('>')}`;let g=groups.get(sig);if(!g){const shp=(shapeMap.get(sid)||[]).map(x=>[x.lat,x.lon]);g={headsign,direction:dir,examples:[],trips:[],shape_id:sid,trace_source:shp.length?'fluo_gtfs_regional':'road_fallback',shape_points:shp.length,shape:shp,stops:times.map(x=>{const s=f.stops.get(x.stop_id)||{id:x.stop_id,name:x.stop_id,lat:NaN,lon:NaN,code:''};return{id:s.id,name:s.name,lat:s.lat,lon:s.lon,code:s.code,arrival:x.arrival,departure:x.departure}})};groups.set(sig,g)}
+      const arr=times.map(x=>[x.arrival,x.departure]);g.trips.push({id:tid,service:String(t.service_id||''),headsign,trip_short_name:t.trip_short_name||'',block_id:t.block_id||'',times:arr});const ex=arr[0]?.[1]||arr[0]?.[0];if(ex&&g.examples.length<3&&!g.examples.includes(ex))g.examples.push(ex);
+    }
+    return{route:{id:route.id,short:route.short,long:route.long,type:route.type,color:route.color,text_color:route.text_color},patterns:[...groups.values()]};
+  })();FluoRemoteGTFS.payloads.set(key,promise);try{return await promise}catch(e){FluoRemoteGTFS.payloads.delete(key);throw e}
+}
 async function fluoDeptCore(dept){
   const d=String(dept);
-  if(!fluoFlatCache.cores.has(d)) fluoFlatCache.cores.set(d,jget(`fluo${d}_core.json.gz`));
+  if(!fluoFlatCache.cores.has(d)) fluoFlatCache.cores.set(d,(d==='67'||d==='68')?fluoRemoteCore(d):jget(`fluo${d}_core.json.gz`));
   return fluoFlatCache.cores.get(d);
 }
 async function fluoRoutesData(dept){
@@ -341,6 +445,7 @@ async function fluoStopsData(dept){
   catch{return jget(`data/${dept}/stops.json`);}
 }
 async function fluoRoutePayload(dept,route){
+  if(route?.remote_gtfs) return fluoRemoteRoutePayload(String(dept),route);
   if(route?.bundle){
     if(!fluoFlatCache.bundles.has(route.bundle)) fluoFlatCache.bundles.set(route.bundle,jget(route.bundle));
     const pack=await fluoFlatCache.bundles.get(route.bundle), payload=pack?.routes?.[route.file];
@@ -855,7 +960,7 @@ async function loadDept(d){
   if(!d){ resetSelections('dept'); state.dept=null; status('Choisis un département.'); return; }
   state.dept=d; resetSelections('dept');
   ui.route.innerHTML='<option>Chargement…</option>';
-  status(`Chargement des lignes ${d}…`);
+  status(`Chargement des lignes ${d}…${(d==='67'||d==='68')?' · synchronisation GTFS régional officiel':''}`);
   try{
     const [data,svc]=await Promise.all([fluoRoutesData(d),fluoServicesData(d).catch(()=>({services:{}}))]);
     state.routes=data.routes||[]; state.services=svc.services||{};
@@ -2686,7 +2791,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
           <button id="v16CalcClose" class="sheet-close" type="button">Fermer</button>
         </div>
         <div class="v16-calc-grid">
-          <label>Département<select id="v16CalcDept"><option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option></select></label>
+          <label>Département<select id="v16CalcDept"><option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option><option value="67">Bas-Rhin (67)</option><option value="68">Haut-Rhin (68)</option></select></label>
           <label>Ligne<select id="v16CalcRoute" disabled><option>Choisir le département</option></select></label>
           <label>Sens / parcours<select id="v16CalcPattern" disabled><option>Choisir la ligne</option></select></label>
           <label>Arrêt de départ<select id="v16CalcStart" disabled><option>Choisir le parcours</option></select></label>
@@ -3155,6 +3260,16 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
       if(/^54R\d+[A-Z0-9]*$/.test(code)) return 'regular';
       return 'school';
     }
+    if(dep==='67'){
+      // Bas-Rhin : règle conducteur — seules les 67R + chiffres sont régulières.
+      if(/^67R\d+[A-Z0-9]*$/.test(code)) return 'regular';
+      return 'school';
+    }
+    if(dep==='68'){
+      // Haut-Rhin : règle conducteur — seules les 68R + chiffres sont régulières.
+      if(/^68R\d+[A-Z0-9]*$/.test(code)) return 'regular';
+      return 'school';
+    }
     if(genericSchoolText(text)) return 'school';
     return 'regular';
   }
@@ -3178,7 +3293,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
         <option value="all">Toutes les lignes</option>
         <option value="custom">Lignes personnalisées</option>
       </select>
-      <small>57 : régulières 57R… · 54 : régulières 54R… ; toutes les autres lignes du 54 sont classées scolaires. · « Toutes » affiche l’ensemble.</small>
+      <small>57 : régulières 57R… · 54 : régulières 54R… · 67 : régulières 67R… · 68 : régulières 68R… ; les autres lignes de ces départements sont classées scolaires. · « Toutes » affiche l’ensemble.</small>
       <span id="lineTypeCount" class="v18-filter-count"></span>`;
     route.closest('label')?.before(label);
   }
@@ -5743,7 +5858,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   let plan=loadPlan(),progress=loadProgress(),weekStart=monday(today()),selectedDate=today(),editingId=null,draftLink=null,draftOrigin=null,draftDestination=null;
   const V317={routes:new Map(),patterns:new Map(),stops:new Map(),regularToken:0};
   const V318_ADDRESS_KEY='fluo-saeiv-saved-addresses-v318';
-  function v318RouteClass(r){const code=String(r?.short||'').toUpperCase().replace(/^\d{2}/,'');return /^[SE]/.test(code)?'school':'regular'}
+  function v318RouteClass(r){const full=String(r?.short||'').toUpperCase().replace(/\s+/g,''),dept=String(r?.department||r?.dept||((full.match(/^(67|68)/)||[])[1]||''));if(dept==='67')return /^67R\d+/.test(full)?'regular':'school';if(dept==='68')return /^68R\d+/.test(full)?'regular':'school';const code=full.replace(/^\d{2}/,'');return /^[SE]/.test(code)?'school':'regular'}
   function v318LoadAddresses(){try{const xs=JSON.parse(localStorage.getItem(V318_ADDRESS_KEY)||'[]');return Array.isArray(xs)?xs:[]}catch{return[]}}
   function v318StoreAddresses(xs){localStorage.setItem(V318_ADDRESS_KEY,JSON.stringify(xs));v318RefreshSavedAddresses()}
   function v318RefreshSavedAddresses(){const xs=v318LoadAddresses().sort((a,b)=>String(a.label||a.address||'').localeCompare(String(b.label||b.address||''),'fr'));document.querySelectorAll('.v318-saved-address').forEach(sel=>{const keep=sel.value;sel.innerHTML='<option value="">— Saisir une nouvelle adresse —</option>'+xs.map(a=>`<option value="${esc(a.id)}">${esc(a.label||a.address||a.name||'Adresse')} · ${esc(a.address||a.name||'')}</option>`).join('');if(keep&&xs.some(a=>String(a.id)===String(keep)))sel.value=keep});}
@@ -5791,7 +5906,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     return true;
   }
   function v317SyncEditorMode(x=null){const type=q('v316Type')?.value||'regular',regular=type==='regular',hlp=type==='hlp',simple=['start','end','annex','availability','cut','pause','other'].includes(type);q('v317RegularGuide')?.classList.toggle('hidden',!regular);q('v317HlpGuide')?.classList.toggle('hidden',!hlp);q('v318RawStart')?.classList.toggle('hidden',regular);q('v318RawEnd')?.classList.toggle('hidden',regular);for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawRegime','v317RawDistance','v317RawDrive'])q(id)?.classList.remove('hidden');if(regular){for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawRegime','v317RawDistance','v317RawDrive'])q(id)?.classList.add('hidden')}else if(hlp){for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawDistance'])q(id)?.classList.add('hidden')}else if(simple){for(const id of ['v317RawLine','v317RawOrigin','v317RawDestination','v317RawRegime','v317RawDistance','v317RawDrive'])q(id)?.classList.add('hidden')}const legacyTools=document.querySelector('#v316Editor .v316-link-tools'),legacyStatus=q('v316LinkStatus'),hideLegacy=regular||hlp||simple;if(legacyTools)legacyTools.classList.toggle('hidden',hideLegacy);if(legacyStatus)legacyStatus.classList.toggle('hidden',hideLegacy);if(hlp){document.querySelectorAll('.v317-place-card').forEach(card=>v317PopulateHlpCard(card,card.dataset.v317Place,x));v318RefreshSavedAddresses()}}
-  async function v317InitRegularEditor(x=null){const linked=x?.linked||draftLink||null,dept=String(linked?.dept||'57');if(q('v317RegularDept'))q('v317RegularDept').value=['54','57'].includes(dept)?dept:'57';let family='regular';if(linked?.routeId){try{const all=await v317Routes(dept),r=all.find(z=>String(z.id)===String(linked.routeId));if(r)family=v318RouteClass(r)}catch{}}if(q('v318RegularClass'))q('v318RegularClass').value=family;await v317LoadRegularLines(linked?.routeId);if(linked?.routeId&&q('v317RegularLine'))q('v317RegularLine').value=String(linked.routeId);if(q('v317RegularLine')?.value){await v317LoadRegularDirections(linked?.patternIndex);if(linked?.patternIndex!==undefined&&linked?.patternIndex!==null){const hit=[...q('v317RegularDirection').options].find(o=>String(o.value).split(',').map(Number).includes(Number(linked.patternIndex)));if(hit)q('v317RegularDirection').value=hit.value}else if(x?.origin&&x?.destination){const deptNow=q('v317RegularDept').value,routes=await v317Routes(deptNow),route=routes.find(r=>String(r.id)===String(q('v317RegularLine').value));if(route){const ps=await v317Patterns(deptNow,route),pi=ps.findIndex(p=>String(p?.stops?.[0]?.name||'')===String(x.origin)&&String(p?.headsign||p?.stops?.at(-1)?.name||'')===String(x.destination));if(pi>=0){const opt=[...q('v317RegularDirection').options].find(o=>String(o.value).split(',').map(Number).includes(pi));if(opt)q('v317RegularDirection').value=opt.value}}}if(q('v317RegularDirection')?.value)await v318LoadRegularDepartures(linked?.tripId||null)}q('v317RegularStatus').textContent=linked?`✅ Course liée : ${linked.routeShort||x?.line||''}. Tu peux changer le type de ligne, la ligne, le sens ou l’heure de départ.`:'Choisis le type de ligne, la ligne, le sens puis une heure de départ disponible.'}
+  async function v317InitRegularEditor(x=null){const linked=x?.linked||draftLink||null,dept=String(linked?.dept||'57');if(q('v317RegularDept'))q('v317RegularDept').value=['54','57','67','68'].includes(dept)?dept:'57';let family='regular';if(linked?.routeId){try{const all=await v317Routes(dept),r=all.find(z=>String(z.id)===String(linked.routeId));if(r)family=v318RouteClass(r)}catch{}}if(q('v318RegularClass'))q('v318RegularClass').value=family;await v317LoadRegularLines(linked?.routeId);if(linked?.routeId&&q('v317RegularLine'))q('v317RegularLine').value=String(linked.routeId);if(q('v317RegularLine')?.value){await v317LoadRegularDirections(linked?.patternIndex);if(linked?.patternIndex!==undefined&&linked?.patternIndex!==null){const hit=[...q('v317RegularDirection').options].find(o=>String(o.value).split(',').map(Number).includes(Number(linked.patternIndex)));if(hit)q('v317RegularDirection').value=hit.value}else if(x?.origin&&x?.destination){const deptNow=q('v317RegularDept').value,routes=await v317Routes(deptNow),route=routes.find(r=>String(r.id)===String(q('v317RegularLine').value));if(route){const ps=await v317Patterns(deptNow,route),pi=ps.findIndex(p=>String(p?.stops?.[0]?.name||'')===String(x.origin)&&String(p?.headsign||p?.stops?.at(-1)?.name||'')===String(x.destination));if(pi>=0){const opt=[...q('v317RegularDirection').options].find(o=>String(o.value).split(',').map(Number).includes(pi));if(opt)q('v317RegularDirection').value=opt.value}}}if(q('v317RegularDirection')?.value)await v318LoadRegularDepartures(linked?.tripId||null)}q('v317RegularStatus').textContent=linked?`✅ Course liée : ${linked.routeShort||x?.line||''}. Tu peux changer le type de ligne, la ligne, le sens ou l’heure de départ.`:'Choisis le type de ligne, la ligne, le sens puis une heure de départ disponible.'}
   const routeLengthKm=shape=>{let m=0;for(let i=1;i<(shape||[]).length;i++){const a=shape[i-1],b=shape[i];if(a&&b&&typeof dist==='function')m+=dist(Number(a[0]),Number(a[1]),Number(b[0]),Number(b[1]))}return m/1000};
   const regimeOf=item=>{if(item.regime&&item.regime!=='auto')return item.regime;const km=Number(item.lineDistanceKm);if(Number.isFinite(km)&&km>0)return km<=50?'national50':'eu561';return TYPE[item.type]?.drive?'unknown':'none'};
   const driveMinutes=item=>TYPE[item.type]?.drive?Math.max(0,Number(item.driveMinutes)||dur(item)):0;
@@ -5854,7 +5969,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
         <section id="v317RegularGuide" class="v317-guide hidden">
           <div class="v317-guide-title"><b>🚌 Course de ligne</b><span>Choisis le département, le type de ligne, la ligne, le sens puis l’heure de départ réellement disponible ce jour. Les horaires et le terminus sont récupérés automatiquement.</span></div>
           <div class="v317-guide-grid v318-regular-grid">
-            <label>Département<select id="v317RegularDept"><option value="57">57 · Moselle</option><option value="54">54 · Meurthe-et-Moselle</option></select></label>
+            <label>Département<select id="v317RegularDept"><option value="57">57 · Moselle</option><option value="54">54 · Meurthe-et-Moselle</option><option value="67">67 · Bas-Rhin</option><option value="68">68 · Haut-Rhin</option></select></label>
             <label>Type de ligne<select id="v318RegularClass"><option value="regular">Ligne régulière</option><option value="school">Ligne scolaire</option></select></label>
             <label class="wide">Ligne<select id="v317RegularLine"><option value="">Choisir une ligne…</option></select></label>
             <label class="wide">Sens / parcours<select id="v317RegularDirection" disabled><option value="">Choisir d’abord une ligne…</option></select></label>
@@ -5865,8 +5980,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
         <section id="v317HlpGuide" class="v317-guide hidden">
           <div class="v317-guide-title"><b>↗ Haut-le-pied</b><span id="v317HlpStatus">Pour chaque extrémité, choisis un arrêt Fluo ou saisis une adresse. Le départ est repris automatiquement de l’étape précédente quand c’est possible.</span></div>
           <div class="v317-place-pair">
-            <div class="v317-place-card" data-v317-place="origin"><div class="v317-place-head"><b>📍 Départ</b><select class="v317-place-kind"><option value="stop">Arrêt Fluo</option><option value="address">Adresse</option></select></div><div class="v317-stop-mode"><label>Département<select class="v317-place-dept"><option value="57">57</option><option value="54">54</option></select></label><label class="wide">Rechercher un arrêt<input class="v317-place-search" type="search" autocomplete="off" placeholder="Ex. Château-Salins, gare, mairie…"></label><div class="v317-place-results"></div></div><div class="v317-address-mode hidden"><label>Adresse enregistrée<select class="v318-saved-address"><option value="">— Saisir une nouvelle adresse —</option></select></label><label>Adresse<input class="v317-place-address" type="text" autocomplete="street-address" placeholder="Rue, numéro, commune…"></label><div class="v318-address-actions"><button class="v318-address-save" type="button">⭐ Enregistrer</button><button class="v317-address-check" type="button">🔎 Vérifier</button><button class="v318-address-delete" type="button" title="Supprimer cette adresse enregistrée">🗑</button></div></div><div class="v317-place-selected">Aucun départ sélectionné.</div></div>
-            <div class="v317-place-card" data-v317-place="destination"><div class="v317-place-head"><b>🏁 Destination</b><select class="v317-place-kind"><option value="stop">Arrêt Fluo</option><option value="address">Adresse</option></select></div><div class="v317-stop-mode"><label>Département<select class="v317-place-dept"><option value="57">57</option><option value="54">54</option></select></label><label class="wide">Rechercher un arrêt<input class="v317-place-search" type="search" autocomplete="off" placeholder="Ex. Baronville, dépôt, gare…"></label><div class="v317-place-results"></div></div><div class="v317-address-mode hidden"><label>Adresse enregistrée<select class="v318-saved-address"><option value="">— Saisir une nouvelle adresse —</option></select></label><label>Adresse<input class="v317-place-address" type="text" autocomplete="street-address" placeholder="Rue, numéro, commune…"></label><div class="v318-address-actions"><button class="v318-address-save" type="button">⭐ Enregistrer</button><button class="v317-address-check" type="button">🔎 Vérifier</button><button class="v318-address-delete" type="button" title="Supprimer cette adresse enregistrée">🗑</button></div></div><div class="v317-place-selected">Aucune destination sélectionnée.</div></div>
+            <div class="v317-place-card" data-v317-place="origin"><div class="v317-place-head"><b>📍 Départ</b><select class="v317-place-kind"><option value="stop">Arrêt Fluo</option><option value="address">Adresse</option></select></div><div class="v317-stop-mode"><label>Département<select class="v317-place-dept"><option value="57">57</option><option value="54">54</option><option value="67">67</option><option value="68">68</option></select></label><label class="wide">Rechercher un arrêt<input class="v317-place-search" type="search" autocomplete="off" placeholder="Ex. Château-Salins, gare, mairie…"></label><div class="v317-place-results"></div></div><div class="v317-address-mode hidden"><label>Adresse enregistrée<select class="v318-saved-address"><option value="">— Saisir une nouvelle adresse —</option></select></label><label>Adresse<input class="v317-place-address" type="text" autocomplete="street-address" placeholder="Rue, numéro, commune…"></label><div class="v318-address-actions"><button class="v318-address-save" type="button">⭐ Enregistrer</button><button class="v317-address-check" type="button">🔎 Vérifier</button><button class="v318-address-delete" type="button" title="Supprimer cette adresse enregistrée">🗑</button></div></div><div class="v317-place-selected">Aucun départ sélectionné.</div></div>
+            <div class="v317-place-card" data-v317-place="destination"><div class="v317-place-head"><b>🏁 Destination</b><select class="v317-place-kind"><option value="stop">Arrêt Fluo</option><option value="address">Adresse</option></select></div><div class="v317-stop-mode"><label>Département<select class="v317-place-dept"><option value="57">57</option><option value="54">54</option><option value="67">67</option><option value="68">68</option></select></label><label class="wide">Rechercher un arrêt<input class="v317-place-search" type="search" autocomplete="off" placeholder="Ex. Baronville, dépôt, gare…"></label><div class="v317-place-results"></div></div><div class="v317-address-mode hidden"><label>Adresse enregistrée<select class="v318-saved-address"><option value="">— Saisir une nouvelle adresse —</option></select></label><label>Adresse<input class="v317-place-address" type="text" autocomplete="street-address" placeholder="Rue, numéro, commune…"></label><div class="v318-address-actions"><button class="v318-address-save" type="button">⭐ Enregistrer</button><button class="v317-address-check" type="button">🔎 Vérifier</button><button class="v318-address-delete" type="button" title="Supprimer cette adresse enregistrée">🗑</button></div></div><div class="v317-place-selected">Aucune destination sélectionnée.</div></div>
           </div>
         </section>
         <label class="v316-notes">Notes<textarea id="v316Notes" rows="3" maxlength="500" placeholder="Consignes, lieu de coupure, véhicule…"></textarea></label>
@@ -6013,10 +6128,14 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.11 · fin de course intelligente';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.11';
+  document.title='Fluo SAEIV V31.13 · fin de course intelligente';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.13';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
 
+
+<script id="v312DepartmentRules">
+(()=>{window.FluoDepartmentRulesV312={isRegular(code){const s=String(code||'').toUpperCase().replace(/\s+/g,'');if(/^67/.test(s))return /^67R\d+/.test(s);if(/^68/.test(s))return /^68R\d+/.test(s);return !/^(54|57)[SE]/.test(s)},departmentName(d){return({'54':'Meurthe-et-Moselle','57':'Moselle','67':'Bas-Rhin','68':'Haut-Rhin'})[String(d)]||String(d)}}})();
+</script>
 </body>
 </html>
