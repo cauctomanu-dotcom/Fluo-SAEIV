@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.15",
-  "short_name": "Fluo V31.15",
-  "start_url": "./?v=31.15",
+  "name": "Fluo SAEIV V31.16",
+  "short_name": "Fluo V31.16",
+  "start_url": "./?v=31.16",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.15 — bascule automatique de la numérotation Fluo 54 au 1er septembre 2026, GTFS régional 67/68, planning et cockpit paysage validé."
+  "description": "SAEIV conducteur V31.16 — correctif 57R026 Ancienne Gare, renumérotation automatique, GTFS régional 67/68, planning et cockpit paysage."
 }

@@ -292,3 +292,8 @@ V31.14 — Classement 67/68 pendant la renumérotation 2026/2027
 - anciennes références 67R/68R reconnues quand elles sont encore présentes dans les métadonnées ;
 - nouvelle numérotation officielle : 3 chiffres = ligne régulière, 4 chiffres = ligne scolaire ;
 - compatibilité avec la transition particulière du Bas-Rhin, dont les lignes régulières changent plus tard.
+
+V31.16 — correctif opérationnel 57R026
+- Course 07:56 au départ de BARONVILLE - Route Nationale : ajout de CHATEAU-SALINS - Ancienne Gare en terminus à 08:27, après Place Du Ruisseau Salé 08:25.
+- Course 17:45 au départ de CHATEAU-SALINS - Place Du Ruisseau Salé : ajout de CHATEAU-SALINS - Ancienne Gare à 17:47 avant Centre Hospitalier 17:50.
+- Les géométries des deux variantes ont été alignées sur les variantes GTFS déjà présentes qui desservent Ancienne Gare, afin que le guidage GPS passe réellement par le nouvel arrêt.

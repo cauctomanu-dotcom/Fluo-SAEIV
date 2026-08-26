@@ -174,7 +174,8 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.15 — édition GitHub monobloc, bascule automatique de numérotation Fluo 54 au 1er septembre 2026 + 67/68 régional.
+// Fluo SAEIV V31.16 — édition GitHub monobloc, bascule automatique de numérotation Fluo 54 au 1er septembre 2026 + 67/68 régional.
+// V31.16 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -324,7 +325,7 @@ async function jget(url){
 // locale sans modifier les fonctions métier (GPS, annonces, arrêts, TAD, journaux).
 const fluoFlatCache={cores:new Map(),bundles:new Map()};
 
-// V31.15 — GTFS régional unifié pour 67/68 et pour le 54 à compter du 01/09/2026.
+// V31.16 — GTFS régional unifié pour 67/68 et pour le 54 à compter du 01/09/2026.
 // Avant cette date de service, le 54 conserve les données et numéros historiques embarqués.
 // Après cette date, le GTFS régional devient la source de vérité pour la nouvelle numérotation.
 const FLUO_RENUMBER_CUTOVER_2026='2026-09-01';
@@ -388,7 +389,7 @@ function fluoRegionalStopBelongs(row,dept){
 }
 async function fluoFetchRemoteZip(dept){
   let last='';for(const url of (FluoRemoteGTFS.sources[dept]||[]))try{
-    const cacheName='fluo-regional-gtfs-v31-15',stampKey='fluo-regional-gtfs-v31-15-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
+    const cacheName='fluo-regional-gtfs-v31-16',stampKey='fluo-regional-gtfs-v31-16-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
     if(fresh&&'caches'in window){try{r=await (await caches.open(cacheName)).match(url)}catch{}}
     if(!r){r=await fetch(url,{cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error(`HTTP ${r.status}`);if('caches'in window){try{const c=await caches.open(cacheName);await c.put(url,r.clone());localStorage.setItem(stampKey,String(Date.now()))}catch{}}}
     const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url}
@@ -6167,7 +6168,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.15 · renumérotation automatique';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.15';
+  document.title='Fluo SAEIV V31.16 · renumérotation automatique';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.16';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
