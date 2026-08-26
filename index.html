@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.14 — édition GitHub monobloc, fin de course intelligente + annonce terminus professionnelle + planning consolidé.
+// Fluo SAEIV V31.15 — édition GitHub monobloc, bascule automatique de numérotation Fluo 54 au 1er septembre 2026 + 67/68 régional.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -324,16 +324,26 @@ async function jget(url){
 // locale sans modifier les fonctions métier (GPS, annonces, arrêts, TAD, journaux).
 const fluoFlatCache={cores:new Map(),bundles:new Map()};
 
-// V31.13 — Bas-Rhin 67 + Haut-Rhin 68 depuis le GTFS régional unifié Fluo Grand Est.
-// Le flux régional est la source de vérité pour 67/68. Les routes sont isolées par identifiant
-// de réseau CG67:/CG68: afin d'inclure les scolaires absents de certains anciens flux départementaux.
+// V31.15 — GTFS régional unifié pour 67/68 et pour le 54 à compter du 01/09/2026.
+// Avant cette date de service, le 54 conserve les données et numéros historiques embarqués.
+// Après cette date, le GTFS régional devient la source de vérité pour la nouvelle numérotation.
+const FLUO_RENUMBER_CUTOVER_2026='2026-09-01';
 const FluoRemoteGTFS={
   sources:{
+    '54':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358'],
     '67':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358'],
     '68':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358']
   },
-  labels:{'67':'Bas-Rhin (67)','68':'Haut-Rhin (68)'}, feeds:new Map(), payloads:new Map()
+  labels:{'54':'Meurthe-et-Moselle (54)','67':'Bas-Rhin (67)','68':'Haut-Rhin (68)'}, feeds:new Map(), payloads:new Map()
 };
+function fluoLocalIsoDate(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function fluoSelectedIsoDate(){const raw=document.getElementById('serviceDate')?.value;return /^\d{4}-\d{2}-\d{2}$/.test(String(raw||''))?String(raw):fluoLocalIsoDate()}
+function fluoUsesRegionalData(dept,dateIso=fluoSelectedIsoDate()){
+  const d=String(dept);if(d==='67'||d==='68')return true;if(d==='54')return String(dateIso)>=FLUO_RENUMBER_CUTOVER_2026;return false;
+}
+function fluoDeptDataEra(dept,dateIso=fluoSelectedIsoDate()){const d=String(dept);return `${d}:${fluoUsesRegionalData(d,dateIso)?'regional-2026':'historique'}`}
+function fluoServiceCoversIso(rec,iso){if(!rec)return true;const key=String(iso||'').replaceAll('-','');const ex=rec.exceptions?.[key];if(ex===1)return true;if(ex===2)return false;if(rec.start&&key<rec.start)return false;if(rec.end&&key>rec.end)return false;return true}
+
 function fluoCsvRow(line){
   const out=[];let v='',q=false;
   for(let i=0;i<=line.length;i++){
@@ -378,7 +388,7 @@ function fluoRegionalStopBelongs(row,dept){
 }
 async function fluoFetchRemoteZip(dept){
   let last='';for(const url of (FluoRemoteGTFS.sources[dept]||[]))try{
-    const cacheName='fluo-regional-gtfs-v31-14',stampKey='fluo-regional-gtfs-v31-14-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
+    const cacheName='fluo-regional-gtfs-v31-15',stampKey='fluo-regional-gtfs-v31-15-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
     if(fresh&&'caches'in window){try{r=await (await caches.open(cacheName)).match(url)}catch{}}
     if(!r){r=await fetch(url,{cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error(`HTTP ${r.status}`);if('caches'in window){try{const c=await caches.open(cacheName);await c.put(url,r.clone());localStorage.setItem(stampKey,String(Date.now()))}catch{}}}
     const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url}
@@ -428,13 +438,26 @@ async function fluoRemoteRoutePayload(dept,route){
   })();FluoRemoteGTFS.payloads.set(key,promise);try{return await promise}catch(e){FluoRemoteGTFS.payloads.delete(key);throw e}
 }
 async function fluoDeptCore(dept){
-  const d=String(dept);
-  if(!fluoFlatCache.cores.has(d)) fluoFlatCache.cores.set(d,(d==='67'||d==='68')?fluoRemoteCore(d):jget(`fluo${d}_core.json.gz`));
-  return fluoFlatCache.cores.get(d);
+  const d=String(dept),remote=fluoUsesRegionalData(d),key=fluoDeptDataEra(d);
+  if(!fluoFlatCache.cores.has(key))fluoFlatCache.cores.set(key,remote?fluoRemoteCore(d):jget(`fluo${d}_core.json.gz`));
+  return fluoFlatCache.cores.get(key);
 }
 async function fluoRoutesData(dept){
-  try{return (await fluoDeptCore(dept)).routesIndex;}
-  catch{return jget(`data/${dept}/routes.json`);}
+  const d=String(dept);
+  try{
+    const core=await fluoDeptCore(d),idx=core.routesIndex;
+    if(!idx?.regional_gtfs)return idx;
+    const feed=await fluoRemoteFeed(d),iso=fluoSelectedIsoDate();
+    let routes=(idx.routes||[]).filter(r=>{const trips=feed.tripsByRoute.get(String(r.id))||[];return !trips.length||trips.some(t=>fluoServiceCoversIso(feed.services[String(t.service_id||'')],iso))});
+    // 54 : dès le 01/09/2026, privilégier strictement la nouvelle numérotation régionale
+    // (3 chiffres régulières / 4 chiffres scolaires) si elle est déjà publiée dans le GTFS.
+    if(d==='54'&&String(iso)>=FLUO_RENUMBER_CUTOVER_2026){
+      const renum=routes.filter(r=>/^\d{3,4}$/.test(String(r.short||'').trim()));
+      if(!renum.length)throw new Error('la nouvelle numérotation Fluo 54 n’est pas encore publiée dans le GTFS régional pour cette date');
+      routes=renum;
+    }
+    return{...idx,routes,numbering_era:d==='54'?(String(iso)>=FLUO_RENUMBER_CUTOVER_2026?'nouvelle-2026':'historique'):idx.numbering_era};
+  }catch{return jget(`data/${dept}/routes.json`);}
 }
 async function fluoServicesData(dept){
   try{return (await fluoDeptCore(dept)).servicesIndex;}
@@ -956,17 +979,21 @@ function resetSelections(level='dept'){
   }
 }
 
+let fluoLast54DataEra=null;
 async function loadDept(d){
   if(!d){ resetSelections('dept'); state.dept=null; status('Choisis un département.'); return; }
   state.dept=d; resetSelections('dept');
+  const era=fluoDeptDataEra(d);if(String(d)==='54')fluoLast54DataEra=era;
   ui.route.innerHTML='<option>Chargement…</option>';
-  status(`Chargement des lignes ${d}…${(d==='67'||d==='68')?' · synchronisation GTFS régional officiel':''}`);
+  const regional=fluoUsesRegionalData(d),switchNote=String(d)==='54'?(regional?' · nouvelle numérotation depuis le 01/09/2026':' · numérotation historique jusqu’au 31/08/2026'):'';
+  status(`Chargement des lignes ${d}…${regional?' · synchronisation GTFS régional officiel':''}${switchNote}`);
   try{
     const [data,svc]=await Promise.all([fluoRoutesData(d),fluoServicesData(d).catch(()=>({services:{}}))]);
     state.routes=data.routes||[]; state.services=svc.services||{};
     ui.route.innerHTML='<option value="">Choisir une ligne…</option>'+state.routes.map(r=>`<option value="${esc(r.id)}">${esc(r.short)} — ${esc(r.long)}</option>`).join('');
     ui.route.disabled=false;
-    status(`${state.routes.length} lignes · ${data.stop_count} points d’arrêt chargés.`, 'ok');
+    const numberNote=String(d)==='54'?` · ${regional?'nouveaux numéros actifs':'anciens numéros actifs'}`:'';
+    status(`${state.routes.length} lignes · ${data.stop_count} points d’arrêt chargés${numberNote}.`, 'ok');
   }catch(e){
     ui.route.innerHTML='<option>Données indisponibles</option>';
     status(`Impossible de charger les données ${d}: ${e.message}. Vérifie que l’action GitHub Pages a terminé la publication.`, 'err');
@@ -1511,7 +1538,10 @@ function recenter(){
 
 ui.dept.addEventListener('change',e=>loadDept(e.target.value));
 ui.route.addEventListener('change',()=>{ const r=state.routes.find(x=>x.id===ui.route.value); if(r) loadRoute(r); else resetSelections('route'); });
-ui.serviceDate.addEventListener('change',()=>{ if(state.route&&state.service.mode!=='formation') populateRuns(); });
+ui.serviceDate.addEventListener('change',async()=>{
+  if(state.dept==='54'&&fluoLast54DataEra!==fluoDeptDataEra('54')){await loadDept('54');return;}
+  if(state.route&&state.service.mode!=='formation')populateRuns();
+});
 ui.trip.addEventListener('change',()=>{ if(ui.trip.value==='') selectRun(null); else selectRun(Number(ui.trip.value)); });
 ui.startStop.addEventListener('change',()=>{ updateDepartureDisplay(); if(state.service.mode==='tad') renderTadStopList(false); refreshStartAvailability(); labels(); });
 ui.gpsTest.addEventListener('click',testGps);
@@ -3274,6 +3304,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     }
     if(dep==='54'){
       if(/^54R\d+[A-Z0-9]*$/.test(code)) return 'regular';
+      if(/^\d{3}[A-Z]?$/.test(code)) return 'regular';
+      if(/^\d{4}[A-Z]?$/.test(code)) return 'school';
       return 'school';
     }
     if(dep==='67'||dep==='68')return alsaceLineCategory(text,dep);
@@ -3300,7 +3332,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
         <option value="all">Toutes les lignes</option>
         <option value="custom">Lignes personnalisées</option>
       </select>
-      <small>54/57 : classement historique. · 67/68 : ancienne référence reconnue pendant la transition, puis nouvelle numérotation officielle (3 chiffres = régulière, 4 chiffres = scolaire). · « Toutes » affiche l’ensemble.</small>
+      <small>54 : anciens codes jusqu’au 31/08/2026 puis nouvelle numérotation (3 chiffres = régulière, 4 chiffres = scolaire). · 57 : classement historique. · 67/68 : transition pilotée par le GTFS régional officiel. · « Toutes » affiche l’ensemble.</small>
       <span id="lineTypeCount" class="v18-filter-count"></span>`;
     route.closest('label')?.before(label);
   }
@@ -5865,7 +5897,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   let plan=loadPlan(),progress=loadProgress(),weekStart=monday(today()),selectedDate=today(),editingId=null,draftLink=null,draftOrigin=null,draftDestination=null;
   const V317={routes:new Map(),patterns:new Map(),stops:new Map(),regularToken:0};
   const V318_ADDRESS_KEY='fluo-saeiv-saved-addresses-v318';
-  function v318RouteClass(r){const full=String(r?.short||'').toUpperCase().replace(/\s+/g,''),dept=String(r?.department||r?.dept||((String(r?.id||'').match(/CG(67|68)/i)||[])[1]||((full.match(/^(67|68)/)||[])[1]||'')));if((dept==='67'||dept==='68')&&window.FluoAlsaceLineCategoryV314){const c=window.FluoAlsaceLineCategoryV314(r,dept);if(c!=='unknown')return c}const code=full.replace(/^\d{2}/,'');return /^[SE]/.test(code)?'school':'regular'}
+  function v318RouteClass(r){const full=String(r?.short||'').toUpperCase().replace(/\s+/g,''),dept=String(r?.department||r?.dept||((String(r?.id||'').match(/CG(54|67|68)/i)||[])[1]||((full.match(/^(54|67|68)/)||[])[1]||'')));if((dept==='67'||dept==='68')&&window.FluoAlsaceLineCategoryV314){const c=window.FluoAlsaceLineCategoryV314(r,dept);if(c!=='unknown')return c}if(window.FluoDepartmentRulesV312?.isRegular)return window.FluoDepartmentRulesV312.isRegular(full,dept,r)?'regular':'school';if(/^\d{4}[A-Z]?$/.test(full))return'school';const code=full.replace(/^\d{2}/,'');return /^[SE]/.test(code)?'school':'regular'}
   function v318LoadAddresses(){try{const xs=JSON.parse(localStorage.getItem(V318_ADDRESS_KEY)||'[]');return Array.isArray(xs)?xs:[]}catch{return[]}}
   function v318StoreAddresses(xs){localStorage.setItem(V318_ADDRESS_KEY,JSON.stringify(xs));v318RefreshSavedAddresses()}
   function v318RefreshSavedAddresses(){const xs=v318LoadAddresses().sort((a,b)=>String(a.label||a.address||'').localeCompare(String(b.label||b.address||''),'fr'));document.querySelectorAll('.v318-saved-address').forEach(sel=>{const keep=sel.value;sel.innerHTML='<option value="">— Saisir une nouvelle adresse —</option>'+xs.map(a=>`<option value="${esc(a.id)}">${esc(a.label||a.address||a.name||'Adresse')} · ${esc(a.address||a.name||'')}</option>`).join('');if(keep&&xs.some(a=>String(a.id)===String(keep)))sel.value=keep});}
@@ -5874,9 +5906,9 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const itemsFor=date=>plan.items.filter(x=>x.date===date).sort((a,b)=>(minute(a.start)??9999)-(minute(b.start)??9999)||String(a.id).localeCompare(String(b.id)));
 
-  async function v317Routes(dept){const d=String(dept||'57');if(!V317.routes.has(d)){const data=await fluoRoutesData(d);V317.routes.set(d,(data?.routes||[]).slice().sort((a,b)=>String(a.short||'').localeCompare(String(b.short||''),'fr',{numeric:true})||String(a.long||'').localeCompare(String(b.long||''),'fr')))}return V317.routes.get(d)}
+  async function v317Routes(dept){const d=String(dept||'57'),date=v317PlannerDate();if(q('serviceDate'))q('serviceDate').value=date;const key=`${d}|${fluoDeptDataEra(d,date)}`;if(!V317.routes.has(key)){const data=await fluoRoutesData(d);V317.routes.set(key,(data?.routes||[]).slice().sort((a,b)=>String(a.short||'').localeCompare(String(b.short||''),'fr',{numeric:true})||String(a.long||'').localeCompare(String(b.long||''),'fr')))}return V317.routes.get(key)}
   async function v317Patterns(dept,route){const key=`${dept}|${route?.id||route?.file||route?.short||''}`;if(!V317.patterns.has(key)){const data=await fluoRoutePayload(String(dept),route);V317.patterns.set(key,data?.patterns||[])}return V317.patterns.get(key)}
-  async function v317Stops(dept){const d=String(dept||'57');if(!V317.stops.has(d)){const data=await fluoStopsData(d);V317.stops.set(d,(data?.stops||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'fr')))}return V317.stops.get(d)}
+  async function v317Stops(dept){const d=String(dept||'57'),date=v317PlannerDate();if(q('serviceDate'))q('serviceDate').value=date;const key=`${d}|${fluoDeptDataEra(d,date)}`;if(!V317.stops.has(key)){const data=await fluoStopsData(d);V317.stops.set(key,(data?.stops||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'fr')))}return V317.stops.get(key)}
   function v317PlannerDate(){return q('v316DayTabs')?.querySelector('button.active')?.dataset?.v316Date||selectedDate||today()}
   function v317RouteOptionLabel(r){return `${r.short||'Ligne'}${r.long?` — ${r.long}`:''}`}
   const v317CompactStop=s=>String(s||'').trim().split(/\s+-\s+/)[0].trim()||String(s||'').trim();
@@ -6135,14 +6167,14 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.14 · fin de course intelligente';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.14';
+  document.title='Fluo SAEIV V31.15 · renumérotation automatique';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.15';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
 
 
 <script id="v314DepartmentRules">
-(()=>{window.FluoDepartmentRulesV312={isRegular(code,department,route){const d=String(department||route?.department||route?.dept||'');if((d==='67'||d==='68')&&window.FluoAlsaceLineCategoryV314)return window.FluoAlsaceLineCategoryV314(route||{short:code},d)==='regular';const s=String(code||'').toUpperCase().replace(/\s+/g,'');if(/^67R\d+/.test(s)||/^68R\d+/.test(s))return true;if(/^\d{3}[A-Z]?$/.test(s))return true;if(/^\d{4}[A-Z]?$/.test(s))return false;return !/^(54|57)[SE]/.test(s)},departmentName(d){return({'54':'Meurthe-et-Moselle','57':'Moselle','67':'Bas-Rhin','68':'Haut-Rhin'})[String(d)]||String(d)}}})();
+(()=>{window.FluoDepartmentRulesV312={isRegular(code,department,route){const d=String(department||route?.department||route?.dept||'');if((d==='67'||d==='68')&&window.FluoAlsaceLineCategoryV314)return window.FluoAlsaceLineCategoryV314(route||{short:code},d)==='regular';const s=String(code||'').toUpperCase().replace(/\s+/g,'');if(/^67R\d+/.test(s)||/^68R\d+/.test(s)||/^54R\d+/.test(s))return true;if(/^\d{3}[A-Z]?$/.test(s))return true;if(/^\d{4}[A-Z]?$/.test(s))return false;return !/^(54|57)[SE]/.test(s)},departmentName(d){return({'54':'Meurthe-et-Moselle','57':'Moselle','67':'Bas-Rhin','68':'Haut-Rhin'})[String(d)]||String(d)}}})();
 </script>
 </body>
 </html>

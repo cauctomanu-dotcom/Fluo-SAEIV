@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.14",
-  "short_name": "Fluo V31.14",
-  "start_url": "./?v=31.14",
+  "name": "Fluo SAEIV V31.15",
+  "short_name": "Fluo V31.15",
+  "start_url": "./?v=31.15",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.14 — 67/68 avec classement compatible ancienne et nouvelle numérotation, planning, fin de course intelligente et cockpit paysage validé."
+  "description": "SAEIV conducteur V31.15 — bascule automatique de la numérotation Fluo 54 au 1er septembre 2026, GTFS régional 67/68, planning et cockpit paysage validé."
 }

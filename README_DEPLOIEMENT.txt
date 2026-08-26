@@ -1,3 +1,11 @@
+FLUO SAEIV V31.15 — NOTE DE VERSION
+
+- 54 : anciens numéros conservés pour les dates de service jusqu’au 31/08/2026.
+- 54 : à partir du 01/09/2026, chargement du GTFS régional officiel (CG54) et nouvelle numérotation.
+- Le basculement suit la DATE DE SERVICE sélectionnée, ce qui permet de préparer à l’avance un planning de septembre tout en conservant août dans l’ancien système.
+- 67/68 : GTFS régional officiel conservé.
+- Le cache PWA est versionné V31.15 afin de forcer le renouvellement après déploiement GitHub Pages.
+
 FLUO SAEIV V31.14 — BAS-RHIN 67 + HAUT-RHIN 68
 =================================================
 
