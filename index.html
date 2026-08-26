@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.18 — édition GitHub monobloc, bascule automatique de numérotation Fluo 54 au 1er septembre 2026 + 67/68 régional.
+// Fluo SAEIV V31.19 — 57R027 arrêts à la demande / services sur réservation + V31.18.
 // V31.17 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
 'use strict';
 
@@ -6176,8 +6176,152 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.18 · annonces paysage corrigées';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.18';
+  document.title='Fluo SAEIV V31.19 · 57R027 desserte à la demande';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.19';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
+})();
+</script>
+
+
+<script id="v3119Line57R027ConditionalStops">
+'use strict';
+/* V31.19 — 57R027 : arrêts réguliers à la demande + services réguliers déclenchés sur réservation.
+   Référence métier : fiche officielle 027 (notes A/B/C selon le sens). La ligne reste en mode RÉGULIER.
+   Un arrêt conditionnel non demandé est ignoré ; coché dans « Demandes », il devient un arrêt à desservir
+   (descente demandée ou montée réservée). Le tracé routier est recalculé entre les seuls arrêts opérationnels. */
+(()=>{
+  const q=id=>document.getElementById(id);
+  const ROUTE='57R027', CACHE_KEY='fluo-57r027-demand-routes-v3119';
+  const V={cache:new Map(),serial:0,timer:null,busy:false,ready:false,signature:'',pattern:null,lastError:''};
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[’']/g,"'").replace(/\s+/g,' ').trim();
+  const set=(xs)=>new Set(xs.map(norm));
+  const OUT_ALWAYS=set([
+    'FRESNES-EN-SAULNOIS - Place Des Tilleuls','ORIOCOURT - Village','JALLAUCOURT - Carrefour','LEMONCOURT - Rue Principale',
+    'FONTENY - Eglise','FONTENY - Faxe','VIVIERS - Grand Rue','PUZIEUX - Abreuvoir','PUZIEUX - Rue Principale','JUVILLE - Village',
+    'MONCHEUX - Mairie','MECLEUVES - La Croix Du Mont','MECLEUVES - Les Tarreaux','MECLEUVES - Lanceumont','MECLEUVES - Frontigny / Abbe Rissel',
+    'JURY - Croisement','JURY - Mairie','JURY - Centre Hospitalier','JURY - Les Vallons','ARS-LAQUENEXY - Hopital Mercy'
+  ]);
+  const BACK_ALWAYS=set([
+    'JURY - Mairie','JURY - Centre Hospitalier','JURY - Les Vallons','CHESNY - Village','SOLGNE - Ancy Les Solgne','SECOURT - Place',
+    'SAILLY-ACHATEL - Eglise','SAILLY-ACHATEL - Ecole','MONCHEUX - Mairie','JUVILLE - Village','LIOCOURT - Fontaine','VIVIERS - Grand Rue',
+    'FONTENY - Eglise','FONTENY - Faxe','LEMONCOURT - Rue Principale','JALLAUCOURT - Carrefour','ORIOCOURT - Village',
+    'LANEUVEVILLE-EN-SAULNOIS - Eglise','FRESNES-EN-SAULNOIS - Place Des Tilleuls'
+  ]);
+  const OUT_0600_LONG=set(['SILLY-EN-SAULNOIS - Centre','LIEHON - Rue Principale','PONTOY - Rue Principale','PONTOY - Rue De L\'Etang','CHERISEY - Rue Principale','CHERISEY - Mairie']);
+  const OUT_0755=set(['PONTOY - Rue Principale','PONTOY - Rue De L\'Etang']);
+  const BACK_1220=set(['ORNY - Ferme Pierrejeux','ORNY - Mairie','CHERISEY - Mairie','CHERISEY - Rue Principale','PONTOY - Rue Principale','PONTOY - Rue De L\'Etang','SILLY-EN-SAULNOIS - Centre']);
+  const BACK_1225=set(['JURY - Croisement','MECLEUVES - Frontigny / Abbe Rissel','MECLEUVES - Lanceumont','MECLEUVES - Les Tarreaux','MECLEUVES - La Croix Du Mont']);
+  const BACK_1723=set([
+    'JURY - Croisement','MECLEUVES - Frontigny / Abbe Rissel','MECLEUVES - Lanceumont','MECLEUVES - Les Tarreaux','MECLEUVES - La Croix Du Mont',
+    'ORNY - Ferme Pierrejeux','ORNY - Mairie','CHERISEY - Mairie','CHERISEY - Rue Principale','PONTOY - Rue Principale','PONTOY - Rue De L\'Etang',
+    'LIEHON - Rue Principale','SILLY-EN-SAULNOIS - Centre','BEUX - Rue Principale','SOLGNE - Mairie','SOLGNE - Rue Alsace Lorraine','SECOURT - Croisement',
+    'PUZIEUX - Rue Principale','PUZIEUX - Abreuvoir'
+  ]);
+  const BACK_1832=set(['JURY - Croisement','MECLEUVES - Frontigny / Abbe Rissel','MECLEUVES - Lanceumont','MECLEUVES - Les Tarreaux','MECLEUVES - La Croix Du Mont','PUZIEUX - Rue Principale','PUZIEUX - Abreuvoir']);
+  const isLine=()=>norm(state?.route?.short).replace(/\s+/g,'')===ROUTE;
+  const depClock=()=>String(state?.run?.trip?.times?.[0]?.[1]||state?.run?.trip?.times?.[0]?.[0]||'').slice(0,5);
+  const isOutbound=()=>isLine() && norm(state?.pattern?.stops?.[0]?.name).startsWith('CHATEAU-SALINS');
+  const isReturn=()=>isLine() && norm(state?.pattern?.stops?.[0]?.name).startsWith('METZ');
+  function isReservedService(){
+    if(!isLine()||!state?.run)return false;const d=depClock();
+    return (isOutbound()&&(d==='11:00'||d==='13:00'))||(isReturn()&&(d==='09:15'||d==='13:45'));
+  }
+  function isDemandStop(index){
+    if(!isLine()||state?.service?.mode!=='regular'||!state?.pattern?.stops?.[index])return false;
+    const n=norm(state.pattern.stops[index].name),d=depClock();
+    if(isOutbound()){
+      if(OUT_ALWAYS.has(n))return true;
+      if(d==='07:55'&&OUT_0755.has(n))return true;
+      if(d==='06:00'&&state.pattern.stops.some(s=>norm(s.name)==='SILLY-EN-SAULNOIS - CENTRE')&&OUT_0600_LONG.has(n))return true;
+      return false;
+    }
+    if(isReturn()){
+      if(BACK_ALWAYS.has(n))return true;
+      const first=norm(state.pattern.stops[0]?.name);
+      if(d==='12:20'&&first.includes('GARE ROUTIERE')&&BACK_1220.has(n))return true;
+      if(d==='12:25'&&first.includes('AVENUE FOCH')&&BACK_1225.has(n))return true;
+      if(d==='17:23'&&BACK_1723.has(n))return true;
+      if(d==='18:32'&&BACK_1832.has(n))return true;
+    }
+    return false;
+  }
+  window.Fluo57R027V3119={isDemandStop,isReservedService};
+
+  function demandIndices(){return (state?.pattern?.stops||[]).map((_,i)=>i).filter(isDemandStop)}
+  function operationalIndices(){
+    const stops=state?.pattern?.stops||[];if(!isLine()||state?.service?.mode!=='regular')return stops.map((_,i)=>i);
+    return stops.map((_,i)=>i).filter(i=>!isDemandStop(i)||state.service.requestedStops.has(i));
+  }
+  function sig(){return !isLine()||!state?.pattern?'':`${state.run?.trip?.id||''}|${operationalIndices().join(',')}`}
+  function cloneShape(s){return Array.isArray(s)?s.map(p=>[Number(p[0]),Number(p[1])]):[]}
+  function remember(){if(state?.pattern&&!state.pattern.__v3119OriginalShape)state.pattern.__v3119OriginalShape=cloneShape(state.pattern.shape||[])}
+  function restore(pattern=state?.pattern,redraw=false){if(!pattern?.__v3119OriginalShape)return;pattern.shape=cloneShape(pattern.__v3119OriginalShape);if(pattern===state.pattern){V.ready=false;V.signature='';V.pattern=null;try{prepareCourseGeometry()}catch{};if(redraw&&state?.nav?.map)try{drawRoute()}catch{}}}
+  function loadCache(){try{const o=JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');Object.entries(o).forEach(([k,v])=>{if(v?.shape?.length>=2)V.cache.set(k,v)})}catch{}}
+  function saveCache(){try{const xs=[...V.cache.entries()].sort((a,b)=>(b[1].savedAt||0)-(a[1].savedAt||0)).slice(0,80);localStorage.setItem(CACHE_KEY,JSON.stringify(Object.fromEntries(xs)))}catch{}}
+  loadCache();
+  function setInfo(kind,text){const b=q('v3119DemandInfo'),s=q('v3119DemandStatus');if(b)b.className=`v3119-demand-info ${kind||''}`;if(s)s.textContent=text||'';q('v3119DemandRetry')&&(q('v3119DemandRetry').disabled=V.busy)}
+  function ensureInfo(){
+    const course=q('courseInfo');if(course&&!q('v3119DemandInfo'))course.insertAdjacentHTML('afterend','<div id="v3119DemandInfo" class="v3119-demand-info hidden"><div><b>🚌 57R027 · desserte conditionnelle</b><span id="v3119DemandStatus"></span></div><button id="v3119DemandRetry" type="button">↻ Recalculer</button></div>');
+    q('v3119DemandRetry')?.addEventListener('click',()=>rebuild('manual'));
+  }
+  ensureInfo();
+  async function rebuild(reason='auto'){
+    if(!isLine()||state?.service?.mode!=='regular'||!state?.pattern){q('v3119DemandInfo')?.classList.add('hidden');return false}
+    const ds=demandIndices();if(!ds.length){q('v3119DemandInfo')?.classList.add('hidden');return true}
+    q('v3119DemandInfo')?.classList.remove('hidden');remember();const my=++V.serial,key=sig();V.busy=true;V.ready=false;V.pattern=state.pattern;V.signature='';
+    if(!state.running){if(ui.start)ui.start.disabled=true;if(ui.simulate)ui.simulate.disabled=true}
+    const selected=ds.filter(i=>state.service.requestedStops.has(i));setInfo('loading',`Calcul du parcours : ${selected.length} arrêt${selected.length>1?'s':''} à la demande activé${selected.length>1?'s':''} sur ${ds.length}.`);
+    try{
+      let hit=V.cache.get(key),shape=hit?.shape;if(!shape?.length){
+        const ids=operationalIndices(),pts=ids.map(i=>{const s=state.pattern.stops[i],p=typeof sourceStopPoint==='function'?sourceStopPoint(s):s;return{name:s.name,lat:Number(p.lat),lon:Number(p.lon)}});
+        if(pts.length<2)throw new Error('pas assez d’arrêts opérationnels');
+        shape=await roadGeometryForStops(pts);V.cache.set(key,{shape,savedAt:Date.now()});saveCache();
+      }
+      if(my!==V.serial||V.pattern!==state.pattern)return false;
+      state.pattern.shape=cloneShape(shape);state.pattern.trace_source='57r027_demand_dynamic_osrm';prepareCourseGeometry();V.busy=false;V.ready=true;V.signature=key;V.lastError='';
+      if(state?.nav?.map){drawRoute();updateStopMarkers()}
+      if(state?.mode==='simulation'&&state?.running)try{syncSimulationToState()}catch{}
+      setInfo('ok',`${ds.length} arrêt${ds.length>1?'s':''} conditionnel${ds.length>1?'s':''} · ${selected.length} à desservir · les autres sont contournés.`);try{refreshStartAvailability()}catch{};return true;
+    }catch(e){
+      if(my!==V.serial)return false;V.busy=false;V.ready=false;V.signature='';V.lastError=String(e?.message||e);restore(state.pattern,true);
+      setInfo('err',`Tracé conditionnel non recalculé (${V.lastError}). La course reste accessible sur le tracé officiel ; touche « Recalculer » dès que la connexion le permet.`);try{refreshStartAvailability()}catch{};return false;
+    }
+  }
+  function schedule(delay=180){clearTimeout(V.timer);if(!isLine()||state?.service?.mode!=='regular'||!state?.pattern)return;V.timer=setTimeout(()=>rebuild('selection'),delay)}
+
+  // Les arrêts à la demande sont réellement optionnels dans la progression de la ligne régulière.
+  try{const base=nextOperationalStop;nextOperationalStop=function(fromIndex){if(!isLine()||state?.service?.mode!=='regular')return base(fromIndex);for(let i=fromIndex+1;i<(state.pattern?.stops?.length||0);i++)if(!isDemandStop(i)||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.19 next',e)}
+  try{const base=previousOperationalStop;previousOperationalStop=function(fromIndex){if(!isLine()||state?.service?.mode!=='regular')return base(fromIndex);for(let i=fromIndex-1;i>=0;i--)if(!isDemandStop(i)||state.service.requestedStops.has(i))return i;return null}}catch(e){console.warn('V31.19 prev',e)}
+  try{const base=operationalEndIndex;operationalEndIndex=function(){if(!isLine()||state?.service?.mode!=='regular')return base();for(let i=(state.pattern?.stops?.length||1)-1;i>=0;i--)if(!isDemandStop(i)||state.service.requestedStops.has(i))return i;return 0}}catch(e){console.warn('V31.19 end',e)}
+  try{const base=operationalRemaining;operationalRemaining=function(){if(!isLine()||state?.service?.mode!=='regular')return base();const t=Number(state.target);return operationalIndices().filter(i=>i>=t).length}}catch(e){console.warn('V31.19 remaining',e)}
+
+  // Feuille Demandes enrichie : le même geste couvre une descente demandée ou une montée réservée.
+  try{const base=renderRequestSheet;renderRequestSheet=function(){
+    if(!isLine()||state?.service?.mode!=='regular')return base();if(!ui.requestsList||!state.pattern)return;
+    if(q('requestsTitle'))q('requestsTitle').textContent='🔔 Demandes / arrêts conditionnels';const intro=q('requestsTitle')?.parentElement?.querySelector('p');if(intro)intro.textContent='Sur la 57R027, les arrêts « À LA DEMANDE » sont ignorés s’ils ne sont pas activés. Active-les pour une descente demandée ou lorsqu’une montée a été réservée.';
+    ui.requestsList.innerHTML=state.pattern.stops.map((st,i)=>{const past=i<=state.current,checked=state.service.requestedStops.has(i),conditional=isDemandStop(i),meta=[stopScheduleLabel(i),conditional?'Desserte à la demande · montée sur réservation préalable':past?'déjà passé':'arrêt régulier'].filter(Boolean).join(' · '),tag=conditional?(checked?'✓ À DESSERVIR':'À LA DEMANDE'):(checked?'🔔 DEMANDÉ':'ARRÊT');return `<label class="stop-check ${checked?'requested':''} ${conditional?'v3119-conditional':''}"><input class="request-stop-checkbox" type="checkbox" data-index="${i}" ${checked?'checked':''} ${past?'disabled':''}><span class="stop-check-main"><span class="stop-check-name">${i+1}. ${esc(st.name)}</span><span class="stop-check-meta">${esc(meta)}</span></span><span class="stop-check-tag">${tag}</span></label>`}).join('');
+  }}catch(e){console.warn('V31.19 requests sheet',e)}
+  try{const base=requestStop;requestStop=function(index,checked){const conditional=isDemandStop(index),r=base(index,checked);if(conditional){schedule(80);setTimeout(()=>{if(state?.running){const nx=nextOperationalStop(state.current);state.target=nx===null?state.pattern.stops.length:nx;labels();updateRequestAlert(false)}},0)}return r}}catch(e){console.warn('V31.19 request',e)}
+  q('requestsClear')?.addEventListener('click',()=>setTimeout(()=>{if(isLine())schedule(80)},0));
+
+  // Arrêts conditionnels non activés : petits marqueurs secondaires sur la carte.
+  try{const base=stopIcon;stopIcon=function(index){if(isLine()&&state?.service?.mode==='regular'&&isDemandStop(index)&&!state.service.requestedStops.has(index)&&typeof L!=='undefined')return L.divIcon({className:'',html:'<div class="stop-pin v14-skipped-stop v3119-demand-skipped"></div>',iconSize:[7,7],iconAnchor:[3.5,3.5]});return base(index)}}catch(e){console.warn('V31.19 markers',e)}
+
+  // Sélection de course : signaler réservation / arrêts conditionnels et préparer le tracé par défaut (sans détour).
+  try{const base=selectRun;selectRun=function(i){if(state?.pattern?.__v3119OriginalShape)restore(state.pattern,false);const r=base(i);return Promise.resolve(r).then(x=>{if(isLine()&&state.pattern){remember();const ds=demandIndices();q('v3119DemandInfo')?.classList.toggle('hidden',!ds.length);if(ui.courseInfo){const reserved=isReservedService(),suffix=[reserved?'⚠ SERVICE SUR RÉSERVATION':null,ds.length?`${ds.length} arrêt${ds.length>1?'s':''} à la demande`:null].filter(Boolean).join(' · ');if(suffix&&!ui.courseInfo.textContent.includes(suffix))ui.courseInfo.textContent+=` · ${suffix}`}if(ds.length)schedule(80)}else q('v3119DemandInfo')?.classList.add('hidden');return x})}}catch(e){console.warn('V31.19 selectRun',e)}
+  try{const base=setServiceMode;setServiceMode=function(mode){if(isLine()&&state?.pattern?.__v3119OriginalShape&&mode!=='regular')restore(state.pattern,false);const r=base(mode);if(mode==='regular'&&isLine()&&state.pattern)schedule(100);return r}}catch(e){console.warn('V31.19 mode',e)}
+
+  // Recalage manuel : cible le prochain arrêt réellement opérationnel, pas un arrêt conditionnel ignoré.
+  q('recenter')?.addEventListener('click',()=>setTimeout(()=>{if(isLine()&&state?.service?.mode==='regular'&&state?.running){const nx=nextOperationalStop(state.current);state.target=nx===null?state.pattern.stops.length:nx;labels()}},0));
+
+  // Badge conducteur pour les courses entièrement déclenchées sur réservation.
+  try{const base=enterDriver;enterDriver=function(mode){const r=base(mode);if(isLine()){const res=isReservedService();if(ui.serviceBadge){ui.serviceBadge.textContent=res?'RÉGULIER · RÉSERVATION':'RÉGULIER';ui.serviceBadge.classList.toggle('v3119-reservation',res)}ui.driver?.classList.toggle('v3119-57r027',true)}return r}}catch(e){console.warn('V31.19 driver',e)}
+  try{const base=finish;finish=function(){const r=base();ui.driver?.classList.remove('v3119-57r027');ui.serviceBadge?.classList.remove('v3119-reservation');return r}}catch(e){console.warn('V31.19 finish',e)}
+
+  const css=document.createElement('style');css.id='v3119Style';css.textContent=`
+    .v3119-demand-info{margin-top:9px;padding:9px 10px;border:1px solid #4b6675;border-radius:12px;background:#0a1d27;display:flex;align-items:center;justify-content:space-between;gap:9px}.v3119-demand-info.hidden{display:none!important}.v3119-demand-info>div{min-width:0}.v3119-demand-info b,.v3119-demand-info span{display:block}.v3119-demand-info b{font-size:.72rem}.v3119-demand-info span{margin-top:3px;color:#a9bdc7;font-size:.64rem;line-height:1.35}.v3119-demand-info button{min-height:34px;padding:5px 7px;font-size:.57rem;flex:0 0 auto}.v3119-demand-info.loading{border-color:#8a7428;background:#27220d}.v3119-demand-info.ok{border-color:#367d52;background:#0c281a}.v3119-demand-info.err{border-color:#874448;background:#331d20}.stop-check.v3119-conditional{border-color:#8b7124;background:#201d0d}.stop-check.v3119-conditional .stop-check-tag{background:#8c6b12;color:#fff3b5}.stop-check.v3119-conditional.requested{border-color:#ffd000;background:#30290d}.stop-check.v3119-conditional.requested .stop-check-tag{background:#ffd000;color:#151515}.v3119-demand-skipped{background:#d59a1d!important;border-color:#6d551b!important;opacity:.42!important}.servicebadge.v3119-reservation{border-color:#ffb53b!important;background:#5a350b!important;color:#ffe2a0!important}
+    @media(orientation:landscape) and (max-height:650px){#setup .v3119-demand-info{font-size:.58rem}.v3119-demand-info span{font-size:.55rem}}
+  `;document.head.appendChild(css);
+  setTimeout(()=>{if(isLine()&&state.pattern){remember();schedule(120)}},600);
 })();
 </script>
 

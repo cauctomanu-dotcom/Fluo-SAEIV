@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-26T10:40:00+02:00",
-  "version": "V31.18 GITHUB MONOBLOC + CORRECTIF DIRECT BOUTON ANNONCER PAYSAGE + V31.17 + CORRECTIF 57R026 + RENUMEROTATION AUTO + GTFS REGIONAL 67/68 + PLANNING",
+  "generated_at": "2026-08-26T13:05:00+02:00",
+  "version": "V31.19 GITHUB MONOBLOC + 57R027 DESSERTE A LA DEMANDE / SERVICES SUR RESERVATION + V31.18",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -53,5 +53,26 @@
     "announce_button": "ouvre DIRECTEMENT le panneau des annonces vocales manuelles, sans proxy vers un bouton caché",
     "passenger_voice_toggle": "retiré de la colonne droite du cockpit paysage",
     "destination_toggle": "conservé"
+  },
+  "line_57R027_conditional_service": {
+    "source": "Fiche Horaire officielle 027 Château Salins / Metz, offre indiquant Services à la demande : Oui",
+    "behavior": "la ligne reste régulière ; les arrêts marqués à la demande sont ignorés si non activés dans Demandes ; l’activation signifie descente demandée ou montée réservée et déclenche le recalcul routier",
+    "reserved_services": [
+      {
+        "direction": "Château-Salins → Metz",
+        "departures": [
+          "11:00",
+          "13:00"
+        ]
+      },
+      {
+        "direction": "Metz → Château-Salins",
+        "departures": [
+          "09:15",
+          "13:45"
+        ]
+      }
+    ],
+    "routing": "OSRM dynamique avec cache local ; repli sur le tracé officiel si le recalcul réseau échoue"
   }
 }

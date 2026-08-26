@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.18",
-  "short_name": "Fluo V31.18",
-  "start_url": "./?v=31.18",
+  "name": "Fluo SAEIV V31.19",
+  "short_name": "Fluo V31.19",
+  "start_url": "./?v=31.19",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.18 — correctif direct du bouton Annoncer du cockpit paysage, planning, renumérotation automatique et GTFS régional 67/68."
+  "description": "SAEIV conducteur V31.19 — 57R027 avec arrêts réguliers à la demande, services sur réservation, planning, renumérotation automatique et GTFS régional 67/68."
 }

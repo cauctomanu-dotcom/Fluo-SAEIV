@@ -310,3 +310,13 @@ V31.18 — CORRECTIF BOUTON ANNONCER PAYSAGE
 - Il appelle directement l'ouverture de la bibliothèque d'annonces vocales manuelles.
 - Le panneau d'annonces V26 expose désormais une fonction d'ouverture dédiée pour les interfaces récentes.
 - Le toggle « Annonce destination » reste en colonne droite ; le toggle « Annonces vocales » reste retiré du cockpit paysage.
+
+
+V31.19 — 57R027 / ARRÊTS À LA DEMANDE ET SERVICES SUR RÉSERVATION
+- La 57R027 reste une ligne régulière : elle n'est pas transformée en mode TAD.
+- Les arrêts identifiés « à la demande » par la fiche officielle 027 apparaissent comme tels dans le menu Demandes.
+- Un arrêt conditionnel non activé est ignoré dans la progression ; l'activer signifie soit une descente demandée, soit une montée réservée.
+- Le SAEIV recalcule le tracé routier de la 57R027 entre les arrêts réellement opérationnels ; une modification de demande entraîne un nouveau calcul.
+- Si OSRM est indisponible, la course reste lançable avec le tracé officiel et un avertissement permet de relancer le calcul.
+- Services entièrement sur réservation signalés au conducteur : Château-Salins → Metz 11:00 et 13:00 ; Metz → Château-Salins 09:15 et 13:45 (référence fiche officielle 027).
+- Les arrêts réguliers classiques continuent d'être desservis normalement ; leur bouton Demandes conserve son rôle d'alerte de descente.
