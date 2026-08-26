@@ -1,4 +1,4 @@
-FLUO SAEIV V31.13 — BAS-RHIN 67 + HAUT-RHIN 68
+FLUO SAEIV V31.14 — BAS-RHIN 67 + HAUT-RHIN 68
 =================================================
 
 - Ajout du Bas-Rhin (67) et du Haut-Rhin (68) dans le SAEIV, le planning, les fiches horaires et la recherche d’arrêts.
@@ -272,9 +272,15 @@ V31.6 — MENU CONDUCTEUR + MON PLANNING + MA JOURNÉE
 - Au terminus, l'annonce d'arrivée contient désormais un message professionnel de rappel des effets personnels et de remerciement voyageurs.
 - Le cache PWA passe en V31.11 pour éviter le rechargement d'une ancienne interface.
 
-V31.13 — BAS-RHIN / HAUT-RHIN : SOURCE REGIONALE COMPLETE
+V31.14 — BAS-RHIN / HAUT-RHIN : SOURCE REGIONALE COMPLETE
 - Les départements 67 et 68 utilisent désormais le GTFS régional unifié Fluo Grand Est (ressource 83635).
 - Le 67 est isolé par les identifiants de réseau CG67: ; le 68 par CG68:.
 - Cette méthode inclut les lignes scolaires qui peuvent manquer dans certains anciens exports départementaux.
 - Classement planning : 67R+chiffres / 68R+chiffres = régulières ; autres lignes des départements = scolaires.
 - Le ZIP régional est mis en cache 24 h et partagé entre 67 et 68 pour éviter un double téléchargement.
+
+
+V31.14 — Classement 67/68 pendant la renumérotation 2026/2027
+- anciennes références 67R/68R reconnues quand elles sont encore présentes dans les métadonnées ;
+- nouvelle numérotation officielle : 3 chiffres = ligne régulière, 4 chiffres = ligne scolaire ;
+- compatibilité avec la transition particulière du Bas-Rhin, dont les lignes régulières changent plus tard.

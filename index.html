@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.13 — édition GitHub monobloc, fin de course intelligente + annonce terminus professionnelle + planning consolidé.
+// Fluo SAEIV V31.14 — édition GitHub monobloc, fin de course intelligente + annonce terminus professionnelle + planning consolidé.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -378,7 +378,7 @@ function fluoRegionalStopBelongs(row,dept){
 }
 async function fluoFetchRemoteZip(dept){
   let last='';for(const url of (FluoRemoteGTFS.sources[dept]||[]))try{
-    const cacheName='fluo-regional-gtfs-v31-13',stampKey='fluo-regional-gtfs-v31-13-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
+    const cacheName='fluo-regional-gtfs-v31-14',stampKey='fluo-regional-gtfs-v31-14-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
     if(fresh&&'caches'in window){try{r=await (await caches.open(cacheName)).match(url)}catch{}}
     if(!r){r=await fetch(url,{cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error(`HTTP ${r.status}`);if('caches'in window){try{const c=await caches.open(cacheName);await c.put(url,r.clone());localStorage.setItem(stampKey,String(Date.now()))}catch{}}}
     const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url}
@@ -3244,32 +3244,39 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     if(/^(S|SC|SCO)[0-9A-Z]+$/.test(code)) return true;
     return false;
   }
+  function alsaceLineCategory(routeLike,department){
+    const dep=String(department||routeLike?.department||routeLike?.dept||'');
+    const short=shortCode(typeof routeLike==='string'?routeLike:(routeLike?.short||routeLike?.route_short_name||''));
+    const hay=norm(typeof routeLike==='string'?routeLike:[routeLike?.id,routeLike?.short,routeLike?.long,routeLike?.route_id,routeLike?.route_short_name,routeLike?.route_long_name,routeLike?.legacy_short,routeLike?.old_short].filter(Boolean).join(' ')).replace(/\s+/g,'');
+    // Pendant la transition 2026/2027, une ancienne référence 67R/68R éventuellement conservée
+    // dans les métadonnées reste la meilleure preuve qu'il s'agit d'une ligne régulière.
+    if(dep==='67'&&/67R\d+[A-Z0-9]*/.test(hay))return'regular';
+    if(dep==='68'&&/68R\d+[A-Z0-9]*/.test(hay))return'regular';
+    // Nouvelle numérotation régionale officielle : 3 chiffres = régulière, 4 chiffres = scolaire.
+    // On accepte un suffixe alphabétique technique éventuel sans changer la famille de la ligne.
+    if(/^\d{3}[A-Z]?$/.test(short))return'regular';
+    if(/^\d{4}[A-Z]?$/.test(short))return'school';
+    // Compatibilité avec les anciennes références encore publiées pendant la transition.
+    if(new RegExp('^'+dep+'R\\d+[A-Z0-9]*$').test(short))return'regular';
+    if(short.startsWith(dep))return'school';
+    if(genericSchoolText(typeof routeLike==='string'?routeLike:[routeLike?.short,routeLike?.long].filter(Boolean).join(' ')))return'school';
+    return'unknown';
+  }
+  window.FluoAlsaceLineCategoryV314=alsaceLineCategory;
   function lineCategory(text,department){
     const code=shortCode(text), dep=String(department||'');
     const letters=(code.match(/[A-Z]/g)||[]).length;
     if(dep==='57'){
       // Moselle : les régulières Fluo sont codées 57R + numéro.
       if(/^57R\d+[A-Z0-9]*$/.test(code)) return 'regular';
-      // Les codes à plusieurs lettres sont les dessertes scolaires ; S/SC/SCO le sont également.
       if(letters>=2 || /^57?(S|SC|SCO)/.test(code) || genericSchoolText(text)) return 'school';
       return 'unknown';
     }
     if(dep==='54'){
-      // V30 — règle terrain Meurthe-et-Moselle : 54R + chiffres = ligne régulière.
-      // Toutes les autres lignes du 54 sont classées scolaires.
       if(/^54R\d+[A-Z0-9]*$/.test(code)) return 'regular';
       return 'school';
     }
-    if(dep==='67'){
-      // Bas-Rhin : règle conducteur — seules les 67R + chiffres sont régulières.
-      if(/^67R\d+[A-Z0-9]*$/.test(code)) return 'regular';
-      return 'school';
-    }
-    if(dep==='68'){
-      // Haut-Rhin : règle conducteur — seules les 68R + chiffres sont régulières.
-      if(/^68R\d+[A-Z0-9]*$/.test(code)) return 'regular';
-      return 'school';
-    }
+    if(dep==='67'||dep==='68')return alsaceLineCategory(text,dep);
     if(genericSchoolText(text)) return 'school';
     return 'regular';
   }
@@ -3293,7 +3300,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
         <option value="all">Toutes les lignes</option>
         <option value="custom">Lignes personnalisées</option>
       </select>
-      <small>57 : régulières 57R… · 54 : régulières 54R… · 67 : régulières 67R… · 68 : régulières 68R… ; les autres lignes de ces départements sont classées scolaires. · « Toutes » affiche l’ensemble.</small>
+      <small>54/57 : classement historique. · 67/68 : ancienne référence reconnue pendant la transition, puis nouvelle numérotation officielle (3 chiffres = régulière, 4 chiffres = scolaire). · « Toutes » affiche l’ensemble.</small>
       <span id="lineTypeCount" class="v18-filter-count"></span>`;
     route.closest('label')?.before(label);
   }
@@ -5858,7 +5865,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   let plan=loadPlan(),progress=loadProgress(),weekStart=monday(today()),selectedDate=today(),editingId=null,draftLink=null,draftOrigin=null,draftDestination=null;
   const V317={routes:new Map(),patterns:new Map(),stops:new Map(),regularToken:0};
   const V318_ADDRESS_KEY='fluo-saeiv-saved-addresses-v318';
-  function v318RouteClass(r){const full=String(r?.short||'').toUpperCase().replace(/\s+/g,''),dept=String(r?.department||r?.dept||((full.match(/^(67|68)/)||[])[1]||''));if(dept==='67')return /^67R\d+/.test(full)?'regular':'school';if(dept==='68')return /^68R\d+/.test(full)?'regular':'school';const code=full.replace(/^\d{2}/,'');return /^[SE]/.test(code)?'school':'regular'}
+  function v318RouteClass(r){const full=String(r?.short||'').toUpperCase().replace(/\s+/g,''),dept=String(r?.department||r?.dept||((String(r?.id||'').match(/CG(67|68)/i)||[])[1]||((full.match(/^(67|68)/)||[])[1]||'')));if((dept==='67'||dept==='68')&&window.FluoAlsaceLineCategoryV314){const c=window.FluoAlsaceLineCategoryV314(r,dept);if(c!=='unknown')return c}const code=full.replace(/^\d{2}/,'');return /^[SE]/.test(code)?'school':'regular'}
   function v318LoadAddresses(){try{const xs=JSON.parse(localStorage.getItem(V318_ADDRESS_KEY)||'[]');return Array.isArray(xs)?xs:[]}catch{return[]}}
   function v318StoreAddresses(xs){localStorage.setItem(V318_ADDRESS_KEY,JSON.stringify(xs));v318RefreshSavedAddresses()}
   function v318RefreshSavedAddresses(){const xs=v318LoadAddresses().sort((a,b)=>String(a.label||a.address||'').localeCompare(String(b.label||b.address||''),'fr'));document.querySelectorAll('.v318-saved-address').forEach(sel=>{const keep=sel.value;sel.innerHTML='<option value="">— Saisir une nouvelle adresse —</option>'+xs.map(a=>`<option value="${esc(a.id)}">${esc(a.label||a.address||a.name||'Adresse')} · ${esc(a.address||a.name||'')}</option>`).join('');if(keep&&xs.some(a=>String(a.id)===String(keep)))sel.value=keep});}
@@ -6128,14 +6135,14 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.13 · fin de course intelligente';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.13';
+  document.title='Fluo SAEIV V31.14 · fin de course intelligente';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.14';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
 
 
-<script id="v312DepartmentRules">
-(()=>{window.FluoDepartmentRulesV312={isRegular(code){const s=String(code||'').toUpperCase().replace(/\s+/g,'');if(/^67/.test(s))return /^67R\d+/.test(s);if(/^68/.test(s))return /^68R\d+/.test(s);return !/^(54|57)[SE]/.test(s)},departmentName(d){return({'54':'Meurthe-et-Moselle','57':'Moselle','67':'Bas-Rhin','68':'Haut-Rhin'})[String(d)]||String(d)}}})();
+<script id="v314DepartmentRules">
+(()=>{window.FluoDepartmentRulesV312={isRegular(code,department,route){const d=String(department||route?.department||route?.dept||'');if((d==='67'||d==='68')&&window.FluoAlsaceLineCategoryV314)return window.FluoAlsaceLineCategoryV314(route||{short:code},d)==='regular';const s=String(code||'').toUpperCase().replace(/\s+/g,'');if(/^67R\d+/.test(s)||/^68R\d+/.test(s))return true;if(/^\d{3}[A-Z]?$/.test(s))return true;if(/^\d{4}[A-Z]?$/.test(s))return false;return !/^(54|57)[SE]/.test(s)},departmentName(d){return({'54':'Meurthe-et-Moselle','57':'Moselle','67':'Bas-Rhin','68':'Haut-Rhin'})[String(d)]||String(d)}}})();
 </script>
 </body>
 </html>
