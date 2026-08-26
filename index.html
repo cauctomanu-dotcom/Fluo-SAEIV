@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.17 — édition GitHub monobloc, bascule automatique de numérotation Fluo 54 au 1er septembre 2026 + 67/68 régional.
+// Fluo SAEIV V31.18 — édition GitHub monobloc, bascule automatique de numérotation Fluo 54 au 1er septembre 2026 + 67/68 régional.
 // V31.17 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
 'use strict';
 
@@ -4230,6 +4230,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const list=q('v26AnnList');if(list)list.innerHTML=ANNOUNCEMENTS.map(a=>`<button type="button" class="v26-ann-choice" data-v26-ann="${a.id}"><b>${esc26(a.title)}</b><span>${esc26(a.text())}</span></button>`).join('');
   }
   function openAnnouncements26(){q('v26AnnounceSheet')?.classList.remove('hidden');refreshAnnouncementTexts26()}
+  window.FluoOpenAnnouncementsV26=openAnnouncements26;
   function closeAnnouncements26(){q('v26AnnounceSheet')?.classList.add('hidden')}
   function refreshAnnouncementTexts26(){q('v26AnnList')?.querySelectorAll('[data-v26-ann]').forEach(b=>{const a=ANNOUNCEMENTS.find(x=>x.id===b.dataset.v26Ann);const span=b.querySelector('span');if(a&&span)span.textContent=a.text()})}
   function selectAnnouncement26(id){V26.selectedAnnouncement=id;q('v26AnnList')?.querySelectorAll('.v26-ann-choice').forEach(b=>b.classList.toggle('selected',b.dataset.v26Ann===id));const a=ANNOUNCEMENTS.find(x=>x.id===id);if(a&&q('v26AnnText'))q('v26AnnText').value=a.text()}
@@ -5613,8 +5614,9 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
 
   const bottom=document.createElement('div');bottom.id='v31LandscapeBottom';bottom.setAttribute('aria-label','Commandes principales conducteur');
-  bottom.innerHTML=`<button type="button" data-v31-target="prev">← Arrêt</button><button type="button" class="primary" data-v31-target="v26AnnounceBtn">🔊 Annoncer</button><button type="button" data-v31-target="nextBtn">Arrêt →</button><button type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button type="button" class="danger" data-v31-target="v15FinishBtn">FIN</button>`;
+  bottom.innerHTML=`<button type="button" data-v31-target="prev">← Arrêt</button><button id="v318LandscapeAnnounceMenuBootstrap" type="button" class="primary">🔊 Annoncer</button><button type="button" data-v31-target="nextBtn">Arrêt →</button><button type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button type="button" class="danger" data-v31-target="v15FinishBtn">FIN</button>`;
   driver.appendChild(bottom);
+  q('v318LandscapeAnnounceMenuBootstrap')?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(typeof window.FluoOpenAnnouncementsV26==='function')window.FluoOpenAnnouncementsV26();else q('v26AnnounceSheet')?.classList.remove('hidden')});
   const dock=q('v281LandscapeDock');if(dock&&!q('v31SideExtra')){const extra=document.createElement('div');extra.id='v31SideExtra';extra.innerHTML='<button type="button" data-v31-target="v16MapMode">🧭 Carte 2D/3D</button><button type="button" data-v31-target="simPlayPause">⏯ Simulation</button><button type="button" data-v31-target="simSkip">⏭ Arrêt simu</button>';dock.appendChild(extra)}
   function targetFor(button){return q(button?.dataset?.v31Target)}
   function syncButtons(){document.querySelectorAll('[data-v31-target]').forEach(b=>{const t=targetFor(b);b.disabled=!t||t.disabled;const sim=/^(simPlayPause|simSkip)$/.test(b.dataset.v31Target),hidden=sim&&(!t||t.closest('.sim-controls')?.classList.contains('hidden'));b.classList.toggle('v31-hidden',!!hidden);if(b.dataset.v31Target==='v16MapMode'&&t)b.textContent=`🧭 ${t.textContent.replace(/^\s*🧭\s*/, '')}`;if(b.dataset.v31Target==='navVoiceBtn'&&t)b.textContent=t.classList.contains('off')?'🔇 GPS':'🔊 GPS'})}
@@ -5686,7 +5688,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v315ValidatedLandscapeDesign">
 'use strict';
-/* V31.17 — cockpit paysage : Annoncer ouvre la bibliothèque d’annonces ; seul le toggle destination reste en colonne. */
+/* V31.18 — cockpit paysage : Annoncer ouvre directement la bibliothèque d’annonces, sans proxy caché ; seul le toggle destination reste en colonne. */
 (()=>{
   const q=id=>document.getElementById(id);
   const driver=q('driver'),side=q('v15LandscapeSide'),mapWrap=document.querySelector('#driver .navmap-wrap');
@@ -5743,7 +5745,13 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   });
 
   const bottom=q('v31LandscapeBottom');
-  if(bottom)bottom.innerHTML='<button class="v315-stop" type="button" data-v31-target="prev">← Arrêt</button><button class="primary v315-announce" type="button" data-v31-target="v26AnnounceBtn">📢 Annoncer</button><button class="v315-stop" type="button" data-v31-target="nextBtn">Arrêt →</button><button class="v315-deviation" type="button" data-v31-target="v29DeviationBtn">↪ Mode déviation</button><button class="v315-requests" type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button class="v315-incident" type="button" data-v31-target="v29IncidentBtn">📝 Incident</button><button class="v315-recenter" type="button" data-v31-target="recenter">🎯 Recaler poteau</button><button class="danger v315-finish" type="button" data-v31-target="v15FinishBtn">FIN</button>';
+  if(bottom)bottom.innerHTML='<button class="v315-stop" type="button" data-v31-target="prev">← Arrêt</button><button id="v318LandscapeAnnounceMenu" class="primary v315-announce" type="button">📢 Annoncer</button><button class="v315-stop" type="button" data-v31-target="nextBtn">Arrêt →</button><button class="v315-deviation" type="button" data-v31-target="v29DeviationBtn">↪ Mode déviation</button><button class="v315-requests" type="button" data-v31-target="v15RequestsBtn">🔔 Demandes</button><button class="v315-incident" type="button" data-v31-target="v29IncidentBtn">📝 Incident</button><button class="v315-recenter" type="button" data-v31-target="recenter">🎯 Recaler poteau</button><button class="danger v315-finish" type="button" data-v31-target="v15FinishBtn">FIN</button>';
+  // V31.18 : ouverture directe du panneau, sans relais par un bouton historique caché.
+  q('v318LandscapeAnnounceMenu')?.addEventListener('click',e=>{
+    e.preventDefault();e.stopPropagation();
+    if(typeof window.FluoOpenAnnouncementsV26==='function')window.FluoOpenAnnouncementsV26();
+    else{const sheet=q('v26AnnounceSheet');if(sheet)sheet.classList.remove('hidden');}
+  });
 
   const dock=q('v281LandscapeDock'),extra=q('v31SideExtra');
   if(extra)extra.innerHTML='<button type="button" data-v31-target="simPlayPause">⏯ Simulation</button><button type="button" data-v31-target="simSkip">⏭ Arrêt simu</button>';
@@ -6168,7 +6176,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.17 · renumérotation automatique';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.17';
+  document.title='Fluo SAEIV V31.18 · annonces paysage corrigées';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.18';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>

@@ -304,3 +304,9 @@ V31.17 — COCKPIT PAYSAGE / ANNONCES
 - Il ne répète plus l'annonce du prochain arrêt.
 - Le bouton « Annonces vocales » est retiré de la colonne droite du cockpit paysage.
 - Le bouton « Annonce destination » ON/OFF reste disponible.
+
+V31.18 — CORRECTIF BOUTON ANNONCER PAYSAGE
+- Le bouton jaune « Annoncer » du cockpit paysage n'utilise plus le bouton historique caché comme proxy.
+- Il appelle directement l'ouverture de la bibliothèque d'annonces vocales manuelles.
+- Le panneau d'annonces V26 expose désormais une fonction d'ouverture dédiée pour les interfaces récentes.
+- Le toggle « Annonce destination » reste en colonne droite ; le toggle « Annonces vocales » reste retiré du cockpit paysage.

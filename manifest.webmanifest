@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.17",
-  "short_name": "Fluo V31.17",
-  "start_url": "./?v=31.17",
+  "name": "Fluo SAEIV V31.18",
+  "short_name": "Fluo V31.18",
+  "start_url": "./?v=31.18",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "SAEIV conducteur V31.17 — bouton Annoncer du cockpit paysage relié au menu des annonces vocales, planning, renumérotation automatique et GTFS régional 67/68."
+  "description": "SAEIV conducteur V31.18 — correctif direct du bouton Annoncer du cockpit paysage, planning, renumérotation automatique et GTFS régional 67/68."
 }
