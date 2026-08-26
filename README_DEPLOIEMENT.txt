@@ -329,3 +329,25 @@ V31.20 — 57R027 / CONTRÔLE DES MONTÉES RÉSERVÉES AVANT DÉPART
 - Pendant la course, le menu Demandes continue de permettre d'activer un arrêt à la demande pour une descente voyageur.
 - Un arrêt conditionnel non activé reste absent de la progression et le GPS recalcule le parcours sans son détour.
 - Exemple vérifié sur le départ 18:25 de Metz : LIOCOURT - Fontaine et FRESNES-EN-SAULNOIS - Place Des Tilleuls sont conditionnels ; s'ils ne sont pas demandés/réservés, ils sont contournés.
+
+V31.21 — 57R027 / SYMBOLES SUR LES FICHES HORAIRES
+- Aucune modification du cockpit, du planning, de Ma journée ni des autres fonctions existantes.
+- Dans la fiche horaire officielle intégrée de la 57R027, les arrêts conditionnels sont annotés course par course.
+- ↑ = montée sur réservation préalable.
+- ↓ = descente à la demande pendant la course.
+- ↑↓ = arrêt desservi à la demande selon la règle officielle : une montée peut être réservée avant départ et une descente peut être demandée en ligne.
+- Les symboles n'apparaissent que sur les courses où l'arrêt est réellement concerné, avec une légende visible et imprimable.
+
+
+V31.22 — ANNONCE VOCALE / CEINTURE DE SÉCURITÉ
+- Aucune modification du design, du cockpit, du planning, de Ma journée, des HLP, des fiches horaires ni des fonctions 57R027.
+- Ajout dans la bibliothèque d’annonces vocales manuelles d’une entrée « Ceinture de sécurité ».
+- Texte : « Pour votre sécurité, nous vous rappelons que le port de la ceinture de sécurité est obligatoire lorsque votre siège en est équipé. Merci de bien vouloir l’attacher et de la conserver attachée pendant toute la durée du trajet. »
+- Le système de synthèse vocale et les priorités d’annonces existants sont inchangés.
+
+
+V31.23 — BIBLIOTHÈQUE D’ANNONCES VOCALES PAR CATÉGORIES
+- Remplacement des anciennes annonces prédéfinies par 22 nouvelles annonces validées.
+- Catégories : Sécurité ; Vie à bord ; Conditions de circulation ; Déviations ; Conditions météorologiques ; Retards et régulation ; Immobilisation du véhicule.
+- La création, l’enregistrement et la diffusion des annonces personnalisées V28 sont conservés.
+- Aucun changement du cockpit, du planning, de Ma journée, des HLP, des fiches horaires ou des fonctions 57R027.

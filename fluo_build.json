@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-26T16:46:00+02:00",
-  "version": "V31.20 GITHUB MONOBLOC + 57R027 MONTÉES RÉSERVÉES AVANT DÉPART / DÉTOURS CONDITIONNELS + V31.19",
+  "generated_at": "2026-08-26T22:01:32+02:00",
+  "version": "V31.23 GITHUB MONOBLOC + ANNONCES VOCALES PAR CATÉGORIES + PERSONNALISÉES CONSERVÉES + V31.22 CONSERVÉE",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -83,5 +83,33 @@
       ],
       "behavior": "si aucun des deux arrêts n’est activé, le parcours GPS les contourne ; chaque arrêt peut être réactivé pendant la course via Demandes"
     }
+  },
+  "line_57R027_timetable_symbols": {
+    "scope": "fiches horaires officielles intégrées du SAEIV pour la 57R027, course par course",
+    "up_arrow": "↑ montée sur réservation préalable à un arrêt desservi à la demande",
+    "down_arrow": "↓ descente à la demande pendant la course",
+    "combined": "↑↓ lorsque la règle d’arrêt desservi à la demande s’applique sur cette course ; la même desserte permet une montée réservée ou une descente demandée",
+    "display": "symboles affichés uniquement sur les arrêts conditionnels de la course sélectionnée, avec légende ; impression conservée"
+  },
+  "manual_voice_announcements": {
+    "seatbelt": {
+      "title": "Ceinture de sécurité",
+      "text": "Pour votre sécurité, nous vous rappelons que le port de la ceinture de sécurité est obligatoire lorsque votre siège en est équipé. Merci de bien vouloir l’attacher et de la conserver attachée pendant toute la durée du trajet.",
+      "scope": "bibliothèque d’annonces vocales manuelles existante ; aucune modification du moteur vocal ni du design"
+    }
+  },
+  "voice_announcements_v31_23": {
+    "preset_count": 22,
+    "categories": [
+      "Sécurité",
+      "Vie à bord",
+      "Conditions de circulation",
+      "Déviations",
+      "Conditions météorologiques",
+      "Retards et régulation",
+      "Immobilisation du véhicule"
+    ],
+    "custom_announcements_preserved": true,
+    "replaces_previous_presets": true
   }
 }

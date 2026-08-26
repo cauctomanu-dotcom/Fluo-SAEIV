@@ -174,7 +174,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.20 — 57R027 contrôle des montées réservées avant départ + détours conditionnels + V31.19.
+// Fluo SAEIV V31.23 — nouvelle bibliothèque d’annonces vocales classée par catégories ; annonces personnalisées et fonctions V31.22 conservées.
 // V31.17 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
 'use strict';
 
@@ -4153,8 +4153,9 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     .v26-tad-item{padding:11px;border:1px solid #2e4656;border-radius:13px;background:#081720;margin-bottom:8px}.v26-tad-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}.v26-tad-item strong{display:block}.v26-tad-item span{display:block;color:#91a8b6;font-size:.7rem;margin-top:3px;line-height:1.35}.v26-date-badge{display:inline-flex!important;padding:5px 7px;border-radius:999px;background:#173142;color:#d9edf6!important;font-size:.62rem!important;font-weight:950;white-space:nowrap;margin:0!important}.v26-date-badge.today{background:#123a22;color:#caffd8!important}.v26-date-badge.future{background:#10284a;color:#cde4ff!important}.v26-date-badge.past{background:#3a2525;color:#ffd5d2!important}.v26-tad-buttons{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.v26-tad-buttons button{padding:8px 9px;font-size:.72rem}.v26-empty{padding:22px;text-align:center;color:#9fb0bb}.v26-library-foot{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.v26-library-foot button{min-height:44px}
     .v26-ann-btn{width:100%;min-height:44px;background:#183b51;border-color:#35647d;color:#e9f8ff}.v26-ann-side{width:100%;min-height:34px!important;padding:6px 8px!important;border-radius:9px!important;font-size:.62rem!important;background:#183b51!important;border-color:#35647d!important;color:#e9f8ff!important}
     .v26-ann-backdrop{z-index:13600}.v26-ann-sheet{width:min(860px,100%)}.v26-ann-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}.v26-ann-choice{display:block;text-align:left;padding:11px;border:1px solid #2e4656;border-radius:13px;background:#081720;color:#fff}.v26-ann-choice b{display:block;font-size:.82rem}.v26-ann-choice span{display:block;margin-top:4px;color:#9fb0bb;font-size:.68rem;line-height:1.35;font-weight:600}.v26-ann-choice.selected{border-color:#ffd000;background:#2c270d;box-shadow:inset 3px 0 0 #ffd000}.v26-ann-preview{margin-top:11px;padding:11px;border:1px solid #355163;border-radius:13px;background:#07141e}.v26-ann-preview label{display:block}.v26-ann-preview textarea{width:100%;min-height:88px;margin-top:7px;resize:vertical;background:#091620;color:#fff;border:1px solid #355163;border-radius:12px;padding:10px;font:inherit;line-height:1.4}.v26-ann-actions{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:9px}.v26-ann-actions button{min-height:46px}.v26-ann-note{margin-top:7px;color:#8295a3;font-size:.67rem;line-height:1.35}
-    @media(max-width:680px){.v26-backdrop{padding:0}.v26-sheet{max-height:97dvh;border-radius:22px 22px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom))}.v26-ann-list,.v26-library-foot,.v26-tad-actions{grid-template-columns:1fr}.v26-ann-actions{grid-template-columns:1fr}.v26-tad-row{grid-template-columns:1fr}.v26-date-badge{width:max-content}#v26AnnounceBtn{order:9!important}#driver .grid.six{order:10!important}#driver .controls{order:11!important}#driver .sim-controls{order:12!important}#driver #recenter{order:13!important}}
-    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){#v26AnnounceBtn{display:none!important}.v26-ann-list{grid-template-columns:repeat(2,1fr)}.v26-sheet{max-height:96dvh}.v26-ann-sheet{width:min(920px,98vw)}}
+    .v26-ann-list{display:block}.v26-ann-category{margin:0 0 14px}.v26-ann-category:last-child{margin-bottom:4px}.v26-ann-category h3{margin:0 0 7px;padding:7px 9px;border-left:4px solid #ffd000;border-radius:7px;background:#102735;color:#f4fbff;font-size:.82rem;letter-spacing:.01em}.v26-ann-category-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    @media(max-width:680px){.v26-backdrop{padding:0}.v26-sheet{max-height:97dvh;border-radius:22px 22px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom))}.v26-ann-category-grid,.v26-library-foot,.v26-tad-actions{grid-template-columns:1fr}.v26-ann-actions{grid-template-columns:1fr}.v26-tad-row{grid-template-columns:1fr}.v26-date-badge{width:max-content}#v26AnnounceBtn{order:9!important}#driver .grid.six{order:10!important}#driver .controls{order:11!important}#driver .sim-controls{order:12!important}#driver #recenter{order:13!important}}
+    @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){#v26AnnounceBtn{display:none!important}.v26-ann-category-grid{grid-template-columns:repeat(2,1fr)}.v26-sheet{max-height:96dvh}.v26-ann-sheet{width:min(920px,98vw)}}
   `;document.head.appendChild(css);
 
   function db26(){
@@ -4209,25 +4210,40 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
 
   const ANNOUNCEMENTS=[
-    {id:'diversion',title:'Déviation en cours',text:()=>`Votre ligne subit actuellement une déviation. Merci de votre compréhension.`},
-    {id:'diversion_end',title:'Fin de déviation',text:()=>`Votre ligne reprend désormais son itinéraire habituel. Merci de votre compréhension.`},
-    {id:'stop_closed',title:'Prochain arrêt non desservi',text:()=>`En raison des conditions de circulation, l’arrêt ${state?.pattern?.stops?.[state?.target]?.name||'suivant'} ne pourra pas être desservi. Merci de votre compréhension.`},
-    {id:'terminates_next',title:'Terminus au prochain arrêt',text:()=>`Ce véhicule effectuera son terminus au prochain arrêt. Merci de prendre toutes vos affaires personnelles avec vous.`},
-    {id:'destination_change',title:'Changement de destination',text:()=>`La destination de ce véhicule a été modifiée. Merci de consulter l’affichage ou de vous rapprocher du conducteur pour plus d’informations.`},
-    {id:'traffic_delay',title:'Retard / circulation difficile',text:()=>`En raison de difficultés de circulation, votre ligne circule actuellement avec du retard. Merci de votre patience.`},
-    {id:'regulation',title:'Attente de régulation',text:()=>`Afin de réguler le service, nous allons patienter quelques instants à cet arrêt. Merci de votre compréhension.`},
-    {id:'driver_change',title:'Changement de conducteur',text:()=>`Un changement de conducteur va avoir lieu. Nous repartirons dans quelques instants. Merci de votre patience.`},
-    {id:'move_inside',title:'Se répartir dans le véhicule',text:()=>`Merci de vous répartir dans l’ensemble du véhicule et de libérer les accès et les portes.`},
-    {id:'wheelchair',title:'Libérer l’espace fauteuil roulant',text:()=>`Merci de libérer l’emplacement prioritaire afin de permettre l’accès à une personne en fauteuil roulant.`},
-    {id:'doors',title:'Portes / sécurité',text:()=>`Merci de ne pas gêner la fermeture des portes et de rester en retrait jusqu’à leur ouverture complète.`},
-    {id:'service_interrupted',title:'Service momentanément interrompu',text:()=>`En raison d’un incident, le service est momentanément interrompu. Merci de votre compréhension et de suivre les indications du conducteur.`},
-    {id:'terminus_belongings',title:'Arrivée au terminus',text:()=>`Nous arrivons au terminus. Merci de vérifier que vous n’oubliez aucun effet personnel à bord.`}
+    // V31.23 — bibliothèque officielle conducteur, classée par catégorie.
+    {id:'safety_seatbelt',category:'Sécurité',title:'Port de la ceinture de sécurité',text:()=>`Pour votre sécurité, nous vous rappelons que le port de la ceinture de sécurité est obligatoire pendant toute la durée du trajet. Merci de rester attaché lorsque le véhicule est en circulation.`},
+    {id:'safety_seated',category:'Sécurité',title:'Rester assis pendant le trajet',text:()=>`Pour votre sécurité, merci de rester assis à votre place lorsque le véhicule est en circulation et de ne vous lever qu’après l’arrêt complet du véhicule.`},
+    {id:'safety_reminder',category:'Sécurité',title:'Rappel de sécurité',text:()=>`Pour votre sécurité, merci de regagner votre place et de conserver votre ceinture attachée jusqu’à l’arrêt complet du véhicule.`},
+    {id:'onboard_no_smoking',category:'Vie à bord',title:'Interdiction de fumer et de vapoter',text:()=>`Nous vous rappelons qu’il est strictement interdit de fumer ou de vapoter à bord du véhicule. Merci de votre compréhension.`},
+    {id:'onboard_phones',category:'Vie à bord',title:'Téléphones et tranquillité',text:()=>`Pour le confort de tous, merci de limiter le volume de vos appareils électroniques et de vos conversations téléphoniques. Nous vous remercions de respecter la tranquillité des autres voyageurs.`},
+    {id:'traffic_difficult',category:'Conditions de circulation',title:'Circulation difficile',text:()=>`Mesdames, Messieurs, les conditions de circulation sont actuellement difficiles. Notre temps de parcours peut être allongé. Nous vous remercions de votre compréhension.`},
+    {id:'traffic_jam',category:'Conditions de circulation',title:'Embouteillages',text:()=>`Mesdames, Messieurs, en raison d’un trafic important sur notre itinéraire, notre trajet connaît actuellement un ralentissement. Un retard est susceptible d’être occasionné.`},
+    {id:'traffic_accident',category:'Conditions de circulation',title:'Accident sur l’itinéraire',text:()=>`Mesdames, Messieurs, un accident perturbe actuellement la circulation sur notre itinéraire. Notre temps de parcours peut être allongé. Merci de votre patience et de votre compréhension.`},
+    {id:'traffic_works',category:'Conditions de circulation',title:'Travaux',text:()=>`Mesdames, Messieurs, des travaux perturbent actuellement la circulation sur notre itinéraire. Des ralentissements peuvent entraîner un allongement du temps de parcours.`},
+    {id:'traffic_road_closed',category:'Conditions de circulation',title:'Route barrée',text:()=>`Mesdames, Messieurs, en raison d’une route actuellement fermée à la circulation, notre itinéraire doit être modifié. Le temps de parcours peut être allongé. Merci de votre compréhension.`},
+    {id:'diversion',category:'Déviations',title:'Déviation',text:()=>`Mesdames, Messieurs, en raison d’une déviation, notre véhicule emprunte temporairement un itinéraire différent. Cette modification peut entraîner un allongement du temps de parcours.`},
+    {id:'diversion_unplanned',category:'Déviations',title:'Déviation imprévue',text:()=>`Mesdames, Messieurs, en raison d’un événement imprévu sur notre itinéraire, nous sommes contraints d’emprunter une déviation. Nous vous remercions de votre patience et de votre compréhension.`},
+    {id:'weather_difficult',category:'Conditions météorologiques',title:'Conditions météorologiques difficiles',text:()=>`Mesdames, Messieurs, les conditions météorologiques rendent actuellement la circulation plus difficile. Afin de garantir votre sécurité, notre conducteur adapte sa vitesse aux conditions de circulation. Le temps de parcours peut donc être allongé.`},
+    {id:'weather_snow_ice',category:'Conditions météorologiques',title:'Neige ou verglas',text:()=>`Mesdames, Messieurs, en raison de conditions hivernales et de chaussées potentiellement glissantes, notre véhicule circule à vitesse adaptée. Un retard peut être occasionné. Merci de votre compréhension.`},
+    {id:'weather_heavy_rain',category:'Conditions météorologiques',title:'Fortes pluies',text:()=>`Mesdames, Messieurs, les fortes précipitations rendent actuellement les conditions de circulation plus délicates. Notre conducteur adapte sa conduite afin de garantir votre sécurité.`},
+    {id:'weather_fog',category:'Conditions météorologiques',title:'Brouillard',text:()=>`Mesdames, Messieurs, en raison d’une visibilité réduite sur notre itinéraire, notre véhicule circule actuellement à vitesse adaptée. Le temps de parcours peut être légèrement allongé.`},
+    {id:'delay',category:'Retards et régulation',title:'Retard',text:()=>`Mesdames, Messieurs, notre véhicule circule actuellement avec du retard. Nous mettons tout en œuvre pour poursuivre votre trajet dans les meilleures conditions possibles. Merci de votre compréhension.`},
+    {id:'delay_major',category:'Retards et régulation',title:'Retard important',text:()=>`Mesdames, Messieurs, en raison des conditions de circulation, notre retard est actuellement plus important que prévu. Nous vous prions de nous excuser pour la gêne occasionnée et vous remercions de votre patience.`},
+    {id:'regulation_ahead',category:'Retards et régulation',title:'Régulation – véhicule en avance',text:()=>`Mesdames, Messieurs, notre véhicule circule actuellement en avance sur son horaire. Afin de respecter les horaires prévus et de garantir la prise en charge des voyageurs aux prochains arrêts, nous devons effectuer quelques instants de régulation. Nous reprendrons notre trajet dans quelques minutes. Merci de votre compréhension.`},
+    {id:'vehicle_stop_temporary',category:'Immobilisation du véhicule',title:'Arrêt temporaire',text:()=>`Mesdames, Messieurs, notre véhicule est momentanément immobilisé. Merci de rester assis et de conserver votre ceinture attachée jusqu’à la reprise du trajet.`},
+    {id:'vehicle_incident',category:'Immobilisation du véhicule',title:'Incident',text:()=>`Mesdames, Messieurs, en raison d’un incident, notre véhicule est momentanément immobilisé. Nous vous invitons à rester à votre place et vous tiendrons informés dès que possible.`},
+    {id:'vehicle_resume',category:'Immobilisation du véhicule',title:'Reprise du trajet',text:()=>`Mesdames, Messieurs, nous allons reprendre notre trajet. Merci de regagner votre place et de vous assurer que votre ceinture de sécurité est correctement attachée.`}
   ];
+  const ANNOUNCEMENT_CATEGORIES=['Sécurité','Vie à bord','Conditions de circulation','Déviations','Conditions météorologiques','Retards et régulation','Immobilisation du véhicule'];
+  function renderAnnouncements26(){
+    const list=q('v26AnnList');if(!list)return;
+    list.innerHTML=ANNOUNCEMENT_CATEGORIES.map(category=>{const items=ANNOUNCEMENTS.filter(a=>a.category===category);return `<section class="v26-ann-category"><h3>${esc26(category)}</h3><div class="v26-ann-category-grid">${items.map(a=>`<button type="button" class="v26-ann-choice" data-v26-ann="${a.id}"><b>${esc26(a.title)}</b><span>${esc26(a.text())}</span></button>`).join('')}</div></section>`}).join('');
+  }
   function addAnnouncementUi26(){
     const req=q('requestsBtn');if(req&&!q('v26AnnounceBtn')){const b=document.createElement('button');b.id='v26AnnounceBtn';b.className='v26-ann-btn';b.type='button';b.textContent='🔊 Annonces vocales';req.insertAdjacentElement('afterend',b)}
     const side=q('v15LandscapeSide');if(side&&!q('v26AnnounceSide')){const b=document.createElement('button');b.id='v26AnnounceSide';b.className='v26-ann-side';b.type='button';b.textContent='🔊 Annonces vocales';side.querySelector('.v15-side-actions')?.insertAdjacentElement('afterend',b)}
     if(!q('v26AnnounceSheet'))document.body.insertAdjacentHTML('beforeend',`<div id="v26AnnounceSheet" class="v26-backdrop v26-ann-backdrop hidden" role="dialog" aria-modal="true"><div class="v26-sheet v26-ann-sheet"><div class="v26-head"><div><div class="v13-logo">ANNONCES VOYAGEURS · V26</div><h2>🔊 Annonces vocales</h2><p>Sélectionne une annonce, vérifie le texte puis valide sa diffusion. Les annonces d’arrêt restent prioritaires et peuvent interrompre une annonce manuelle.</p></div><button id="v26AnnClose" class="v26-close" type="button">Fermer</button></div><div class="v26-scroll"><div id="v26AnnList" class="v26-ann-list"></div><div class="v26-ann-preview"><label>Texte qui sera annoncé<textarea id="v26AnnText" spellcheck="true" placeholder="Choisis une annonce ci-dessus ou saisis un message personnalisé."></textarea></label><div class="v26-ann-actions"><button id="v26AnnSpeak" class="primary" type="button">🔊 DIFFUSER L’ANNONCE</button><button id="v26AnnClear" type="button">Effacer</button></div><div id="v26AnnStatus" class="v26-ann-note">Une seule annonce est lancée à la fois. Les annonces automatiques de prochain arrêt et d’arrivée conservent la priorité.</div></div></div></div></div>`);
-    const list=q('v26AnnList');if(list)list.innerHTML=ANNOUNCEMENTS.map(a=>`<button type="button" class="v26-ann-choice" data-v26-ann="${a.id}"><b>${esc26(a.title)}</b><span>${esc26(a.text())}</span></button>`).join('');
+    renderAnnouncements26();
   }
   function openAnnouncements26(){q('v26AnnounceSheet')?.classList.remove('hidden');refreshAnnouncementTexts26()}
   window.FluoOpenAnnouncementsV26=openAnnouncements26;
@@ -5549,9 +5565,9 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     .v309-open{width:100%;margin:8px 0 2px;min-height:48px;border:1px solid #4b6b7d;background:#102a39;color:#eefaff;border-radius:13px;font-weight:950}.v309-open.hidden,.v309-backdrop.hidden{display:none!important}
     .v309-backdrop{position:fixed;z-index:16000;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;padding:12px}.v309-sheet{width:min(980px,100%);max-height:94dvh;overflow:auto;background:#0b1b26;color:#eff9ff;border:1px solid #39586a;border-radius:22px;padding:16px;box-shadow:0 -22px 70px rgba(0,0,0,.55)}
     .v309-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.v309-head h2{margin:2px 0 3px}.v309-head p{margin:0;color:#a9bdc9;font-size:.76rem}.v309-kicker{color:#ffd000;font-size:.66rem;font-weight:1000;letter-spacing:.08em}.v309-head button{padding:9px 12px}.v309-tools{display:grid;grid-template-columns:minmax(170px,.4fr) 1fr;gap:10px;margin:14px 0}.v309-tools label{font-size:.7rem;color:#a9bdc9}.v309-tools input,.v309-tools select{display:block;width:100%;margin-top:4px;min-height:46px;background:#07131c;color:#fff;border:1px solid #39586a;border-radius:11px;padding:9px;font:inherit;color-scheme:dark}
-    .v309-departures{display:flex;gap:7px;overflow:auto;padding:2px 1px 10px}.v309-dep{flex:0 0 auto;padding:9px 11px;border-radius:999px;background:#142c3b;border:1px solid #3d6074;color:#fff;font-weight:950}.v309-dep.active{background:#ffd000;color:#111;border-color:#ffd000}.v309-empty{padding:18px;border:1px dashed #456275;border-radius:13px;color:#a9bdc9;text-align:center}.v309-detail{border:1px solid #39586a;border-radius:14px;overflow:auto;background:#07131c}.v309-detail-head{padding:11px 12px;background:#102633;position:sticky;left:0}.v309-detail-head b{display:block}.v309-detail-head span{display:block;color:#abc0cc;font-size:.7rem;margin-top:2px}.v309-table{width:100%;border-collapse:collapse;font-size:.78rem}.v309-table th,.v309-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}.v309-table th{color:#a9bdc9;background:#0c202c;position:sticky;top:0}.v309-table td:first-child{font-weight:850;min-width:220px}.v309-table td:last-child{font-weight:1000;color:#ffd000;white-space:nowrap}.v309-actions{display:flex;justify-content:flex-end;margin-top:10px}.v309-actions button{min-height:44px}
+    .v309-departures{display:flex;gap:7px;overflow:auto;padding:2px 1px 10px}.v309-dep{flex:0 0 auto;padding:9px 11px;border-radius:999px;background:#142c3b;border:1px solid #3d6074;color:#fff;font-weight:950}.v309-dep.active{background:#ffd000;color:#111;border-color:#ffd000}.v309-empty{padding:18px;border:1px dashed #456275;border-radius:13px;color:#a9bdc9;text-align:center}.v309-detail{border:1px solid #39586a;border-radius:14px;overflow:auto;background:#07131c}.v309-detail-head{padding:11px 12px;background:#102633;position:sticky;left:0}.v309-detail-head b{display:block}.v309-detail-head span{display:block;color:#abc0cc;font-size:.7rem;margin-top:2px}.v309-table{width:100%;border-collapse:collapse;font-size:.78rem}.v309-table th,.v309-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}.v309-table th{color:#a9bdc9;background:#0c202c;position:sticky;top:0}.v309-table td:first-child{font-weight:850;min-width:220px}.v309-table td:last-child{font-weight:1000;color:#ffd000;white-space:nowrap}.v309-actions{display:flex;justify-content:flex-end;margin-top:10px}.v309-actions button{min-height:44px}.v3121-demand-flags{display:inline-block;margin-left:7px;color:#ffd000;font-weight:1000;letter-spacing:.05em}.v3121-demand-legend{margin-top:5px!important;color:#ffd86a!important;font-weight:850}.v3121-demand-legend::before{content:'57R027 · ';color:#a9bdc9}
     @media(max-width:620px){.v309-backdrop{padding:0}.v309-sheet{border-radius:22px 22px 0 0;padding:13px;padding-bottom:calc(13px + env(safe-area-inset-bottom))}.v309-tools{grid-template-columns:1fr}.v309-table{font-size:.72rem}.v309-table th,.v309-table td{padding:8px}.v309-table td:first-child{min-width:170px}}
-    @media print{body>*:not(#v309Timetable){display:none!important}#v309Timetable{display:block!important;position:static;background:#fff;padding:0}.v309-sheet{max-height:none;overflow:visible;width:100%;border:0;box-shadow:none;background:#fff;color:#111}.v309-head button,.v309-tools,.v309-departures,.v309-actions{display:none!important}.v309-detail{overflow:visible;background:#fff;border-color:#aaa}.v309-detail-head,.v309-table th{background:#eee;color:#111}.v309-table td,.v309-table th{color:#111;border-color:#ccc}.v309-table td:last-child{color:#111}}
+    @media print{body>*:not(#v309Timetable){display:none!important}#v309Timetable{display:block!important;position:static;background:#fff;padding:0}.v309-sheet{max-height:none;overflow:visible;width:100%;border:0;box-shadow:none;background:#fff;color:#111}.v309-head button,.v309-tools,.v309-departures,.v309-actions{display:none!important}.v309-detail{overflow:visible;background:#fff;border-color:#aaa}.v309-detail-head,.v309-table th{background:#eee;color:#111}.v309-table td,.v309-table th{color:#111;border-color:#ccc}.v309-table td:last-child{color:#111}.v3121-demand-flags,.v3121-demand-legend,.v3121-demand-legend::before{color:#111!important}}
   `;document.head.appendChild(css);
 
   let groups=[];
@@ -5566,8 +5582,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     groups=[...map.values()].map(g=>({...g,runs:g.runs.sort((a,b)=>a.seconds-b.seconds)})).sort((a,b)=>a.label.localeCompare(b.label,'fr'));return groups;
   }
   function renderTrip(run){
-    const p=run.p,trip=run.trip,rows=p.stops.map((st,i)=>`<tr><td>${i+1}. ${html(st.name)}</td><td>${html(tripTime(trip,i))}</td></tr>`).join(''),dest=p.stops.at(-1)?.name||p.headsign||'Terminus';
-    q('v309TripDetail').innerHTML=`<div class="v309-detail-head"><b>${html(p.stops[0]?.name||'Départ')} → ${html(dest)}</b><span>Départ ${html(clock(run.raw))} · ${p.stops.length} arrêts · données GTFS officielles Fluo</span></div><table class="v309-table"><thead><tr><th>Arrêt</th><th>Arrivée / départ</th></tr></thead><tbody>${rows}</tbody></table>`;
+    const p=run.p,trip=run.trip,is57R027=String(state?.route?.short||'').toUpperCase().replace(/\s+/g,'')==='57R027',demandApi=window.Fluo57R027V3119;
+    const demandFlags=p.stops.map((_,i)=>Boolean(is57R027&&demandApi?.isDemandStopFor?.(p,trip,i)));
+    const rows=p.stops.map((st,i)=>`<tr><td>${i+1}. ${html(st.name)}${demandFlags[i]?'<span class="v3121-demand-flags" title="Montée sur réservation · descente à la demande">↑↓</span>':''}</td><td>${html(tripTime(trip,i))}</td></tr>`).join(''),dest=p.stops.at(-1)?.name||p.headsign||'Terminus';
+    const legend=demandFlags.some(Boolean)?'<span class="v3121-demand-legend">↑ montée sur réservation · ↓ descente à la demande</span>':'';
+    q('v309TripDetail').innerHTML=`<div class="v309-detail-head"><b>${html(p.stops[0]?.name||'Départ')} → ${html(dest)}</b><span>Départ ${html(clock(run.raw))} · ${p.stops.length} arrêts · données GTFS officielles Fluo</span>${legend}</div><table class="v309-table"><thead><tr><th>Arrêt</th><th>Arrivée / départ</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   function renderDepartures(){
     const g=groups[Number(q('v309Direction').value||0)];if(!g){q('v309Departures').innerHTML='';q('v309TripDetail').innerHTML='<div class="v309-empty">Aucun horaire pour cette date.</div>';return}
@@ -6176,7 +6195,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV V31.20 · 57R027 réservations avant départ';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.20';
+  document.title='Fluo SAEIV V31.23 · Annonces vocales par catégories';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.23';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -6218,25 +6237,29 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   ]);
   const BACK_1832=set(['JURY - Croisement','MECLEUVES - Frontigny / Abbe Rissel','MECLEUVES - Lanceumont','MECLEUVES - Les Tarreaux','MECLEUVES - La Croix Du Mont','PUZIEUX - Rue Principale','PUZIEUX - Abreuvoir']);
   const isLine=()=>norm(state?.route?.short).replace(/\s+/g,'')===ROUTE;
-  const depClock=()=>String(state?.run?.trip?.times?.[0]?.[1]||state?.run?.trip?.times?.[0]?.[0]||'').slice(0,5);
-  const isOutbound=()=>isLine() && norm(state?.pattern?.stops?.[0]?.name).startsWith('CHATEAU-SALINS');
-  const isReturn=()=>isLine() && norm(state?.pattern?.stops?.[0]?.name).startsWith('METZ');
+  const depClockFor=(pattern,trip)=>String(trip?.times?.[0]?.[1]||trip?.times?.[0]?.[0]||'').slice(0,5);
+  const depClock=()=>depClockFor(state?.pattern,state?.run?.trip);
+  const isOutboundPattern=pattern=>norm(pattern?.stops?.[0]?.name).startsWith('CHATEAU-SALINS');
+  const isReturnPattern=pattern=>norm(pattern?.stops?.[0]?.name).startsWith('METZ');
+  const isOutbound=()=>isLine() && isOutboundPattern(state?.pattern);
+  const isReturn=()=>isLine() && isReturnPattern(state?.pattern);
   function isReservedService(){
     if(!isLine()||!state?.run)return false;const d=depClock();
     return (isOutbound()&&(d==='11:00'||d==='13:00'))||(isReturn()&&(d==='09:15'||d==='13:45'));
   }
-  function isDemandStop(index){
-    if(!isLine()||state?.service?.mode!=='regular'||!state?.pattern?.stops?.[index])return false;
-    const n=norm(state.pattern.stops[index].name),d=depClock();
-    if(isOutbound()){
+  // V31.21 : même règle, utilisable aussi par la fiche horaire pour une course qui n'est pas la course active.
+  function isDemandStopFor(pattern,trip,index){
+    if(!pattern?.stops?.[index])return false;
+    const n=norm(pattern.stops[index].name),d=depClockFor(pattern,trip);
+    if(isOutboundPattern(pattern)){
       if(OUT_ALWAYS.has(n))return true;
       if(d==='07:55'&&OUT_0755.has(n))return true;
-      if(d==='06:00'&&state.pattern.stops.some(s=>norm(s.name)==='SILLY-EN-SAULNOIS - CENTRE')&&OUT_0600_LONG.has(n))return true;
+      if(d==='06:00'&&pattern.stops.some(s=>norm(s.name)==='SILLY-EN-SAULNOIS - CENTRE')&&OUT_0600_LONG.has(n))return true;
       return false;
     }
-    if(isReturn()){
+    if(isReturnPattern(pattern)){
       if(BACK_ALWAYS.has(n))return true;
-      const first=norm(state.pattern.stops[0]?.name);
+      const first=norm(pattern.stops[0]?.name);
       if(d==='12:20'&&first.includes('GARE ROUTIERE')&&BACK_1220.has(n))return true;
       if(d==='12:25'&&first.includes('AVENUE FOCH')&&BACK_1225.has(n))return true;
       if(d==='17:23'&&BACK_1723.has(n))return true;
@@ -6244,7 +6267,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     }
     return false;
   }
-  window.Fluo57R027V3119={isDemandStop,isReservedService};
+  function isDemandStop(index){
+    if(!isLine()||state?.service?.mode!=='regular')return false;
+    return isDemandStopFor(state?.pattern,state?.run?.trip,index);
+  }
+  window.Fluo57R027V3119={isDemandStop,isReservedService,isDemandStopFor};
 
   function demandIndices(){return (state?.pattern?.stops||[]).map((_,i)=>i).filter(isDemandStop)}
   function operationalIndices(){
