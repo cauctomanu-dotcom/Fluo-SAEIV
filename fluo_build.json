@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T18:45:00+02:00",
-  "version": "1.0.8",
+  "generated_at": "2026-08-27T19:40:00+02:00",
+  "version": "1.0.11",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -250,5 +250,21 @@
       "Fluo Cars hors 67: ticket 4€, scolaire 2€, réduit 2€, scolaire réduit 1€ + abonnements/cartes",
       "Fluo 67: tarification spécifique (billet unitaire 3€, 67+CTS 3,50€, carnet 10 trajets 21€, etc.)"
     ]
+  },
+  "release_1_0_9": {
+    "cash_day_ui": "boutons Ma journée réorganisés sur mobile ; Lancer ma journée pleine largeur ; libellé Choisir une course manuellement explicite ; Faire ma caisse sans compression",
+    "radio_ui": "résultats radio avec hauteur minimale et défilement réel afin que noms et métadonnées restent lisibles en portrait, clavier ouvert et paysage",
+    "radio_streaming": "classement des flux par compatibilité/stabilité (HTTPS, MP3/AAC, débit modéré), dédoublonnage par station, préférence pour 48–160 kb/s et flux non-HLS quand plusieurs sources existent",
+    "radio_recovery": "détection des mises en mémoire tampon répétées ; après plusieurs saccades, tentative automatique d’un flux alternatif plus stable pour la même station"
+  },
+  "custom_line_creator_fix": {
+    "version": "1.0.10",
+    "behavior": "correction iOS/tactile : la liste des arrêts ne se ferme plus sur pointerup avant le clic de sélection ; départ et terminus peuvent de nouveau être sélectionnés dans Admin > Création de ligne"
+  },
+  "radio_v1_0_11": {
+    "ui": "liste de stations en flex à hauteur fixe pour Safari/iPhone, noms et métadonnées toujours lisibles",
+    "ios_volume": "volume des flux web contrôlé par les boutons système iPhone ; curseur applicatif désactivé sur iOS pour éviter un faux réglage",
+    "ducking": "radio coupée pendant toute voix sur iOS ; sur Android/PC annonces voyageurs coupées et GPS abaissé à environ 2,5 % du volume radio",
+    "stream_selection": "priorité HTTPS MP3/AAC 48–128 kb/s, moins de résultats simultanés et bascule plus rapide sur un flux de secours en cas de buffering"
   }
 }

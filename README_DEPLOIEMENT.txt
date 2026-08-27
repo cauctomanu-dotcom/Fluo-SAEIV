@@ -458,3 +458,18 @@ Mon SAEIV 1.0.8 — Ma caisse
 - Récapitulatifs jour/semaine/mois/tout, quantité de titres et caisse théorique.
 - Bouton Faire ma caisse dans Ma journée.
 - Données de caisse conservées localement par matricule.
+
+
+MON SAEIV 1.0.10 — CORRECTIFS MA JOURNÉE + RADIO
+- Correction de la zone d’actions en bas de Ma journée sur mobile : boutons non compressés et empilés proprement sur petit écran.
+- « Choix manuel » devient « Choisir une course manuellement » pour expliciter son rôle.
+- Correction de la liste radio : noms de stations et informations de flux restent lisibles, y compris avec le clavier iOS ouvert et en paysage.
+- Le catalogue radio privilégie désormais les flux HTTPS MP3/AAC de débit modéré, en particulier 48 à 160 kb/s, et dédoublonne les flux portant le même nom de station.
+- En cas de buffering/saccades répétés, tentative automatique d’un autre flux disponible pour la même station.
+- Les favoris et le volume radio existants sont conservés ; le cache du catalogue est renouvelé pour appliquer la nouvelle sélection de flux.
+- Toutes les fonctions 1.0.8 et antérieures sont conservées.
+
+
+Mon SAEIV 1.0.10
+- Correctif tactile/iOS de la sélection des arrêts dans Admin > Création de ligne.
+- Aucun changement des données réseau ni des autres fonctions.
