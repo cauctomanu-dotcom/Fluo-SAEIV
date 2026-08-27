@@ -387,3 +387,6 @@ V31.27 — INFORMATION D’UTILISATION
 - Les informations, historiques et journaux de l’application n’ont, à ce jour, pas valeur de justificatif officiel ou opposable.
 - Les libellés visibles liés au GPS et à la voix utilisent désormais « Vérifier » et « Aperçu » plutôt qu’un vocabulaire de version de test.
 - Toutes les fonctions V31.26 et antérieures sont conservées.
+
+
+V31.28 — Correctif Fiches horaires : les données embarquées restent prioritaires. Si un paquet core local renvoie HTTP 404 depuis GitHub/PWA, la bibliothèque bascule automatiquement sur le GTFS officiel Fluo pour le département concerné. Aucun changement de design, planning, cockpit ou logique conducteur.

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T00:20:00+02:00",
-  "version": "V31.27",
+  "generated_at": "2026-08-27T02:18:00+02:00",
+  "version": "V31.28",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -175,5 +175,17 @@
     "data_warning": "des erreurs, omissions ou décalages de mise à jour peuvent subsister ; les références de l’entreprise prévalent en cas de divergence",
     "records_status": "les informations, historiques et journaux n’ont, à ce jour, pas valeur de justificatif officiel ou opposable",
     "presentation": "libellés visibles de vérification GPS et d’aperçu vocal rendus neutres ; aucune fonctionnalité retirée"
+  },
+  "network_timetable_library_fix": {
+    "version": "V31.28",
+    "issue": "Le menu Fiches horaires pouvait afficher HTTP 404 si un paquet core embarqué n’était pas servi par l’hébergement/PWA.",
+    "behavior": "Paquets embarqués prioritaires ; repli automatique vers le GTFS officiel Fluo Grand Est si la ressource locale est indisponible.",
+    "departments": [
+      "54",
+      "57",
+      "67",
+      "68"
+    ],
+    "no_ui_change": true
   }
 }

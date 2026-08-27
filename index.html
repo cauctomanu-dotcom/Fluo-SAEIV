@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=31.27">
+  <link rel="manifest" href="manifest.webmanifest?v=31.28">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Fluo SAEIV · V31.27</title>
+  <title>Fluo SAEIV · V31.28</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style id="v22CoreStyle">
 .stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
@@ -67,7 +67,7 @@
 </div>
 <div class="app">
   <header class="top">
-    <div><div class="eyebrow">SAEIV CONDUCTEUR · V31.27</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
+    <div><div class="eyebrow">SAEIV CONDUCTEUR · V31.28</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
     <div id="gpsPill" class="pill">GPS à vérifier</div>
   </header>
 
@@ -1600,10 +1600,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=31.27').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'V31.27'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=31.28').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'V31.28'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.27').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.28').catch(()=>{});
 
 </script>
 <script>
@@ -6219,7 +6219,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV · V31.27';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.27';
+  document.title='Fluo SAEIV · V31.28';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.28';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -6675,7 +6675,19 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const content=()=>q('v3125BrowserContent');
   function setHead(title,sub,back){q('v3125BrowserTitle').textContent=title;q('v3125BrowserSub').textContent=sub||'';const b=q('v3125BrowserBack');b.textContent=back?`← ${back}`:'← Retour';b.classList.toggle('hidden',!back)}
   function loading(text='Chargement des données Fluo…'){content().innerHTML=`<div class="v3125-loading"><b>⏳ Chargement</b>${h(text)}</div>`}
-  async function localCore(dept){const d=String(dept);if(!localCoreCache.has(d))localCoreCache.set(d,jget(`fluo${d}_core.json.gz`));return localCoreCache.get(d)}
+  async function localCore(dept){
+    const d=String(dept);
+    if(!localCoreCache.has(d))localCoreCache.set(d,(async()=>{
+      try{return await jget(`fluo${d}_core.json.gz`)}
+      catch(localErr){
+        // V31.28 : si l'hébergement GitHub/PWA ne sert pas le paquet local (ex. HTTP 404),
+        // la bibliothèque des fiches horaires bascule sur le GTFS Fluo officiel au lieu de se bloquer.
+        console.warn(`V31.28 paquet local ${d} indisponible, repli GTFS officiel`,localErr?.message||localErr);
+        try{return await fluoRemoteCore(d)}catch(remoteErr){throw new Error(`Données Fluo ${d} indisponibles (local : ${localErr?.message||localErr} ; GTFS : ${remoteErr?.message||remoteErr})`)}
+      }
+    })());
+    try{return await localCoreCache.get(d)}catch(e){localCoreCache.delete(d);throw e}
+  }
   function routeFamily(route,dept){
     const d=String(dept),s=code(route),hay=norm([route?.short,route?.long].filter(Boolean).join(' '));
     if((d==='67'||d==='68')&&window.FluoAlsaceLineCategoryV314){const c=window.FluoAlsaceLineCategoryV314(route,d);if(c==='regular'||c==='school')return c}
@@ -6694,7 +6706,13 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
       const [core,feed]=await Promise.all([fluoRemoteCore(d),fluoRemoteFeed(d)]),iso=String(date);
       routes=(core.routesIndex?.routes||[]).filter(r=>{const trips=feed.tripsByRoute.get(String(r.id))||[];return !trips.length||trips.some(t=>fluoServiceCoversIso(feed.services[String(t.service_id||'')],iso))});
       if(d==='54'&&iso>='2026-09-01')routes=routes.filter(r=>/^\d{3,4}$/.test(String(r.short||'').trim()));
-    }else routes=(await localCore(d)).routesIndex?.routes||[];
+    }else{
+      const core=await localCore(d);routes=core.routesIndex?.routes||[];
+      if(core.routesIndex?.regional_gtfs){
+        const feed=await fluoRemoteFeed(d),iso=String(date);
+        routes=routes.filter(r=>{const trips=feed.tripsByRoute.get(String(r.id))||[];return !trips.length||trips.some(t=>fluoServiceCoversIso(feed.services[String(t.service_id||'')],iso))});
+      }
+    }
     routes=routes.slice().sort((a,b)=>String(a.short||'').localeCompare(String(b.short||''),'fr',{numeric:true})||String(a.long||'').localeCompare(String(b.long||''),'fr'));
     routesCache.set(key,routes);return routes;
   }
@@ -6736,11 +6754,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const q=id=>document.getElementById(id);
   q('v3127UsageContinue')?.addEventListener('click',()=>q('v3127UsageNotice')?.classList.add('hidden'));
   const label=()=>{
-    document.title='Fluo SAEIV · V31.27';
+    document.title='Fluo SAEIV · V31.28';
     const eyebrow=document.querySelector('.top .eyebrow');
-    if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.27';
+    if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.28';
     const b=q('buildInfo');
-    if(b)b.textContent='Version V31.27 · Fluo Grand Est';
+    if(b)b.textContent='Version V31.28 · Fluo Grand Est';
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{label();setTimeout(label,4000)});
   else{label();setTimeout(label,4000)}
