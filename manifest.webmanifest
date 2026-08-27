@@ -1,11 +1,11 @@
 {
-  "name": "Fluo SAEIV V31.28",
-  "short_name": "Fluo V31.28",
-  "start_url": "./?v=31.28",
+  "name": "Mon SAEV 1.0.1",
+  "short_name": "Mon SAEV",
+  "start_url": "./?v=1.0.1",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "Fluo SAEIV conducteur — outil d’aide à l’exploitation et au suivi des services Fluo Grand Est."
+  "description": "Mon SAEV — outil d’aide au conducteur pour le suivi et la préparation des services."
 }

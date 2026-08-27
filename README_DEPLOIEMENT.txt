@@ -1,3 +1,9 @@
+MON SAEV 1.0.1 — DÉPLOIEMENT
+==============================
+
+Identité publique : Mon SAEV · version 1.0.1.
+Les anciennes références de versions ci-dessous sont conservées uniquement comme historique technique de maintenance et ne sont plus affichées dans l’application.
+
 FLUO SAEIV V31.15 — NOTE DE VERSION
 
 - 54 : anciens numéros conservés pour les dates de service jusqu’au 31/08/2026.

@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=31.28">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Fluo SAEIV · V31.28</title>
+  <title>Mon SAEV · 1.0.1</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style id="v22CoreStyle">
 .stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
@@ -53,12 +53,16 @@
   .v3127-usage-card{width:min(650px,100%);max-height:90dvh;overflow:auto;padding:20px;border:1px solid rgba(126,164,185,.34);border-radius:22px;background:linear-gradient(180deg,#102936,#081923);box-shadow:0 28px 80px rgba(0,0,0,.55)}
   .v3127-usage-card .eyebrow{margin-bottom:5px}.v3127-usage-card h2{margin:0;font-size:1.45rem}.v3127-usage-card p{margin:12px 0 0;color:#c3d3db;font-size:.82rem;line-height:1.55}.v3127-usage-card strong{color:#fff}.v3127-usage-card .v3127-usage-note{padding:11px 12px;border:1px solid #3b5969;border-radius:13px;background:#071721}.v3127-usage-card button{width:100%;margin-top:16px}
 </style>
+
+<style id="monSaevCleanUi">
+  #buildInfo,.audio-note,.fusion-note,#v305SpeedNote{display:none!important}
+</style>
 </head>
 <body>
 <div id="v3127UsageNotice" class="v3127-usage-backdrop" role="dialog" aria-modal="true" aria-labelledby="v3127UsageTitle">
   <div class="v3127-usage-card">
     <div class="eyebrow">INFORMATION D’UTILISATION</div>
-    <h2 id="v3127UsageTitle">Fluo SAEIV</h2>
+    <h2 id="v3127UsageTitle">Mon SAEV</h2>
     <p>Cette application est un <strong>outil d’aide au conducteur</strong>, conçu pour faciliter certaines tâches du quotidien. Elle ne remplace pas les applications, procédures, documents ou consignes fournis par votre entreprise, l’exploitant ou l’autorité organisatrice.</p>
     <p class="v3127-usage-note">Malgré le soin apporté aux données et aux fonctionnalités, des erreurs, omissions ou décalages de mise à jour peuvent subsister. En cas de divergence, les outils, documents et consignes de référence de l’entreprise prévalent.</p>
     <p>Les informations, historiques et journaux produits par l’application constituent une aide de suivi et <strong>n’ont, à ce jour, pas valeur de justificatif officiel ou opposable</strong>.</p>
@@ -67,7 +71,7 @@
 </div>
 <div class="app">
   <header class="top">
-    <div><div class="eyebrow">SAEIV CONDUCTEUR · V31.28</div><h1>Fluo SAEIV</h1><div class="sub">Fluo Grand Est · 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
+    <div><div class="eyebrow">MON SAEV · 1.0.1</div><h1>Mon SAEV</h1><div class="sub">Réseaux 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
     <div id="gpsPill" class="pill">GPS à vérifier</div>
   </header>
 
@@ -133,10 +137,7 @@
       <label>Accélération du temps<select id="simScale"><option value="1">x1</option><option value="5">x5</option><option value="10" selected>x10</option><option value="20">x20</option><option value="40">x40</option></select></label>
       <label id="simDelayWrap">Écart horaire simulé<select id="simDelay"><option value="-180">Avance 3 min</option><option value="0" selected>À l’heure</option><option value="180">Retard 3 min</option><option value="420">Retard 7 min</option><option value="720">Retard 12 min</option><option value="1200">Retard 20 min</option></select></label>
     </div>
-    <div id="buildInfo" class="install"></div>
-    <div class="audio-note"><b>🔊 Annonces</b><span>Après chaque départ, « Prochain arrêt » est annoncé environ 15 secondes plus tard. À l’arrivée au poteau, une seconde annonce dit « Arrêt : [nom] ». Au terminus, elle ajoute un message professionnel de fin de voyage et de rappel des effets personnels. T−5/T−1 restent actifs en service horaire, et le rappel ligne/destination reste à mi-inter-arrêt. En Formation, seules les annonces liées aux horaires sont désactivées.</span></div>
-    <div class="fusion-note"><b>🧭 Fusion V11</b><span>Fluo fournit la course officielle. Le GPS iPhone fournit la position réelle. Le moteur recale ensuite cette position sur l’unique tracé de la course sélectionnée en tenant compte de la progression et du sens, afin d’éviter les sauts sur une rue ou une variante voisine.</span></div>
-    <div class="note">Les données de course viennent de <code>trips.txt</code> + <code>stop_times.txt</code> + <code>calendar*.txt</code>. Les poteaux viennent de <code>stops.txt</code> et le tracé officiel de <code>shapes.txt</code>. Manipule l’interface uniquement véhicule immobilisé.</div>
+    <div id="buildInfo" class="install" hidden aria-hidden="true"></div>
   </section>
 
   <section id="driver" class="panel hidden">
@@ -190,12 +191,12 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-// Fluo SAEIV V31.26 — arrêts conditionnels GTFS généralisés + menu vocal Catégories → Annonces ; toutes les fonctions V31.23 conservées.
+// Mon SAEV V31.26 — arrêts conditionnels GTFS généralisés + menu vocal Catégories → Annonces ; toutes les fonctions V31.23 conservées.
 // V31.17 — correctif opérationnel 57R026 : Ancienne Gare 08:27 (Baronville 07:56) et 17:47 (Ruisseau Salé 17:45).
 'use strict';
 
 const $ = id => document.getElementById(id);
-// Fluo SAEIV V30.2 — base V30 + routes à éviter par adresse/carte, arrêt demandé intégré et responsive consolidé.
+// Mon SAEV V30.2 — base V30 + routes à éviter par adresse/carte, arrêt demandé intégré et responsive consolidé.
 // Le moteur de suivi utilise la progression le long du shape, le cap tangent au parcours et un lissage circulaire.
 const ui = {
   dept:$('dept'), route:$('route'), serviceDate:$('serviceDate'), startStop:$('startStop'), trip:$('trip'), formationPattern:$('formationPattern'), scheduleSetup:$('scheduleSetup'), formationSetup:$('formationSetup'),
@@ -411,7 +412,7 @@ async function fluoFetchRemoteZip(dept){
     if(!r){r=await fetch(url,{cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error(`HTTP ${r.status}`);if('caches'in window){try{const c=await caches.open(cacheName);await c.put(url,r.clone());localStorage.setItem(stampKey,String(Date.now()))}catch{}}}
     const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url}
   }catch(e){last=e?.message||String(e)}
-  throw new Error(`flux GTFS régional Fluo Grand Est inaccessible${last?` : ${last}`:''}`);
+  throw new Error(`flux GTFS régional inaccessible${last?` : ${last}`:''}`);
 }
 async function fluoRemoteFeed(dept){
   const d=String(dept);if(FluoRemoteGTFS.feeds.has(d))return FluoRemoteGTFS.feeds.get(d);
@@ -1600,23 +1601,23 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=31.28').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'V31.28'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=1.0.1').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.1'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=31.28').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.1').catch(()=>{});
 
 </script>
 <script>
 'use strict';
 
-/* Fluo SAEIV V12 — ergonomie mobile, guidage conducteur, bus orienté, choix de voix, ding-dong */
+/* Mon SAEV V12 — ergonomie mobile, guidage conducteur, bus orienté, choix de voix, ding-dong */
 (() => {
   const q = id => document.getElementById(id);
 
   // --- Injection de l'interface V12 dans la V11 existante ---
-  document.title = 'Fluo SAEIV V12 Mobile + Navigation';
+  document.title='Mon SAEV · 1.0.1';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'SAEIV CONDUCTEUR · V12 MOBILE + NAVIGATION';
+  if (eyebrow) eyebrow.textContent = 'MON SAEV · 1.0.1';
 
   const serviceChoice = document.querySelector('.service-choice');
   if (serviceChoice && !q('v12Preferences')) {
@@ -1948,19 +1949,19 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 <script>
 'use strict';
 
-/* Fluo SAEIV V13 — identification conducteur + journal de service local */
+/* Mon SAEV V13 — identification conducteur + journal de service local */
 (() => {
   const $v13 = id => document.getElementById(id);
-  const APP_VERSION = 'V13 TRAÇABILITÉ';
+  const APP_VERSION = '1.0.1';
   const DB_NAME = 'fluo-saeiv-journal-v13';
   const DB_VERSION = 1;
   const ACCOUNT_KEY = 'fluoSaeivAccountV13';
   const SAMPLE_INTERVAL_MS = 10000; // V29 : point de contrôle au moins toutes les 10 s à l'arrêt
   const SAMPLE_MOVE_M = 6;       // V29 : trace GPS réelle tous les ~5 à 7 mètres en mouvement
 
-  document.title = 'Fluo SAEIV V13 Traçabilité';
+  document.title='Mon SAEV · 1.0.1';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'SAEIV CONDUCTEUR · V13 TRAÇABILITÉ';
+  if (eyebrow) eyebrow.textContent = 'MON SAEV · 1.0.1';
 
   const V13 = {
     unlocked: false,
@@ -1996,9 +1997,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   document.body.insertAdjacentHTML('beforeend', `
     <div id="v13Auth" class="v13-auth">
       <div class="v13-auth-card">
-        <div class="v13-logo">FLUO SAEIV · ${APP_VERSION}</div>
+        <div class="v13-logo">MON SAEV · ${APP_VERSION}</div>
         <h2 id="v13AuthTitle">Identification conducteur</h2>
-        <p id="v13AuthIntro">Connexion requise pour accéder au SAEIV et associer les journaux au conducteur.</p>
+        <p id="v13AuthIntro">Connexion requise pour accéder à Mon SAEV et associer les journaux au conducteur.</p>
         <form id="v13AuthForm" autocomplete="off">
           <label>Matricule<input id="v13Matricule" type="text" inputmode="text" autocapitalize="characters" autocomplete="username" maxlength="40" required></label>
           <label>Mot de passe<input id="v13Password" type="password" autocomplete="current-password" minlength="6" required></label>
@@ -2052,7 +2053,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   function authMode(){
     const a=loadAccount(), registering=!a;
     auth.title.textContent=registering?'Créer le profil conducteur':'Connexion conducteur';
-    auth.intro.textContent=registering?'Première ouverture : enregistre ton matricule et choisis un mot de passe.':'Saisis ton matricule et ton mot de passe pour ouvrir le SAEIV.';
+    auth.intro.textContent=registering?'Première ouverture : enregistre ton matricule et choisis un mot de passe.':'Saisis ton matricule et ton mot de passe pour ouvrir Mon SAEV.';
     auth.confirmWrap.classList.toggle('hidden',!registering); auth.confirm.required=registering;
     auth.submit.textContent=registering?'CRÉER LE PROFIL':'SE CONNECTER';
     if(a) auth.matricule.value=a.matricule||'';
@@ -2284,7 +2285,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 <script>
 'use strict';
 
-/* Fluo SAEIV V14 — TAD dynamique : seuls les arrêts sélectionnés structurent le trajet */
+/* Mon SAEV V14 — TAD dynamique : seuls les arrêts sélectionnés structurent le trajet */
 (() => {
   const q = id => document.getElementById(id);
   const V14_CACHE_KEY = 'fluoV14TadRouteCache';
@@ -2300,9 +2301,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     cache: new Map()
   };
 
-  document.title = 'Fluo SAEIV V14 · TAD dynamique';
+  document.title='Mon SAEV · 1.0.1';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'SAEIV CONDUCTEUR · V14 TAD DYNAMIQUE + TRAÇABILITÉ';
+  if (eyebrow) eyebrow.textContent = 'MON SAEV · 1.0.1';
 
   // --- Information TAD dynamique ---
   const tadHeadText = document.querySelector('.tad-panel-head > div:first-child span');
@@ -2598,12 +2599,12 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 <script>
 'use strict';
 
-/* Fluo SAEIV V15 — cockpit smartphone, paysage conducteur + rappel arrêt demandé différé */
+/* Mon SAEV V15 — cockpit smartphone, paysage conducteur + rappel arrêt demandé différé */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Fluo SAEIV V15 · Cockpit smartphone';
+  document.title='Mon SAEV · 1.0.1';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='SAEIV CONDUCTEUR · V15 COCKPIT SMARTPHONE';
+  if(eyebrow) eyebrow.textContent='MON SAEV · 1.0.1';
 
   const driver=q('driver'), mapWrap=document.querySelector('#driver .navmap-wrap');
   if(!driver||!mapWrap) return;
@@ -2801,12 +2802,12 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 <script>
 'use strict';
 
-/* Fluo SAEIV V16 — profil de vitesse routier, calcul d'horaires, caméra GPS 3D */
+/* Mon SAEV V16 — profil de vitesse routier, calcul d'horaires, caméra GPS 3D */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Fluo SAEIV V17 · Crossway Fluo réel';
+  document.title='Mon SAEV · 1.0.1';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='SAEIV CONDUCTEUR · V17 CROSSWAY FLUO RÉEL';
+  if(eyebrow) eyebrow.textContent='MON SAEV · 1.0.1';
 
   const V16={
     profileCache:new Map(), simLegs:new Map(), simReady:false, simLoading:false,
@@ -2888,7 +2889,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   // L'image source avait l'avant à gauche ; elle est intégrée tournée de 90° horaire pour que 0° = nord.
   const V17_BUS_IMAGE='data:image/png;base64,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';
   function busSvg(){
-    return `<img src="${V17_BUS_IMAGE}" alt="Iveco Crossway Fluo Grand Est" draggable="false">`;
+    return `<img src="${V17_BUS_IMAGE}" alt="Iveco Crossway" draggable="false">`;
   }
 
   // Leaflet fallback bus, same white elongated Crossway top-view.
@@ -3262,12 +3263,12 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 
 <script>
 'use strict';
-/* Fluo SAEIV V18 — bus à l'échelle + filtre lignes régulières / scolaires */
+/* Mon SAEV V18 — bus à l'échelle + filtre lignes régulières / scolaires */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Fluo SAEIV V18 · Filtre lignes + Crossway ajusté';
+  document.title='Mon SAEV · 1.0.1';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='SAEIV CONDUCTEUR · V18 SMARTPHONE';
+  if(eyebrow) eyebrow.textContent='MON SAEV · 1.0.1';
 
   // --- Taille du Crossway : environ 45 % de V17 pour rester à l'échelle de la carte. ---
   const style=document.createElement('style');
@@ -3423,12 +3424,12 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 
 <script>
 'use strict';
-/* Fluo SAEIV V19 — rotation smartphone stable + amorçage audio Bluetooth */
+/* Mon SAEV V19 — rotation smartphone stable + amorçage audio Bluetooth */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Fluo SAEIV V19 · Smartphone + Crossway + lignes';
+  document.title='Mon SAEV · 1.0.1';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='SAEIV CONDUCTEUR · V19 SMARTPHONE';
+  if(eyebrow) eyebrow.textContent='MON SAEV · 1.0.1';
 
   const st=document.createElement('style');
   st.id='v19Style';
@@ -3511,8 +3512,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V20 — l'affichage utilise uniquement state.fusion.shape produit par le moteur réécrit dans app.js. */
 (() => {
-  document.title='Fluo SAEIV V20 · Tracés exacts Fluo';
-  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='SAEIV CONDUCTEUR · V20 TRACÉS EXACTS';
+  document.title='Mon SAEV · 1.0.1';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEV · 1.0.1';
   const css=document.createElement('style');css.textContent=`
     .route-state.v20-source{max-width:72%}
     .v20-source-note{margin-top:8px;font-size:.69rem;color:#91a8b6;line-height:1.35}
@@ -3527,8 +3528,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V21 — arrêt demandé sonore synchronisé, écran éveillé, prononciation des codes Fluo. */
 (() => {
-  document.title='Fluo SAEIV V21 · Ding-dong + écran actif';
-  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='SAEIV CONDUCTEUR · V21 ÉCRAN ACTIF';
+  document.title='Mon SAEV · 1.0.1';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEV · 1.0.1';
   const n=document.querySelector('.audio-note');
   if(n){
     const b=n.querySelector('b'); if(b)b.textContent='🔊 Annonces V21';
@@ -3540,12 +3541,12 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 
 <script>
 // V22 — étiquette de version après chargement de tous les modules.
-window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V22 TAD + SUIVI STABLE';});
+window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';});
 </script>
 
 <script>
 'use strict';
-/* Fluo SAEIV V23 — calcul horaires réparé + journaux cartographiques + nettoyage local. */
+/* Mon SAEV V23 — calcul horaires réparé + journaux cartographiques + nettoyage local. */
 (() => {
   const q=id=>document.getElementById(id);
   const DB_NAME='fluo-saeiv-journal-v13';
@@ -3649,7 +3650,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function addDetailUi23(){
     if(q('v23JournalDetail'))return;
     document.body.insertAdjacentHTML('beforeend',`<div id="v23JournalDetail" class="v23-detail-backdrop hidden" role="dialog" aria-modal="true">
-      <div class="v23-detail"><div class="v23-detail-head"><div><div class="v13-logo">JOURNAL DE SERVICE · V23</div><h2 id="v23DetailTitle">Détail du service</h2><p id="v23DetailSubtitle"></p></div><button id="v23DetailClose" class="v23-detail-close" type="button">Fermer</button></div>
+      <div class="v23-detail"><div class="v23-detail-head"><div><div class="v13-logo">JOURNAL DE SERVICE</div><h2 id="v23DetailTitle">Détail du service</h2><p id="v23DetailSubtitle"></p></div><button id="v23DetailClose" class="v23-detail-close" type="button">Fermer</button></div>
       <div class="v23-detail-scroll"><div id="v23DetailSummary" class="v23-detail-summary"></div><div id="v23JournalMap"></div><div class="v23-map-note">Carte reconstruite avec le tracé du service enregistré et les positions GPS/fusion disponibles. Fond de carte © OpenStreetMap.</div><div id="v23StopTable" class="v23-stop-table"></div></div>
       <div class="v23-detail-actions"><button id="v23DetailDownload" class="primary" type="button">⬇ Télécharger ce rapport</button><button id="v23DetailDelete" class="danger" type="button">🗑 Supprimer ce journal</button></div></div></div>`);
     q('v23DetailClose')?.addEventListener('click',closeDetail23);
@@ -3722,7 +3723,9 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const rows=stopRows23(s,ev),route=routePoints23(s,ev),markers=rows.map((r,i)=>({i,name:r.stopName||'Arrêt',actual:r.ts,scheduled:r.scheduledTime||null,delay:r.scheduleDeltaSec,p:rowPoint23(r,s)})).filter(x=>x.p);
     const data=JSON.stringify({route,markers}).replace(/</g,'\\u003c');
     const rowHtml=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc23(r.stopName||'—')}</td><td>${esc23(fmtDate23(r.ts))}</td><td>${esc23(r.scheduledTime?fmtTime23(r.scheduledTime):'—')}</td><td>${esc23(fmtDelay23(r.scheduleDeltaSec))}</td><td>${Number.isFinite(Number(r.speedKmh))?Number(r.speedKmh).toFixed(1).replace('.',',')+' km/h':'—'}</td></tr>`).join('');
-    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal ${esc23(s.route||'Fluo SAEIV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1100px;margin:auto;padding:18px}h1{margin-bottom:4px}.muted{color:#9fb0bb}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:15px 0}.card{background:#0d202c;border:1px solid #355163;border-radius:12px;padding:10px}.card small{display:block;color:#8fa5b3}.card b{font-size:1.05rem}#map{height:440px;border-radius:15px;overflow:hidden;border:1px solid #355163;background:#10202a}table{width:100%;border-collapse:collapse;margin-top:15px;background:#0d202c}th,td{padding:9px;border-bottom:1px solid #28404e;text-align:left}th{color:#b9cad5}footer{margin-top:15px;color:#8295a3;font-size:.8rem}@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}#map{height:360px}table{font-size:.8rem;display:block;overflow:auto}}</style></head><body><main><div class="muted">FLUO SAEIV · RAPPORT DE JOURNAL</div><h1>${esc23(s.route||'—')} · ${esc23(s.destination||'')}</h1><div class="muted">${esc23(fmtDate23(s.startedAt))} · ${esc23(s.serviceMode||'')} ${s.tripId?`· trip ${esc23(s.tripId)}`:''}</div><div class="cards"><div class="card"><small>ARRÊTS</small><b>${rows.length}</b></div><div class="card"><small>DISTANCE</small><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="card"><small>VITESSE MAX</small><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="card"><small>CONDUCTEUR</small><b>${esc23(s.matricule||'—')}</b></div></div><div id="map"></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Passage réel</th><th>Prévu</th><th>Écart</th><th>Vitesse</th></tr></thead><tbody>${rowHtml}</tbody></table><footer>Rapport généré le ${esc23(fmtDate23(iso23()))}. Le fond de carte nécessite une connexion Internet. Les positions proviennent du journal local du SAEIV.</footer></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const DATA=${data};const c=DATA.route[0]||(DATA.markers[0]&&DATA.markers[0].p)||[48.7,6.2];const map=L.map('map').setView(c,13);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(DATA.route.length>1){L.polyline(DATA.route,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...DATA.route)}DATA.markers.forEach((x,i)=>{b.push(x.p);L.circleMarker(x.p,{radius:i===0?7:6,color:'#173447',weight:2,fillColor:i===DATA.markers.length-1?'#ffb000':i===0?'#55d981':'#fff',fillOpacity:1}).addTo(map).bindPopup('<b>'+x.name.replace(/[<>&]/g,'')+'</b><br>Passage : '+new Date(x.actual).toLocaleTimeString('fr-FR')+'<br>Prévu : '+(x.scheduled?new Date(x.scheduled).toLocaleTimeString('fr-FR'):'—'))});if(b.length>1)map.fitBounds(b,{padding:[28,28],maxZoom:16});<\/script>
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal ${esc23(s.route||'Mon SAEV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1100px;margin:auto;padding:18px}h1{margin-bottom:4px}.muted{color:#9fb0bb}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:15px 0}.card{background:#0d202c;border:1px solid #355163;border-radius:12px;padding:10px}.card small{display:block;color:#8fa5b3}.card b{font-size:1.05rem}#map{height:440px;border-radius:15px;overflow:hidden;border:1px solid #355163;background:#10202a}table{width:100%;border-collapse:collapse;margin-top:15px;background:#0d202c}th,td{padding:9px;border-bottom:1px solid #28404e;text-align:left}th{color:#b9cad5}footer{margin-top:15px;color:#8295a3;font-size:.8rem}@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}#map{height:360px}table{font-size:.8rem;display:block;overflow:auto}}</style></head><body><main><div class="muted">MON SAEV · RAPPORT DE JOURNAL</div><h1>${esc23(s.route||'—')} · ${esc23(s.destination||'')}</h1><div class="muted">${esc23(fmtDate23(s.startedAt))} · ${esc23(s.serviceMode||'')} ${s.tripId?`· trip ${esc23(s.tripId)}`:''}</div><div class="cards"><div class="card"><small>ARRÊTS</small><b>${rows.length}</b></div><div class="card"><small>DISTANCE</small><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="card"><small>VITESSE MAX</small><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="card"><small>CONDUCTEUR</small><b>${esc23(s.matricule||'—')}</b></div></div><div id="map"></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Passage réel</th><th>Prévu</th><th>Écart</th><th>Vitesse</th></tr></thead><tbody>${rowHtml}</tbody></table><footer>Rapport généré le ${esc23(fmtDate23(iso23()))}. Le fond de carte nécessite une connexion Internet. Les positions proviennent du journal local de Mon SAEV.</footer></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const DATA=${data};const c=DATA.route[0]||(DATA.markers[0]&&DATA.markers[0].p)||[48.7,6.2];const map=L.map('map').setView(c,13);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(DATA.route.length>1){L.polyline(DATA.route,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...DATA.route)}DATA.markers.forEach((x,i)=>{b.push(x.p);L.circleMarker(x.p,{radius:i===0?7:6,color:'#173447',weight:2,fillColor:i===DATA.markers.length-1?'#ffb000':i===0?'#55d981':'#fff',fillOpacity:1}).addTo(map).bindPopup('<b>'+x.name.replace(/[<>&]/g,'')+'</b><br>Passage : '+new Date(x.actual).toLocaleTimeString('fr-FR')+'<br>Prévu : '+(x.scheduled?new Date(x.scheduled).toLocaleTimeString('fr-FR'):'—'))});if(b.length>1)map.fitBounds(b,{padding:[28,28],maxZoom:16});<\/script>
+
+
 
 
 </body></html>`;
@@ -3764,14 +3767,14 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   try{const baseEnter23=enterDriver;enterDriver=function(mode){const r=baseEnter23(mode);[350,1800,6000].forEach(ms=>setTimeout(snapshotOpenSession23,ms));return r}}catch(e){console.warn('V23 journal snapshot patch',e)}
 
-  document.title='Fluo SAEIV V23.2 · Calcul horaires corrigé + journaux';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V23.2 CALCUL HORAIRES CORRIGÉ';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
+  document.title='Mon SAEV · 1.0.1';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
 })();
 
 </script>
 <script>
 'use strict';
-/* Fluo SAEIV V24 — création et bibliothèque de fiches horaires. */
+/* Mon SAEV V24 — création et bibliothèque de fiches horaires. */
 (() => {
   const q=id=>document.getElementById(id);
   const DB_NAME='fluo-saeiv-fiches-horaires-v24';
@@ -3844,7 +3847,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     if(!q('v24Detail'))document.body.insertAdjacentHTML('beforeend',`
       <div id="v24Detail" class="v24-detail-backdrop hidden" role="dialog" aria-modal="true">
         <div class="v24-detail">
-          <div class="v24-detail-head"><div><div class="v13-logo">FICHE HORAIRE · V24</div><h2 id="v24Title">Fiche horaire</h2><p id="v24Subtitle"></p></div><button id="v24DetailClose" type="button">Fermer</button></div>
+          <div class="v24-detail-head"><div><div class="v13-logo">FICHE HORAIRE</div><h2 id="v24Title">Fiche horaire</h2><p id="v24Subtitle"></p></div><button id="v24DetailClose" type="button">Fermer</button></div>
           <div class="v24-detail-scroll"><div id="v24Summary" class="v24-summary"></div><div id="v24Map"></div><div class="v24-note">Parcours de la variante sélectionnée. Calcul basé sur le profil routier OSM/OSRM, le plafond bus à 100 km/h et 30 secondes d'arrêt aux arrêts intermédiaires.</div><div id="v24Table" class="v24-table"></div></div>
           <div class="v24-detail-actions"><button id="v24Download" class="primary" type="button">⬇ Télécharger la fiche</button><button id="v24Delete" class="danger" type="button">🗑 Supprimer cette fiche</button></div>
         </div>
@@ -3889,7 +3892,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function report24(s){
     const data=JSON.stringify({shape:s.shape||[],stops:s.stops||[]}).replace(/</g,'\\u003c');
     const rows=(s.stops||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${esc24(r.name)}</td><td><b>${esc24(r.time)}</b></td><td>${esc24(r.profile||'—')}</td><td>${Number(r.cumulativeKm||0).toFixed(1).replace('.',',')} km</td></tr>`).join('');
-    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fiche horaire ${esc24(s.routeShort||'')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1100px;margin:auto;padding:18px}.muted{color:#9fb0bb}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:15px 0}.card{background:#0d202c;border:1px solid #355163;border-radius:12px;padding:10px}.card small{display:block;color:#8fa5b3}.card b{font-size:1.05rem}#map{height:420px;border-radius:15px;overflow:hidden;border:1px solid #355163;background:#10202a}table{width:100%;border-collapse:collapse;margin-top:15px;background:#0d202c}th,td{padding:9px;border-bottom:1px solid #28404e;text-align:left}th{color:#b9cad5}td:nth-child(3){color:#ffd000;font-weight:bold}footer{margin-top:15px;color:#8295a3;font-size:.8rem}@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}#map{height:340px}table{font-size:.8rem;display:block;overflow:auto}}</style></head><body><main><div class="muted">FLUO SAEIV · FICHE HORAIRE</div><h1>${esc24(s.routeShort||'—')} · ${esc24(s.headsign||'')}</h1><div class="muted">Départ ${esc24(s.startStopName||'—')} à ${esc24(s.departureTime||'—')} · 30 secondes aux arrêts intermédiaires</div><div class="cards"><div class="card"><small>DÉPART</small><b>${esc24(s.departureTime||'—')}</b></div><div class="card"><small>ARRIVÉE</small><b>${esc24(s.arrivalTime||'—')}</b></div><div class="card"><small>DISTANCE</small><b>${Number(s.distanceKm||0).toFixed(1).replace('.',',')} km</b></div><div class="card"><small>DURÉE</small><b>${esc24(s.totalMinutes??'—')} min</b></div></div><div id="map"></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Horaire</th><th>Profil inter-arrêt</th><th>Distance</th></tr></thead><tbody>${rows}</tbody></table><footer>Créée le ${esc24(fmtDate24(s.createdAt))}. Calcul indicatif fondé sur OSM/OSRM, plafond bus 100 km/h et 30 secondes d'arrêt. Le trafic et les aléas réels ne sont pas inclus.</footer></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const D=${data};const shape=(D.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));const stops=(D.stops||[]).map(s=>({s,p:[Number(s.lat),Number(s.lon)]})).filter(x=>Number.isFinite(x.p[0])&&Number.isFinite(x.p[1]));const c=shape[0]||(stops[0]&&stops[0].p)||[48.7,6.2];const map=L.map('map').setView(c,12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(shape.length>1){L.polyline(shape,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...shape)}stops.forEach((x,i)=>{b.push(x.p);L.circleMarker(x.p,{radius:i===0||i===stops.length-1?7:5,color:'#173447',weight:2,fillColor:i===0?'#55d981':i===stops.length-1?'#ffb000':'#fff',fillOpacity:1}).addTo(map).bindPopup('<b>'+String(x.s.name||'').replace(/[<>&]/g,'')+'</b><br>Horaire : '+String(x.s.time||''))});if(b.length>1)map.fitBounds(b,{padding:[28,28],maxZoom:15});<\/script></body></html>`;
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fiche horaire ${esc24(s.routeShort||'')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1100px;margin:auto;padding:18px}.muted{color:#9fb0bb}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:15px 0}.card{background:#0d202c;border:1px solid #355163;border-radius:12px;padding:10px}.card small{display:block;color:#8fa5b3}.card b{font-size:1.05rem}#map{height:420px;border-radius:15px;overflow:hidden;border:1px solid #355163;background:#10202a}table{width:100%;border-collapse:collapse;margin-top:15px;background:#0d202c}th,td{padding:9px;border-bottom:1px solid #28404e;text-align:left}th{color:#b9cad5}td:nth-child(3){color:#ffd000;font-weight:bold}footer{margin-top:15px;color:#8295a3;font-size:.8rem}@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}#map{height:340px}table{font-size:.8rem;display:block;overflow:auto}}</style></head><body><main><div class="muted">MON SAEV · FICHE HORAIRE</div><h1>${esc24(s.routeShort||'—')} · ${esc24(s.headsign||'')}</h1><div class="muted">Départ ${esc24(s.startStopName||'—')} à ${esc24(s.departureTime||'—')} · 30 secondes aux arrêts intermédiaires</div><div class="cards"><div class="card"><small>DÉPART</small><b>${esc24(s.departureTime||'—')}</b></div><div class="card"><small>ARRIVÉE</small><b>${esc24(s.arrivalTime||'—')}</b></div><div class="card"><small>DISTANCE</small><b>${Number(s.distanceKm||0).toFixed(1).replace('.',',')} km</b></div><div class="card"><small>DURÉE</small><b>${esc24(s.totalMinutes??'—')} min</b></div></div><div id="map"></div><table><thead><tr><th>#</th><th>Arrêt</th><th>Horaire</th><th>Profil inter-arrêt</th><th>Distance</th></tr></thead><tbody>${rows}</tbody></table><footer>Créée le ${esc24(fmtDate24(s.createdAt))}. Calcul indicatif fondé sur OSM/OSRM, plafond bus 100 km/h et 30 secondes d'arrêt. Le trafic et les aléas réels ne sont pas inclus.</footer></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const D=${data};const shape=(D.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));const stops=(D.stops||[]).map(s=>({s,p:[Number(s.lat),Number(s.lon)]})).filter(x=>Number.isFinite(x.p[0])&&Number.isFinite(x.p[1]));const c=shape[0]||(stops[0]&&stops[0].p)||[48.7,6.2];const map=L.map('map').setView(c,12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(shape.length>1){L.polyline(shape,{color:'#ffd000',weight:6,opacity:.9}).addTo(map);b.push(...shape)}stops.forEach((x,i)=>{b.push(x.p);L.circleMarker(x.p,{radius:i===0||i===stops.length-1?7:5,color:'#173447',weight:2,fillColor:i===0?'#55d981':i===stops.length-1?'#ffb000':'#fff',fillOpacity:1}).addTo(map).bindPopup('<b>'+String(x.s.name||'').replace(/[<>&]/g,'')+'</b><br>Horaire : '+String(x.s.time||''))});if(b.length>1)map.fitBounds(b,{padding:[28,28],maxZoom:15});<\/script></body></html>`;
   }
   function download24(s){const blob=new Blob([report24(s)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`fiche-horaire-${safeName24(s.routeShort)}-${safeName24(s.departureTime)}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
 
@@ -3905,14 +3908,14 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v24Delete')?.addEventListener('click',async()=>{const s=V24.current;if(!s)return;if(confirm(`Supprimer la fiche ${s.routeShort||''} départ ${s.departureTime||''} ?`)){await del24(s.id);closeDetail24();await renderList24()}});
 
   window.FluoScheduleSheets={save:save24,open:async()=>{await renderList24();q('v24Library')?.classList.remove('hidden')},refresh:renderList24};
-  document.title='Fluo SAEIV V24 · Création fiches horaires + journaux';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V24 FICHES HORAIRES';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
+  document.title='Mon SAEV · 1.0.1';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
 })();
 </script>
 
 <script>
 'use strict';
-/* Fluo SAEIV V25 — création protégée de lignes exceptionnelles/personnalisées. */
+/* Mon SAEV V25 — création protégée de lignes exceptionnelles/personnalisées. */
 (() => {
   const q=id=>document.getElementById(id);
   const DB_NAME='fluo-saeiv-custom-lines-v25', DB_VERSION=1, STORE='lines';
@@ -4141,15 +4144,15 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
   if(q('lineTypeFilter')?.value==='custom')setTimeout(populateCustomDropdown,0);
   window.FluoCustomLines={all:allLines,get:getLine,save:saveLine,open:openCreator,populate:populateCustomDropdown,activate:activateLine};
-  document.title='Fluo SAEIV V25 · Fiches horaires + lignes personnalisées';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V25 LIGNES PERSONNALISÉES';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
+  document.title='Mon SAEV · 1.0.1';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
 })();
 </script>
 
 
 <script id="v26Module">
 'use strict';
-/* Fluo SAEIV V26 — TAD préparés + bibliothèque d'annonces voyageurs manuelles. */
+/* Mon SAEV V26 — TAD préparés + bibliothèque d'annonces voyageurs manuelles. */
 (() => {
   const q=id=>document.getElementById(id);
   const TAD_DB='fluo-saeiv-prepared-tad-v26', TAD_STORE='tads', ACCOUNT_KEY='fluoSaeivAccountV13';
@@ -4191,7 +4194,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     if(userbar&&!q('v26MyTadsBtn')){const anchor=q('v25CreatorBtn')||q('v24SheetsBtn')||q('v13JournalBtn');const b=document.createElement('button');b.id='v26MyTadsBtn';b.className='v13-log-btn';b.type='button';b.textContent='📞 Mes TAD';anchor?.insertAdjacentElement('afterend',b)}
     const summary=q('tadSummary');
     if(summary&&!q('v26TadActions'))summary.insertAdjacentHTML('afterend','<div id="v26TadActions" class="v26-tad-actions"><button id="v26SaveTad" class="primary" type="button">💾 Enregistrer ce TAD</button><button id="v26OpenTads" type="button">📞 Mes TAD</button></div>');
-    if(!q('v26TadLibrary'))document.body.insertAdjacentHTML('beforeend',`<div id="v26TadLibrary" class="v26-backdrop hidden" role="dialog" aria-modal="true"><div class="v26-sheet"><div class="v26-head"><div><div class="v13-logo">TAD PRÉPARÉS · V26</div><h2>📞 Mes TAD</h2><p>Prépare une course TAD à l'avance pour une date précise. Le jour J, touche simplement « Charger » : la course, le départ et les arrêts à desservir seront restaurés.</p></div><button id="v26TadClose" class="v26-close" type="button">Fermer</button></div><div id="v26TadList" class="v26-scroll"></div><div class="v26-library-foot"><button id="v26DeletePast" class="danger" type="button">🧹 Supprimer les TAD passés</button><button id="v26TadDone" type="button">Fermer</button></div></div></div>`);
+    if(!q('v26TadLibrary'))document.body.insertAdjacentHTML('beforeend',`<div id="v26TadLibrary" class="v26-backdrop hidden" role="dialog" aria-modal="true"><div class="v26-sheet"><div class="v26-head"><div><div class="v13-logo">TAD PRÉPARÉS</div><h2>📞 Mes TAD</h2><p>Prépare une course TAD à l'avance pour une date précise. Le jour J, touche simplement « Charger » : la course, le départ et les arrêts à desservir seront restaurés.</p></div><button id="v26TadClose" class="v26-close" type="button">Fermer</button></div><div id="v26TadList" class="v26-scroll"></div><div class="v26-library-foot"><button id="v26DeletePast" class="danger" type="button">🧹 Supprimer les TAD passés</button><button id="v26TadDone" type="button">Fermer</button></div></div></div>`);
   }
   function tadDateClass26(date){const today=localYmd26();return date===today?'today':date>today?'future':'past'}
   function tadDateLabel26(date){const c=tadDateClass26(date);return c==='today'?'AUJOURD’HUI':c==='future'?'À VENIR':'PASSÉ'}
@@ -4204,7 +4207,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const future=indices.filter(i=>i>start);if(!future.length)throw new Error('Sélectionne au moins un arrêt à desservir après le départ.');
     const selected=indices.map(i=>{const s=state.pattern.stops[i];return {index:i,id:s?.id||null,name:s?.name||'',lat:Number(s?.lat),lon:Number(s?.lon)}});
     const dep=departureFor(state.run.trip,start,state.run.serviceDate);
-    return {id:uuid26(),matricule:matricule26(),serviceDate:dateInputValue(),dept:state.dept,routeId:state.route?.id||null,routeShort:state.route?.short||'',routeLong:state.route?.long||'',tripId:state.run?.trip?.id||null,patternHeadsign:state.pattern?.headsign||'',startStopIndex:start,startStopId:state.pattern.stops[start]?.id||null,originName:state.pattern.stops[start]?.name||'',terminusName:state.pattern.stops[future.at(-1)]?.name||'',departureClock:dep?formatClock(dep):'',selectedStops:selected,createdAt:new Date().toISOString(),appVersion:'V26'};
+    return {id:uuid26(),matricule:matricule26(),serviceDate:dateInputValue(),dept:state.dept,routeId:state.route?.id||null,routeShort:state.route?.short||'',routeLong:state.route?.long||'',tripId:state.run?.trip?.id||null,patternHeadsign:state.pattern?.headsign||'',startStopIndex:start,startStopId:state.pattern.stops[start]?.id||null,originName:state.pattern.stops[start]?.name||'',terminusName:state.pattern.stops[future.at(-1)]?.name||'',departureClock:dep?formatClock(dep):'',selectedStops:selected,createdAt:new Date().toISOString(),appVersion:'1.0.1'};
   }
   async function saveCurrentTad26(){try{const rec=currentTadRecord26();await putTad26(rec);if(q('tadSummary'))q('tadSummary').textContent=`✅ TAD enregistré pour le ${fmtDate26(rec.serviceDate)} · ${rec.routeShort} · ${rec.originName} → ${rec.terminusName}. Tu le retrouveras dans « Mes TAD ». `;await renderTads26()}catch(e){alert(e.message||e)}}
   async function loadPreparedTad26(rec){
@@ -4276,8 +4279,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v26DeletePast')?.addEventListener('click',async()=>{const today=localYmd26(),xs=(await allTads26()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun TAD passé à supprimer.');if(!confirm(`Supprimer ${xs.length} TAD passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await deleteTad26(x.id);await renderTads26()});
   q('v26AnnounceBtn')?.addEventListener('click',openAnnouncements26);q('v26AnnounceSide')?.addEventListener('click',openAnnouncements26);q('v26AnnClose')?.addEventListener('click',closeAnnouncements26);q('v26AnnounceSheet')?.addEventListener('click',e=>{if(e.target===q('v26AnnounceSheet'))closeAnnouncements26()});q('v26AnnList')?.addEventListener('click',e=>{const b=e.target.closest('[data-v26-ann]');if(b)selectAnnouncement26(b.dataset.v26Ann)});q('v26AnnSpeak')?.addEventListener('click',speakAnnouncement26);q('v26AnnClear')?.addEventListener('click',()=>{V26.selectedAnnouncement=null;q('v26AnnList')?.querySelectorAll('.selected').forEach(x=>x.classList.remove('selected'));if(q('v26AnnText'))q('v26AnnText').value='';q('v26AnnStatus').textContent='Saisis un message ou choisis une annonce dans la bibliothèque.'});
 
-  document.title='Fluo SAEIV V26 · Mes TAD + annonces vocales';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V26 MES TAD + ANNONCES';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
+  document.title='Mon SAEV · 1.0.1';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
 })();
 </script>
 
@@ -4367,8 +4370,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons paysage doivent rester synchronisés après chaque entrée en service.
   try{const baseEnter28=enterDriver;enterDriver=function(mode){const r=baseEnter28(mode);setTimeout(syncPassengerButtons,30);return r}}catch(e){console.warn('V28 boutons conducteur',e)}
 
-  document.title='Fluo SAEIV V28 · Base stable + commandes conducteur';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V28 STABLE';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
+  document.title='Mon SAEV · 1.0.1';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
 })();
 </script>
 
@@ -4431,15 +4434,15 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const b=e.target.closest?.('button,[role="button"]');if(!b||b.disabled||b.getAttribute('aria-disabled')==='true')return;hapticTap();
   },{capture:true,passive:true});
 
-  document.title='Fluo SAEIV V28.1 · Stable + ergonomie tactile';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V28.1 STABLE';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
+  document.title='Mon SAEV · 1.0.1';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,20));else setTimeout(label,20);
 })();
 </script>
 
 <script id="v29OpsModule">
 'use strict';
-/* Fluo SAEIV V29 — exploitation terrain + journal intégral.
+/* Mon SAEV V29 — exploitation terrain + journal intégral.
    Convention V29 : toute nouvelle fonction métier utilisée pendant un service doit appeler
    window.FluoJournalCore.log(...) afin que le journal reste la mémoire complète du service. */
 (() => {
@@ -4499,9 +4502,9 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
   function addModals(){
     if(!q('v29Admin'))document.body.insertAdjacentHTML('beforeend',`<div id="v29Admin" class="v29-backdrop hidden" role="dialog" aria-modal="true"><div class="v29-sheet"><div class="v29-head"><div><div class="v13-logo">MODE ADMINISTRATEUR · V29</div><h2>⚙️ Routes à éviter</h2><p>Enregistre localement des zones routières connues à éviter. Elles sont prises en compte pour les rattrapages de déviation et les mises en place. Aucune interdiction générale 3,5 t n’est appliquée.</p></div><button id="v29AdminClose" type="button">Fermer</button></div><div class="v29-scroll"><div id="v29AdminLock" class="v29-admin-lock"><label>Mot de passe administrateur<input id="v29AdminPassword" type="password" inputmode="numeric" autocomplete="off"></label><button id="v29AdminUnlock" class="primary full" type="button">DÉVERROUILLER</button><div id="v29AdminLockMsg" class="v29-status"></div></div><div id="v29AdminBody" class="hidden"><div class="v29-grid"><label class="wide">Nom / rue / motif<input id="v29AvoidName" type="text" maxlength="90" placeholder="Ex. Rue de Brive — interdite au car"></label><label>Latitude<input id="v29AvoidLat" type="number" step="0.000001"></label><label>Longitude<input id="v29AvoidLon" type="number" step="0.000001"></label><label>Rayon à éviter (m)<input id="v29AvoidRadius" type="number" min="10" max="250" value="40"></label><div><button id="v29AvoidCurrent" type="button" class="full">📍 Utiliser ma position actuelle</button></div></div><div class="v29-actions"><button id="v29AvoidSave" class="primary wide" type="button">💾 ENREGISTRER CETTE ZONE À ÉVITER</button></div><div id="v29AvoidStatus" class="v29-status">Les zones sont enregistrées uniquement sur cet appareil.</div><div id="v29AvoidList" class="v29-admin-list"></div></div></div></div></div>`);
-    if(!q('v29Incident'))document.body.insertAdjacentHTML('beforeend',`<div id="v29Incident" class="v29-backdrop hidden" role="dialog" aria-modal="true"><div class="v29-sheet"><div class="v29-head"><div><div class="v13-logo">JOURNAL D’EXPLOITATION · V29</div><h2>📝 Rapport d’incident</h2><p>L’heure, la ligne, la course, la position GPS, la vitesse et l’écart horaire sont ajoutés automatiquement au journal.</p></div><button id="v29IncidentClose" type="button">Fermer</button></div><div class="v29-scroll"><div class="v29-grid"><label>Catégorie<select id="v29IncidentType"><option>Circulation / retard</option><option>Panne</option><option>Déviation imposée</option><option>Arrêt inaccessible</option><option>Incident voyageur</option><option>Accident</option><option>Autre</option></select></label><label>Arrêt concerné<input id="v29IncidentStop" type="text" readonly></label><label class="wide">Commentaire<textarea id="v29IncidentText" maxlength="1200" placeholder="Décris brièvement ce qui s’est passé…"></textarea></label></div><div class="v29-actions"><button id="v29IncidentSave" class="primary wide" type="button">ENREGISTRER DANS LE JOURNAL</button></div><div id="v29IncidentStatus" class="v29-status">Le rapport sera horodaté immédiatement.</div></div></div></div>`);
+    if(!q('v29Incident'))document.body.insertAdjacentHTML('beforeend',`<div id="v29Incident" class="v29-backdrop hidden" role="dialog" aria-modal="true"><div class="v29-sheet"><div class="v29-head"><div><div class="v13-logo">JOURNAL D’EXPLOITATION</div><h2>📝 Rapport d’incident</h2><p>L’heure, la ligne, la course, la position GPS, la vitesse et l’écart horaire sont ajoutés automatiquement au journal.</p></div><button id="v29IncidentClose" type="button">Fermer</button></div><div class="v29-scroll"><div class="v29-grid"><label>Catégorie<select id="v29IncidentType"><option>Circulation / retard</option><option>Panne</option><option>Déviation imposée</option><option>Arrêt inaccessible</option><option>Incident voyageur</option><option>Accident</option><option>Autre</option></select></label><label>Arrêt concerné<input id="v29IncidentStop" type="text" readonly></label><label class="wide">Commentaire<textarea id="v29IncidentText" maxlength="1200" placeholder="Décris brièvement ce qui s’est passé…"></textarea></label></div><div class="v29-actions"><button id="v29IncidentSave" class="primary wide" type="button">ENREGISTRER DANS LE JOURNAL</button></div><div id="v29IncidentStatus" class="v29-status">Le rapport sera horodaté immédiatement.</div></div></div></div>`);
     if(!q('v29Hlp'))document.body.insertAdjacentHTML('beforeend',`<div id="v29Hlp" class="v29-backdrop hidden" role="dialog" aria-modal="true"><div class="v29-sheet"><div class="v29-head"><div><div class="v13-logo">MISE EN PLACE · V29</div><h2>🅿️ Haut-le-pied vers la prise de service</h2><p>Calcule un itinéraire routier depuis ta position jusqu’à l’arrêt de prise de service, en tenant compte des zones enregistrées dans le mode administrateur.</p></div><button id="v29HlpClose" type="button">Fermer</button></div><div class="v29-scroll"><div id="v29HlpStatus" class="v29-status">Prêt à calculer la mise en place.</div><div id="v29HlpMap"></div><div class="v29-hlp-guidance"><div id="v29HlpArrow" class="v29-hlp-arrow">↑</div><div><strong id="v29HlpInstruction">Calculer l’itinéraire</strong><span id="v29HlpDestination">—</span></div><div id="v29HlpDistance" class="v29-hlp-distance">—</div></div><div class="v29-actions"><button id="v29HlpCalc" class="primary" type="button">🧭 CALCULER</button><button id="v29HlpLive" type="button" disabled>▶ Suivi en direct</button></div></div></div></div>`);
-    if(!q('v29Journal'))document.body.insertAdjacentHTML('beforeend',`<div id="v29Journal" class="v29-backdrop v29-journal-backdrop hidden" role="dialog" aria-modal="true"><div class="v29-sheet v29-journal-sheet"><div class="v29-head"><div><div class="v13-logo">JOURNAL INTÉGRAL · V29</div><h2 id="v29JournalTitle">Journal du service</h2><p id="v29JournalSubtitle"></p></div><button id="v29JournalClose" type="button">Fermer</button></div><div class="v29-scroll"><div id="v29JournalSummary" class="v29-journal-summary"></div><div class="v29-legend"><span class="planned">━━━━ Parcours prévu</span><span class="actual">━━━━ Trajet GPS réellement effectué</span></div><div id="v29JournalMap" class="v29-journal-map"></div><div class="v29-preview-note">La trace réelle relie les positions GPS brutes enregistrées environ tous les 5 à 7 mètres en mouvement. Les événements ci-dessous couvrent le service depuis la prise de service jusqu’à la fin.</div><div class="v29-journal-grid"><div id="v29JournalStops" class="v29-table"></div><div id="v29JournalTimeline" class="v29-timeline"></div></div></div><div class="v29-actions"><button id="v29JournalDownload" class="primary wide" type="button">⬇ TÉLÉCHARGER LE RAPPORT COMPLET</button></div></div></div>`);
+    if(!q('v29Journal'))document.body.insertAdjacentHTML('beforeend',`<div id="v29Journal" class="v29-backdrop v29-journal-backdrop hidden" role="dialog" aria-modal="true"><div class="v29-sheet v29-journal-sheet"><div class="v29-head"><div><div class="v13-logo">JOURNAL INTÉGRAL</div><h2 id="v29JournalTitle">Journal du service</h2><p id="v29JournalSubtitle"></p></div><button id="v29JournalClose" type="button">Fermer</button></div><div class="v29-scroll"><div id="v29JournalSummary" class="v29-journal-summary"></div><div class="v29-legend"><span class="planned">━━━━ Parcours prévu</span><span class="actual">━━━━ Trajet GPS réellement effectué</span></div><div id="v29JournalMap" class="v29-journal-map"></div><div class="v29-preview-note">La trace réelle relie les positions GPS brutes enregistrées environ tous les 5 à 7 mètres en mouvement. Les événements ci-dessous couvrent le service depuis la prise de service jusqu’à la fin.</div><div class="v29-journal-grid"><div id="v29JournalStops" class="v29-table"></div><div id="v29JournalTimeline" class="v29-timeline"></div></div></div><div class="v29-actions"><button id="v29JournalDownload" class="primary wide" type="button">⬇ TÉLÉCHARGER LE RAPPORT COMPLET</button></div></div></div>`);
   }
 
   // ---------- Routes à éviter / routage ----------
@@ -4616,12 +4619,12 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const data=JSON.stringify({planned,actual,events:mapEvents}).replace(/</g,'\u003c');
     const stopHtml=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.stopName||'—')}</td><td>${esc(stopStatus(r))}</td><td>${esc(stopCellTime(r.arrival))}</td><td>${esc(stopCellPlanned(r.arrival))}</td><td>${esc(stopCellDelta(r.arrival))}</td><td>${esc(stopCellTime(r.departure))}</td><td>${esc(stopCellPlanned(r.departure,r.start?.scheduledTime))}</td><td>${esc(stopCellDelta(r.departure))}</td></tr>`).join('');
     const timelineHtml=timeline.map(e=>`<div class="event"><time>${esc(fmtClock(e.ts))}</time><b>${esc(eventTitle(e))}</b><span>${esc(eventDetail(e))}</span>${String(e.photoDataUrl||'').startsWith('data:image/')?`<img class="photo" src="${e.photoDataUrl}" alt="Photo jointe à l’incident">`:''}</div>`).join('');
-    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal intégral ${esc(s.route||'Fluo SAEIV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1250px;margin:auto;padding:18px}.muted{color:#9fb0bb}.legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;font-weight:bold}.planned{color:#ffd000}.actual{color:#45c7ff}#map{height:460px;border:1px solid #355163;border-radius:14px;overflow:hidden}.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);gap:12px;margin-top:14px}table{width:100%;border-collapse:collapse;background:#0d202c;font-size:.82rem}th,td{padding:8px;border-bottom:1px solid #28404e;text-align:left;white-space:nowrap}th{color:#b9cad5}.tablewrap{overflow:auto}.timeline{background:#0d202c}.event{padding:8px 10px;border-bottom:1px solid #28404e}.event time{color:#ffd000;font-weight:bold}.event b,.event span{display:block;margin-top:2px}.event span{color:#9fb0bb;font-size:.85rem}.photo{display:block;max-width:420px;max-height:320px;object-fit:contain;margin-top:8px;border-radius:10px;border:1px solid #355163}@media(max-width:850px){.grid{grid-template-columns:1fr}#map{height:360px}table{font-size:.78rem}}</style></head><body><main><div class="muted">FLUO SAEIV · JOURNAL INTÉGRAL V30</div><h1>${esc(s.route||'—')} · ${esc(s.destination||'')}</h1><div class="muted">${esc(fmtDate(s.startedAt))} → ${esc(s.endedAt?fmtDate(s.endedAt):'service en cours')} · ${esc(s.serviceMode||'')}</div><div class="legend"><span class="planned">━━━━ Parcours prévu</span><span class="actual">━━━━ Trajet GPS réellement effectué (~5–7 m)</span></div><div id="map"></div><div class="grid"><div><h2>Arrivées / départs aux arrêts</h2><div class="tablewrap"><table><thead><tr><th>#</th><th>Arrêt</th><th>Statut</th><th>Arrivée réelle</th><th>Arrivée prévue</th><th>Écart arr.</th><th>Départ réel</th><th>Départ prévu</th><th>Écart dép.</th></tr></thead><tbody>${stopHtml}</tbody></table></div></div><div><h2>Chronologie exploitation</h2><div class="timeline">${timelineHtml}</div></div></div><p class="muted">Le tracé jaune est la géométrie prévue lors de la prise de service. Le tracé bleu relie les positions GPS brutes du véhicule. Les annonces vocales ne sont pas enregistrées dans ce rapport ; les événements d’exploitation, déviations, incidents, recalages et demandes le sont.</p></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const D=${data};const c=D.actual[0]||D.planned[0]||[48.7,6.2],map=L.map('map').setView(c,12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(D.planned.length>1){L.polyline(D.planned,{color:'#ffd000',weight:6,opacity:.75}).addTo(map);b.push(...D.planned)}if(D.actual.length>1){L.polyline(D.actual,{color:'#45c7ff',weight:5,opacity:.96}).addTo(map);b.push(...D.actual)}D.events.forEach(e=>{if(!Number.isFinite(Number(e.lat))||!Number.isFinite(Number(e.lon)))return;const p=[Number(e.lat),Number(e.lon)],fill=e.type==='INCIDENT_REPORT'?'#ff6860':e.type==='DEVIATION_START'?'#ffb000':'#55d981';b.push(p);L.circleMarker(p,{radius:7,color:'#173447',weight:2,fillColor:fill,fillOpacity:1}).addTo(map).bindPopup('<b>'+String(e.title||'').replace(/[<>&]/g,'')+'</b><br>'+String(e.detail||'').replace(/[<>&]/g,'')+'<br>'+new Date(e.ts).toLocaleTimeString('fr-FR'))});if(b.length>1)map.fitBounds(b,{padding:[25,25],maxZoom:16});<\/script></body></html>`
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal intégral ${esc(s.route||'Mon SAEV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1250px;margin:auto;padding:18px}.muted{color:#9fb0bb}.legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;font-weight:bold}.planned{color:#ffd000}.actual{color:#45c7ff}#map{height:460px;border:1px solid #355163;border-radius:14px;overflow:hidden}.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);gap:12px;margin-top:14px}table{width:100%;border-collapse:collapse;background:#0d202c;font-size:.82rem}th,td{padding:8px;border-bottom:1px solid #28404e;text-align:left;white-space:nowrap}th{color:#b9cad5}.tablewrap{overflow:auto}.timeline{background:#0d202c}.event{padding:8px 10px;border-bottom:1px solid #28404e}.event time{color:#ffd000;font-weight:bold}.event b,.event span{display:block;margin-top:2px}.event span{color:#9fb0bb;font-size:.85rem}.photo{display:block;max-width:420px;max-height:320px;object-fit:contain;margin-top:8px;border-radius:10px;border:1px solid #355163}@media(max-width:850px){.grid{grid-template-columns:1fr}#map{height:360px}table{font-size:.78rem}}</style></head><body><main><div class="muted">MON SAEV · JOURNAL INTÉGRAL</div><h1>${esc(s.route||'—')} · ${esc(s.destination||'')}</h1><div class="muted">${esc(fmtDate(s.startedAt))} → ${esc(s.endedAt?fmtDate(s.endedAt):'service en cours')} · ${esc(s.serviceMode||'')}</div><div class="legend"><span class="planned">━━━━ Parcours prévu</span><span class="actual">━━━━ Trajet GPS réellement effectué (~5–7 m)</span></div><div id="map"></div><div class="grid"><div><h2>Arrivées / départs aux arrêts</h2><div class="tablewrap"><table><thead><tr><th>#</th><th>Arrêt</th><th>Statut</th><th>Arrivée réelle</th><th>Arrivée prévue</th><th>Écart arr.</th><th>Départ réel</th><th>Départ prévu</th><th>Écart dép.</th></tr></thead><tbody>${stopHtml}</tbody></table></div></div><div><h2>Chronologie exploitation</h2><div class="timeline">${timelineHtml}</div></div></div><p class="muted">Le tracé jaune est la géométrie prévue lors de la prise de service. Le tracé bleu relie les positions GPS brutes du véhicule. Les annonces vocales ne sont pas enregistrées dans ce rapport ; les événements d’exploitation, déviations, incidents, recalages et demandes le sont.</p></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const D=${data};const c=D.actual[0]||D.planned[0]||[48.7,6.2],map=L.map('map').setView(c,12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(D.planned.length>1){L.polyline(D.planned,{color:'#ffd000',weight:6,opacity:.75}).addTo(map);b.push(...D.planned)}if(D.actual.length>1){L.polyline(D.actual,{color:'#45c7ff',weight:5,opacity:.96}).addTo(map);b.push(...D.actual)}D.events.forEach(e=>{if(!Number.isFinite(Number(e.lat))||!Number.isFinite(Number(e.lon)))return;const p=[Number(e.lat),Number(e.lon)],fill=e.type==='INCIDENT_REPORT'?'#ff6860':e.type==='DEVIATION_START'?'#ffb000':'#55d981';b.push(p);L.circleMarker(p,{radius:7,color:'#173447',weight:2,fillColor:fill,fillOpacity:1}).addTo(map).bindPopup('<b>'+String(e.title||'').replace(/[<>&]/g,'')+'</b><br>'+String(e.detail||'').replace(/[<>&]/g,'')+'<br>'+new Date(e.ts).toLocaleTimeString('fr-FR'))});if(b.length>1)map.fitBounds(b,{padding:[25,25],maxZoom:16});<\/script></body></html>`
   }
   function downloadJournalV29(s,ev){const blob=new Blob([journalReport(s,ev)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a'),d=new Date(s.startedAt||Date.now());a.href=url;a.download=`journal-integral-${String(s.route||'ligne').replace(/[^a-z0-9]+/gi,'-')}-${d.toISOString().slice(0,16).replace(':','-')}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800)}
 
   // ---------- Branchement journal de toutes les fonctions ----------
-  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'V30',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service-v30',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
+  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'1.0.1',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service-v30',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
   // V30 : les annonces vocales ne sont plus enregistrées dans le journal d'exploitation.
   try{const baseReq=requestStop;requestStop=function(index,checked){const r=baseReq(index,checked);if(state?.running)log(checked?'REQUEST_ADDED':'REQUEST_REMOVED',{stopIndex:index,stopName:state.pattern?.stops?.[index]?.name||''});return r}}catch(e){console.warn('V29 journal demandes',e)}
   try{const baseRec=recenter;recenter=function(){const before={current:state.current,target:state.target};const r=baseRec();if(state?.running)log('RECENTER',{beforeCurrent:before.current,beforeTarget:before.target,afterCurrent:state.current,afterTarget:state.target,stopName:state.pattern?.stops?.[state.current]?.name||''});if(V29.deviation.active)finishDeviation('recalage manuel au poteau',false);return r}}catch(e){console.warn('V29 journal recalage',e)}
@@ -4642,15 +4645,15 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v29JournalClose')?.addEventListener('click',closeJournalV29);q('v29Journal')?.addEventListener('click',e=>{if(e.target===q('v29Journal'))closeJournalV29()});q('v29JournalDownload')?.addEventListener('click',()=>{const c=V29.journal.current;if(c)downloadJournalV29(c.s,c.ev)});
   q('v13JournalList')?.addEventListener('click',e=>{const item=e.target.closest('.v23-session');if(!item)return;const action=e.target.closest('[data-v23-action]')?.dataset.v23Action;if(e.target.matches('.v23-select')||action==='delete')return;const id=item.dataset.sessionId;if(!id)return;e.preventDefault();e.stopImmediatePropagation();if(action==='download'){Promise.all([getJournalSession(id),getJournalEvents(id)]).then(([s,ev])=>{if(s)downloadJournalV29(s,ev)});return}openJournalV29(id)},true);
 
-  document.title='Fluo SAEIV V29 · Exploitation + journal intégral';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V29 EXPLOITATION + JOURNAL INTÉGRAL';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
+  document.title='Mon SAEV · 1.0.1';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
 
 </script>
 
 <script id="v30Module">
 'use strict';
-/* Fluo SAEIV V30 — billet collectif, arrivées/départs journalisés, incident photo,
+/* Mon SAEV V30 — billet collectif, arrivées/départs journalisés, incident photo,
    responsive renforcée, classification 54R et vitesse route restaurée. */
 (() => {
   const q=id=>document.getElementById(id);
@@ -4797,14 +4800,14 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   };
 
   // Version / journal policy.
-  const label=()=>{document.title='Fluo SAEIV V30 · Billet collectif + journal arrêts + vitesse route';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30 EXPLOITATION';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
+  const label=()=>{document.title='Mon SAEV · 1.0.1';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
 })();
 </script>
 
 
 <script id="v301RoadResponsivePatch">
 'use strict';
-/* Fluo SAEIV V30.1 — routes à éviter par rue/carte, ARRÊT DEMANDÉ intégré au prochain arrêt,
+/* Mon SAEV V30.1 — routes à éviter par rue/carte, ARRÊT DEMANDÉ intégré au prochain arrêt,
    et consolidation responsive sans modifier le moteur stable. */
 (() => {
   const q=id=>document.getElementById(id);
@@ -4992,8 +4995,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Évite de gonfler le journal avec le même nom répété pour chaque point d'une rue évitée.
   if(window.FluoJournalCore?.log&&!window.FluoJournalCore.__v301Wrapped){const base=window.FluoJournalCore.log.bind(window.FluoJournalCore);window.FluoJournalCore.log=(type,payload={})=>{const p={...payload};if(Array.isArray(p.avoidZones))p.avoidZones=[...new Set(p.avoidZones.filter(Boolean))];return base(type,p)};window.FluoJournalCore.__v301Wrapped=true}
 
-  document.title='Fluo SAEIV V30.1 · Routes à éviter + responsive';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.1 EXPLOITATION';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
+  document.title='Mon SAEV · 1.0.1';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
   settleResponsive();
 })();
@@ -5007,8 +5010,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
    carte, arrivée, simulation et journaux partagent exactement le même point opérationnel. */
 (() => {
   const label=()=>{
-    document.title='Fluo SAEIV V30.2 · Poteaux recalés au tracé';
-    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.2 EXPLOITATION';
+    document.title='Mon SAEV · 1.0.1';
+    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';
     const b=document.getElementById('buildInfo');if(b&&!/V30.2/.test(b.textContent))b.textContent+=' · V30.2 poteaux recalés au tracé';
   };
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,80));else setTimeout(label,80);
@@ -5016,7 +5019,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 <script id="v303AvoidMainRoutePatch">
 'use strict';
-/* Fluo SAEIV V30.3 — les routes administrateur à éviter recalculent aussi le tracé principal
+/* Mon SAEV V30.3 — les routes administrateur à éviter recalculent aussi le tracé principal
    de la course, inter-arrêt par inter-arrêt, avant la prise de service. */
 (() => {
   const q=id=>document.getElementById(id);
@@ -5194,15 +5197,15 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Empêche un lancement pendant un calcul asynchrone, même si un ancien module réactive le bouton.
   document.addEventListener('click',e=>{if(V303.busy&&e.target.closest?.('#start,#simulate')){e.preventDefault();e.stopImmediatePropagation();alert('Recalcul du tracé en cours. Attends quelques secondes avant de lancer le service.')}},true);
 
-  document.title='Fluo SAEIV V30.3 · Routes à éviter sur le tracé principal';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.3 ROUTAGE ADMIN';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
+  document.title='Mon SAEV · 1.0.1';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>{setTimeout(label,30);schedule('load',600)});else{setTimeout(label,30);schedule('load',600)}
 })();
 </script>
 
 <script id="v304PreparedCollectives">
 'use strict';
-/* Fluo SAEIV V30.4 — billets collectifs préparés : sauvegarde datée et restauration comme Mes TAD. */
+/* Mon SAEV V30.4 — billets collectifs préparés : sauvegarde datée et restauration comme Mes TAD. */
 (() => {
   const q=id=>document.getElementById(id);
   const DB_NAME='fluo-saeiv-prepared-collective-v304', STORE='collectives', ACCOUNT_KEY='fluoSaeivAccountV13';
@@ -5249,7 +5252,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     ensureDate();const serviceDate=q('v304CollectiveDate')?.value;if(!serviceDate)throw new Error('Choisis la date du billet collectif.');
     const rows=[q('v30CollectiveStart')?.querySelector('.v30-point'),...q('v30CollectiveStages')?.querySelectorAll('.v30-point')||[],q('v30CollectiveEnd')?.querySelector('.v30-point')].filter(Boolean);
     const points=route.points.map((p,i)=>{const row=rows[i],kind=row?.querySelector('.v30-point-kind')?.value||p.kind||'stop',query=row?.querySelector('.v30-point-search')?.value||p.name||'';return{...p,lat:Number(p.lat),lon:Number(p.lon),kind,query}});
-    return{id:uuid(),matricule:matricule(),serviceDate,departureTime:q('v30CollectiveTime')?.value||'',name:(q('v30CollectiveName')?.value||route.name||'Billet collectif').trim()||'Billet collectif',points,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),distance:Number(route.distance||0),duration:Number(route.duration||0),createdAt:new Date().toISOString(),appVersion:'V30.4'};
+    return{id:uuid(),matricule:matricule(),serviceDate,departureTime:q('v30CollectiveTime')?.value||'',name:(q('v30CollectiveName')?.value||route.name||'Billet collectif').trim()||'Billet collectif',points,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),distance:Number(route.distance||0),duration:Number(route.duration||0),createdAt:new Date().toISOString(),appVersion:'1.0.1'};
   }
   async function saveCurrent(){try{const rec=currentRecord();await put(rec);window.FluoCollectiveV30?.status?.(`✅ Billet enregistré pour le ${fmtDate(rec.serviceDate)}. Tu le retrouveras dans « Mes billets collectifs ».`,`ok`);await render()}catch(e){alert(e.message||e)}}
 
@@ -5274,8 +5277,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v304DeletePast')?.addEventListener('click',async()=>{const today=ymd(),xs=(await all()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun billet collectif passé à supprimer.');if(!confirm(`Supprimer ${xs.length} billet${xs.length>1?'s':''} collectif${xs.length>1?'s':''} passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await del(x.id);await render()});
 
   window.FluoPreparedCollectivesV304={all,get,save:put,open:openLibrary};
-  document.title='Fluo SAEIV V30.4 · Billets collectifs préparés';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V30.4 BILLETS PRÉPARÉS';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
+  document.title='Mon SAEV · 1.0.1';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
 </script>
@@ -5283,7 +5286,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v305SpeedLimitsPatch">
 'use strict';
-/* Fluo SAEIV V31 — limitations maxspeed OpenStreetMap non bloquantes.
+/* Mon SAEV V31 — limitations maxspeed OpenStreetMap non bloquantes.
    Les valeurs OSM sont utilisées quand elles sont présentes ; le profil local stable reste
    actif immédiatement et sert de secours en cas de donnée absente ou de réseau indisponible. */
 (() => {
@@ -5423,8 +5426,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   window.FluoSpeedLimitsV305={build:buildProfile,limitAtAlong,get currentLimit(){return V305.currentLimit},get currentMeta(){return V305.currentMeta},get ready(){return V305.ready},get loading(){return V305.loading},state:V305};
 
   const note=document.querySelector('.fusion-note');if(note&&!q('v305SpeedNote'))note.insertAdjacentHTML('afterend','<div id="v305SpeedNote" class="fusion-note"><b>🚌 Limitations OSM non bloquantes V31</b><span>Les valeurs maxspeed OpenStreetMap sont chargées en arrière-plan et conservées 7 jours. Si une valeur manque ou si le réseau ne répond pas, le profil local 35–50–70–80 reste actif sans interrompre la simulation ni le GPS.</span></div>');
-  document.title='Fluo SAEIV V31 · Limitations OSM + paysage conducteur';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V31 OSM NON BLOQUANT';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
+  document.title='Mon SAEV · 1.0.1';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
 })();
 </script>
@@ -5715,7 +5718,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 
 <script id="v309FinalLabel">
-(()=>{const apply=()=>{document.title='Fluo SAEIV V31.4 · édition GitHub monobloc';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='SAEIV CONDUCTEUR · V31.4 GITHUB MONOBLOC'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
+(()=>{const apply=()=>{document.title='Mon SAEV · 1.0.1';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEV · 1.0.1'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
 // V31.4 : liaison finale après toutes les extensions historiques de l'interface.
 // La délégation reste valide même si un bouton est déplacé ou recréé par une extension.
 (()=>{const modes={regularMode:'regular',tadMode:'tad',formationMode:'formation'};
@@ -5891,8 +5894,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   `;document.head.appendChild(css);
 
   syncValidated();
-  document.title='Fluo SAEIV V31.6.1 · édition GitHub monobloc';
-  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.6.1 GITHUB MONOBLOC';
+  document.title='Mon SAEV · 1.0.1';
+  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEV · 1.0.1';
 })();
 </script>
 
@@ -6219,7 +6222,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Fluo SAEIV · V31.28';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.28';
+  document.title='Mon SAEV · 1.0.1';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEV · 1.0.1';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -6657,7 +6660,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   if(!q('v3125TimetableBrowser'))document.body.insertAdjacentHTML('beforeend',`
     <div id="v3125TimetableBrowser" class="v3125-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="v3125BrowserTitle">
       <section class="v3125-shell">
-        <header class="v3125-head"><div><div class="v3125-kicker">RÉSEAU FLUO GRAND EST</div><h2 id="v3125BrowserTitle">Fiches horaires</h2><p id="v3125BrowserSub">Consulte les horaires de toutes les lignes disponibles dans le SAEIV.</p></div><button id="v3125BrowserClose" type="button">Fermer</button></header>
+        <header class="v3125-head"><div><div class="v3125-kicker">FICHES HORAIRES RÉSEAU</div><h2 id="v3125BrowserTitle">Fiches horaires</h2><p id="v3125BrowserSub">Consulte les horaires de toutes les lignes disponibles dans Mon SAEV.</p></div><button id="v3125BrowserClose" type="button">Fermer</button></header>
         <div class="v3125-toolbar"><button id="v3125BrowserBack" class="hidden" type="button">← Retour</button><label>Date de service<input id="v3125BrowserDate" type="date"></label></div>
         <div id="v3125BrowserContent" class="v3125-content"></div>
       </section>
@@ -6754,14 +6757,32 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const q=id=>document.getElementById(id);
   q('v3127UsageContinue')?.addEventListener('click',()=>q('v3127UsageNotice')?.classList.add('hidden'));
   const label=()=>{
-    document.title='Fluo SAEIV · V31.28';
+    document.title='Mon SAEV · 1.0.1';
     const eyebrow=document.querySelector('.top .eyebrow');
-    if(eyebrow)eyebrow.textContent='SAEIV CONDUCTEUR · V31.28';
+    if(eyebrow)eyebrow.textContent='MON SAEV · 1.0.1';
     const b=q('buildInfo');
-    if(b)b.textContent='Version V31.28 · Fluo Grand Est';
+    if(b)b.textContent='Version 1.0.1';
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{label();setTimeout(label,4000)});
   else{label();setTimeout(label,4000)}
+})();
+</script>
+
+<script id="monSaevIdentity101">
+(()=>{
+  const apply=()=>{
+    document.title='Mon SAEV · 1.0.1';
+    const eyebrow=document.querySelector('.top .eyebrow'); if(eyebrow) eyebrow.textContent='MON SAEV · 1.0.1';
+    const h1=document.querySelector('.top h1'); if(h1) h1.textContent='Mon SAEV';
+    const sub=document.querySelector('.top .sub'); if(sub) sub.textContent='Réseaux 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68';
+    const usage=document.getElementById('v3127UsageTitle'); if(usage) usage.textContent='Mon SAEV';
+    const authLogo=document.querySelector('.v13-logo'); if(authLogo && /MON SAEV/.test(authLogo.textContent||'')) authLogo.textContent='MON SAEV · 1.0.1';
+    const build=document.getElementById('buildInfo'); if(build){build.hidden=true;build.setAttribute('aria-hidden','true');}
+    document.querySelectorAll('.audio-note,.fusion-note,#v305SpeedNote').forEach(el=>el.remove());
+  };
+  apply();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply,{once:true});
+  [50,500,1500,3000,4500].forEach(ms=>setTimeout(apply,ms));
 })();
 </script>
 </body>

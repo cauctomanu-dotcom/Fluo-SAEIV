@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T02:18:00+02:00",
-  "version": "V31.28",
+  "generated_at": "2026-08-27T02:20:00+02:00",
+  "version": "1.0.1",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -187,5 +187,10 @@
       "68"
     ],
     "no_ui_change": true
+  },
+  "app_identity": {
+    "name": "Mon SAEV",
+    "public_version": "1.0.1",
+    "previous_internal_series": "V31.x"
   }
 }
