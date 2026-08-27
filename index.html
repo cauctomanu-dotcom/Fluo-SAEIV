@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.4">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.8">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Mon SAEIV · 1.0.4</title>
+  <title>Mon SAEIV · 1.0.8</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style id="v22CoreStyle">
 .stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
@@ -72,7 +72,7 @@
 </div>
 <div class="app">
   <header class="top">
-    <div><div class="eyebrow">MON SAEIV · 1.0.4</div><h1>Mon SAEIV</h1><div class="sub">Réseaux 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
+    <div><div class="eyebrow">MON SAEIV · 1.0.8</div><h1>Mon SAEIV</h1><div class="sub">Réseaux 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
     <div id="gpsPill" class="pill">GPS à vérifier</div>
   </header>
 
@@ -234,9 +234,10 @@ function pumpSpeech(){
   if(!('speechSynthesis' in window)||state.audio.current||!state.audio.queue.length) return;
   state.audio.queue.sort((a,b)=>b.priority-a.priority||a.seq-b.seq);
   const item=state.audio.queue.shift(), token=++state.audio.token;
-  const u=new SpeechSynthesisUtterance(item.text); u.lang='fr-FR'; u.rate=.92; u.volume=1;
+  const u=new SpeechSynthesisUtterance(speechPronunciation(item.text)); u.lang='fr-FR'; u.rate=.92; u.volume=1;
   state.audio.current={priority:item.priority,kind:item.kind,token};
-  const done=()=>{ if(state.audio.current?.token===token) state.audio.current=null; setTimeout(pumpSpeech,20); };
+  u.onstart=()=>{try{window.MonSAEIVRadio?.duckStart?.(item.kind)}catch{}};
+  const done=()=>{ try{window.MonSAEIVRadio?.duckEnd?.(item.kind)}catch{} if(state.audio.current?.token===token) state.audio.current=null; setTimeout(pumpSpeech,20); };
   u.onend=done; u.onerror=done; speechSynthesis.speak(u);
 }
 function say(text,opts={}){
@@ -256,6 +257,21 @@ function say(text,opts={}){
   state.audio.queue.push(item); pumpSpeech();
 }
 function spoken(s){ return String(s).replace(/\s+-\s+/g,', ').replace(/GARE ROUTIERE/gi,'Gare routière').trim(); }
+// Mon SAEIV 1.0.8 — corrections phonétiques uniquement pour la synthèse vocale.
+// Les libellés affichés et les données d'arrêt restent strictement inchangés.
+function speechPronunciation(text){
+  let t=String(text??'');
+  // Les données GTFS peuvent écrire MARCHE sans accent : dans « Place du Marché »,
+  // on restaure explicitement le é final pour éviter la lecture du verbe « marche ».
+  t=t.replace(/\b(Place\s+du\s+)Marche\b/gi,(_,prefix)=>`${prefix}Marché`);
+  // Ars-Laquenexy : « Ars » se prononce avec le S final. « Arse » est une
+  // graphie de synthèse uniquement, jamais affichée au conducteur.
+  t=t.replace(/\bArs(?=[\s-]+Laquenexy\b)/gi,'Arse');
+  // Cimetière : on marque la coupure devant « tière » afin que le T reste net
+  // avec les voix françaises iOS/Android, même quand la donnée est sans accent.
+  t=t.replace(/\bcimeti(?:e|è|é)re\b/gi,'cime-tière');
+  return t;
+}
 // Prononciation des codes Fluo : 57R026 -> « 57 R 26 », R033 -> « R 33 », R361 -> « R 361 ».
 // Seuls les zéros placés au début du bloc numérique APRES la/les lettre(s) sont supprimés.
 function spokenLineCode(value){
@@ -820,9 +836,15 @@ function updateNavigation(p,snap=null){
   if(!Number.isFinite(lat)||!Number.isFinite(lon)) return;
   const h=Number.isFinite(fused.heading)?fused.heading:(Number.isFinite(state.fusion.displayHeading)?state.fusion.displayHeading:state.nav.lastHeading||0);
   state.nav.lastHeading=h;
-  // Leaflet est le moteur de secours. La position et le cap proviennent exactement du même état stabilisé que MapLibre.
-  if(!state.nav.busMarker) state.nav.busMarker=L.marker([lat,lon],{icon:busIcon(h),zIndexOffset:1000,keyboard:false}).addTo(state.nav.map);
-  else{ state.nav.busMarker.setLatLng([lat,lon]); state.nav.busMarker.setIcon(busIcon(h)); }
+  // 1.0.8 : la logique métier reste sur le snap GPS natif, mais le pictogramme peut utiliser
+  // une position purement VISUELLE interpolée entre deux rafraîchissements. Cela évite le
+  // saut d'une mesure GPS à la suivante sans modifier les passages aux arrêts ni les journaux.
+  const visual=state.mode==='gps'?window.MonSAEIVVisualGPS?.getDisplay?.():null;
+  const renderLat=Number.isFinite(Number(visual?.lat))?Number(visual.lat):lat;
+  const renderLon=Number.isFinite(Number(visual?.lon))?Number(visual.lon):lon;
+  const renderH=Number.isFinite(Number(visual?.heading))?Number(visual.heading):h;
+  if(!state.nav.busMarker) state.nav.busMarker=L.marker([renderLat,renderLon],{icon:busIcon(renderH),zIndexOffset:1000,keyboard:false}).addTo(state.nav.map);
+  else{ state.nav.busMarker.setLatLng([renderLat,renderLon]); state.nav.busMarker.setIcon(busIcon(renderH)); }
   const off=Number.isFinite(fused.off)?fused.off:Infinity;
   if(Number.isFinite(off)){
     if(fused.confidence>0&&off<90){ ui.routeState.textContent=`FUSION ${fused.confidence}%`; ui.routeState.className='route-state good'; }
@@ -832,7 +854,7 @@ function updateNavigation(p,snap=null){
   if(ui.fusionQuality) ui.fusionQuality.textContent=fused.confidence?`${fused.confidence}%`:'BRUT';
   if(state.nav.follow){
     const z=Math.max(state.nav.map.getZoom(),15);
-    state.nav.map.setView([lat,lon],z,{animate:false});
+    state.nav.map.setView([renderLat,renderLon],z,{animate:false});
   }
 }
 
@@ -1602,10 +1624,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=1.0.4').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.4'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=1.0.8').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.8'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.4').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.8').catch(()=>{});
 
 </script>
 <script>
@@ -1616,9 +1638,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   const q = id => document.getElementById(id);
 
   // --- Injection de l'interface V12 dans la V11 existante ---
-  document.title='Mon SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.4';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.8';
 
   const serviceChoice = document.querySelector('.service-choice');
   if (serviceChoice && !q('v12Preferences')) {
@@ -1772,11 +1794,12 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
       if(!('speechSynthesis' in window) || state.audio.current || !state.audio.queue.length) return;
       state.audio.queue.sort((a,b)=>b.priority-a.priority || a.seq-b.seq);
       const item = state.audio.queue.shift(), token = ++state.audio.token;
-      const u = new SpeechSynthesisUtterance(item.text);
+      const u = new SpeechSynthesisUtterance(speechPronunciation(item.text));
       u.lang = 'fr-FR'; u.rate = item.kind === 'navigation' ? .98 : .92; u.volume = 1;
       const v = pickVoice(V12.passengerVoice); if(v) u.voice = v;
       state.audio.current = {priority:item.priority,kind:item.kind,token};
-      const done = () => { if(state.audio.current?.token === token) state.audio.current = null; setTimeout(pumpSpeech,20); };
+      u.onstart = () => { try{ window.MonSAEIVRadio?.duckStart?.(item.kind); }catch{} };
+      const done = () => { try{ window.MonSAEIVRadio?.duckEnd?.(item.kind); }catch{} if(state.audio.current?.token === token) state.audio.current = null; setTimeout(pumpSpeech,20); };
       u.onend = done; u.onerror = done; speechSynthesis.speak(u);
     };
   }catch(e){ console.warn('V12 voice patch', e); }
@@ -1953,16 +1976,16 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V13 — identification conducteur + journal de service local */
 (() => {
   const $v13 = id => document.getElementById(id);
-  const APP_VERSION = '1.0.4';
+  const APP_VERSION = '1.0.8';
   const DB_NAME = 'fluo-saeiv-journal-v13';
   const DB_VERSION = 1;
   const ACCOUNT_KEY = 'fluoSaeivAccountV13';
   const SAMPLE_INTERVAL_MS = 10000; // V29 : point de contrôle au moins toutes les 10 s à l'arrêt
   const SAMPLE_MOVE_M = 6;       // V29 : trace GPS réelle tous les ~5 à 7 mètres en mouvement
 
-  document.title='Mon SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.4';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.8';
 
   const V13 = {
     unlocked: false,
@@ -2302,9 +2325,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     cache: new Map()
   };
 
-  document.title='Mon SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.4';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.8';
 
   // --- Information TAD dynamique ---
   const tadHeadText = document.querySelector('.tad-panel-head > div:first-child span');
@@ -2603,9 +2626,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V15 — cockpit smartphone, paysage conducteur + rappel arrêt demandé différé */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.4';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.8';
 
   const driver=q('driver'), mapWrap=document.querySelector('#driver .navmap-wrap');
   if(!driver||!mapWrap) return;
@@ -2806,9 +2829,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V16 — profil de vitesse routier, calcul d'horaires, caméra GPS 3D */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.4';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.8';
 
   const V16={
     profileCache:new Map(), simLegs:new Map(), simReady:false, simLoading:false,
@@ -3225,11 +3248,12 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     if(!m||!V16.mapLoaded||!state?.running||!state?.pos)return;
     const c=state.pos.coords,snap=state.fusion?.snapped;
     const deviationRaw=window.FluoOpsV29?.isDeviationActive?.()===true;
-    const lat=Number(deviationRaw?c.latitude:(snap?.lat??c.latitude)),lon=Number(deviationRaw?c.longitude:(snap?.lon??c.longitude));
+    const visual=!deviationRaw&&state.mode==='gps'?window.MonSAEIVVisualGPS?.getDisplay?.():null;
+    const lat=Number(Number.isFinite(Number(visual?.lat))?Number(visual.lat):(deviationRaw?c.latitude:(snap?.lat??c.latitude))),lon=Number(Number.isFinite(Number(visual?.lon))?Number(visual.lon):(deviationRaw?c.longitude:(snap?.lon??c.longitude)));
     if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
-    // V22 : le cap canonique est celui calculé sur le tracé stabilisé dans app.js.
-    // On n'utilise plus directement le heading brut de l'iPhone pour faire tourner la caméra.
-    const h=deviationRaw&&Number.isFinite(c.heading)&&c.heading>=0?c.heading:(Number.isFinite(snap?.heading)?snap.heading:Number(state.nav?.lastHeading||V16.last3dHeading||0));
+    // V22 / 1.0.8 : le cap canonique vient du parcours stabilisé et, lorsque disponible,
+    // de l'animation visuelle continue. Le cap brut de l'iPhone ne pilote pas la caméra.
+    const h=Number.isFinite(Number(visual?.heading))?Number(visual.heading):(deviationRaw&&Number.isFinite(c.heading)&&c.heading>=0?c.heading:(Number.isFinite(snap?.heading)?snap.heading:Number(state.nav?.lastHeading||V16.last3dHeading||0)));
     V16.last3dHeading=h;
     const marker=ensureBusMarker(lon,lat);
     marker.setLngLat([lon,lat]);
@@ -3267,9 +3291,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V18 — bus à l'échelle + filtre lignes régulières / scolaires */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.4';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.8';
 
   // --- Taille du Crossway : environ 45 % de V17 pour rester à l'échelle de la carte. ---
   const style=document.createElement('style');
@@ -3428,9 +3452,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V19 — rotation smartphone stable + amorçage audio Bluetooth */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.4';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.8';
 
   const st=document.createElement('style');
   st.id='v19Style';
@@ -3513,8 +3537,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V20 — l'affichage utilise uniquement state.fusion.shape produit par le moteur réécrit dans app.js. */
 (() => {
-  document.title='Mon SAEIV · 1.0.4';
-  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.8';
   const css=document.createElement('style');css.textContent=`
     .route-state.v20-source{max-width:72%}
     .v20-source-note{margin-top:8px;font-size:.69rem;color:#91a8b6;line-height:1.35}
@@ -3529,8 +3553,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V21 — arrêt demandé sonore synchronisé, écran éveillé, prononciation des codes Fluo. */
 (() => {
-  document.title='Mon SAEIV · 1.0.4';
-  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.8';
   const n=document.querySelector('.audio-note');
   if(n){
     const b=n.querySelector('b'); if(b)b.textContent='🔊 Annonces V21';
@@ -3542,7 +3566,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 
 <script>
 // V22 — étiquette de version après chargement de tous les modules.
-window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';});
+window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';});
 </script>
 
 <script>
@@ -3771,8 +3795,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   try{const baseEnter23=enterDriver;enterDriver=function(mode){const r=baseEnter23(mode);[350,1800,6000].forEach(ms=>setTimeout(snapshotOpenSession23,ms));return r}}catch(e){console.warn('V23 journal snapshot patch',e)}
 
-  document.title='Mon SAEIV · 1.0.4';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
+  document.title='Mon SAEIV · 1.0.8';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
 })();
 
 </script>
@@ -3912,8 +3936,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v24Delete')?.addEventListener('click',async()=>{const s=V24.current;if(!s)return;if(confirm(`Supprimer la fiche ${s.routeShort||''} départ ${s.departureTime||''} ?`)){await del24(s.id);closeDetail24();await renderList24()}});
 
   window.FluoScheduleSheets={save:save24,open:async()=>{await renderList24();q('v24Library')?.classList.remove('hidden')},refresh:renderList24};
-  document.title='Mon SAEIV · 1.0.4';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
+  document.title='Mon SAEIV · 1.0.8';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
 })();
 </script>
 
@@ -4148,8 +4172,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
   if(q('lineTypeFilter')?.value==='custom')setTimeout(populateCustomDropdown,0);
   window.FluoCustomLines={all:allLines,get:getLine,save:saveLine,open:openCreator,populate:populateCustomDropdown,activate:activateLine};
-  document.title='Mon SAEIV · 1.0.4';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
+  document.title='Mon SAEIV · 1.0.8';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
 })();
 </script>
 
@@ -4211,7 +4235,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const future=indices.filter(i=>i>start);if(!future.length)throw new Error('Sélectionne au moins un arrêt à desservir après le départ.');
     const selected=indices.map(i=>{const s=state.pattern.stops[i];return {index:i,id:s?.id||null,name:s?.name||'',lat:Number(s?.lat),lon:Number(s?.lon)}});
     const dep=departureFor(state.run.trip,start,state.run.serviceDate);
-    return {id:uuid26(),matricule:matricule26(),serviceDate:dateInputValue(),dept:state.dept,routeId:state.route?.id||null,routeShort:state.route?.short||'',routeLong:state.route?.long||'',tripId:state.run?.trip?.id||null,patternHeadsign:state.pattern?.headsign||'',startStopIndex:start,startStopId:state.pattern.stops[start]?.id||null,originName:state.pattern.stops[start]?.name||'',terminusName:state.pattern.stops[future.at(-1)]?.name||'',departureClock:dep?formatClock(dep):'',selectedStops:selected,createdAt:new Date().toISOString(),appVersion:'1.0.4'};
+    return {id:uuid26(),matricule:matricule26(),serviceDate:dateInputValue(),dept:state.dept,routeId:state.route?.id||null,routeShort:state.route?.short||'',routeLong:state.route?.long||'',tripId:state.run?.trip?.id||null,patternHeadsign:state.pattern?.headsign||'',startStopIndex:start,startStopId:state.pattern.stops[start]?.id||null,originName:state.pattern.stops[start]?.name||'',terminusName:state.pattern.stops[future.at(-1)]?.name||'',departureClock:dep?formatClock(dep):'',selectedStops:selected,createdAt:new Date().toISOString(),appVersion:'1.0.8'};
   }
   async function saveCurrentTad26(){try{const rec=currentTadRecord26();await putTad26(rec);if(q('tadSummary'))q('tadSummary').textContent=`✅ TAD enregistré pour le ${fmtDate26(rec.serviceDate)} · ${rec.routeShort} · ${rec.originName} → ${rec.terminusName}. Tu le retrouveras dans « Mes TAD ». `;await renderTads26()}catch(e){alert(e.message||e)}}
   async function loadPreparedTad26(rec){
@@ -4283,8 +4307,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v26DeletePast')?.addEventListener('click',async()=>{const today=localYmd26(),xs=(await allTads26()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun TAD passé à supprimer.');if(!confirm(`Supprimer ${xs.length} TAD passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await deleteTad26(x.id);await renderTads26()});
   q('v26AnnounceBtn')?.addEventListener('click',openAnnouncements26);q('v26AnnounceSide')?.addEventListener('click',openAnnouncements26);q('v26AnnClose')?.addEventListener('click',closeAnnouncements26);q('v26AnnounceSheet')?.addEventListener('click',e=>{if(e.target===q('v26AnnounceSheet'))closeAnnouncements26()});q('v26AnnList')?.addEventListener('click',e=>{const b=e.target.closest('[data-v26-ann]');if(b)selectAnnouncement26(b.dataset.v26Ann)});q('v26AnnSpeak')?.addEventListener('click',speakAnnouncement26);q('v26AnnClear')?.addEventListener('click',()=>{V26.selectedAnnouncement=null;q('v26AnnList')?.querySelectorAll('.selected').forEach(x=>x.classList.remove('selected'));if(q('v26AnnText'))q('v26AnnText').value='';q('v26AnnStatus').textContent='Saisis un message ou choisis une annonce dans la bibliothèque.'});
 
-  document.title='Mon SAEIV · 1.0.4';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
+  document.title='Mon SAEIV · 1.0.8';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
 })();
 </script>
 
@@ -4374,8 +4398,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons paysage doivent rester synchronisés après chaque entrée en service.
   try{const baseEnter28=enterDriver;enterDriver=function(mode){const r=baseEnter28(mode);setTimeout(syncPassengerButtons,30);return r}}catch(e){console.warn('V28 boutons conducteur',e)}
 
-  document.title='Mon SAEIV · 1.0.4';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
+  document.title='Mon SAEIV · 1.0.8';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
 })();
 </script>
 
@@ -4438,8 +4462,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const b=e.target.closest?.('button,[role="button"]');if(!b||b.disabled||b.getAttribute('aria-disabled')==='true')return;hapticTap();
   },{capture:true,passive:true});
 
-  document.title='Mon SAEIV · 1.0.4';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
+  document.title='Mon SAEIV · 1.0.8';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,20));else setTimeout(label,20);
 })();
 </script>
@@ -4628,7 +4652,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function downloadJournalV29(s,ev){const blob=new Blob([journalReport(s,ev)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a'),d=new Date(s.startedAt||Date.now());a.href=url;a.download=`journal-integral-${String(s.route||'ligne').replace(/[^a-z0-9]+/gi,'-')}-${d.toISOString().slice(0,16).replace(':','-')}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800)}
 
   // ---------- Branchement journal de toutes les fonctions ----------
-  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'1.0.4',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service-v30',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
+  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'1.0.8',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service-v30',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
   // V30 : les annonces vocales ne sont plus enregistrées dans le journal d'exploitation.
   try{const baseReq=requestStop;requestStop=function(index,checked){const r=baseReq(index,checked);if(state?.running)log(checked?'REQUEST_ADDED':'REQUEST_REMOVED',{stopIndex:index,stopName:state.pattern?.stops?.[index]?.name||''});return r}}catch(e){console.warn('V29 journal demandes',e)}
   try{const baseRec=recenter;recenter=function(){const before={current:state.current,target:state.target};const r=baseRec();if(state?.running)log('RECENTER',{beforeCurrent:before.current,beforeTarget:before.target,afterCurrent:state.current,afterTarget:state.target,stopName:state.pattern?.stops?.[state.current]?.name||''});if(V29.deviation.active)finishDeviation('recalage manuel au poteau',false);return r}}catch(e){console.warn('V29 journal recalage',e)}
@@ -4649,8 +4673,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v29JournalClose')?.addEventListener('click',closeJournalV29);q('v29Journal')?.addEventListener('click',e=>{if(e.target===q('v29Journal'))closeJournalV29()});q('v29JournalDownload')?.addEventListener('click',()=>{const c=V29.journal.current;if(c)downloadJournalV29(c.s,c.ev)});
   q('v13JournalList')?.addEventListener('click',e=>{const item=e.target.closest('.v23-session');if(!item)return;const action=e.target.closest('[data-v23-action]')?.dataset.v23Action;if(e.target.matches('.v23-select')||action==='delete')return;const id=item.dataset.sessionId;if(!id)return;e.preventDefault();e.stopImmediatePropagation();if(action==='download'){Promise.all([getJournalSession(id),getJournalEvents(id)]).then(([s,ev])=>{if(s)downloadJournalV29(s,ev)});return}openJournalV29(id)},true);
 
-  document.title='Mon SAEIV · 1.0.4';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
+  document.title='Mon SAEIV · 1.0.8';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
 
 </script>
@@ -4804,7 +4828,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   };
 
   // Version / journal policy.
-  const label=()=>{document.title='Mon SAEIV · 1.0.4';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
+  const label=()=>{document.title='Mon SAEIV · 1.0.8';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
 })();
 </script>
 
@@ -5002,8 +5026,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Évite de gonfler le journal avec le même nom répété pour chaque point d'une rue évitée.
   if(window.FluoJournalCore?.log&&!window.FluoJournalCore.__v301Wrapped){const base=window.FluoJournalCore.log.bind(window.FluoJournalCore);window.FluoJournalCore.log=(type,payload={})=>{const p={...payload};if(Array.isArray(p.avoidZones))p.avoidZones=[...new Set(p.avoidZones.filter(Boolean))];return base(type,p)};window.FluoJournalCore.__v301Wrapped=true}
 
-  document.title='Mon SAEIV · 1.0.4';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
+  document.title='Mon SAEIV · 1.0.8';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
   settleResponsive();
 })();
@@ -5017,8 +5041,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
    carte, arrivée, simulation et journaux partagent exactement le même point opérationnel. */
 (() => {
   const label=()=>{
-    document.title='Mon SAEIV · 1.0.4';
-    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';
+    document.title='Mon SAEIV · 1.0.8';
+    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';
     const b=document.getElementById('buildInfo');if(b&&!/V30.2/.test(b.textContent))b.textContent+=' · V30.2 poteaux recalés au tracé';
   };
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,80));else setTimeout(label,80);
@@ -5204,8 +5228,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Empêche un lancement pendant un calcul asynchrone, même si un ancien module réactive le bouton.
   document.addEventListener('click',e=>{if(V303.busy&&e.target.closest?.('#start,#simulate')){e.preventDefault();e.stopImmediatePropagation();alert('Recalcul du tracé en cours. Attends quelques secondes avant de lancer le service.')}},true);
 
-  document.title='Mon SAEIV · 1.0.4';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
+  document.title='Mon SAEIV · 1.0.8';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>{setTimeout(label,30);schedule('load',600)});else{setTimeout(label,30);schedule('load',600)}
 })();
 </script>
@@ -5259,7 +5283,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     ensureDate();const serviceDate=q('v304CollectiveDate')?.value;if(!serviceDate)throw new Error('Choisis la date du billet collectif.');
     const rows=[q('v30CollectiveStart')?.querySelector('.v30-point'),...q('v30CollectiveStages')?.querySelectorAll('.v30-point')||[],q('v30CollectiveEnd')?.querySelector('.v30-point')].filter(Boolean);
     const points=route.points.map((p,i)=>{const row=rows[i],kind=row?.querySelector('.v30-point-kind')?.value||p.kind||'stop',query=row?.querySelector('.v30-point-search')?.value||p.name||'';return{...p,lat:Number(p.lat),lon:Number(p.lon),kind,query}});
-    return{id:uuid(),matricule:matricule(),serviceDate,departureTime:q('v30CollectiveTime')?.value||'',name:(q('v30CollectiveName')?.value||route.name||'Billet collectif').trim()||'Billet collectif',points,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),distance:Number(route.distance||0),duration:Number(route.duration||0),createdAt:new Date().toISOString(),appVersion:'1.0.4'};
+    return{id:uuid(),matricule:matricule(),serviceDate,departureTime:q('v30CollectiveTime')?.value||'',name:(q('v30CollectiveName')?.value||route.name||'Billet collectif').trim()||'Billet collectif',points,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),distance:Number(route.distance||0),duration:Number(route.duration||0),createdAt:new Date().toISOString(),appVersion:'1.0.8'};
   }
   async function saveCurrent(){try{const rec=currentRecord();await put(rec);window.FluoCollectiveV30?.status?.(`✅ Billet enregistré pour le ${fmtDate(rec.serviceDate)}. Tu le retrouveras dans « Mes billets collectifs ».`,`ok`);await render()}catch(e){alert(e.message||e)}}
 
@@ -5284,8 +5308,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v304DeletePast')?.addEventListener('click',async()=>{const today=ymd(),xs=(await all()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun billet collectif passé à supprimer.');if(!confirm(`Supprimer ${xs.length} billet${xs.length>1?'s':''} collectif${xs.length>1?'s':''} passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await del(x.id);await render()});
 
   window.FluoPreparedCollectivesV304={all,get,save:put,open:openLibrary};
-  document.title='Mon SAEIV · 1.0.4';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
+  document.title='Mon SAEIV · 1.0.8';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
 </script>
@@ -5433,40 +5457,142 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   window.FluoSpeedLimitsV305={build:buildProfile,limitAtAlong,get currentLimit(){return V305.currentLimit},get currentMeta(){return V305.currentMeta},get ready(){return V305.ready},get loading(){return V305.loading},state:V305};
 
   const note=document.querySelector('.fusion-note');if(note&&!q('v305SpeedNote'))note.insertAdjacentHTML('afterend','<div id="v305SpeedNote" class="fusion-note"><b>🚌 Limitations OSM non bloquantes V31</b><span>Les valeurs maxspeed OpenStreetMap sont chargées en arrière-plan et conservées 7 jours. Si une valeur manque ou si le réseau ne répond pas, le profil local 35–50–70–80 reste actif sans interrompre la simulation ni le GPS.</span></div>');
-  document.title='Mon SAEIV · 1.0.4';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
+  document.title='Mon SAEIV · 1.0.8';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
 })();
 </script>
 
 <script id="v307GpsFluidVisuals">
 'use strict';
-/* V30.7 — animation visuelle GPS uniquement. Les calculs métier continuent de recevoir
-   exclusivement les positions natives via processPos : arrêts, annonces, TAD et journaux
-   ne peuvent donc jamais être déclenchés par une position prédite. */
+/* Mon SAEIV 1.0.8 — fluidité GPS visuelle continue.
+   IMPORTANT : cette couche ne modifie jamais state.pos, state.fusion.snapped, les passages aux
+   arrêts, les journaux ou la ponctualité. Elle anime uniquement le pictogramme et la caméra.
+   Sur le parcours, l'animation progresse le long de la géométrie routière entre deux mesures GPS.
+   Si les mesures cessent trop longtemps, la prédiction est plafonnée puis le pictogramme s'arrête. */
 (()=>{
-  const visual={raf:null,displayAlong:null,lastFrame:0,lastCamera:0};
-  function pointAtAlong(shape,cum,along){
-    if(!shape?.length||!cum?.length)return null;along=Math.max(0,Math.min(Number(along)||0,cum.at(-1)||0));
-    let lo=0,hi=cum.length-1;while(lo<hi){const m=(lo+hi)>>1;if(cum[m]<along)lo=m+1;else hi=m}const i=Math.max(1,lo),a=cum[i-1],b=cum[i],f=b>a?(along-a)/(b-a):0;
-    return {lat:shape[i-1][0]+(shape[i][0]-shape[i-1][0])*f,lon:shape[i-1][1]+(shape[i][1]-shape[i-1][1])*f};
+  const M={
+    raf:null,lastFrame:0,lastFixStamp:null,lastFixPerf:0,lastFixAlong:null,lastPrevFixAlong:null,
+    lastPrevFixPerf:0,displayAlong:null,displayLat:null,displayLon:null,displayHeading:null,
+    speedMps:0,mode:'route',routeToken:'',lastLeafletAt:0,lastCameraAt:0,lastIconAt:0,lastMapLat:null,lastMapLon:null
+  };
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const finite=v=>Number.isFinite(Number(v));
+  function routeToken(){
+    const sh=state?.fusion?.shape||[];
+    return [state?.route?.id||state?.route?.short||'',state?.run?.trip?.id||'',sh.length,sh[0]?.join(',')||'',sh.at(-1)?.join(',')||''].join('|');
+  }
+  function reset(){
+    M.lastFixStamp=null;M.lastFixPerf=0;M.lastFixAlong=null;M.lastPrevFixAlong=null;M.lastPrevFixPerf=0;
+    M.displayAlong=null;M.displayLat=null;M.displayLon=null;M.displayHeading=null;M.speedMps=0;M.mode='route';
+    M.lastMapLat=null;M.lastMapLon=null;
+  }
+  function consumeFix(now){
+    const p=state?.pos,c=p?.coords,snap=state?.fusion?.snapped;if(!p||!c)return;
+    const stamp=Number(p.timestamp||0)||String(c.latitude)+','+String(c.longitude)+','+String(c.accuracy||'');
+    if(stamp===M.lastFixStamp)return;
+    M.lastFixStamp=stamp;
+    const prevPerf=M.lastFixPerf;M.lastFixPerf=now;
+    const deviation=window.FluoOpsV29?.isDeviationActive?.()===true;
+    const along=finite(state?.fusion?.lastAlong)?Number(state.fusion.lastAlong):(finite(snap?.along)?Number(snap.along):null);
+    const onRoute=!deviation&&along!==null&&Number(snap?.confidence||0)>0&&Number(snap?.off||Infinity)<Math.max(120,(Number(c.accuracy)||35)*3.2);
+    if(onRoute){
+      M.mode='route';
+      const dt=prevPerf?Math.max(.15,Math.min(4,(now-prevPerf)/1000)):null;
+      let measured=null;
+      if(dt&&finite(M.lastFixAlong)){const d=along-Number(M.lastFixAlong);if(d>=-4&&d/dt<55)measured=Math.max(0,d/dt)}
+      M.lastPrevFixAlong=M.lastFixAlong;M.lastPrevFixPerf=prevPerf;M.lastFixAlong=along;
+      let gps=finite(c.speed)&&Number(c.speed)>=0?clamp(Number(c.speed),0,45):null;
+      let candidate=gps!==null&&measured!==null?gps*.68+measured*.32:gps!==null?gps:measured!==null?measured:M.speedMps;
+      if(candidate<1.1)candidate=0;
+      M.speedMps=clamp(M.speedMps*.35+candidate*.65,0,45);
+      if(!finite(M.displayAlong)||Math.abs(Number(M.displayAlong)-along)>220)M.displayAlong=along;
+      const pt=pointAtRouteAlong(M.displayAlong);
+      if(pt){M.displayLat=pt.lat;M.displayLon=pt.lon}
+      if(!finite(M.displayHeading))M.displayHeading=finite(snap?.heading)?Number(snap.heading):routeHeadingAtAlong(M.displayAlong);
+    }else{
+      M.mode='free';M.lastFixAlong=null;
+      const lat=Number(c.latitude),lon=Number(c.longitude);if(!finite(lat)||!finite(lon))return;
+      if(!finite(M.displayLat)||!finite(M.displayLon)||dist(M.displayLat,M.displayLon,lat,lon)>250){M.displayLat=lat;M.displayLon=lon}
+      if(finite(c.heading)&&Number(c.heading)>=0)M.displayHeading=smoothHeading(M.displayHeading,Number(c.heading),.4);
+      M.speedMps=finite(c.speed)&&Number(c.speed)>=0?clamp(Number(c.speed),0,45):0;
+    }
+  }
+  function predictionHorizon(age,accuracy){
+    const cap=accuracy>90?.25:accuracy>65?.45:accuracy>45?.72:accuracy>28?1.0:1.35;
+    return Math.min(Math.max(0,age),cap);
+  }
+  function updateRouteDisplay(now,dt){
+    if(!finite(M.lastFixAlong))return;
+    const c=state?.pos?.coords||{},acc=Math.max(3,Number(c.accuracy)||35),age=Math.max(0,(now-M.lastFixPerf)/1000);
+    const horizon=predictionHorizon(age,acc);
+    // La prédiction reste volontairement courte : elle comble un rafraîchissement GPS lent,
+    // mais ne continue jamais à rouler artificiellement si le téléphone cesse d'envoyer des positions.
+    const predictM=Math.min(42,M.speedMps*horizon);
+    const total=Number(state?.fusion?.cum?.at(-1)||0),wanted=clamp(Number(M.lastFixAlong)+predictM,0,total||Number(M.lastFixAlong)+predictM);
+    if(!finite(M.displayAlong))M.displayAlong=wanted;
+    const error=wanted-Number(M.displayAlong),tau=M.speedMps>8?.115:M.speedMps>2?.16:.24;
+    const alpha=1-Math.exp(-dt/tau),maxRate=Math.max(7,M.speedMps*1.85+5),maxStep=maxRate*dt;
+    M.displayAlong=Number(M.displayAlong)+clamp(error*alpha,-maxStep,maxStep);
+    if(Math.abs(error)<.08)M.displayAlong=wanted;
+    const p=pointAtRouteAlong(M.displayAlong);if(!p)return;
+    M.displayLat=p.lat;M.displayLon=p.lon;
+    const rh=routeHeadingAtAlong(M.displayAlong),ha=1-Math.exp(-dt/.16);M.displayHeading=smoothHeading(M.displayHeading,rh,ha);
+  }
+  function updateFreeDisplay(dt){
+    const c=state?.pos?.coords;if(!c)return;const lat=Number(c.latitude),lon=Number(c.longitude);if(!finite(lat)||!finite(lon))return;
+    if(!finite(M.displayLat)||!finite(M.displayLon)){M.displayLat=lat;M.displayLon=lon;return}
+    const alpha=1-Math.exp(-dt/.20),d=dist(M.displayLat,M.displayLon,lat,lon);
+    if(d>220){M.displayLat=lat;M.displayLon=lon}else{M.displayLat+=(lat-M.displayLat)*alpha;M.displayLon+=(lon-M.displayLon)*alpha}
+    if(finite(c.heading)&&Number(c.heading)>=0)M.displayHeading=smoothHeading(M.displayHeading,Number(c.heading),1-Math.exp(-dt/.22));
+  }
+  function rotateLeafletMarker(h){
+    const el=state?.nav?.busMarker?.getElement?.();if(!el)return;const pin=el.querySelector?.('.bus-pin');if(pin)pin.style.transform=`rotate(${Number(h||0).toFixed(1)}deg)`;
+  }
+  function renderLeaflet(now){
+    const map=state?.nav?.map,marker=state?.nav?.busMarker;if(!map||!finite(M.displayLat)||!finite(M.displayLon))return;
+    if(now-M.lastLeafletAt<28)return;M.lastLeafletAt=now;
+    try{
+      if(marker)marker.setLatLng([M.displayLat,M.displayLon]);
+      else if(typeof L!=='undefined')state.nav.busMarker=L.marker([M.displayLat,M.displayLon],{icon:busIcon(M.displayHeading||0),zIndexOffset:1000,keyboard:false}).addTo(map);
+      rotateLeafletMarker(M.displayHeading||0);
+      if(state.nav.follow){
+        const z=Math.max(map.getZoom(),15);
+        // panTo évite le recentrage saccadé de setView à chaque mesure native.
+        map.panTo([M.displayLat,M.displayLon],{animate:false,noMoveStart:true});
+        if(map.getZoom()!==z)map.setZoom(z,{animate:false});
+      }
+    }catch{}
+  }
+  function renderMapLibre(now){
+    const v=window.__fluoV16,m=v?.map3d;if(!m||!v?.mapLoaded||!finite(M.displayLat)||!finite(M.displayLon))return;
+    try{v.busMarker?.setLngLat([M.displayLon,M.displayLat]);v.busMarker?.setRotation?.(M.displayHeading||0)}catch{}
+    if(now-M.lastCameraAt<34||!state?.nav?.follow)return;M.lastCameraAt=now;
+    try{
+      const mode=v.mapMode||'3d',common=mode==='3d'
+        ? {center:[M.displayLon,M.displayLat],zoom:16.7,pitch:55,bearing:M.displayHeading||0,offset:[0,Math.min(115,window.innerHeight*.18)]}
+        : {center:[M.displayLon,M.displayLat],zoom:16.1,pitch:0,bearing:mode==='heading'?(M.displayHeading||0):0,offset:[0,mode==='heading'?Math.min(75,window.innerHeight*.12):0]};
+      // jumpTo à ~30 fps donne une caméra continue pilotée par notre interpolation ; aucun easeTo
+      // ne reste en attente et aucun mouvement ne s'empile entre deux positions GPS.
+      m.jumpTo(common);
+    }catch{}
   }
   function frame(ts){
-    visual.raf=requestAnimationFrame(frame);if(document.hidden||!state?.running||state.mode!=='gps'||!state.pos)return;
-    if(ts-visual.lastFrame<15)return;visual.lastFrame=ts;
-    const snap=state.fusion?.snapped,shape=state.fusion?.shape,cum=state.fusion?.cum,c=state.pos.coords;
-    if(!Number.isFinite(snap?.along)||!shape?.length||!cum?.length)return;
-    const age=Math.max(0,(Date.now()-Number(state.pos.timestamp||Date.now()))/1000),accuracy=Math.max(0,Number(c.accuracy||0));
-    const horizon=Math.min(accuracy>80?.35:accuracy>40?.7:1.25,age),speed=Math.max(0,Math.min(45,Number.isFinite(c.speed)?c.speed:0));
-    const wanted=Math.min(cum.at(-1)||0,snap.along+speed*horizon);
-    if(!Number.isFinite(visual.displayAlong)||Math.abs(visual.displayAlong-wanted)>180)visual.displayAlong=wanted;
-    else visual.displayAlong+=(wanted-visual.displayAlong)*Math.min(1,.16+(ts-visual.lastFrame)/120);
-    const p=pointAtAlong(shape,cum,visual.displayAlong),v=window.__fluoV16,m=v?.map3d;if(!p||!m||!v.mapLoaded)return;
-    try{v.busMarker?.setLngLat([p.lon,p.lat])}catch{}
-    if(ts-visual.lastCamera>=33){visual.lastCamera=ts;try{const center=m.getCenter(),k=.22;m.setCenter([center.lng+(p.lon-center.lng)*k,center.lat+(p.lat-center.lat)*k])}catch{}}
+    M.raf=requestAnimationFrame(frame);
+    if(document.hidden||!state?.running||state.mode!=='gps'||!state.pos){M.lastFrame=ts;return}
+    const token=routeToken();if(token!==M.routeToken){M.routeToken=token;reset()}
+    consumeFix(ts);
+    const dt=M.lastFrame?clamp((ts-M.lastFrame)/1000,.001,.08):1/60;M.lastFrame=ts;
+    if(M.mode==='route')updateRouteDisplay(ts,dt);else updateFreeDisplay(dt);
+    renderLeaflet(ts);renderMapLibre(ts);
   }
-  visual.raf=requestAnimationFrame(frame);
-  window.addEventListener('pagehide',()=>{if(visual.raf)cancelAnimationFrame(visual.raf)},{once:true});
+  window.MonSAEIVVisualGPS={
+    getDisplay:()=>finite(M.displayLat)&&finite(M.displayLon)?{lat:Number(M.displayLat),lon:Number(M.displayLon),heading:finite(M.displayHeading)?Number(M.displayHeading):Number(state?.nav?.lastHeading||0),along:finite(M.displayAlong)?Number(M.displayAlong):null,mode:M.mode}:null,
+    reset,
+    diagnostics:()=>({mode:M.mode,speedMps:M.speedMps,displayAlong:M.displayAlong,lastFixAlong:M.lastFixAlong,lastFixAgeMs:M.lastFixPerf?performance.now()-M.lastFixPerf:null})
+  };
+  M.raf=requestAnimationFrame(frame);
+  window.addEventListener('pagehide',()=>{if(M.raf)cancelAnimationFrame(M.raf)},{once:true});
 })();
 </script>
 
@@ -5725,7 +5851,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 
 <script id="v309FinalLabel">
-(()=>{const apply=()=>{document.title='Mon SAEIV · 1.0.4';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.4'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
+(()=>{const apply=()=>{document.title='Mon SAEIV · 1.0.8';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
 // V31.4 : liaison finale après toutes les extensions historiques de l'interface.
 // La délégation reste valide même si un bouton est déplacé ou recréé par une extension.
 (()=>{const modes={regularMode:'regular',tadMode:'tad',formationMode:'formation'};
@@ -5901,8 +6027,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   `;document.head.appendChild(css);
 
   syncValidated();
-  document.title='Mon SAEIV · 1.0.4';
-  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';
+  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.8';
 })();
 </script>
 
@@ -6229,7 +6355,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Mon SAEIV · 1.0.4';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.4';
+  document.title='Mon SAEIV · 1.0.8';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.8';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -6764,11 +6890,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const q=id=>document.getElementById(id);
   q('v3127UsageContinue')?.addEventListener('click',()=>q('v3127UsageNotice')?.classList.add('hidden'));
   const label=()=>{
-    document.title='Mon SAEIV · 1.0.4';
+    document.title='Mon SAEIV · 1.0.8';
     const eyebrow=document.querySelector('.top .eyebrow');
-    if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.4';
+    if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.8';
     const b=q('buildInfo');
-    if(b)b.textContent='Version 1.0.4';
+    if(b)b.textContent='Version 1.0.8';
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{label();setTimeout(label,4000)});
   else{label();setTimeout(label,4000)}
@@ -6778,12 +6904,12 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 <script id="monSaevIdentity101">
 (()=>{
   const apply=()=>{
-    document.title='Mon SAEIV · 1.0.4';
-    const eyebrow=document.querySelector('.top .eyebrow'); if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.4';
+    document.title='Mon SAEIV · 1.0.8';
+    const eyebrow=document.querySelector('.top .eyebrow'); if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.8';
     const h1=document.querySelector('.top h1'); if(h1) h1.textContent='Mon SAEIV';
     const sub=document.querySelector('.top .sub'); if(sub) sub.textContent='Réseaux 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68';
     const usage=document.getElementById('v3127UsageTitle'); if(usage) usage.textContent='Mon SAEIV';
-    const authLogo=document.querySelector('.v13-logo'); if(authLogo && /MON SAEIV/.test(authLogo.textContent||'')) authLogo.textContent='MON SAEIV · 1.0.4';
+    const authLogo=document.querySelector('.v13-logo'); if(authLogo && /MON SAEIV/.test(authLogo.textContent||'')) authLogo.textContent='MON SAEIV · 1.0.8';
     const build=document.getElementById('buildInfo'); if(build){build.hidden=true;build.setAttribute('aria-hidden','true');}
     document.querySelectorAll('.audio-note,.fusion-note,#v305SpeedNote').forEach(el=>el.remove());
   };
@@ -6793,7 +6919,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 <script id="monSaevV102JournalPdf">
-/* Mon SAEIV 1.0.4 - export PDF des journaux, sans dépendance externe. */
+/* Mon SAEIV 1.0.8 - export PDF des journaux, sans dépendance externe. */
 (()=>{
   const q=id=>document.getElementById(id), DB='fluo-saeiv-journal-v13', ACCOUNT='fluoSaeivAccountV13';
   const PAGE_W=595.28,PAGE_H=841.89,M=42,CONTENT_W=PAGE_W-2*M;
@@ -6817,7 +6943,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const para=(str,size=9,bold=false,indent=0,gap=3)=>{const ls=wrap(str,size,CONTENT_W-indent);for(const l of ls){if(y<60)newPage();text(M+indent,y,size,l,bold);y-=size+gap}};
     const heading=(str)=>{if(y<95)newPage();y-=4;text(M,y,14,str,true);y-=20;line(M,y+6,PAGE_W-M,y+6,1)};
     newPage();
-    text(M,y,10,'MON SAEIV - EXPORT DES JOURNAUX',true);text(PAGE_W-M-145,y,8,`Version 1.0.4`,false);y-=22;
+    text(M,y,10,'MON SAEIV - EXPORT DES JOURNAUX',true);text(PAGE_W-M-145,y,8,`Version 1.0.8`,false);y-=22;
     para(`Conducteur : ${account()?.matricule||sessions[0]?.matricule||'-'}`,10,true);para(`Export genere le ${dt(new Date().toISOString())}`,8);y-=8;
     sessions.forEach((s,idx)=>{
       if(idx>0){newPage()}
@@ -6860,11 +6986,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 <script id="monSaevV103GpsReliability">
-/* Mon SAEIV 1.0.4 — fiabilisation géométrie, recalcul automatique et guidage routier. */
+/* Mon SAEIV 1.0.8 — fiabilisation géométrie, recalcul automatique et guidage routier. */
 'use strict';
 (()=>{
   const q=id=>document.getElementById(id);
-  const VERSION='1.0.4';
+  const VERSION='1.0.8';
   const GAP_M=650;
   const REPAIR_KEY='monSaevV103RoadGapCache';
   const GUIDANCE_KEY='monSaevV103GuidanceCache';
@@ -7124,5 +7250,156 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 
+
+<script id="v107IntegratedRadio">
+'use strict';
+/* Mon SAEIV 1.0.8 — radio intégrée + ducking annonces/GPS + accès pendant la navigation. */
+(()=>{
+  const q=id=>document.getElementById(id), escR=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const API='https://de1.api.radio-browser.info';
+  const PREF='monSaeivRadioPrefsV107', FAV='monSaeivRadioFavoritesV107', CACHE='monSaeivRadioCatalogV107';
+  const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const read=(k,d)=>{try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??d}catch{return d}};
+  const pref=read(PREF,{volume:.68,last:null});
+  const R={audio:new Audio(),volume:Math.max(0,Math.min(1,Number(pref.volume)||.68)),station:pref.last||null,restoreTimer:null,ramp:0,tab:'main',results:[],loading:false};
+  R.audio.preload='none';R.audio.volume=R.volume;R.audio.playsInline=true;
+  function savePref(){localStorage.setItem(PREF,JSON.stringify({volume:R.volume,last:R.station||null}))}
+  function favorites(){const a=read(FAV,[]);return Array.isArray(a)?a:[]}
+  function saveFavorites(a){localStorage.setItem(FAV,JSON.stringify(a.slice(0,80)));renderCurrent()}
+  function cleanStation(x){if(!x)return null;return {stationuuid:String(x.stationuuid||x.uuid||''),name:String(x.name||'Radio').trim(),url:String(x.url_resolved||x.url||'').trim(),homepage:String(x.homepage||''),favicon:String(x.favicon||''),state:String(x.state||''),country:String(x.country||''),codec:String(x.codec||''),bitrate:Number(x.bitrate)||0,tags:String(x.tags||'')};}
+  function isFav(st){return !!st?.stationuuid&&favorites().some(x=>x.stationuuid===st.stationuuid)}
+  function toggleFav(st){if(!st?.stationuuid)return;let xs=favorites();if(xs.some(x=>x.stationuuid===st.stationuuid))xs=xs.filter(x=>x.stationuuid!==st.stationuuid);else xs.unshift(st);saveFavorites(xs);renderResults(R.results)}
+  function setStatus(t,k=''){const e=q('v107RadioStatus');if(e){e.textContent=t;e.className='v107-radio-status '+k}}
+  function smoothVolume(target,ms=260){target=Math.max(0,Math.min(1,target));cancelAnimationFrame(R.ramp);const start=R.audio.volume,t0=performance.now();const tick=now=>{const f=Math.min(1,(now-t0)/ms),e=1-Math.pow(1-f,3);R.audio.volume=start+(target-start)*e;if(f<1)R.ramp=requestAnimationFrame(tick)};R.ramp=requestAnimationFrame(tick)}
+  function duckStart(kind){clearTimeout(R.restoreTimer);if(R.audio.paused)return;const target=kind==='navigation'?Math.min(R.volume,.20):Math.min(R.volume,.08);smoothVolume(target,150)}
+  function duckEnd(){clearTimeout(R.restoreTimer);R.restoreTimer=setTimeout(()=>{if(!R.audio.paused)smoothVolume(R.volume,520)},480)}
+  function syncMediaSession(){try{if(!('mediaSession'in navigator))return;if(R.station)navigator.mediaSession.metadata=new MediaMetadata({title:R.station.name,artist:'Radio · Mon SAEIV',album:R.station.state||R.station.country||'France'});navigator.mediaSession.setActionHandler('play',()=>R.audio.play());navigator.mediaSession.setActionHandler('pause',()=>R.audio.pause())}catch{}}
+  function renderCurrent(){const st=R.station, name=q('v107RadioNowName'),meta=q('v107RadioNowMeta'),play=q('v107RadioPlay'),fav=q('v107RadioFav');if(name)name.textContent=st?.name||'Aucune radio sélectionnée';if(meta)meta.textContent=st?[st.state||st.country,st.codec,st.bitrate?`${st.bitrate} kb/s`:null].filter(Boolean).join(' · '):'Choisis une station ci-dessous.';if(play)play.textContent=R.audio.paused?'▶ Lecture':'⏸ Pause';if(fav){fav.disabled=!st?.stationuuid;fav.textContent=st&&isFav(st)?'★ Favori':'☆ Favori'}const mini=q('v107NavRadioState');if(mini)mini.textContent=st?`${R.audio.paused?'⏸':'▶'} ${st.name}`:'Aucune radio'}
+  async function playStation(st){st=cleanStation(st);if(!st?.url){setStatus('Cette station ne fournit pas de flux audio exploitable.','err');return}R.station=st;savePref();R.audio.src=st.url;R.audio.volume=R.volume;setStatus(`Connexion à ${st.name}…`,'busy');renderCurrent();syncMediaSession();try{await R.audio.play();setStatus(`En écoute : ${st.name}`,'ok')}catch(e){setStatus(`Lecture impossible : ${e?.message||'flux indisponible'}. Essaie une autre station.`,'err')}renderCurrent()}
+  function stopRadio(){R.audio.pause();R.audio.removeAttribute('src');R.audio.load();setStatus('Radio arrêtée.');renderCurrent()}
+  R.audio.addEventListener('playing',()=>{setStatus(R.station?`En écoute : ${R.station.name}`:'Radio en lecture','ok');renderCurrent()});
+  R.audio.addEventListener('pause',renderCurrent);R.audio.addEventListener('waiting',()=>setStatus('Mise en mémoire tampon…','busy'));R.audio.addEventListener('stalled',()=>setStatus('Le flux radio répond lentement…','busy'));R.audio.addEventListener('error',()=>{setStatus('Le flux de cette station est momentanément indisponible.','err');renderCurrent()});
+
+  async function api(path){const r=await fetch(API+path,{headers:{Accept:'application/json'},cache:'no-store'});if(!r.ok)throw new Error(`Catalogue radio HTTP ${r.status}`);return r.json()}
+  function usable(x){const u=String(x.url_resolved||x.url||'');return x.lastcheckok!==false&&x.lastcheckok!==0&&/^https?:\/\//i.test(u)&&!/\.pls(?:\?|$)|\.m3u(?:\?|$)/i.test(u)}
+  function dedupe(xs){const m=new Map();for(const x of xs.map(cleanStation).filter(x=>x?.stationuuid&&x.url))if(!m.has(x.stationuuid))m.set(x.stationuuid,x);return [...m.values()]}
+  async function popular(){const c=read(CACHE,null);if(c&&Date.now()-Number(c.ts||0)<86400000&&Array.isArray(c.items))return c.items;const xs=(await api('/json/stations/search?countrycode=FR&hidebroken=true&order=clickcount&reverse=true&limit=300')).filter(usable);const wanted=['nrj','rtl','france inter','franceinfo','europe 1','europe 2','cherie fm','nostalgie','rfm','fun radio','rtl2','skyrock','radio classique','ici'];const out=[];for(const w of wanted){const hit=xs.find(x=>{const n=norm(x.name);return n===w||n.startsWith(w+' ')||n.includes(' '+w+' ')});if(hit&&!out.some(y=>y.stationuuid===hit.stationuuid))out.push(cleanStation(hit))}for(const x of xs){if(out.length>=28)break;if(!out.some(y=>y.stationuuid===x.stationuuid))out.push(cleanStation(x))}localStorage.setItem(CACHE,JSON.stringify({ts:Date.now(),items:out}));return out}
+  async function localStations(){const urls=['/json/stations/search?countrycode=FR&state=Grand%20Est&hidebroken=true&order=clickcount&reverse=true&limit=80','/json/stations/search?countrycode=FR&state=Lorraine&hidebroken=true&order=clickcount&reverse=true&limit=80'];let all=[];for(const u of urls){try{all.push(...(await api(u)).filter(usable))}catch{}}return dedupe(all).slice(0,60)}
+  async function searchStations(term){const t=String(term||'').trim();if(t.length<2)return[];return dedupe((await api(`/json/stations/search?countrycode=FR&name=${encodeURIComponent(t)}&hidebroken=true&order=clickcount&reverse=true&limit=60`)).filter(usable)).slice(0,50)}
+  function stationCard(st){const fav=isFav(st);return `<article class="v107-station"><button type="button" class="v107-station-main" data-v107-play="${escR(st.stationuuid)}"><strong>${escR(st.name)}</strong><span>${escR([st.state||st.country,st.codec,st.bitrate?`${st.bitrate} kb/s`:null].filter(Boolean).join(' · '))}</span></button><button type="button" class="v107-star" data-v107-fav="${escR(st.stationuuid)}" aria-label="${fav?'Retirer des favoris':'Ajouter aux favoris'}">${fav?'★':'☆'}</button></article>`}
+  function renderResults(xs){R.results=xs||[];const box=q('v107RadioResults');if(!box)return;box.innerHTML=R.results.length?R.results.map(stationCard).join(''):'<div class="v107-radio-empty">Aucune station à afficher.</div>'}
+  async function showTab(tab){R.tab=tab;document.querySelectorAll('[data-v107-tab]').forEach(b=>b.classList.toggle('active',b.dataset.v107Tab===tab));setStatus('');if(tab==='favorites'){renderResults(favorites());return}q('v107RadioResults').innerHTML='<div class="v107-radio-empty">Chargement des stations…</div>';try{renderResults(tab==='local'?await localStations():await popular())}catch(e){renderResults([]);setStatus(`Catalogue radio indisponible : ${e.message||e}. Les favoris déjà enregistrés restent utilisables.`,'err')}}
+
+  function openRadio(){q('v107RadioSheet')?.classList.remove('hidden');renderCurrent();showTab(R.tab==='search'?'main':R.tab)}
+  function closeRadio(){q('v107RadioSheet')?.classList.add('hidden')}
+  function openNavMenu(){q('v107NavMenu')?.classList.remove('hidden');const g=q('v107NavGpsVoice');if(g)g.textContent=q('navVoiceBtn')?.classList.contains('off')?'🔇 GPS muet':'🔊 GPS vocal';renderCurrent()}
+  function closeNavMenu(){q('v107NavMenu')?.classList.add('hidden')}
+
+  // Accès depuis le menu hamburger principal.
+  const menu=q('v316MenuItems');if(menu&&!q('v107RadioMainBtn')){const b=document.createElement('button');b.id='v107RadioMainBtn';b.type='button';b.className='v316-menu-entry';b.textContent='📻 Radio';const admin=q('v29AdminBtn');admin?.insertAdjacentElement('beforebegin',b);if(!b.parentElement)menu.appendChild(b)}
+  // Petit hamburger directement sur la carte de navigation, à côté des contrôles carte/vitesse.
+  const controls=q('v16MapMode')?.parentElement||document.querySelector('#driver .v16-map-controls');if(controls&&!q('v107NavMenuBtn')){const b=document.createElement('button');b.id='v107NavMenuBtn';b.type='button';b.className='v107-nav-menu-btn';b.setAttribute('aria-label','Menu pendant la navigation');b.textContent='☰';controls.insertBefore(b,controls.firstChild)}
+  if(!q('v107NavMenu'))document.body.insertAdjacentHTML('beforeend',`<div id="v107NavMenu" class="v107-nav-backdrop hidden" role="dialog" aria-modal="true"><div class="v107-nav-sheet"><div class="v107-nav-head"><div><div class="eyebrow">CONDUITE</div><h2>Menu</h2></div><button id="v107NavClose" type="button">Fermer</button></div><div class="v107-nav-current"><span>RADIO</span><b id="v107NavRadioState">Aucune radio</b></div><button id="v107NavRadioOpen" class="primary full" type="button">📻 Choisir la radio</button><button id="v107NavAnnounce" class="full" type="button">🔊 Annoncer</button><button id="v107NavRequests" class="full" type="button">🔔 Demandes clients</button><button id="v107NavGpsVoice" class="full" type="button">🔊 GPS vocal</button></div></div>`);
+  if(!q('v107RadioSheet'))document.body.insertAdjacentHTML('beforeend',`<div id="v107RadioSheet" class="v107-radio-backdrop hidden" role="dialog" aria-modal="true" aria-label="Radio"><section class="v107-radio-sheet"><header class="v107-radio-head"><div><div class="eyebrow">MON SAEIV</div><h2>📻 Radio</h2><p>La radio reste active pendant la navigation. Les annonces et le GPS baissent automatiquement son volume.</p></div><button id="v107RadioClose" type="button">Fermer</button></header><div class="v107-now"><div><span>EN COURS</span><strong id="v107RadioNowName">Aucune radio sélectionnée</strong><small id="v107RadioNowMeta">Choisis une station ci-dessous.</small></div><div class="v107-now-actions"><button id="v107RadioPlay" type="button">▶ Lecture</button><button id="v107RadioFav" type="button" disabled>☆ Favori</button><button id="v107RadioStop" class="danger" type="button">■ Stop</button></div><label class="v107-volume">Volume radio <input id="v107RadioVolume" type="range" min="0" max="100" value="${Math.round(R.volume*100)}"><b id="v107RadioVolumeValue">${Math.round(R.volume*100)} %</b></label></div><nav class="v107-tabs"><button type="button" class="active" data-v107-tab="main">⭐ Principales</button><button type="button" data-v107-tab="local">📍 Locales / Grand Est</button><button type="button" data-v107-tab="favorites">★ Favoris</button></nav><div class="v107-search"><input id="v107RadioSearch" type="search" placeholder="Rechercher une radio française…"><button id="v107RadioSearchBtn" type="button">Rechercher</button></div><div id="v107RadioStatus" class="v107-radio-status"></div><div id="v107RadioResults" class="v107-radio-results"></div><details class="v107-custom"><summary>Ajouter un flux radio manuellement</summary><div><input id="v107CustomName" type="text" placeholder="Nom de la radio"><input id="v107CustomUrl" type="url" placeholder="https://…/stream"><button id="v107CustomPlay" type="button">▶ Lire ce flux</button></div></details></section></div>`);
+  const style=document.createElement('style');style.id='v107RadioStyle';style.textContent=`
+    #v107NavMenuBtn{min-width:38px!important;font-size:1rem!important;font-weight:1000!important;pointer-events:auto!important}
+    .v107-nav-backdrop,.v107-radio-backdrop{position:fixed;inset:0;z-index:5000;background:rgba(2,8,12,.78);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:12px}.v107-nav-backdrop.hidden,.v107-radio-backdrop.hidden{display:none!important}
+    .v107-nav-sheet{width:min(360px,96vw);padding:14px;border:1px solid #355163;border-radius:18px;background:#0a1822;box-shadow:0 22px 70px rgba(0,0,0,.55)}.v107-nav-head,.v107-radio-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v107-nav-head h2,.v107-radio-head h2{margin:2px 0 0}.v107-nav-current{margin:14px 0 8px;padding:10px;border:1px solid #304a5b;border-radius:12px;background:#0d202c}.v107-nav-current span{display:block;color:#90a5b4;font-size:.65rem;font-weight:900;letter-spacing:.1em}.v107-nav-current b{display:block;margin-top:4px}.v107-nav-sheet>.full{margin-top:7px}
+    .v107-radio-sheet{width:min(780px,98vw);max-height:min(92dvh,850px);display:flex;flex-direction:column;overflow:hidden;border:1px solid #355163;border-radius:20px;background:#081722;box-shadow:0 24px 80px rgba(0,0,0,.62)}.v107-radio-head{padding:14px 16px;border-bottom:1px solid #284250}.v107-radio-head p{margin:5px 0 0;color:#9db0bc;font-size:.78rem}.v107-now{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px 16px;background:#0d202c;border-bottom:1px solid #284250}.v107-now span{display:block;color:#ffd000;font-size:.62rem;font-weight:1000;letter-spacing:.1em}.v107-now strong{display:block;margin-top:3px;font-size:1.05rem}.v107-now small{display:block;margin-top:3px;color:#9fb1bd}.v107-now-actions{display:flex;gap:5px;align-items:start;flex-wrap:wrap}.v107-now-actions button{padding:7px 9px;font-size:.72rem}.v107-volume{grid-column:1/-1;display:grid;grid-template-columns:auto minmax(120px,1fr) 48px;align-items:center;gap:8px;font-size:.72rem}.v107-volume input{width:100%}.v107-volume b{text-align:right}.v107-tabs{display:flex;gap:6px;padding:10px 16px 5px;overflow-x:auto}.v107-tabs button{flex:0 0 auto;padding:7px 10px;font-size:.7rem}.v107-tabs button.active{background:#ffd000;color:#111820;border-color:#ffd000}.v107-search{display:flex;gap:6px;padding:6px 16px}.v107-search input{flex:1;min-width:0}.v107-radio-status{min-height:22px;padding:0 16px 5px;color:#9fb1bd;font-size:.72rem}.v107-radio-status.ok{color:#69df92}.v107-radio-status.err{color:#ff8c87}.v107-radio-status.busy{color:#ffd000}.v107-radio-results{padding:4px 16px 14px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:7px}.v107-station{display:grid;grid-template-columns:minmax(0,1fr) 42px;border:1px solid #294554;border-radius:12px;background:#0b1d28;overflow:hidden}.v107-station-main{border:0;border-radius:0;background:transparent;text-align:left;padding:9px 10px;min-width:0}.v107-station-main strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v107-station-main span{display:block;margin-top:3px;color:#91a8b6;font-size:.66rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v107-star{border:0;border-left:1px solid #294554;border-radius:0;background:#102632;color:#ffd000;font-size:1.2rem}.v107-radio-empty{grid-column:1/-1;padding:20px;text-align:center;color:#91a8b6}.v107-custom{margin:0 16px 14px;border:1px solid #294554;border-radius:12px;padding:8px 10px}.v107-custom summary{cursor:pointer;font-size:.72rem;color:#a8bbc6}.v107-custom>div{display:grid;grid-template-columns:1fr 1.5fr auto;gap:6px;margin-top:8px}
+    @media(max-width:680px){.v107-radio-backdrop{padding:0;align-items:flex-end}.v107-radio-sheet{width:100%;max-height:94dvh;border-radius:20px 20px 0 0}.v107-radio-results{grid-template-columns:1fr}.v107-now{grid-template-columns:1fr}.v107-custom>div{grid-template-columns:1fr}.v107-radio-head p{font-size:.7rem}.v107-tabs{padding-left:10px;padding-right:10px}.v107-search,.v107-radio-results{padding-left:10px;padding-right:10px}}
+    @media(orientation:landscape) and (max-height:650px){.v107-radio-backdrop,.v107-nav-backdrop{padding:5px}.v107-radio-sheet{max-height:97dvh;border-radius:14px}.v107-radio-head{padding:7px 10px}.v107-radio-head p{display:none}.v107-now{padding:7px 10px}.v107-tabs{padding:5px 10px 2px}.v107-search{padding:4px 10px}.v107-radio-results{padding:3px 10px 7px}.v107-station-main{padding:6px 8px}.v107-custom{display:none}.v107-nav-sheet{max-height:96dvh;overflow:auto}}
+  `;document.head.appendChild(style);
+
+  q('v107RadioMainBtn')?.addEventListener('click',openRadio);q('v107NavMenuBtn')?.addEventListener('click',openNavMenu);q('v107NavClose')?.addEventListener('click',closeNavMenu);q('v107NavMenu')?.addEventListener('click',e=>{if(e.target===q('v107NavMenu'))closeNavMenu()});
+  q('v107NavRadioOpen')?.addEventListener('click',()=>{closeNavMenu();openRadio()});q('v107NavAnnounce')?.addEventListener('click',()=>{closeNavMenu();if(typeof window.FluoOpenAnnouncementsV26==='function')window.FluoOpenAnnouncementsV26();else q('v26AnnounceSheet')?.classList.remove('hidden')});q('v107NavRequests')?.addEventListener('click',()=>{closeNavMenu();(q('v15RequestsBtn')||q('requestsBtn'))?.click()});q('v107NavGpsVoice')?.addEventListener('click',()=>{q('navVoiceBtn')?.click();const b=q('v107NavGpsVoice');if(b)b.textContent=q('navVoiceBtn')?.classList.contains('off')?'🔇 GPS muet':'🔊 GPS vocal'});
+  q('v107RadioClose')?.addEventListener('click',closeRadio);q('v107RadioSheet')?.addEventListener('click',e=>{if(e.target===q('v107RadioSheet'))closeRadio()});q('v107RadioPlay')?.addEventListener('click',async()=>{if(!R.station)return openRadio();if(R.audio.paused){if(!R.audio.src)R.audio.src=R.station.url;try{await R.audio.play()}catch(e){setStatus(`Lecture impossible : ${e.message||e}`,'err')}}else R.audio.pause();renderCurrent()});q('v107RadioStop')?.addEventListener('click',stopRadio);q('v107RadioFav')?.addEventListener('click',()=>R.station&&toggleFav(R.station));
+  q('v107RadioVolume')?.addEventListener('input',e=>{R.volume=Math.max(0,Math.min(1,Number(e.target.value)/100));q('v107RadioVolumeValue').textContent=`${Math.round(R.volume*100)} %`;if(!R.audio.paused)smoothVolume(R.volume,80);savePref()});document.querySelectorAll('[data-v107-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.v107Tab)));
+  q('v107RadioSearchBtn')?.addEventListener('click',async()=>{const term=q('v107RadioSearch').value.trim();if(term.length<2){setStatus('Tape au moins 2 caractères.','err');return}R.tab='search';document.querySelectorAll('[data-v107-tab]').forEach(b=>b.classList.remove('active'));q('v107RadioResults').innerHTML='<div class="v107-radio-empty">Recherche…</div>';try{renderResults(await searchStations(term));setStatus(`Résultats pour « ${term} ».`,'ok')}catch(e){renderResults([]);setStatus(`Recherche indisponible : ${e.message||e}`,'err')}});q('v107RadioSearch')?.addEventListener('keydown',e=>{if(e.key==='Enter')q('v107RadioSearchBtn')?.click()});
+  q('v107RadioResults')?.addEventListener('click',e=>{const p=e.target.closest('[data-v107-play]'),f=e.target.closest('[data-v107-fav]');const id=(p||f)?.dataset?.v107Play||(p||f)?.dataset?.v107Fav;if(!id)return;const st=R.results.find(x=>x.stationuuid===id)||favorites().find(x=>x.stationuuid===id);if(p&&st)playStation(st);if(f&&st)toggleFav(st)});
+  q('v107CustomPlay')?.addEventListener('click',()=>{const name=q('v107CustomName').value.trim()||'Radio personnalisée',url=q('v107CustomUrl').value.trim();if(!/^https?:\/\//i.test(url)){setStatus('Saisis une adresse de flux http ou https valide.','err');return}playStation({stationuuid:'custom-'+btoa(unescape(encodeURIComponent(url))).replace(/[^a-z0-9]/gi,'').slice(0,30),name,url,state:'Flux personnalisé'})});
+  window.MonSAEIVRadio={open:openRadio,duckStart,duckEnd,get audio(){return R.audio},get station(){return R.station}};
+  renderCurrent();syncMediaSession();
+})();
+</script>
+
+<script id="v108CashRegister">
+'use strict';
+/* Mon SAEIV 1.0.8 — Ma caisse : fonds personnalisable, ventes par titres ou montant global, récapitulatif jour/semaine/mois. */
+(()=>{
+  const q=id=>document.getElementById(id);
+  const ACCOUNT_KEY='fluoSaeivAccountV13';
+  const BASE='monSaeivCashV108';
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const money=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(Number(n)||0);
+  const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+  const user=()=>{try{return JSON.parse(localStorage.getItem(ACCOUNT_KEY)||'null')?.matricule||'local'}catch{return'local'}};
+  const key=()=>`${BASE}:${user()}`;
+  const uid=()=>crypto.randomUUID?crypto.randomUUID():`cash-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const CATALOGS={
+    general:{label:'Cars Fluo · hors Bas-Rhin (67)',note:'Tarifs publics du réseau de cars hors Bas-Rhin.',items:[
+      ['unit','Ticket unitaire',4],['school','Ticket unitaire · ligne scolaire',2],['reduced','Ticket unitaire réduit',2],['schoolReduced','Ticket unitaire réduit · ligne scolaire',1],
+      ['cardPublic','Carte de réduction · tout public',30],['cardYouth','Carte de réduction · moins de 26 ans',10],
+      ['monthPublic','Abonnement mensuel · tout public',55],['monthYouth','Abonnement mensuel · moins de 26 ans',22],['monthSolidarity','Abonnement mensuel · solidaire',11],
+      ['yearPublic','Abonnement annuel · tout public',455],['yearYouth','Abonnement annuel · moins de 26 ans',182],['yearSolidarity','Abonnement annuel · solidaire',91],
+      ['terPlus','Complément abonnement TER',1]
+    ]},
+    r67:{label:'Bas-Rhin · réseau 67',note:'Tarification spécifique au réseau 67.',items:[
+      ['67unit','Billet unitaire',3],['67cts','Ticket unitaire réseau 67 + CTS',3.5],['67book','Carnet 10 trajets',21],['67bookReduced','Carnet 10 trajets · tarif réduit',13],['67group','Pass groupe journée',17.5],
+      ['67epAdultOne','Europa Park · aller simple normal',5],['67epChildOne','Europa Park · aller simple enfant',2.5],['67epAdultReturn','Europa Park · aller-retour normal',10],['67epChildReturn','Europa Park · aller-retour enfant',5],
+      ['67month','Abonnement mensuel réseau 67',57],['67monthReduced','Abonnement mensuel réseau 67 · réduit',28],['67ctsMonth','Abonnement mensuel réseau 67 + CTS',73],['67ctsYouth','Abonnement mensuel réseau 67 + CTS · jeunes',36.5],['67ritmoMonth','Abonnement mensuel réseau 67 + Ritmo',63],['67ritmoYouth','Abonnement mensuel réseau 67 + Ritmo · jeunes',31.5]
+    ]}
+  };
+  let period='today';
+  function empty(){return {fund:50,sales:[],catalog:'general',updatedAt:new Date().toISOString()}}
+  function read(){try{const x=JSON.parse(localStorage.getItem(key())||'null');if(!x)return empty();return {fund:Number.isFinite(Number(x.fund))?Number(x.fund):50,sales:Array.isArray(x.sales)?x.sales:[],catalog:x.catalog==='r67'?'r67':'general',updatedAt:x.updatedAt||null}}catch{return empty()}}
+  function write(x){x.updatedAt=new Date().toISOString();localStorage.setItem(key(),JSON.stringify(x));return x}
+  function fmtDate(v){try{return new Date(`${v}T12:00:00`).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}catch{return v||'—'}}
+  function inPeriod(date,p=period){if(p==='all')return true;const d=new Date(`${date}T12:00:00`),n=new Date();n.setHours(12,0,0,0);if(p==='today')return date===today();if(p==='month')return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth();if(p==='week'){const day=(n.getDay()+6)%7,start=new Date(n);start.setDate(n.getDate()-day);const end=new Date(start);end.setDate(start.getDate()+7);return d>=start&&d<end}return true}
+  function filtered(){return read().sales.filter(x=>inPeriod(x.date))}
+  function titleCount(xs){return xs.reduce((a,x)=>a+(x.items||[]).reduce((b,i)=>b+(Number(i.qty)||0),0),0)}
+  function total(xs){return xs.reduce((a,x)=>a+(Number(x.total)||0),0)}
+  function breakdown(xs){const m=new Map();for(const x of xs)for(const i of x.items||[]){const k=`${i.label}|${Number(i.unit)||0}`;const r=m.get(k)||{label:i.label,unit:Number(i.unit)||0,qty:0,total:0};r.qty+=Number(i.qty)||0;r.total+=Number(i.total)||0;m.set(k,r)}return [...m.values()].sort((a,b)=>b.total-a.total||a.label.localeCompare(b.label,'fr'))}
+  function periodLabel(){return {today:"Aujourd’hui",week:'Cette semaine',month:'Ce mois',all:'Tout'}[period]||'Période'}
+  function renderSummary(){
+    const d=read(),xs=filtered(),sales=total(xs),cnt=titleCount(xs),box=q('v108CashMetrics');
+    if(box)box.innerHTML=`<div><span>FONDS DE CAISSE</span><b>${money(d.fund)}</b></div><div><span>VENTES · ${esc(periodLabel().toUpperCase())}</span><b>${money(sales)}</b></div><div><span>CAISSE THÉORIQUE</span><b>${money(d.fund+sales)}</b></div><div><span>TITRES VENDUS</span><b>${cnt}</b></div>`;
+    document.querySelectorAll('[data-v108-period]').forEach(b=>b.classList.toggle('active',b.dataset.v108Period===period));
+    const br=breakdown(xs),b=q('v108CashBreakdown');if(b)b.innerHTML=br.length?br.map(x=>`<tr><td>${esc(x.label)}</td><td>${money(x.unit)}</td><td>${x.qty}</td><td>${money(x.total)}</td></tr>`).join(''):`<tr><td colspan="4" class="v108-empty-cell">Aucune vente détaillée sur cette période.</td></tr>`;
+    const h=q('v108CashHistory');if(h)h.innerHTML=xs.length?xs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt).localeCompare(String(a.createdAt))).map(x=>`<article class="v108-sale" data-v108-sale="${esc(x.id)}"><div><strong>${esc(fmtDate(x.date))} · ${money(x.total)}</strong><span>${x.mode==='global'?'Montant global':`${titleCount([x])} titre${titleCount([x])>1?'s':''}`}${x.note?` · ${esc(x.note)}`:''}</span></div><button type="button" class="danger" data-v108-delete="${esc(x.id)}">Supprimer</button></article>`).join(''):'<div class="v108-empty">Aucune vente enregistrée sur cette période.</div>';
+  }
+  function renderCatalog(){const d=read(),cat=CATALOGS[d.catalog]||CATALOGS.general,sel=q('v108CashCatalog');if(sel)sel.value=d.catalog;const note=q('v108CashCatalogNote');if(note)note.textContent=cat.note;const box=q('v108CashTitleRows');if(box)box.innerHTML=cat.items.map(([code,label,price])=>`<label class="v108-title-row" data-code="${esc(code)}" data-label="${esc(label)}" data-unit="${price}"><span><b>${esc(label)}</b><small>${money(price)} / titre</small></span><input type="number" min="0" max="999" step="1" value="0" inputmode="numeric" aria-label="Quantité ${esc(label)}"></label>`).join('');calcDetail()}
+  function calcDetail(){let t=0,c=0;document.querySelectorAll('#v108CashTitleRows .v108-title-row').forEach(r=>{const qn=Math.max(0,Math.floor(Number(r.querySelector('input')?.value)||0));t+=qn*(Number(r.dataset.unit)||0);c+=qn});const cq=Math.max(0,Math.floor(Number(q('v108CashCustomQty')?.value)||0)),cp=Math.max(0,Number(q('v108CashCustomPrice')?.value)||0);if(cq&&cp){t+=cq*cp;c+=cq}if(q('v108CashDetailTotal'))q('v108CashDetailTotal').textContent=`${c} titre${c>1?'s':''} · ${money(t)}`;return {total:Math.round(t*100)/100,count:c}}
+  function setEntryMode(mode){document.querySelectorAll('[data-v108-mode]').forEach(b=>b.classList.toggle('active',b.dataset.v108Mode===mode));q('v108CashDetailed')?.classList.toggle('hidden',mode!=='detail');q('v108CashGlobal')?.classList.toggle('hidden',mode!=='global');q('v108CashEntry')?.setAttribute('data-mode',mode)}
+  function openCash(opts={}){q('v108CashSheet')?.classList.remove('hidden');if(opts.today)period='today';const d=read();q('v108CashFund').value=Number(d.fund).toFixed(2);q('v108CashDate').value=opts.date||today();renderCatalog();renderSummary();setEntryMode('detail');}
+  function closeCash(){q('v108CashSheet')?.classList.add('hidden')}
+  function saveFund(){const n=Number(String(q('v108CashFund')?.value||'').replace(',','.'));if(!Number.isFinite(n)||n<0)return alert('Saisis un fonds de caisse valide.');const d=read();d.fund=Math.round(n*100)/100;write(d);renderSummary();q('v108CashStatus').textContent=`Fonds de caisse enregistré : ${money(d.fund)}.`}
+  function saveSale(){
+    const date=q('v108CashDate')?.value||today(),mode=q('v108CashEntry')?.getAttribute('data-mode')||'detail',d=read();let rec={id:uid(),date,mode,items:[],total:0,note:(q('v108CashNote')?.value||'').trim(),createdAt:new Date().toISOString()};
+    if(mode==='global'){
+      const n=Number(String(q('v108CashGlobalAmount')?.value||'').replace(',','.'));if(!Number.isFinite(n)||n<=0)return alert('Saisis un montant supérieur à 0 €.');rec.total=Math.round(n*100)/100;
+    }else{
+      document.querySelectorAll('#v108CashTitleRows .v108-title-row').forEach(r=>{const qty=Math.max(0,Math.floor(Number(r.querySelector('input')?.value)||0)),unit=Number(r.dataset.unit)||0;if(qty)rec.items.push({code:r.dataset.code,label:r.dataset.label,unit,qty,total:Math.round(unit*qty*100)/100})});
+      const qty=Math.max(0,Math.floor(Number(q('v108CashCustomQty')?.value)||0)),unit=Math.max(0,Number(String(q('v108CashCustomPrice')?.value||'').replace(',','.'))||0),label=(q('v108CashCustomLabel')?.value||'Titre personnalisé').trim()||'Titre personnalisé';if(qty&&unit)rec.items.push({code:'custom',label,unit,qty,total:Math.round(unit*qty*100)/100});rec.total=Math.round(rec.items.reduce((a,i)=>a+i.total,0)*100)/100;if(rec.total<=0)return alert('Indique au moins une quantité de titre vendue.');
+    }
+    d.sales.push(rec);write(d);q('v108CashStatus').textContent=`Vente ajoutée : ${money(rec.total)}.`;q('v108CashGlobalAmount').value='';q('v108CashNote').value='';q('v108CashCustomLabel').value='';q('v108CashCustomPrice').value='';q('v108CashCustomQty').value='0';renderCatalog();renderSummary();
+  }
+
+  const menu=q('v316MenuItems');if(menu&&!q('v108CashBtn')){const b=document.createElement('button');b.id='v108CashBtn';b.type='button';b.className='v316-menu-entry';b.textContent='💶 Ma caisse';const radio=q('v107RadioMainBtn'),admin=q('v29AdminBtn');(radio||admin)?.insertAdjacentElement('beforebegin',b);if(!b.parentElement)menu.appendChild(b)}
+  const todayActions=document.querySelector('#v316TodayPanel .v316-today-actions');if(todayActions&&!q('v108TodayCashBtn')){const b=document.createElement('button');b.id='v108TodayCashBtn';b.type='button';b.textContent='💶 Faire ma caisse';todayActions.appendChild(b)}
+  if(!q('v108CashSheet'))document.body.insertAdjacentHTML('beforeend',`<div id="v108CashSheet" class="v108-backdrop hidden" role="dialog" aria-modal="true" aria-label="Ma caisse"><section class="v108-sheet"><header class="v108-head"><div><div class="eyebrow">MON SAEIV</div><h2>💶 Ma caisse</h2><p>Suivi local de ton fonds de caisse et des ventes enregistrées.</p></div><button id="v108CashClose" type="button">Fermer</button></header><div class="v108-scroll"><section class="v108-fund"><label>Fonds de caisse (€)<input id="v108CashFund" type="number" min="0" step="0.01" inputmode="decimal"></label><button id="v108CashSaveFund" type="button">Enregistrer le fonds</button><small>50 € sont proposés au premier démarrage, mais tu peux saisir ton propre montant.</small></section><nav class="v108-periods"><button type="button" data-v108-period="today" class="active">Aujourd’hui</button><button type="button" data-v108-period="week">Semaine</button><button type="button" data-v108-period="month">Mois</button><button type="button" data-v108-period="all">Tout</button></nav><div id="v108CashMetrics" class="v108-metrics"></div><section id="v108CashEntry" class="v108-entry" data-mode="detail"><div class="v108-section-head"><div><h3>Ajouter des ventes</h3><p>La date est renseignée automatiquement mais reste modifiable.</p></div></div><div class="v108-entry-top"><label>Date<input id="v108CashDate" type="date"></label><label>Note facultative<input id="v108CashNote" type="text" maxlength="80" placeholder="Ex. service du matin"></label></div><div class="v108-mode-tabs"><button type="button" class="active" data-v108-mode="detail">Par titres vendus</button><button type="button" data-v108-mode="global">Montant global</button></div><div id="v108CashDetailed"><div class="v108-catalog-head"><label>Tarification<select id="v108CashCatalog"><option value="general">Cars Fluo · hors 67</option><option value="r67">Bas-Rhin · réseau 67</option></select></label><small id="v108CashCatalogNote"></small></div><div id="v108CashTitleRows" class="v108-title-list"></div><details class="v108-custom-title"><summary>Ajouter un titre non présent dans la liste</summary><div><input id="v108CashCustomLabel" type="text" placeholder="Nom du titre"><input id="v108CashCustomPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Prix €"><input id="v108CashCustomQty" type="number" min="0" step="1" inputmode="numeric" value="0" placeholder="Qté"></div></details><div class="v108-entry-total"><span>Total de la saisie</span><b id="v108CashDetailTotal">0 titre · 0,00 €</b></div></div><div id="v108CashGlobal" class="hidden"><label>Montant total des ventes à ajouter (€)<input id="v108CashGlobalAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label><p>Utilise cette saisie lorsque tu veux ajouter directement un montant sans détailler les titres vendus.</p></div><button id="v108CashSaveSale" class="primary full" type="button">＋ Ajouter à ma caisse</button><div id="v108CashStatus" class="v108-status"></div></section><section class="v108-report"><h3>Récapitulatif par titre</h3><div class="v108-table-wrap"><table><thead><tr><th>Titre</th><th>Tarif</th><th>Qté</th><th>Total</th></tr></thead><tbody id="v108CashBreakdown"></tbody></table></div></section><section class="v108-history"><h3>Historique de la période</h3><div id="v108CashHistory"></div></section><p class="v108-source-note">Les tarifs préremplis servent d’aide à la saisie. Les conditions de vente et documents de référence de l’exploitant restent prioritaires.</p></div></section></div>`);
+  const style=document.createElement('style');style.id='v108CashStyle';style.textContent=`
+    .v108-backdrop{position:fixed;inset:0;z-index:5200;background:rgba(2,8,12,.8);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:12px}.v108-backdrop.hidden{display:none!important}.v108-sheet{width:min(980px,98vw);max-height:94dvh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #355163;border-radius:21px;background:#081722;box-shadow:0 25px 80px rgba(0,0,0,.64)}.v108-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:14px 16px;border-bottom:1px solid #294453}.v108-head h2{margin:2px 0}.v108-head p{margin:4px 0 0;color:#9db0bc;font-size:.75rem}.v108-scroll{overflow:auto;padding:13px 16px 18px}.v108-fund{display:grid;grid-template-columns:minmax(180px,260px) auto 1fr;gap:8px;align-items:end;padding:10px;border:1px solid #355163;border-radius:13px;background:#0b1d28}.v108-fund label{font-size:.68rem}.v108-fund input{margin-top:4px}.v108-fund small{color:#8fa5b2;font-size:.62rem;line-height:1.35}.v108-periods,.v108-mode-tabs{display:flex;gap:6px;overflow-x:auto;margin-top:10px}.v108-periods button,.v108-mode-tabs button{flex:0 0 auto}.v108-periods button.active,.v108-mode-tabs button.active{background:#ffd000;color:#111820;border-color:#ffd000}.v108-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:9px}.v108-metrics>div{padding:10px;border:1px solid #355163;border-radius:12px;background:#0a1c26}.v108-metrics span{display:block;color:#8fa5b2;font-size:.56rem;font-weight:900;letter-spacing:.05em}.v108-metrics b{display:block;margin-top:4px;font-size:1rem}.v108-entry,.v108-report,.v108-history{margin-top:11px;padding:12px;border:1px solid #355163;border-radius:14px;background:#091a24}.v108-section-head h3,.v108-report h3,.v108-history h3{margin:0}.v108-section-head p{margin:3px 0 0;color:#8fa5b2;font-size:.64rem}.v108-entry-top{display:grid;grid-template-columns:190px 1fr;gap:8px;margin-top:9px}.v108-entry-top label,.v108-catalog-head label,#v108CashGlobal label{font-size:.67rem}.v108-catalog-head{display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:9px;align-items:end;margin-top:9px}.v108-catalog-head small{color:#8fa5b2;font-size:.61rem}.v108-title-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}.v108-title-row{display:grid;grid-template-columns:minmax(0,1fr) 70px;gap:8px;align-items:center;padding:8px 9px;border:1px solid #294554;border-radius:11px;background:#0b1e29}.v108-title-row span b,.v108-title-row span small{display:block}.v108-title-row span b{font-size:.67rem}.v108-title-row span small{margin-top:2px;color:#8fa5b2;font-size:.57rem}.v108-title-row input{text-align:center;min-height:36px}.v108-custom-title{margin-top:8px;padding:8px 9px;border:1px solid #294554;border-radius:11px}.v108-custom-title summary{cursor:pointer;color:#a8bbc6;font-size:.65rem}.v108-custom-title>div{display:grid;grid-template-columns:1.5fr .7fr .5fr;gap:6px;margin-top:8px}.v108-entry-total{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:9px;padding:9px 10px;border-radius:10px;background:#102734}.v108-entry-total span{color:#a4b7c1;font-size:.66rem}.v108-entry-total b{color:#ffd000}.v108-status{min-height:21px;margin-top:6px;color:#8fbea1;font-size:.65rem}.v108-table-wrap{overflow:auto;margin-top:8px}.v108-table-wrap table{width:100%;border-collapse:collapse;font-size:.67rem}.v108-table-wrap th,.v108-table-wrap td{padding:7px 8px;border-bottom:1px solid #294554;text-align:left}.v108-table-wrap th{color:#9fb3be}.v108-empty-cell{text-align:center!important;color:#8fa5b2}.v108-sale{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:9px;border-bottom:1px solid #294554}.v108-sale:last-child{border-bottom:0}.v108-sale strong,.v108-sale span{display:block}.v108-sale span{margin-top:2px;color:#8fa5b2;font-size:.61rem}.v108-sale button{padding:6px 8px;font-size:.6rem}.v108-empty{padding:15px;text-align:center;color:#8fa5b2}.v108-source-note{margin:11px 2px 0;color:#78909d;font-size:.58rem;line-height:1.4}
+    @media(max-width:680px){.v108-backdrop{padding:0;align-items:flex-end}.v108-sheet{width:100%;max-height:97dvh;border-radius:20px 20px 0 0}.v108-scroll{padding:10px}.v108-fund,.v108-entry-top,.v108-catalog-head{grid-template-columns:1fr}.v108-metrics{grid-template-columns:1fr 1fr}.v108-title-list{grid-template-columns:1fr}.v108-custom-title>div{grid-template-columns:1fr}.v108-head{padding:11px}.v108-fund small{grid-column:1/-1}}
+    @media(orientation:landscape) and (max-height:650px){.v108-backdrop{padding:4px}.v108-sheet{max-height:98dvh;border-radius:13px}.v108-head{padding:7px 10px}.v108-head p{display:none}.v108-scroll{padding:7px 10px}.v108-metrics>div{padding:6px 8px}.v108-entry,.v108-report,.v108-history{padding:8px;margin-top:7px}.v108-title-row{padding:5px 7px}}
+  `;document.head.appendChild(style);
+
+  q('v108CashBtn')?.addEventListener('click',()=>openCash());q('v108TodayCashBtn')?.addEventListener('click',()=>openCash({today:true,date:today()}));q('v108CashClose')?.addEventListener('click',closeCash);q('v108CashSheet')?.addEventListener('click',e=>{if(e.target===q('v108CashSheet'))closeCash()});
+  q('v108CashSaveFund')?.addEventListener('click',saveFund);document.querySelectorAll('[data-v108-period]').forEach(b=>b.addEventListener('click',()=>{period=b.dataset.v108Period;renderSummary()}));document.querySelectorAll('[data-v108-mode]').forEach(b=>b.addEventListener('click',()=>setEntryMode(b.dataset.v108Mode)));
+  q('v108CashCatalog')?.addEventListener('change',e=>{const d=read();d.catalog=e.target.value==='r67'?'r67':'general';write(d);renderCatalog()});q('v108CashTitleRows')?.addEventListener('input',calcDetail);['v108CashCustomQty','v108CashCustomPrice'].forEach(id=>q(id)?.addEventListener('input',calcDetail));q('v108CashSaveSale')?.addEventListener('click',saveSale);
+  q('v108CashHistory')?.addEventListener('click',e=>{const id=e.target.closest('[data-v108-delete]')?.dataset.v108Delete;if(!id)return;const d=read(),x=d.sales.find(s=>s.id===id);if(!x)return;if(confirm(`Supprimer cette vente de ${money(x.total)} du ${fmtDate(x.date)} ?`)){d.sales=d.sales.filter(s=>s.id!==id);write(d);renderSummary()}});
+  window.MonSAEIVCash={open:openCash,data:read};
+  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.8';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.8';const b=q('buildInfo');if(b)b.textContent='Version 1.0.8'};applyVersion();setTimeout(applyVersion,5000);
+})();
+</script>
 </body>
 </html>

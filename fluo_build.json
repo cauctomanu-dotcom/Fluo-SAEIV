@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T17:25:00+02:00",
-  "version": "1.0.4",
+  "generated_at": "2026-08-27T18:45:00+02:00",
+  "version": "1.0.8",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -190,7 +190,7 @@
   },
   "app_identity": {
     "name": "Mon SAEIV",
-    "public_version": "1.0.4",
+    "public_version": "1.0.7",
     "previous_internal_series": "V31.x"
   },
   "admin_and_journal_v1_0_2": {
@@ -210,5 +210,45 @@
   "identity_correction": {
     "version": "1.0.4",
     "change": "Correction du nom public Mon SAEV vers Mon SAEIV, sans modification fonctionnelle."
+  },
+  "gps_visual_smoothing_1_0_5": {
+    "scope": "affichage uniquement ; positions GPS natives inchangées pour arrêts, journaux, ponctualité et hors-parcours",
+    "route_mode": "interpolation requestAnimationFrame le long de la géométrie routière + prédiction courte plafonnée selon vitesse/précision",
+    "stale_fix": "prédiction plafonnée puis arrêt visuel si aucune nouvelle position GPS",
+    "maps": "Leaflet et MapLibre utilisent la même position visuelle afin d’éviter un saut à chaque rafraîchissement natif",
+    "off_route": "lissage vers la position GPS brute sans inventer un parcours lorsque le véhicule est hors shape"
+  },
+  "speech_pronunciation_overrides": {
+    "scope": "synthèse vocale uniquement ; aucun libellé affiché ni aucune donnée GTFS modifiés",
+    "Place du Marche": "prononcé « Place du Marché », avec é final",
+    "ARS-LAQUENEXY": "le S final de « Ars » est forcé à la prononciation",
+    "CIMETIERE": "le T de « cimetière » est forcé à rester audible"
+  },
+  "integrated_radio_v1_0_7": {
+    "access": "entrée 📻 Radio dans le menu hamburger principal + petit hamburger ☰ directement dans la navigation 2D/3D",
+    "catalog": "catalogue public Radio Browser : principales radios françaises, recherche, favoris et radios locales Grand Est/Lorraine",
+    "playback": "lecture audio intégrée à Mon SAEIV ; la radio continue quand les menus sont fermés",
+    "audio_ducking": "baisse automatique du volume pendant les annonces voyageurs et les consignes GPS, puis remontée progressive au volume utilisateur",
+    "persistence": "dernière station, volume et favoris conservés localement",
+    "offline": "les favoris déjà enregistrés restent visibles ; un flux radio nécessite naturellement une connexion réseau"
+  },
+  "cash_register": {
+    "fund": "50 EUR par défaut, modifiable par conducteur",
+    "storage": "local par matricule sur appareil",
+    "entry_modes": [
+      "titres détaillés",
+      "montant global"
+    ],
+    "periods": [
+      "jour",
+      "semaine",
+      "mois",
+      "tout"
+    ],
+    "planning": "bouton Faire ma caisse dans Ma journée",
+    "tariff_sources": [
+      "Fluo Cars hors 67: ticket 4€, scolaire 2€, réduit 2€, scolaire réduit 1€ + abonnements/cartes",
+      "Fluo 67: tarification spécifique (billet unitaire 3€, 67+CTS 3,50€, carnet 10 trajets 21€, etc.)"
+    ]
   }
 }

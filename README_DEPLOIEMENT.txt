@@ -421,3 +421,40 @@ MON SAEIV 1.0.4 — CORRECTION D’IDENTITÉ
 - Correction du nom public : Mon SAEV devient Mon SAEIV.
 - Version publique : 1.0.4.
 - Aucun changement fonctionnel par rapport à la 1.0.3 : tous les correctifs GPS sont conservés.
+
+
+MON SAEIV 1.0.5 — FLUIDITÉ GPS
+- Le pictogramme est désormais animé en continu entre les rafraîchissements GPS natifs.
+- Sur le parcours, l’animation suit la géométrie routière et utilise une prédiction très courte, plafonnée selon la vitesse et la précision GPS.
+- Si aucune nouvelle position n’arrive, la prédiction est plafonnée puis le pictogramme s’immobilise au lieu de continuer artificiellement.
+- Leaflet et la carte MapLibre utilisent la même position visuelle pour éviter les sauts à chaque nouveau point GPS.
+- Les passages aux arrêts, journaux, calculs horaires et détection hors parcours restent basés uniquement sur les positions GPS natives.
+- Tous les correctifs GPS de la 1.0.3/1.0.4 sont conservés.
+
+
+MON SAEIV 1.0.6 — PRONONCIATION DES ARRÊTS
+- Reprend intégralement la 1.0.5, y compris la fluidité GPS.
+- Correction de synthèse vocale uniquement : « Place du Marche » est annoncé « Place du Marché » avec é final.
+- « Ars-Laquenexy » force la prononciation du S final de Ars.
+- « Cimetière » force une articulation nette du T.
+- Les libellés affichés, les horaires et les 30 paquets de données restent inchangés.
+
+
+MON SAEIV 1.0.7 — RADIO INTÉGRÉE
+- Ajout de 📻 Radio dans le menu hamburger principal.
+- Ajout d’un petit bouton ☰ sur la carte pendant la navigation pour accéder à la radio sans quitter la course.
+- Menu conduite : Radio, Annoncer, Demandes clients et GPS vocal.
+- Lecteur radio intégré avec Principales, Locales / Grand Est, Favoris et recherche.
+- Catalogue Radio Browser utilisé à la volée ; les flux restent ceux des stations référencées.
+- Le volume radio baisse automatiquement pendant les annonces voyageurs et les consignes GPS, puis remonte progressivement.
+- Dernière station, volume et favoris conservés localement.
+- Toutes les fonctions de Mon SAEIV 1.0.6, notamment la fluidité GPS 1.0.5 et les corrections de prononciation 1.0.6, sont conservées.
+
+
+Mon SAEIV 1.0.8 — Ma caisse
+- Ajout de Ma caisse dans le menu hamburger.
+- Fonds de caisse 50 € par défaut, modifiable par conducteur.
+- Saisie détaillée par titres/tarifs ou saisie d’un montant global.
+- Récapitulatifs jour/semaine/mois/tout, quantité de titres et caisse théorique.
+- Bouton Faire ma caisse dans Ma journée.
+- Données de caisse conservées localement par matricule.
