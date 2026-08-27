@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T21:40:00+02:00",
-  "version": "1.0.16",
+  "generated_at": "2026-08-27T22:15:00+02:00",
+  "version": "1.0.18",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -233,7 +233,7 @@
   },
   "app_identity": {
     "name": "Mon SAEIV",
-    "public_version": "1.0.16",
+    "public_version": "1.0.18",
     "previous_internal_series": "V31.x"
   },
   "admin_and_journal_v1_0_2": {
@@ -276,23 +276,16 @@
     "offline": "les favoris déjà enregistrés restent visibles ; un flux radio nécessite naturellement une connexion réseau"
   },
   "cash_register": {
-    "fund": "50 EUR par défaut, modifiable par conducteur",
-    "storage": "local par matricule sur appareil",
-    "entry_modes": [
-      "titres détaillés",
-      "montant global"
+    "mode": "multiréseaux",
+    "networks": [
+      "Fluo Grand Est hors Bas-Rhin",
+      "Fluo Grand Est Bas-Rhin",
+      "STAN Nancy",
+      "LE MET’ Metz",
+      "TeMo’b Thionville/Fensch"
     ],
-    "periods": [
-      "jour",
-      "semaine",
-      "mois",
-      "tout"
-    ],
-    "planning": "bouton Faire ma caisse dans Ma journée",
-    "tariff_sources": [
-      "Fluo Cars hors 67: ticket 4€, scolaire 2€, réduit 2€, scolaire réduit 1€ + abonnements/cartes",
-      "Fluo 67: tarification spécifique (billet unitaire 3€, 67+CTS 3,50€, carnet 10 trajets 21€, etc.)"
-    ]
+    "principle": "catalogues de titres par réseau, fonds personnalisable, saisie détaillée ou montant global",
+    "fare_sources_checked": "2026-08-27"
   },
   "release_1_0_9": {
     "cash_day_ui": "boutons Ma journée réorganisés sur mobile ; Lancer ma journée pleine largeur ; libellé Choisir une course manuellement explicite ; Faire ma caisse sans compression",
@@ -355,5 +348,15 @@
     "available_during_navigation": true,
     "label": "Correspondances vocales ON/OFF",
     "effect": "désactive uniquement l’annonce vocale des correspondances ; leur affichage reste actif"
+  },
+  "driver_network_profiles_v1_0_18": {
+    "login": "sélection obligatoire du réseau conducteur avant connexion",
+    "networks": ["Fluo Grand Est", "LE MET’", "TeMo’b", "STAN", "RGTR", "AVL", "TICE", "Diffbus"],
+    "fluo_scope": "Fluo Grand Est reste un réseau unique à la connexion ; choix du département 54/57/67/68 dans la prise de service",
+    "cash_scope": "caisse séparée par réseau ; Fluo conserve les deux tarifications hors Bas-Rhin et Bas-Rhin ; aucun tarif d’un autre réseau n’est affiché",
+    "timetables": "bibliothèque Fiches horaires limitée au réseau conducteur actif",
+    "connections": "les correspondances restent volontairement inter-réseaux",
+    "menu": "ajout Changer de réseau et Déconnexion ; un changement de réseau renvoie à l’écran de connexion",
+    "journals": "réseau conducteur enregistré dans les métadonnées de chaque service"
   }
 }

@@ -510,10 +510,29 @@ MON SAEIV 1.0.15 — CORRESPONDANCES VOCALES EN NAVIGATION
 - Aucun changement des réseaux, données, GPS, radio, caisse, planning ou annonces existantes.
 
 
-MON SAEIV 1.0.16 — RGTR LUXEMBOURG + STAN NANCY
+MON SAEIV 1.0.17 — RGTR LUXEMBOURG + STAN NANCY
 - Ajout RGTR Luxembourg dans Interurbain, via filtrage du GTFS national luxembourgeois officiel partagé avec AVL/TICE/Diffbus.
 - Ajout STAN Nancy dans Urbain, via le GTFS officiel publié sur data.gouv.fr / transport.data.gouv.fr.
 - RGTR et STAN sont disponibles pour la prise de service, les courses exactes et la bibliothèque Fiches horaires.
 - Correspondances inter-réseaux : RGTR est croisé avec AVL/TICE/Diffbus aux pôles communs ; STAN est croisé avec Fluo 54 autour de Nancy.
 - L’option Correspondances vocales ON/OFF en navigation de la 1.0.15 est conservée.
 - Aucun changement des 30 paquets horaires Fluo embarqués ni des fonctions GPS, radio, caisse, planning, annonces ou création de ligne.
+
+
+Mon SAEIV 1.0.17
+- Ma caisse devient multiréseaux : Fluo hors Bas-Rhin, Fluo 67, STAN, LE MET’ et TeMo’b.
+- Catalogues de titres adaptés au réseau choisi et tarifs officiels vérifiés le 27/08/2026.
+- Les ventes enregistrent désormais le réseau utilisé pour le récapitulatif et l’historique.
+- RGTR Luxembourg et STAN Nancy de la 1.0.16 sont conservés.
+
+
+MON SAEIV 1.0.18 — PROFIL RÉSEAU CONDUCTEUR
+==============================================
+- Le conducteur choisit obligatoirement son réseau sur l’écran de connexion.
+- Fluo Grand Est reste un seul réseau de connexion ; les départements 54 / 57 / 67 / 68 restent sélectionnables ensuite.
+- Les écrans de prise de service et de fiches horaires sont limités au réseau connecté.
+- Les correspondances restent inter-réseaux pendant la circulation.
+- Ma caisse est isolée par réseau. Pour Fluo, les catalogues « hors Bas-Rhin » et « Bas-Rhin » restent disponibles ensemble.
+- Pour RGTR / AVL / TICE / Diffbus, aucun tarif d’un autre réseau n’est proposé : la caisse passe en saisie globale tant qu’un catalogue dédié n’est pas intégré.
+- Le menu hamburger contient « Changer de réseau » et « Déconnexion ». Changer de réseau renvoie à la connexion avec le nouveau réseau présélectionné.
+- Le réseau conducteur est enregistré dans les journaux de service.

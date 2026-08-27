@@ -1,11 +1,11 @@
 {
-  "name": "Mon SAEIV 1.0.16",
+  "name": "Mon SAEIV 1.0.18",
   "short_name": "Mon SAEIV",
-  "start_url": "./?v=1.0.16",
+  "start_url": "./?v=1.0.18",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "Mon SAEIV — SAEIV multiréseaux : Fluo, RGTR, LE MET’, TeMo’b, STAN, AVL, TICE et Diffbus, correspondances inter-réseaux, GPS, radio, planning, fiches horaires, annonces et caisse."
+  "description": "Mon SAEIV — SAEIV multiréseaux avec réseau conducteur choisi à la connexion, données de session filtrées par réseau, correspondances inter-réseaux conservées, GPS, radio, planning, fiches horaires, annonces et caisse."
 }
