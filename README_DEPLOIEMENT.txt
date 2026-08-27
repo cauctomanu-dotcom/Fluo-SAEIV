@@ -500,3 +500,20 @@ MON SAEIV 1.0.14 — RÉSEAUX URBAINS LUXEMBOURG
 - Correspondances inter-réseaux étendues aux réseaux luxembourgeois à proximité.
 - Diffbus : détection des lignes Diffbus/Differdange publiées dans le GTFS national ; le réseau officiel comporte 4 lignes depuis la refonte du 13 avril 2026.
 - LE MET’, TeMo’b, Fluo et toutes les fonctions antérieures restent inchangés.
+
+
+MON SAEIV 1.0.15 — CORRESPONDANCES VOCALES EN NAVIGATION
+- Ajout dans le petit menu ☰ de conduite d’un bouton « Correspondances vocales ON/OFF ».
+- Le réglage est modifiable pendant une course sans quitter la navigation.
+- OFF coupe uniquement l’annonce vocale à l’arrivée ; les correspondances restent affichées à l’écran.
+- Le choix est mémorisé sur l’appareil et synchronisé avec les autres interrupteurs de correspondances existants.
+- Aucun changement des réseaux, données, GPS, radio, caisse, planning ou annonces existantes.
+
+
+MON SAEIV 1.0.16 — RGTR LUXEMBOURG + STAN NANCY
+- Ajout RGTR Luxembourg dans Interurbain, via filtrage du GTFS national luxembourgeois officiel partagé avec AVL/TICE/Diffbus.
+- Ajout STAN Nancy dans Urbain, via le GTFS officiel publié sur data.gouv.fr / transport.data.gouv.fr.
+- RGTR et STAN sont disponibles pour la prise de service, les courses exactes et la bibliothèque Fiches horaires.
+- Correspondances inter-réseaux : RGTR est croisé avec AVL/TICE/Diffbus aux pôles communs ; STAN est croisé avec Fluo 54 autour de Nancy.
+- L’option Correspondances vocales ON/OFF en navigation de la 1.0.15 est conservée.
+- Aucun changement des 30 paquets horaires Fluo embarqués ni des fonctions GPS, radio, caisse, planning, annonces ou création de ligne.

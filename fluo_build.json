@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T20:55:00+02:00",
-  "version": "1.0.14",
+  "generated_at": "2026-08-27T21:40:00+02:00",
+  "version": "1.0.16",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -60,6 +60,19 @@
       "source": "Administration des transports publics Luxembourg — GTFS national / Mobiliteit",
       "url": "https://data.public.lu/fr/datasets/r/64ec20dd-2dd5-44b7-9db1-a603db9a51b3",
       "mode": "filtrage Diffbus/Differdange ; 4 lignes communales si présentes dans le GTFS national",
+      "network_type": "urbain"
+    },
+    "interurban_rgtr": {
+      "source": "Administration des transports publics Luxembourg — GTFS national",
+      "url": "https://data.public.lu/fr/datasets/r/64ec20dd-2dd5-44b7-9db1-a603db9a51b3",
+      "mode": "filtrage réseau RGTR ; téléchargement partagé et cache local",
+      "network_type": "interurbain"
+    },
+    "urban_stan": {
+      "source": "STAN Nancy — GTFS officiel publié via Fluo Grand Est / PAN",
+      "url": "https://www.data.gouv.fr/api/1/datasets/r/6fa33c41-dc16-4328-a010-8ce2fcac10f0",
+      "fallback": "https://transport.data.gouv.fr/resources/83710/download",
+      "mode": "chargement à la demande + cache local 6 h",
       "network_type": "urbain"
     }
   },
@@ -220,7 +233,7 @@
   },
   "app_identity": {
     "name": "Mon SAEIV",
-    "public_version": "1.0.7",
+    "public_version": "1.0.16",
     "previous_internal_series": "V31.x"
   },
   "admin_and_journal_v1_0_2": {
@@ -306,11 +319,12 @@
     "urban_pilots": [
       "LE MET’",
       "TeMo’b",
+      "STAN",
       "AVL",
       "TICE",
       "Diffbus"
     ],
-    "connections": "inter-réseaux à proximité ; lignes avec départ entre -10 min et +90 min ; annonce uniquement à l’arrivée",
+    "connections": "inter-réseaux à proximité ; lignes avec départ entre -10 min et +90 min ; annonce uniquement à l’arrivée ; STAN↔Fluo54 et RGTR↔AVL/TICE/Diffbus pris en charge",
     "fluo57_connection_source": {
       "source": "Fluo Grand Est 57",
       "url": "https://www.data.gouv.fr/api/1/datasets/r/42be7185-b2a8-4d1e-80c4-f7c402655260"
@@ -325,6 +339,21 @@
       "filtering": "agency_id/agency_name et libellés de route ; un seul ZIP partagé en mémoire/cache",
       "connections": "les trois réseaux rejoignent le moteur de correspondances inter-réseaux autour des arrêts luxembourgeois",
       "timetables": "consultables depuis Fiches horaires > Urbain comme LE MET’ et TeMo’b"
+    },
+    "interurban_networks": [
+      "Fluo Grand Est 54/57/67/68",
+      "RGTR Luxembourg"
+    ],
+    "stan_and_rgtr_v1_0_16": {
+      "stan": "Réseau urbain STAN Nancy, GTFS officiel : 41 lignes, 963 arrêts/points d’arrêt selon le PAN ; tracés shapes.txt disponibles",
+      "rgtr": "Réseau interurbain RGTR Luxembourg filtré depuis le GTFS national luxembourgeois partagé",
+      "timetables": "STAN ajouté à Fiches horaires > Urbain ; RGTR ajouté à Fiches horaires > Interurbain",
+      "connections": "STAN croisé avec Fluo 54 autour de Nancy ; RGTR croisé avec AVL, TICE, Diffbus et autres réseaux connus au Luxembourg"
     }
+  },
+  "navigation_connections_voice_toggle": {
+    "available_during_navigation": true,
+    "label": "Correspondances vocales ON/OFF",
+    "effect": "désactive uniquement l’annonce vocale des correspondances ; leur affichage reste actif"
   }
 }
