@@ -475,7 +475,7 @@ Mon SAEIV 1.0.10
 - Aucun changement des données réseau ni des autres fonctions.
 
 
-MON SAEIV 1.0.12 — MULTIRÉSEAUX URBAINS PILOTES
+MON SAEIV 1.0.13 — MULTIRÉSEAUX URBAINS PILOTES
 - Prise de service : choix Interurbain / Urbain avant le réseau.
 - Urbain pilote : LE MET’ (Metz) et TeMo’b (Thionville/Fensch), GTFS officiels chargés à la demande.
 - Fiches horaires : LE MET’ et TeMo’b ajoutés à la bibliothèque réseau.
@@ -485,3 +485,9 @@ MON SAEIV 1.0.12 — MULTIRÉSEAUX URBAINS PILOTES
 - Affichage : correspondances visibles sous le prochain arrêt, regroupées par réseau.
 - Option conducteur : correspondances vocales ON/OFF.
 - Les réseaux Fluo, le planning, Ma journée, le TAD, la caisse, la radio et le GPS restent inchangés.
+
+Mon SAEIV 1.0.13 — correctif LE MET’ PWA
+- Le GTFS LE MET’ utilise désormais en priorité la ressource officielle data.gouv.fr référencée par le catalogue national.
+- Les liens transport.data.gouv.fr, data.lemet.fr et une copie historisée officielle du PAN restent disponibles en secours.
+- Le cache GTFS urbain est versionné 1.0.13 afin d’éviter de conserver un échec de chargement précédent.
+- TeMo’b et toutes les fonctions existantes restent inchangés.
