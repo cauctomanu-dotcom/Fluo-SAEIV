@@ -526,7 +526,7 @@ Mon SAEIV 1.0.17
 - RGTR Luxembourg et STAN Nancy de la 1.0.16 sont conservés.
 
 
-MON SAEIV 1.0.18 — PROFIL RÉSEAU CONDUCTEUR
+MON SAEIV 1.0.20 — PROFIL RÉSEAU CONDUCTEUR
 ==============================================
 - Le conducteur choisit obligatoirement son réseau sur l’écran de connexion.
 - Fluo Grand Est reste un seul réseau de connexion ; les départements 54 / 57 / 67 / 68 restent sélectionnables ensuite.
@@ -536,3 +536,15 @@ MON SAEIV 1.0.18 — PROFIL RÉSEAU CONDUCTEUR
 - Pour RGTR / AVL / TICE / Diffbus, aucun tarif d’un autre réseau n’est proposé : la caisse passe en saisie globale tant qu’un catalogue dédié n’est pas intégré.
 - Le menu hamburger contient « Changer de réseau » et « Déconnexion ». Changer de réseau renvoie à la connexion avec le nouveau réseau présélectionné.
 - Le réseau conducteur est enregistré dans les journaux de service.
+
+
+V1.0.20 — Correctif Ma caisse : ajout par titres fiabilisé, vérification de persistance et message d’erreur explicite. Aucun réglage de performance/navigation modifié.
+
+
+V1.0.21 — Comptage voyageurs + ergonomie caisse
+- Navigation : dans le hamburger Conduite, Radio et Comptage sont côte à côte.
+- Comptage : Montées / Descentes avec saisie directe ou boutons − / +.
+- Arrêt : détection automatique de l’arrêt desservi et rattachement du comptage au journal de la course.
+- Journaux : feuille de comptage voyageurs par arrêt, totaux montées/descentes et rapport HTML enrichi.
+- Ma caisse : boutons − / + ajoutés aux quantités de titres, saisie clavier conservée.
+- Aucun réglage GPS, simulation ou performance modifié.

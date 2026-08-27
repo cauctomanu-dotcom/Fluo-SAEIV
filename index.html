@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.18">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.21">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Mon SAEIV · 1.0.18</title>
+  <title>Mon SAEIV · 1.0.21</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style id="v22CoreStyle">
 .stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
@@ -72,7 +72,7 @@
 </div>
 <div class="app">
   <header class="top">
-    <div><div class="eyebrow">MON SAEIV · 1.0.18</div><h1>Mon SAEIV</h1><div class="sub">Interurbain · Urbain · Fluo · RGTR · LE MET’ · TeMo’b · STAN · AVL · TICE · Diffbus</div></div>
+    <div><div class="eyebrow">MON SAEIV · 1.0.21</div><h1>Mon SAEIV</h1><div class="sub">Interurbain · Urbain · Fluo · RGTR · LE MET’ · TeMo’b · STAN · AVL · TICE · Diffbus</div></div>
     <div id="gpsPill" class="pill">GPS à vérifier</div>
   </header>
 
@@ -257,7 +257,7 @@ function say(text,opts={}){
   state.audio.queue.push(item); pumpSpeech();
 }
 function spoken(s){ return String(s).replace(/\s+-\s+/g,', ').replace(/GARE ROUTIERE/gi,'Gare routière').trim(); }
-// Mon SAEIV 1.0.18 — corrections phonétiques uniquement pour la synthèse vocale.
+// Mon SAEIV 1.0.21 — corrections phonétiques uniquement pour la synthèse vocale.
 // Les libellés affichés et les données d'arrêt restent strictement inchangés.
 function speechPronunciation(text){
   let t=String(text??'');
@@ -836,7 +836,7 @@ function updateNavigation(p,snap=null){
   if(!Number.isFinite(lat)||!Number.isFinite(lon)) return;
   const h=Number.isFinite(fused.heading)?fused.heading:(Number.isFinite(state.fusion.displayHeading)?state.fusion.displayHeading:state.nav.lastHeading||0);
   state.nav.lastHeading=h;
-  // 1.0.18 : la logique métier reste sur le snap GPS natif, mais le pictogramme peut utiliser
+  // 1.0.21 : la logique métier reste sur le snap GPS natif, mais le pictogramme peut utiliser
   // une position purement VISUELLE interpolée entre deux rafraîchissements. Cela évite le
   // saut d'une mesure GPS à la suivante sans modifier les passages aux arrêts ni les journaux.
   const visual=state.mode==='gps'?window.MonSAEIVVisualGPS?.getDisplay?.():null;
@@ -1441,7 +1441,11 @@ function enterDriver(mode){
 
 async function startGps(){
   const sec=secureMessage(); if(sec){ status(sec,'err'); return; }
-  if(!state.pattern) return;
+  if(!state.pattern||state.running) return;
+  // V1.0.21 stabilité : un seul watcher GPS peut exister à la fois.
+  if(state.watch!==null){ try{navigator.geolocation.clearWatch(state.watch)}catch{} state.watch=null; }
+  stopSimulationLoop();
+  try{window.MonSAEIVVisualGPS?.reset?.()}catch{}
   enterDriver('gps');
   if(state.service.mode==='formation'||state.service.mode==='collective'){
     clearDepartureScheduling(); state.departed=true;
@@ -1481,6 +1485,8 @@ function simulationArrivedAtTerminus(){
 function simulationFrame(ts){
   const s=state.sim;
   if(!state.running||state.mode!=='simulation'||!s.playing) return;
+  if(s.v1019BaseTick&&ts-s.v1019BaseTick<50){s.raf=requestAnimationFrame(simulationFrame);return}
+  s.v1019BaseTick=ts;
   if(!s.lastTs) s.lastTs=ts;
   const dt=Math.min(.5,Math.max(0,(ts-s.lastTs)/1000)); s.lastTs=ts;
   if(s.path.length<2||s.pathIndex>=s.path.length-1){ simulationArrivedAtTerminus(); return; }
@@ -1512,10 +1518,14 @@ function simulationFrame(ts){
   s.raf=requestAnimationFrame(simulationFrame);
 }
 function startSimulation(){
-  if(!state.pattern) return;
+  if(!state.pattern||state.running) return;
+  // V1.0.21 stabilité : empêche deux boucles requestAnimationFrame de simulation superposées.
+  stopSimulationLoop();
+  if(state.watch!==null){ try{navigator.geolocation.clearWatch(state.watch)}catch{} state.watch=null; }
   clearDepartureScheduling();
   enterDriver('simulation');
   const s=state.sim;
+  s.v1019BaseTick=0;s.v1019LastTick=0;
   s.speedMps=Number(ui.simSpeed.value||50)/3.6; s.scale=Number(ui.simScale.value||10); s.delaySeconds=Number(ui.simDelay?.value||0);
   s.playing=false; syncSimulationToState(); s.lastTs=performance.now();
   ui.gpsPill.className='pill on'; ui.gpsPill.textContent='SIMULATION';
@@ -1559,7 +1569,8 @@ function skipSimulationStop(){
 function finish(){
   state.running=false;
   if(state.watch!==null){ navigator.geolocation.clearWatch(state.watch); state.watch=null; }
-  stopSimulationLoop(); clearDepartureScheduling();
+  stopSimulationLoop(); if(state.sim){state.sim.v1019BaseTick=0;state.sim.v1019LastTick=0} clearDepartureScheduling();
+  try{window.MonSAEIVVisualGPS?.reset?.()}catch{}
   window.speechSynthesis?.cancel(); state.audio.queue=[]; state.audio.current=null; releaseScreenAwake();
   clearPunctualityTicker(); state.punctuality.deltaSeconds=null; state.punctuality.plannedTime=null; state.punctuality.status='unknown';
   state.mode=null; state.nav.follow=true; syncFollowButton(); ui.driver.classList.add('hidden'); ui.driver.classList.remove('formation-running','collective-running'); ui.setup.classList.remove('hidden');
@@ -1625,10 +1636,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=1.0.18').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.18'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=1.0.21').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.21'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.18').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.21').catch(()=>{});
 
 </script>
 <script>
@@ -1639,9 +1650,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   const q = id => document.getElementById(id);
 
   // --- Injection de l'interface V12 dans la V11 existante ---
-  document.title='Mon SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.18';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.21';
 
   const serviceChoice = document.querySelector('.service-choice');
   if (serviceChoice && !q('v12Preferences')) {
@@ -1977,7 +1988,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V13 — identification conducteur + journal de service local */
 (() => {
   const $v13 = id => document.getElementById(id);
-  const APP_VERSION = '1.0.18';
+  const APP_VERSION = '1.0.21';
   const DB_NAME = 'fluo-saeiv-journal-v13';
   const DB_VERSION = 1;
   const ACCOUNT_KEY = 'fluoSaeivAccountV13';
@@ -2001,9 +2012,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   const SAMPLE_INTERVAL_MS = 10000; // V29 : point de contrôle au moins toutes les 10 s à l'arrêt
   const SAMPLE_MOVE_M = 6;       // V29 : trace GPS réelle tous les ~5 à 7 mètres en mouvement
 
-  document.title='Mon SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.18';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.21';
 
   const V13 = {
     unlocked: false,
@@ -2306,8 +2317,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   }
   async function exportCsv(){
     const [allS,allE]=await Promise.all([allSessions(),allEvents()]), sessions=allS.filter(s=>s.matricule===V13.matricule), ids=new Set(sessions.map(s=>s.id)), events=allE.filter(e=>ids.has(e.sessionId)), map=new Map(sessions.map(s=>[s.id,s]));
-    const cols=['session_id','matricule','ligne','destination','trip_id','service','type','date_heure','arret','heure_prevue','ecart_secondes','ecart','latitude','longitude','precision_m','vitesse_kmh','vitesse_gps_kmh','vitesse_calculee_kmh','confiance_fusion'];
-    const rows=events.map(e=>{const s=map.get(e.sessionId)||{};return [e.sessionId,s.matricule||V13.matricule,s.route,s.destination,s.tripId,s.serviceMode,e.type,e.ts,e.stopName||e.currentStop||'',e.scheduledTime||e.plannedTime||'',e.scheduleDeltaSec,fmtDelay(e.scheduleDeltaSec),e.lat,e.lon,e.accuracyM,e.speedKmh,e.gpsSpeedKmh,e.derivedSpeedKmh,e.fusionConfidence];});
+    const cols=['session_id','matricule','ligne','destination','trip_id','service','type','date_heure','arret','montees','descentes','heure_prevue','ecart_secondes','ecart','latitude','longitude','precision_m','vitesse_kmh','vitesse_gps_kmh','vitesse_calculee_kmh','confiance_fusion'];
+    const rows=events.map(e=>{const s=map.get(e.sessionId)||{};return [e.sessionId,s.matricule||V13.matricule,s.route,s.destination,s.tripId,s.serviceMode,e.type,e.ts,e.stopName||e.currentStop||'',e.type==='PASSENGER_COUNT'?Math.max(0,Number(e.boardings)||0):'',e.type==='PASSENGER_COUNT'?Math.max(0,Number(e.alightings)||0):'',e.scheduledTime||e.plannedTime||'',e.scheduleDeltaSec,fmtDelay(e.scheduleDeltaSec),e.lat,e.lon,e.accuracyM,e.speedKmh,e.gpsSpeedKmh,e.derivedSpeedKmh,e.fusionConfidence];});
     const csv='\uFEFF'+[cols,...rows].map(r=>r.map(csvCell).join(';')).join('\r\n');
     downloadBlob(`mon-saeiv-${V13.matricule}-${ymd(new Date())}.csv`,csv,'text/csv;charset=utf-8');
   }
@@ -2374,9 +2385,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     cache: new Map()
   };
 
-  document.title='Mon SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.18';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.21';
 
   // --- Information TAD dynamique ---
   const tadHeadText = document.querySelector('.tad-panel-head > div:first-child span');
@@ -2675,9 +2686,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V15 — cockpit smartphone, paysage conducteur + rappel arrêt demandé différé */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.18';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.21';
 
   const driver=q('driver'), mapWrap=document.querySelector('#driver .navmap-wrap');
   if(!driver||!mapWrap) return;
@@ -2811,7 +2822,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   }
   const observer=new MutationObserver(syncCockpit);
   Object.values(source).filter(Boolean).forEach(el=>observer.observe(el,{attributes:true,childList:true,subtree:true,characterData:true}));
-  setInterval(syncCockpit,500); syncCockpit();
+  setInterval(()=>{if(!document.hidden&&state?.running)syncCockpit()},2000); syncCockpit();
 
   q('v15NavVoice')?.addEventListener('click',()=>source.navVoice?.click());
   q('v15RequestsBtn')?.addEventListener('click',()=>q('requestsBtn')?.click());
@@ -2878,9 +2889,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V16 — profil de vitesse routier, calcul d'horaires, caméra GPS 3D */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.18';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.21';
 
   const V16={
     profileCache:new Map(), simLegs:new Map(), simReady:false, simLoading:false,
@@ -3134,11 +3145,11 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     const baseStartSimulation=startSimulation;
     ui.simulate?.removeEventListener('click',baseStartSimulation);
     startSimulation=function(){
-      if(!state.pattern) return;
+      if(!state.pattern||state.running) return;
       // Le profil OSM est un enrichissement, jamais un prérequis au démarrage.
       // Les services Overpass peuvent être lents ou indisponibles sur le réseau mobile :
       // la simulation part donc immédiatement à 50 km/h, puis adopte le profil dès qu'il est prêt.
-      V16.simCurrentMps=0; V16.currentRoadLimit=50;
+      V16.simCurrentMps=0; V16.currentRoadLimit=50; if(state?.sim)state.sim.v1019LastTick=0;
       baseStartSimulation();
       if(!V16.simLoading) prepareSimulationRoadProfile().catch(e=>console.warn('V30.8 profil local',e));
     };
@@ -3147,6 +3158,10 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     simulationFrame=function(ts){
       const s=state.sim;
       if(!state.running||state.mode!=='simulation'||!s.playing) return;
+      // V1.0.21 : 20 calculs de position/s suffisent pour une simulation fluide sur smartphone.
+      // L'ancienne boucle pouvait appeler tout le moteur SAEIV ~60 fois/s.
+      if(s.v1019LastTick&&ts-s.v1019LastTick<50){s.raf=requestAnimationFrame(simulationFrame);return}
+      s.v1019LastTick=ts;
       if(!s.lastTs) s.lastTs=ts;
       const dt=Math.min(.5,Math.max(0,(ts-s.lastTs)/1000)); s.lastTs=ts;
       if(s.path.length<2||s.pathIndex>=s.path.length-1){ simulationArrivedAtTerminus(); return; }
@@ -3300,7 +3315,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     const visual=!deviationRaw&&state.mode==='gps'?window.MonSAEIVVisualGPS?.getDisplay?.():null;
     const lat=Number(Number.isFinite(Number(visual?.lat))?Number(visual.lat):(deviationRaw?c.latitude:(snap?.lat??c.latitude))),lon=Number(Number.isFinite(Number(visual?.lon))?Number(visual.lon):(deviationRaw?c.longitude:(snap?.lon??c.longitude)));
     if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
-    // V22 / 1.0.18 : le cap canonique vient du parcours stabilisé et, lorsque disponible,
+    // V22 / 1.0.21 : le cap canonique vient du parcours stabilisé et, lorsque disponible,
     // de l'animation visuelle continue. Le cap brut de l'iPhone ne pilote pas la caméra.
     const h=Number.isFinite(Number(visual?.heading))?Number(visual.heading):(deviationRaw&&Number.isFinite(c.heading)&&c.heading>=0?c.heading:(Number.isFinite(snap?.heading)?snap.heading:Number(state.nav?.lastHeading||V16.last3dHeading||0)));
     V16.last3dHeading=h;
@@ -3340,9 +3355,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V18 — bus à l'échelle + filtre lignes régulières / scolaires */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.18';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.21';
 
   // --- Taille du Crossway : environ 45 % de V17 pour rester à l'échelle de la carte. ---
   const style=document.createElement('style');
@@ -3501,9 +3516,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V19 — rotation smartphone stable + amorçage audio Bluetooth */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.18';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.21';
 
   const st=document.createElement('style');
   st.id='v19Style';
@@ -3586,8 +3601,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V20 — l'affichage utilise uniquement state.fusion.shape produit par le moteur réécrit dans app.js. */
 (() => {
-  document.title='Mon SAEIV · 1.0.18';
-  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.21';
   const css=document.createElement('style');css.textContent=`
     .route-state.v20-source{max-width:72%}
     .v20-source-note{margin-top:8px;font-size:.69rem;color:#91a8b6;line-height:1.35}
@@ -3602,8 +3617,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V21 — arrêt demandé sonore synchronisé, écran éveillé, prononciation des codes Fluo. */
 (() => {
-  document.title='Mon SAEIV · 1.0.18';
-  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.21';
   const n=document.querySelector('.audio-note');
   if(n){
     const b=n.querySelector('b'); if(b)b.textContent='🔊 Annonces V21';
@@ -3615,7 +3630,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 
 <script>
 // V22 — étiquette de version après chargement de tous les modules.
-window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';});
+window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';});
 </script>
 
 <script>
@@ -3702,7 +3717,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
       box.dataset.v23Rendered='1';
       box.innerHTML=xs.length?xs.map(s=>{const [lab,cl]=statusLabel23(s);return `<div class="v13-session v23-session" data-session-id="${esc23(s.id)}">
         <div class="v23-session-row"><input class="v23-select" type="checkbox" data-select-id="${esc23(s.id)}" ${s.status==='open'?'disabled title="Le service en cours ne peut pas être supprimé"':''}>
-          <div class="v23-session-main"><strong>${esc23(s.route||'—')} · ${esc23(s.destination||'')}</strong><span>${fmtDate23(s.startedAt)} · ${esc23(s.serviceMode||'')} · ${s.tripId?`trip ${esc23(s.tripId)}`:'sans horaire'}</span><span>${s.stopEvents||0} arrêts · ${s.samples||0} points GPS · max ${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh:'—'} km/h · ${Number.isFinite(s.distanceKm)?s.distanceKm:'—'} km</span></div>
+          <div class="v23-session-main"><strong>${esc23(s.route||'—')} · ${esc23(s.destination||'')}</strong><span>${fmtDate23(s.startedAt)} · ${esc23(s.serviceMode||'')} · ${s.tripId?`trip ${esc23(s.tripId)}`:'sans horaire'}</span><span>${s.stopEvents||0} arrêts · ${s.samples||0} points GPS · max ${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh:'—'} km/h · ${Number.isFinite(s.distanceKm)?s.distanceKm:'—'} km${Number(s.passengerBoardings)>0?` · ${Number(s.passengerBoardings)} voyageur${Number(s.passengerBoardings)>1?'s':''}`:''}</span></div>
           <span class="v13-session-badge ${cl}">${lab}</span></div>
         <div class="v23-session-actions"><button type="button" data-v23-action="view">🗺 Voir le journal</button><button type="button" data-v23-action="download">📄 Exporter PDF</button>${s.status==='open'?'':`<button type="button" class="v23-delete" data-v23-action="delete">🗑 Supprimer</button>`}</div>
       </div>`}).join(''):'<div class="v23-empty"><strong>Aucun service enregistré</strong><br>Les journaux apparaîtront ici après une prise de service.</div>';
@@ -3844,8 +3859,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   try{const baseEnter23=enterDriver;enterDriver=function(mode){const r=baseEnter23(mode);[350,1800,6000].forEach(ms=>setTimeout(snapshotOpenSession23,ms));return r}}catch(e){console.warn('V23 journal snapshot patch',e)}
 
-  document.title='Mon SAEIV · 1.0.18';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
+  document.title='Mon SAEIV · 1.0.21';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
 })();
 
 </script>
@@ -3985,8 +4000,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v24Delete')?.addEventListener('click',async()=>{const s=V24.current;if(!s)return;if(confirm(`Supprimer la fiche ${s.routeShort||''} départ ${s.departureTime||''} ?`)){await del24(s.id);closeDetail24();await renderList24()}});
 
   window.FluoScheduleSheets={save:save24,open:async()=>{await renderList24();q('v24Library')?.classList.remove('hidden')},refresh:renderList24};
-  document.title='Mon SAEIV · 1.0.18';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
+  document.title='Mon SAEIV · 1.0.21';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
 })();
 </script>
 
@@ -4221,8 +4236,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
   if(q('lineTypeFilter')?.value==='custom')setTimeout(populateCustomDropdown,0);
   window.FluoCustomLines={all:allLines,get:getLine,save:saveLine,open:openCreator,populate:populateCustomDropdown,activate:activateLine};
-  document.title='Mon SAEIV · 1.0.18';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
+  document.title='Mon SAEIV · 1.0.21';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
 })();
 </script>
 
@@ -4284,7 +4299,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const future=indices.filter(i=>i>start);if(!future.length)throw new Error('Sélectionne au moins un arrêt à desservir après le départ.');
     const selected=indices.map(i=>{const s=state.pattern.stops[i];return {index:i,id:s?.id||null,name:s?.name||'',lat:Number(s?.lat),lon:Number(s?.lon)}});
     const dep=departureFor(state.run.trip,start,state.run.serviceDate);
-    return {id:uuid26(),matricule:matricule26(),serviceDate:dateInputValue(),dept:state.dept,routeId:state.route?.id||null,routeShort:state.route?.short||'',routeLong:state.route?.long||'',tripId:state.run?.trip?.id||null,patternHeadsign:state.pattern?.headsign||'',startStopIndex:start,startStopId:state.pattern.stops[start]?.id||null,originName:state.pattern.stops[start]?.name||'',terminusName:state.pattern.stops[future.at(-1)]?.name||'',departureClock:dep?formatClock(dep):'',selectedStops:selected,createdAt:new Date().toISOString(),appVersion:'1.0.18'};
+    return {id:uuid26(),matricule:matricule26(),serviceDate:dateInputValue(),dept:state.dept,routeId:state.route?.id||null,routeShort:state.route?.short||'',routeLong:state.route?.long||'',tripId:state.run?.trip?.id||null,patternHeadsign:state.pattern?.headsign||'',startStopIndex:start,startStopId:state.pattern.stops[start]?.id||null,originName:state.pattern.stops[start]?.name||'',terminusName:state.pattern.stops[future.at(-1)]?.name||'',departureClock:dep?formatClock(dep):'',selectedStops:selected,createdAt:new Date().toISOString(),appVersion:'1.0.21'};
   }
   async function saveCurrentTad26(){try{const rec=currentTadRecord26();await putTad26(rec);if(q('tadSummary'))q('tadSummary').textContent=`✅ TAD enregistré pour le ${fmtDate26(rec.serviceDate)} · ${rec.routeShort} · ${rec.originName} → ${rec.terminusName}. Tu le retrouveras dans « Mes TAD ». `;await renderTads26()}catch(e){alert(e.message||e)}}
   async function loadPreparedTad26(rec){
@@ -4356,8 +4371,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v26DeletePast')?.addEventListener('click',async()=>{const today=localYmd26(),xs=(await allTads26()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun TAD passé à supprimer.');if(!confirm(`Supprimer ${xs.length} TAD passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await deleteTad26(x.id);await renderTads26()});
   q('v26AnnounceBtn')?.addEventListener('click',openAnnouncements26);q('v26AnnounceSide')?.addEventListener('click',openAnnouncements26);q('v26AnnClose')?.addEventListener('click',closeAnnouncements26);q('v26AnnounceSheet')?.addEventListener('click',e=>{if(e.target===q('v26AnnounceSheet'))closeAnnouncements26()});q('v26AnnList')?.addEventListener('click',e=>{const b=e.target.closest('[data-v26-ann]');if(b)selectAnnouncement26(b.dataset.v26Ann)});q('v26AnnSpeak')?.addEventListener('click',speakAnnouncement26);q('v26AnnClear')?.addEventListener('click',()=>{V26.selectedAnnouncement=null;q('v26AnnList')?.querySelectorAll('.selected').forEach(x=>x.classList.remove('selected'));if(q('v26AnnText'))q('v26AnnText').value='';q('v26AnnStatus').textContent='Saisis un message ou choisis une annonce dans la bibliothèque.'});
 
-  document.title='Mon SAEIV · 1.0.18';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
+  document.title='Mon SAEIV · 1.0.21';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
 })();
 </script>
 
@@ -4447,8 +4462,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons paysage doivent rester synchronisés après chaque entrée en service.
   try{const baseEnter28=enterDriver;enterDriver=function(mode){const r=baseEnter28(mode);setTimeout(syncPassengerButtons,30);return r}}catch(e){console.warn('V28 boutons conducteur',e)}
 
-  document.title='Mon SAEIV · 1.0.18';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
+  document.title='Mon SAEIV · 1.0.21';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
 })();
 </script>
 
@@ -4511,8 +4526,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const b=e.target.closest?.('button,[role="button"]');if(!b||b.disabled||b.getAttribute('aria-disabled')==='true')return;hapticTap();
   },{capture:true,passive:true});
 
-  document.title='Mon SAEIV · 1.0.18';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
+  document.title='Mon SAEIV · 1.0.21';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,20));else setTimeout(label,20);
 })();
 </script>
@@ -4550,7 +4565,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     .v29-backdrop{position:fixed;z-index:13850;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center;padding:12px}.v29-backdrop.hidden{display:none!important}.v29-sheet{width:min(920px,100%);max-height:95dvh;display:flex;flex-direction:column;background:#0d202c;border:1px solid rgba(255,255,255,.15);border-radius:22px;padding:14px;box-shadow:0 -20px 70px rgba(0,0,0,.6)}.v29-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v29-head h2{margin:3px 0 5px}.v29-head p{margin:0;color:#9fb0bb;font-size:.75rem;line-height:1.4}.v29-scroll{overflow:auto;margin-top:10px}.v29-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.v29-grid .wide{grid-column:1/-1}.v29-grid input,.v29-grid select,.v29-grid textarea{width:100%;background:#07141e;color:#fff;border:1px solid #355163;border-radius:12px;min-height:47px;padding:10px 11px;font:inherit}.v29-grid textarea{min-height:100px;resize:vertical}.v29-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.v29-actions button{min-height:46px}.v29-actions .wide{grid-column:1/-1}.v29-status{margin-top:9px;padding:10px;border:1px solid #355163;border-radius:12px;background:#081720;color:#b8cbd6;font-size:.72rem;line-height:1.4}.v29-status.ok{border-color:#34764c;color:#d1ffdc}.v29-status.err{border-color:#7d3638;color:#ffd6d4}.v29-status.busy{border-color:#79651f;color:#ffe69a}
     .v29-admin-list{margin-top:10px}.v29-admin-item{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px;border:1px solid #2e4656;border-radius:11px;background:#081720;margin-top:6px}.v29-admin-item span{display:block;color:#91a8b6;font-size:.67rem;margin-top:2px}.v29-admin-item button{padding:7px 8px;font-size:.68rem}.v29-admin-lock{max-width:440px;margin:12px auto;padding:14px;border:1px solid #355163;border-radius:14px;background:#081720}
     #v29HlpMap{height:320px;border:1px solid #355163;border-radius:14px;overflow:hidden;background:#10202a;margin-top:9px}.v29-hlp-guidance{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;margin-top:9px;padding:10px;border:1px solid #355163;border-radius:12px;background:#081720}.v29-hlp-arrow{width:44px;height:44px;border-radius:10px;background:#ffd000;color:#111;display:flex;align-items:center;justify-content:center;font-size:1.65rem;font-weight:950}.v29-hlp-guidance strong{display:block}.v29-hlp-guidance span{display:block;color:#91a8b6;font-size:.68rem;margin-top:2px}.v29-hlp-distance{color:#ffd000;font-weight:950;white-space:nowrap}
-    .v29-journal-backdrop{z-index:13950}.v29-journal-sheet{width:min(1080px,100%)}.v29-journal-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px}.v29-card{padding:9px;border:1px solid #2e4656;border-radius:12px;background:#081720}.v29-card span{display:block;color:#8fa5b3;font-size:.62rem}.v29-card b{display:block;margin-top:3px;font-size:.88rem}.v29-legend{display:flex;gap:14px;flex-wrap:wrap;margin:7px 0;font-size:.72rem;font-weight:850}.v29-legend .planned{color:#ffd000}.v29-legend .actual{color:#45c7ff}.v29-journal-map{height:390px;border:1px solid #355163;border-radius:14px;overflow:hidden;background:#10202a}.v29-journal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:11px}.v29-table{border:1px solid #2e4656;border-radius:12px;overflow:auto;max-height:360px}.v29-table h3{position:sticky;top:0;margin:0;padding:9px;background:#10202c;font-size:.82rem;z-index:2}.v29-table table{width:100%;border-collapse:collapse;font-size:.7rem}.v29-table th,.v29-table td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;vertical-align:top}.v29-table th{color:#a6b6c1;background:#0b1b26;position:sticky;top:34px}.v29-table td:nth-child(2){font-weight:800}.v29-timeline{border:1px solid #2e4656;border-radius:12px;max-height:360px;overflow:auto;background:#081720}.v29-timeline h3{position:sticky;top:0;margin:0;padding:9px;background:#10202c;font-size:.82rem;z-index:2}.v29-event{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.07)}.v29-event:last-child{border-bottom:0}.v29-event time{color:#ffd000;font-size:.66rem;font-weight:900}.v29-event b{display:block;margin-top:2px;font-size:.74rem}.v29-event span{display:block;margin-top:2px;color:#9fb0bb;font-size:.66rem;line-height:1.35}
+    .v29-journal-backdrop{z-index:13950}.v29-journal-sheet{width:min(1080px,100%)}.v29-journal-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px}.v29-card{padding:9px;border:1px solid #2e4656;border-radius:12px;background:#081720}.v29-card span{display:block;color:#8fa5b3;font-size:.62rem}.v29-card b{display:block;margin-top:3px;font-size:.88rem}.v29-legend{display:flex;gap:14px;flex-wrap:wrap;margin:7px 0;font-size:.72rem;font-weight:850}.v29-legend .planned{color:#ffd000}.v29-legend .actual{color:#45c7ff}.v29-journal-map{height:390px;border:1px solid #355163;border-radius:14px;overflow:hidden;background:#10202a}.v29-journal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:11px}.v29-table{border:1px solid #2e4656;border-radius:12px;overflow:auto;max-height:360px}.v29-table h3{position:sticky;top:0;margin:0;padding:9px;background:#10202c;font-size:.82rem;z-index:2}.v29-table table{width:100%;border-collapse:collapse;font-size:.7rem}.v29-table th,.v29-table td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;vertical-align:top}.v29-table th{color:#a6b6c1;background:#0b1b26;position:sticky;top:34px}.v29-table td:nth-child(2){font-weight:800}.v29-timeline{border:1px solid #2e4656;border-radius:12px;max-height:360px;overflow:auto;background:#081720}.v29-timeline h3{position:sticky;top:0;margin:0;padding:9px;background:#10202c;font-size:.82rem;z-index:2}.v29-event{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.07)}.v29-event:last-child{border-bottom:0}.v29-event time{color:#ffd000;font-size:.66rem;font-weight:900}.v29-event b{display:block;margin-top:2px;font-size:.74rem}.v29-event span{display:block;margin-top:2px;color:#9fb0bb;font-size:.66rem;line-height:1.35}.v121-passenger-journal{margin-top:10px;max-height:none!important}.v121-passenger-journal table{min-width:560px}.v121-passenger-total td{background:#102734;color:#ffd000;border-top:2px solid #355163}
     @media(max-width:680px){.v29-backdrop{padding:0}.v29-sheet{border-radius:22px 22px 0 0;max-height:97dvh;padding-bottom:calc(12px + env(safe-area-inset-bottom))}.v29-grid,.v29-actions,.v29-driver-actions{grid-template-columns:1fr}.v29-grid .wide,.v29-actions .wide{grid-column:auto}.v29-preview-map{height:250px}.v29-journal-summary{grid-template-columns:1fr 1fr}.v29-journal-grid{grid-template-columns:1fr}.v29-journal-map{height:310px}.v29-driver-actions{order:12!important}#driver .grid.six{order:13!important}#driver .controls{order:14!important}#driver .sim-controls{order:15!important}#driver #recenter{order:16!important}}
     @media(orientation:landscape) and (max-height:650px) and (max-width:1100px){#v15LandscapeSide{padding-bottom:136px!important}#v281LandscapeDock .v29-dock-row{display:grid;grid-template-columns:1fr 1fr;gap:4px}#v281LandscapeDock .v29-dock-row button{width:100%!important;min-width:0!important}.v29-sheet{max-height:97dvh}.v29-journal-map{height:300px}}
     @media(orientation:landscape) and (max-height:390px) and (max-width:760px){#v15LandscapeSide{padding-bottom:121px!important}}
@@ -4670,8 +4685,20 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     }
     return [...by.values()].sort((a,b)=>Number(a.stopIndex??9999)-Number(b.stopIndex??9999)||String(a.arrival?.ts||a.departure?.ts||a.start?.ts||'').localeCompare(String(b.arrival?.ts||b.departure?.ts||b.start?.ts||'')));
   }
-  function eventTitle(e){const m={SERVICE_START:'Prise de service',SERVICE_CONFIGURATION:'Configuration du service',SERVICE_END:'Fin de service',SERVICE_FINISH_REQUEST:'Fin de service demandée',SERVICE_INTERRUPTED:'Service interrompu',APP_BACKGROUND_OR_CLOSE:'Application mise en arrière-plan / fermée',STOP_ARRIVAL:'Arrivée à un arrêt',STOP_DEPARTURE:'Départ d’un arrêt',STOP_PASSED:'Arrêt franchi',STOP_SKIPPED_DEVIATION:'Arrêt non desservi pendant déviation',REQUEST_ADDED:'Demande d’arrêt ajoutée',REQUEST_REMOVED:'Demande d’arrêt retirée',REQUESTS_CLEARED:'Demandes d’arrêt effacées',RECENTER:'Recalage manuel au poteau',DEVIATION_START:'Début de déviation manuelle',DEVIATION_REJOIN_REQUEST:'Rattrapage de ligne calculé',DEVIATION_END:'Fin de déviation',INCIDENT_REPORT:'Rapport d’incident',CONTROL_ACTION:'Action conducteur',COLLECTIVE_ROUTE:'Billet collectif / parcours',ROAD_PROFILE_READY:'Profil de vitesse route chargé'};return m[e.type]||String(e.type||'Événement').replaceAll('_',' ')}
-  function eventDetail(e){if(e.type==='INCIDENT_REPORT')return `${e.category||''}${e.note?` — ${e.note}`:''}${e.photoDataUrl?' · photo jointe':''}`;if(e.stopName)return e.stopName;if(e.type==='DEVIATION_END')return e.reason||e.rejoinStop||'';if(e.type==='DEVIATION_REJOIN_REQUEST')return `${e.rejoinStop||''}${Number.isFinite(e.recoveryDistanceM)?` · ${Math.round(e.recoveryDistanceM)} m`:''}`;if(e.type==='CONTROL_ACTION')return e.control||'';if(e.type==='SERVICE_CONFIGURATION')return `${e.route||''} · ${e.destination||''} · ${e.serviceMode||''}`;if(e.type==='COLLECTIVE_ROUTE')return `${e.name||'Billet collectif'} · ${e.points||0} points · ${Number.isFinite(e.distanceM)?(e.distanceM/1000).toFixed(1).replace('.',',')+' km':''}`;return e.reason||e.nextStop||''}
+  function passengerRows(ev){
+    const by=new Map();
+    for(const e of ev||[]){
+      if(e.type!=='PASSENGER_COUNT')continue;
+      const key=Number.isInteger(e.stopIndex)?`i${e.stopIndex}`:`n${e.stopName||'Arrêt'}`;
+      let r=by.get(key);if(!r){r={stopIndex:Number.isInteger(e.stopIndex)?e.stopIndex:null,stopName:e.stopName||'Arrêt',boardings:0,alightings:0,firstTs:e.ts,lastTs:e.ts};by.set(key,r)}
+      r.boardings+=Math.max(0,Number(e.boardings)||0);r.alightings+=Math.max(0,Number(e.alightings)||0);r.lastTs=e.ts||r.lastTs;
+    }
+    return [...by.values()].sort((a,b)=>Number(a.stopIndex??99999)-Number(b.stopIndex??99999)||String(a.firstTs||'').localeCompare(String(b.firstTs||'')));
+  }
+  function passengerTotals(ev){const rows=passengerRows(ev);return {rows,boardings:rows.reduce((n,r)=>n+r.boardings,0),alightings:rows.reduce((n,r)=>n+r.alightings,0)}}
+  function ensurePassengerJournalBox(){let el=q('v29JournalPassenger');if(el)return el;const grid=q('v29JournalStops')?.closest('.v29-journal-grid');if(!grid)return null;el=document.createElement('div');el.id='v29JournalPassenger';el.className='v29-table v121-passenger-journal';grid.insertAdjacentElement('afterend',el);return el}
+  function eventTitle(e){const m={SERVICE_START:'Prise de service',SERVICE_CONFIGURATION:'Configuration du service',SERVICE_END:'Fin de service',SERVICE_FINISH_REQUEST:'Fin de service demandée',SERVICE_INTERRUPTED:'Service interrompu',APP_BACKGROUND_OR_CLOSE:'Application mise en arrière-plan / fermée',STOP_ARRIVAL:'Arrivée à un arrêt',STOP_DEPARTURE:'Départ d’un arrêt',STOP_PASSED:'Arrêt franchi',STOP_SKIPPED_DEVIATION:'Arrêt non desservi pendant déviation',REQUEST_ADDED:'Demande d’arrêt ajoutée',REQUEST_REMOVED:'Demande d’arrêt retirée',REQUESTS_CLEARED:'Demandes d’arrêt effacées',RECENTER:'Recalage manuel au poteau',DEVIATION_START:'Début de déviation manuelle',DEVIATION_REJOIN_REQUEST:'Rattrapage de ligne calculé',DEVIATION_END:'Fin de déviation',INCIDENT_REPORT:'Rapport d’incident',CONTROL_ACTION:'Action conducteur',COLLECTIVE_ROUTE:'Billet collectif / parcours',ROAD_PROFILE_READY:'Profil de vitesse route chargé',PASSENGER_COUNT:'Comptage voyageurs'};return m[e.type]||String(e.type||'Événement').replaceAll('_',' ')}
+  function eventDetail(e){if(e.type==='PASSENGER_COUNT')return `${e.stopName||'Arrêt'} · +${Math.max(0,Number(e.boardings)||0)} montée${Number(e.boardings)===1?'':'s'} · −${Math.max(0,Number(e.alightings)||0)} descente${Number(e.alightings)===1?'':'s'}`;if(e.type==='INCIDENT_REPORT')return `${e.category||''}${e.note?` — ${e.note}`:''}${e.photoDataUrl?' · photo jointe':''}`;if(e.stopName)return e.stopName;if(e.type==='DEVIATION_END')return e.reason||e.rejoinStop||'';if(e.type==='DEVIATION_REJOIN_REQUEST')return `${e.rejoinStop||''}${Number.isFinite(e.recoveryDistanceM)?` · ${Math.round(e.recoveryDistanceM)} m`:''}`;if(e.type==='CONTROL_ACTION')return e.control||'';if(e.type==='SERVICE_CONFIGURATION')return `${e.route||''} · ${e.destination||''} · ${e.serviceMode||''}`;if(e.type==='COLLECTIVE_ROUTE')return `${e.name||'Billet collectif'} · ${e.points||0} points · ${Number.isFinite(e.distanceM)?(e.distanceM/1000).toFixed(1).replace('.',',')+' km':''}`;return e.reason||e.nextStop||''}
   function visibleEvents(ev){return ev.filter(e=>!['GPS_SAMPLE','ANNOUNCEMENT','PASSENGER_ANNOUNCEMENTS_TOGGLE','NAV_VOICE_TOGGLE'].includes(e.type))}
   function stopStatus(r){return r.skipped?'NON DESSERVI':r.arrival?'DESSERVI':r.start&&r.departure?'DÉPART EFFECTUÉ':r.passed?'PASSÉ':r.start?'PRISE DE SERVICE':'—'}
   function fmtDelay(sec){if(!Number.isFinite(Number(sec)))return '—';let x=Math.round(Number(sec)),sg=x<0?'−':'+';x=Math.abs(x);return `${sg}${Math.floor(x/60)}:${String(x%60).padStart(2,'0')}`}
@@ -4682,26 +4709,28 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   async function openJournalV29(id){
     q('v29Journal')?.setAttribute('data-session-id',String(id));
     const [s,ev]=await Promise.all([getJournalSession(id),getJournalEvents(id)]);if(!s)return;V29.journal.current={s,ev};
-    const rows=stopRows(s,ev),actual=actualTrace(ev),timeline=visibleEvents(ev),inc=ev.filter(e=>e.type==='INCIDENT_REPORT').length,dev=ev.filter(e=>e.type==='DEVIATION_START').length;
+    const rows=stopRows(s,ev),actual=actualTrace(ev),timeline=visibleEvents(ev),inc=ev.filter(e=>e.type==='INCIDENT_REPORT').length,dev=ev.filter(e=>e.type==='DEVIATION_START').length,passengers=passengerTotals(ev);
     q('v29JournalTitle').textContent=`${s.route||'Ligne'} · ${s.destination||''}`;q('v29JournalSubtitle').textContent=`${fmtDate(s.startedAt)} → ${s.endedAt?fmtDate(s.endedAt):'service en cours'} · ${s.serviceMode||''}${s.tripId?` · trip ${s.tripId}`:''}`;
-    q('v29JournalSummary').innerHTML=`<div class="v29-card"><span>POINTS GPS RÉELS</span><b>${actual.length}</b></div><div class="v29-card"><span>DISTANCE</span><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="v29-card"><span>VITESSE MAX</span><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="v29-card"><span>DÉVIATIONS</span><b>${dev}</b></div><div class="v29-card"><span>INCIDENTS</span><b>${inc}</b></div>`;
+    q('v29JournalSummary').innerHTML=`<div class="v29-card"><span>POINTS GPS RÉELS</span><b>${actual.length}</b></div><div class="v29-card"><span>DISTANCE</span><b>${Number.isFinite(s.distanceKm)?String(s.distanceKm).replace('.',',')+' km':'—'}</b></div><div class="v29-card"><span>VITESSE MAX</span><b>${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh+' km/h':'—'}</b></div><div class="v29-card"><span>DÉVIATIONS</span><b>${dev}</b></div><div class="v29-card"><span>INCIDENTS</span><b>${inc}</b></div><div class="v29-card"><span>VOYAGEURS MONTÉS</span><b>${passengers.boardings}</b></div><div class="v29-card"><span>VOYAGEURS DESCENDUS</span><b>${passengers.alightings}</b></div>`;
     q('v29JournalStops').innerHTML=`<h3>Arrivées / départs aux arrêts</h3>${rows.length?`<table><thead><tr><th>#</th><th>Arrêt</th><th>Statut</th><th>Arrivée réelle</th><th>Arrivée prévue</th><th>Écart arr.</th><th>Départ réel</th><th>Départ prévu</th><th>Écart dép.</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.stopName||'—')}</td><td>${esc(stopStatus(r))}</td><td>${esc(stopCellTime(r.arrival))}</td><td>${esc(stopCellPlanned(r.arrival))}</td><td>${esc(stopCellDelta(r.arrival))}</td><td>${esc(stopCellTime(r.departure))}</td><td>${esc(stopCellPlanned(r.departure,r.start?.scheduledTime))}</td><td>${esc(stopCellDelta(r.departure))}</td></tr>`).join('')}</tbody></table>`:'<div class="v29-status">Aucun passage d’arrêt enregistré.</div>'}`;
     q('v29JournalTimeline').innerHTML=`<h3>Chronologie exploitation</h3>${timeline.map(e=>`<div class="v29-event"><time>${esc(fmtClock(e.ts))}</time><b>${esc(eventTitle(e))}</b><span>${esc(eventDetail(e))}</span>${String(e.photoDataUrl||'').startsWith('data:image/')?`<img class="v30-event-photo" src="${e.photoDataUrl}" alt="Photo jointe à l’incident">`:''}</div>`).join('')||'<div class="v29-event">Aucun événement.</div>'}`;
+    const pbox=ensurePassengerJournalBox();if(pbox)pbox.innerHTML=`<h3>👥 Feuille de comptage voyageurs</h3>${passengers.rows.length?`<table><thead><tr><th>#</th><th>Arrêt</th><th>Montées</th><th>Descentes</th><th>Variation</th></tr></thead><tbody>${passengers.rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.stopName)}</td><td><b>+${r.boardings}</b></td><td><b>−${r.alightings}</b></td><td>${r.boardings-r.alightings>0?'+':''}${r.boardings-r.alightings}</td></tr>`).join('')}<tr class="v121-passenger-total"><td colspan="2"><b>TOTAL COURSE</b></td><td><b>+${passengers.boardings}</b></td><td><b>−${passengers.alightings}</b></td><td><b>${passengers.boardings-passengers.alightings>0?'+':''}${passengers.boardings-passengers.alightings}</b></td></tr></tbody></table>`:'<div class="v29-status">Aucun comptage voyageurs enregistré pour cette course.</div>'}`;
     q('v29Journal').classList.remove('hidden');setTimeout(()=>renderJournalMap(s,ev,rows),40)
   }
   function closeJournalV29(){q('v29Journal')?.removeAttribute('data-session-id');q('v29Journal')?.classList.add('hidden');if(V29.journal.map){try{V29.journal.map.remove()}catch{}V29.journal.map=null}V29.journal.current=null}
   function journalReport(s,ev){
-    const planned=plannedTrace(s),actual=actualTrace(ev),rows=stopRows(s,ev),timeline=visibleEvents(ev);
+    const planned=plannedTrace(s),actual=actualTrace(ev),rows=stopRows(s,ev),timeline=visibleEvents(ev),passengers=passengerTotals(ev);
     const mapEvents=ev.filter(e=>['DEVIATION_START','DEVIATION_END','INCIDENT_REPORT'].includes(e.type)).map(e=>({type:e.type,title:eventTitle(e),detail:eventDetail(e),ts:e.ts,lat:e.lat,lon:e.lon}));
     const data=JSON.stringify({planned,actual,events:mapEvents}).replace(/</g,'\u003c');
     const stopHtml=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.stopName||'—')}</td><td>${esc(stopStatus(r))}</td><td>${esc(stopCellTime(r.arrival))}</td><td>${esc(stopCellPlanned(r.arrival))}</td><td>${esc(stopCellDelta(r.arrival))}</td><td>${esc(stopCellTime(r.departure))}</td><td>${esc(stopCellPlanned(r.departure,r.start?.scheduledTime))}</td><td>${esc(stopCellDelta(r.departure))}</td></tr>`).join('');
     const timelineHtml=timeline.map(e=>`<div class="event"><time>${esc(fmtClock(e.ts))}</time><b>${esc(eventTitle(e))}</b><span>${esc(eventDetail(e))}</span>${String(e.photoDataUrl||'').startsWith('data:image/')?`<img class="photo" src="${e.photoDataUrl}" alt="Photo jointe à l’incident">`:''}</div>`).join('');
-    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal intégral ${esc(s.route||'Mon SAEIV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1250px;margin:auto;padding:18px}.muted{color:#9fb0bb}.legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;font-weight:bold}.planned{color:#ffd000}.actual{color:#45c7ff}#map{height:460px;border:1px solid #355163;border-radius:14px;overflow:hidden}.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);gap:12px;margin-top:14px}table{width:100%;border-collapse:collapse;background:#0d202c;font-size:.82rem}th,td{padding:8px;border-bottom:1px solid #28404e;text-align:left;white-space:nowrap}th{color:#b9cad5}.tablewrap{overflow:auto}.timeline{background:#0d202c}.event{padding:8px 10px;border-bottom:1px solid #28404e}.event time{color:#ffd000;font-weight:bold}.event b,.event span{display:block;margin-top:2px}.event span{color:#9fb0bb;font-size:.85rem}.photo{display:block;max-width:420px;max-height:320px;object-fit:contain;margin-top:8px;border-radius:10px;border:1px solid #355163}@media(max-width:850px){.grid{grid-template-columns:1fr}#map{height:360px}table{font-size:.78rem}}</style></head><body><main><div class="muted">MON SAEIV · JOURNAL INTÉGRAL</div><h1>${esc(s.route||'—')} · ${esc(s.destination||'')}</h1><div class="muted">${esc(fmtDate(s.startedAt))} → ${esc(s.endedAt?fmtDate(s.endedAt):'service en cours')} · ${esc(s.serviceMode||'')}</div><div class="legend"><span class="planned">━━━━ Parcours prévu</span><span class="actual">━━━━ Trajet GPS réellement effectué (~5–7 m)</span></div><div id="map"></div><div class="grid"><div><h2>Arrivées / départs aux arrêts</h2><div class="tablewrap"><table><thead><tr><th>#</th><th>Arrêt</th><th>Statut</th><th>Arrivée réelle</th><th>Arrivée prévue</th><th>Écart arr.</th><th>Départ réel</th><th>Départ prévu</th><th>Écart dép.</th></tr></thead><tbody>${stopHtml}</tbody></table></div></div><div><h2>Chronologie exploitation</h2><div class="timeline">${timelineHtml}</div></div></div><p class="muted">Le tracé jaune est la géométrie prévue lors de la prise de service. Le tracé bleu relie les positions GPS brutes du véhicule. Les annonces vocales ne sont pas enregistrées dans ce rapport ; les événements d’exploitation, déviations, incidents, recalages et demandes le sont.</p></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const D=${data};const c=D.actual[0]||D.planned[0]||[48.7,6.2],map=L.map('map').setView(c,12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(D.planned.length>1){L.polyline(D.planned,{color:'#ffd000',weight:6,opacity:.75}).addTo(map);b.push(...D.planned)}if(D.actual.length>1){L.polyline(D.actual,{color:'#45c7ff',weight:5,opacity:.96}).addTo(map);b.push(...D.actual)}D.events.forEach(e=>{if(!Number.isFinite(Number(e.lat))||!Number.isFinite(Number(e.lon)))return;const p=[Number(e.lat),Number(e.lon)],fill=e.type==='INCIDENT_REPORT'?'#ff6860':e.type==='DEVIATION_START'?'#ffb000':'#55d981';b.push(p);L.circleMarker(p,{radius:7,color:'#173447',weight:2,fillColor:fill,fillOpacity:1}).addTo(map).bindPopup('<b>'+String(e.title||'').replace(/[<>&]/g,'')+'</b><br>'+String(e.detail||'').replace(/[<>&]/g,'')+'<br>'+new Date(e.ts).toLocaleTimeString('fr-FR'))});if(b.length>1)map.fitBounds(b,{padding:[25,25],maxZoom:16});<\/script></body></html>`
+    const passengerHtml=passengers.rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.stopName)}</td><td>+${r.boardings}</td><td>−${r.alightings}</td><td>${r.boardings-r.alightings>0?'+':''}${r.boardings-r.alightings}</td></tr>`).join('');
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal intégral ${esc(s.route||'Mon SAEIV')}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>body{font-family:Arial,sans-serif;margin:0;background:#07121b;color:#eef8fd}main{max-width:1250px;margin:auto;padding:18px}.muted{color:#9fb0bb}.legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;font-weight:bold}.planned{color:#ffd000}.actual{color:#45c7ff}#map{height:460px;border:1px solid #355163;border-radius:14px;overflow:hidden}.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);gap:12px;margin-top:14px}table{width:100%;border-collapse:collapse;background:#0d202c;font-size:.82rem}th,td{padding:8px;border-bottom:1px solid #28404e;text-align:left;white-space:nowrap}th{color:#b9cad5}.tablewrap{overflow:auto}.timeline{background:#0d202c}.event{padding:8px 10px;border-bottom:1px solid #28404e}.event time{color:#ffd000;font-weight:bold}.event b,.event span{display:block;margin-top:2px}.event span{color:#9fb0bb;font-size:.85rem}.photo{display:block;max-width:420px;max-height:320px;object-fit:contain;margin-top:8px;border-radius:10px;border:1px solid #355163}@media(max-width:850px){.grid{grid-template-columns:1fr}#map{height:360px}table{font-size:.78rem}}</style></head><body><main><div class="muted">MON SAEIV · JOURNAL INTÉGRAL</div><h1>${esc(s.route||'—')} · ${esc(s.destination||'')}</h1><div class="muted">${esc(fmtDate(s.startedAt))} → ${esc(s.endedAt?fmtDate(s.endedAt):'service en cours')} · ${esc(s.serviceMode||'')}</div><div class="legend"><span class="planned">━━━━ Parcours prévu</span><span class="actual">━━━━ Trajet GPS réellement effectué (~5–7 m)</span></div><div id="map"></div><div class="grid"><div><h2>Arrivées / départs aux arrêts</h2><div class="tablewrap"><table><thead><tr><th>#</th><th>Arrêt</th><th>Statut</th><th>Arrivée réelle</th><th>Arrivée prévue</th><th>Écart arr.</th><th>Départ réel</th><th>Départ prévu</th><th>Écart dép.</th></tr></thead><tbody>${stopHtml}</tbody></table></div></div><div><h2>Chronologie exploitation</h2><div class="timeline">${timelineHtml}</div></div></div><h2>Feuille de comptage voyageurs</h2><div class="tablewrap">${passengers.rows.length?`<table><thead><tr><th>#</th><th>Arrêt</th><th>Montées</th><th>Descentes</th><th>Variation</th></tr></thead><tbody>${passengerHtml}<tr><td colspan="2"><b>TOTAL COURSE</b></td><td><b>+${passengers.boardings}</b></td><td><b>−${passengers.alightings}</b></td><td><b>${passengers.boardings-passengers.alightings>0?'+':''}${passengers.boardings-passengers.alightings}</b></td></tr></tbody></table>`:'<p class="muted">Aucun comptage voyageurs enregistré.</p>'}</div><p class="muted">Le tracé jaune est la géométrie prévue lors de la prise de service. Le tracé bleu relie les positions GPS brutes du véhicule. Les annonces vocales ne sont pas enregistrées dans ce rapport ; les événements d’exploitation, déviations, incidents, recalages, demandes et comptages voyageurs le sont.</p></main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>const D=${data};const c=D.actual[0]||D.planned[0]||[48.7,6.2],map=L.map('map').setView(c,12);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);const b=[];if(D.planned.length>1){L.polyline(D.planned,{color:'#ffd000',weight:6,opacity:.75}).addTo(map);b.push(...D.planned)}if(D.actual.length>1){L.polyline(D.actual,{color:'#45c7ff',weight:5,opacity:.96}).addTo(map);b.push(...D.actual)}D.events.forEach(e=>{if(!Number.isFinite(Number(e.lat))||!Number.isFinite(Number(e.lon)))return;const p=[Number(e.lat),Number(e.lon)],fill=e.type==='INCIDENT_REPORT'?'#ff6860':e.type==='DEVIATION_START'?'#ffb000':'#55d981';b.push(p);L.circleMarker(p,{radius:7,color:'#173447',weight:2,fillColor:fill,fillOpacity:1}).addTo(map).bindPopup('<b>'+String(e.title||'').replace(/[<>&]/g,'')+'</b><br>'+String(e.detail||'').replace(/[<>&]/g,'')+'<br>'+new Date(e.ts).toLocaleTimeString('fr-FR'))});if(b.length>1)map.fitBounds(b,{padding:[25,25],maxZoom:16});<\/script></body></html>`
   }
   function downloadJournalV29(s,ev){const blob=new Blob([journalReport(s,ev)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a'),d=new Date(s.startedAt||Date.now());a.href=url;a.download=`journal-integral-${String(s.route||'ligne').replace(/[^a-z0-9]+/gi,'-')}-${d.toISOString().slice(0,16).replace(':','-')}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800)}
 
   // ---------- Branchement journal de toutes les fonctions ----------
-  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'1.0.18',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service-v30',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
+  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'1.0.21',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service-v30',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
   // V30 : les annonces vocales ne sont plus enregistrées dans le journal d'exploitation.
   try{const baseReq=requestStop;requestStop=function(index,checked){const r=baseReq(index,checked);if(state?.running)log(checked?'REQUEST_ADDED':'REQUEST_REMOVED',{stopIndex:index,stopName:state.pattern?.stops?.[index]?.name||''});return r}}catch(e){console.warn('V29 journal demandes',e)}
   try{const baseRec=recenter;recenter=function(){const before={current:state.current,target:state.target};const r=baseRec();if(state?.running)log('RECENTER',{beforeCurrent:before.current,beforeTarget:before.target,afterCurrent:state.current,afterTarget:state.target,stopName:state.pattern?.stops?.[state.current]?.name||''});if(V29.deviation.active)finishDeviation('recalage manuel au poteau',false);return r}}catch(e){console.warn('V29 journal recalage',e)}
@@ -4714,7 +4743,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   for(const [id,name] of [['followMap','Suivre le bus'],['simPlayPause','Pause/reprise simulation'],['simSkip','Saut simulation'],['nextBtn','Arrêt suivant manuel']])q(id)?.addEventListener('click',()=>{if(state?.running)log('CONTROL_ACTION',{control:name})});
 
   // ---------- Événements UI ----------
-  addUi();syncDeviationButtons();updateEta();setInterval(()=>{updateEta();refreshPreview()},800);setTimeout(refreshPreview,80);
+  addUi();syncDeviationButtons();updateEta();setInterval(()=>{if(document.hidden)return;updateEta();if(!state?.running)refreshPreview()},2500);setTimeout(refreshPreview,80);
   q('v29DeviationBtn')?.addEventListener('click',toggleDeviation);q('v29DeviationSide')?.addEventListener('click',toggleDeviation);
   q('v29IncidentBtn')?.addEventListener('click',openIncident);q('v29IncidentSide')?.addEventListener('click',openIncident);q('v29IncidentClose')?.addEventListener('click',()=>q('v29Incident')?.classList.add('hidden'));q('v29IncidentSave')?.addEventListener('click',saveIncident);q('v29Incident')?.addEventListener('click',e=>{if(e.target===q('v29Incident'))q('v29Incident').classList.add('hidden')});
   q('v29AdminBtn')?.addEventListener('click',()=>{q('v29Admin').classList.remove('hidden');syncAdmin()});q('v29AdminClose')?.addEventListener('click',()=>q('v29Admin').classList.add('hidden'));q('v29Admin')?.addEventListener('click',e=>{if(e.target===q('v29Admin'))q('v29Admin').classList.add('hidden')});q('v29AdminUnlock')?.addEventListener('click',async()=>{try{if(await hash(q('v29AdminPassword').value)!==ADMIN_HASH){q('v29AdminLockMsg').textContent='Mot de passe incorrect.';return}sessionStorage.setItem(ADMIN_UNLOCK,'1');q('v29AdminPassword').value='';syncAdmin()}catch{q('v29AdminLockMsg').textContent='Déverrouillage indisponible.'}});q('v29AdminPassword')?.addEventListener('keydown',e=>{if(e.key==='Enter')q('v29AdminUnlock')?.click()});q('v29AvoidCurrent')?.addEventListener('click',fillCurrentAvoid);q('v29AvoidSave')?.addEventListener('click',saveAvoid);q('v29AvoidList')?.addEventListener('click',e=>{const b=e.target.closest('[data-v29-avoid-delete]');if(!b)return;const xs=avoidZones().filter(x=>x.id!==b.dataset.v29AvoidDelete);saveAvoidZones(xs);renderAvoids()});
@@ -4722,8 +4751,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v29JournalClose')?.addEventListener('click',closeJournalV29);q('v29Journal')?.addEventListener('click',e=>{if(e.target===q('v29Journal'))closeJournalV29()});q('v29JournalDownload')?.addEventListener('click',()=>{const c=V29.journal.current;if(c)downloadJournalV29(c.s,c.ev)});
   q('v13JournalList')?.addEventListener('click',e=>{const item=e.target.closest('.v23-session');if(!item)return;const action=e.target.closest('[data-v23-action]')?.dataset.v23Action;if(e.target.matches('.v23-select')||action==='delete')return;const id=item.dataset.sessionId;if(!id)return;e.preventDefault();e.stopImmediatePropagation();if(action==='download'){Promise.all([getJournalSession(id),getJournalEvents(id)]).then(([s,ev])=>{if(s)downloadJournalV29(s,ev)});return}openJournalV29(id)},true);
 
-  document.title='Mon SAEIV · 1.0.18';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
+  document.title='Mon SAEIV · 1.0.21';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
 
 </script>
@@ -4877,7 +4906,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   };
 
   // Version / journal policy.
-  const label=()=>{document.title='Mon SAEIV · 1.0.18';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
+  const label=()=>{document.title='Mon SAEIV · 1.0.21';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
 })();
 </script>
 
@@ -5075,8 +5104,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Évite de gonfler le journal avec le même nom répété pour chaque point d'une rue évitée.
   if(window.FluoJournalCore?.log&&!window.FluoJournalCore.__v301Wrapped){const base=window.FluoJournalCore.log.bind(window.FluoJournalCore);window.FluoJournalCore.log=(type,payload={})=>{const p={...payload};if(Array.isArray(p.avoidZones))p.avoidZones=[...new Set(p.avoidZones.filter(Boolean))];return base(type,p)};window.FluoJournalCore.__v301Wrapped=true}
 
-  document.title='Mon SAEIV · 1.0.18';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
+  document.title='Mon SAEIV · 1.0.21';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
   settleResponsive();
 })();
@@ -5090,8 +5119,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
    carte, arrivée, simulation et journaux partagent exactement le même point opérationnel. */
 (() => {
   const label=()=>{
-    document.title='Mon SAEIV · 1.0.18';
-    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';
+    document.title='Mon SAEIV · 1.0.21';
+    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';
     const b=document.getElementById('buildInfo');if(b&&!/V30.2/.test(b.textContent))b.textContent+=' · V30.2 poteaux recalés au tracé';
   };
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,80));else setTimeout(label,80);
@@ -5277,8 +5306,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Empêche un lancement pendant un calcul asynchrone, même si un ancien module réactive le bouton.
   document.addEventListener('click',e=>{if(V303.busy&&e.target.closest?.('#start,#simulate')){e.preventDefault();e.stopImmediatePropagation();alert('Recalcul du tracé en cours. Attends quelques secondes avant de lancer le service.')}},true);
 
-  document.title='Mon SAEIV · 1.0.18';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
+  document.title='Mon SAEIV · 1.0.21';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>{setTimeout(label,30);schedule('load',600)});else{setTimeout(label,30);schedule('load',600)}
 })();
 </script>
@@ -5332,7 +5361,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     ensureDate();const serviceDate=q('v304CollectiveDate')?.value;if(!serviceDate)throw new Error('Choisis la date du billet collectif.');
     const rows=[q('v30CollectiveStart')?.querySelector('.v30-point'),...q('v30CollectiveStages')?.querySelectorAll('.v30-point')||[],q('v30CollectiveEnd')?.querySelector('.v30-point')].filter(Boolean);
     const points=route.points.map((p,i)=>{const row=rows[i],kind=row?.querySelector('.v30-point-kind')?.value||p.kind||'stop',query=row?.querySelector('.v30-point-search')?.value||p.name||'';return{...p,lat:Number(p.lat),lon:Number(p.lon),kind,query}});
-    return{id:uuid(),matricule:matricule(),serviceDate,departureTime:q('v30CollectiveTime')?.value||'',name:(q('v30CollectiveName')?.value||route.name||'Billet collectif').trim()||'Billet collectif',points,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),distance:Number(route.distance||0),duration:Number(route.duration||0),createdAt:new Date().toISOString(),appVersion:'1.0.18'};
+    return{id:uuid(),matricule:matricule(),serviceDate,departureTime:q('v30CollectiveTime')?.value||'',name:(q('v30CollectiveName')?.value||route.name||'Billet collectif').trim()||'Billet collectif',points,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),distance:Number(route.distance||0),duration:Number(route.duration||0),createdAt:new Date().toISOString(),appVersion:'1.0.21'};
   }
   async function saveCurrent(){try{const rec=currentRecord();await put(rec);window.FluoCollectiveV30?.status?.(`✅ Billet enregistré pour le ${fmtDate(rec.serviceDate)}. Tu le retrouveras dans « Mes billets collectifs ».`,`ok`);await render()}catch(e){alert(e.message||e)}}
 
@@ -5357,8 +5386,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v304DeletePast')?.addEventListener('click',async()=>{const today=ymd(),xs=(await all()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun billet collectif passé à supprimer.');if(!confirm(`Supprimer ${xs.length} billet${xs.length>1?'s':''} collectif${xs.length>1?'s':''} passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await del(x.id);await render()});
 
   window.FluoPreparedCollectivesV304={all,get,save:put,open:openLibrary};
-  document.title='Mon SAEIV · 1.0.18';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
+  document.title='Mon SAEIV · 1.0.21';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
 </script>
@@ -5506,22 +5535,22 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   window.FluoSpeedLimitsV305={build:buildProfile,limitAtAlong,get currentLimit(){return V305.currentLimit},get currentMeta(){return V305.currentMeta},get ready(){return V305.ready},get loading(){return V305.loading},state:V305};
 
   const note=document.querySelector('.fusion-note');if(note&&!q('v305SpeedNote'))note.insertAdjacentHTML('afterend','<div id="v305SpeedNote" class="fusion-note"><b>🚌 Limitations OSM non bloquantes V31</b><span>Les valeurs maxspeed OpenStreetMap sont chargées en arrière-plan et conservées 7 jours. Si une valeur manque ou si le réseau ne répond pas, le profil local 35–50–70–80 reste actif sans interrompre la simulation ni le GPS.</span></div>');
-  document.title='Mon SAEIV · 1.0.18';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
+  document.title='Mon SAEIV · 1.0.21';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
 })();
 </script>
 
 <script id="v307GpsFluidVisuals">
 'use strict';
-/* Mon SAEIV 1.0.18 — fluidité GPS visuelle continue.
+/* Mon SAEIV 1.0.21 — fluidité GPS visuelle continue.
    IMPORTANT : cette couche ne modifie jamais state.pos, state.fusion.snapped, les passages aux
    arrêts, les journaux ou la ponctualité. Elle anime uniquement le pictogramme et la caméra.
    Sur le parcours, l'animation progresse le long de la géométrie routière entre deux mesures GPS.
    Si les mesures cessent trop longtemps, la prédiction est plafonnée puis le pictogramme s'arrête. */
 (()=>{
   const M={
-    raf:null,lastFrame:0,lastFixStamp:null,lastFixPerf:0,lastFixAlong:null,lastPrevFixAlong:null,
+    raf:null,idleTimer:null,lastFrame:0,lastVisualAt:0,lastFixStamp:null,lastFixPerf:0,lastFixAlong:null,lastPrevFixAlong:null,
     lastPrevFixPerf:0,displayAlong:null,displayLat:null,displayLon:null,displayHeading:null,
     speedMps:0,mode:'route',routeToken:'',lastLeafletAt:0,lastCameraAt:0,lastIconAt:0,lastMapLat:null,lastMapLon:null
   };
@@ -5534,7 +5563,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function reset(){
     M.lastFixStamp=null;M.lastFixPerf=0;M.lastFixAlong=null;M.lastPrevFixAlong=null;M.lastPrevFixPerf=0;
     M.displayAlong=null;M.displayLat=null;M.displayLon=null;M.displayHeading=null;M.speedMps=0;M.mode='route';
-    M.lastMapLat=null;M.lastMapLon=null;
+    M.lastMapLat=null;M.lastMapLon=null;M.lastVisualAt=0;
   }
   function consumeFix(now){
     const p=state?.pos,c=p?.coords,snap=state?.fusion?.snapped;if(!p||!c)return;
@@ -5600,7 +5629,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   function renderLeaflet(now){
     const map=state?.nav?.map,marker=state?.nav?.busMarker;if(!map||!finite(M.displayLat)||!finite(M.displayLon))return;
-    if(now-M.lastLeafletAt<28)return;M.lastLeafletAt=now;
+    if(now-M.lastLeafletAt<50)return;M.lastLeafletAt=now;
     try{
       if(marker)marker.setLatLng([M.displayLat,M.displayLon]);
       else if(typeof L!=='undefined')state.nav.busMarker=L.marker([M.displayLat,M.displayLon],{icon:busIcon(M.displayHeading||0),zIndexOffset:1000,keyboard:false}).addTo(map);
@@ -5616,32 +5645,42 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function renderMapLibre(now){
     const v=window.__fluoV16,m=v?.map3d;if(!m||!v?.mapLoaded||!finite(M.displayLat)||!finite(M.displayLon))return;
     try{v.busMarker?.setLngLat([M.displayLon,M.displayLat]);v.busMarker?.setRotation?.(M.displayHeading||0)}catch{}
-    if(now-M.lastCameraAt<34||!state?.nav?.follow)return;M.lastCameraAt=now;
+    if(now-M.lastCameraAt<80||!state?.nav?.follow)return;M.lastCameraAt=now;
     try{
       const mode=v.mapMode||'3d',common=mode==='3d'
         ? {center:[M.displayLon,M.displayLat],zoom:16.7,pitch:55,bearing:M.displayHeading||0,offset:[0,Math.min(115,window.innerHeight*.18)]}
         : {center:[M.displayLon,M.displayLat],zoom:16.1,pitch:0,bearing:mode==='heading'?(M.displayHeading||0):0,offset:[0,mode==='heading'?Math.min(75,window.innerHeight*.12):0]};
-      // jumpTo à ~30 fps donne une caméra continue pilotée par notre interpolation ; aucun easeTo
+      // jumpTo à ~12,5 fps garde une caméra fluide tout en limitant fortement la charge GPU ; aucun easeTo
       // ne reste en attente et aucun mouvement ne s'empile entre deux positions GPS.
       m.jumpTo(common);
     }catch{}
   }
+  function scheduleFrame(active){
+    if(active){M.raf=requestAnimationFrame(frame);return}
+    if(M.idleTimer!==null)return;
+    M.idleTimer=setTimeout(()=>{M.idleTimer=null;M.raf=requestAnimationFrame(frame)},250);
+  }
   function frame(ts){
-    M.raf=requestAnimationFrame(frame);
-    if(document.hidden||!state?.running||state.mode!=='gps'||!state.pos){M.lastFrame=ts;return}
+    const active=!document.hidden&&!!state?.running&&state.mode==='gps'&&!!state.pos;
+    if(!active){M.lastFrame=ts;M.lastVisualAt=ts;scheduleFrame(false);return}
+    scheduleFrame(true);
+    // V1.0.21 stabilité iOS : interpolation à 20 i/s, caméra 3D à ~12,5 i/s.
+    // C'est largement plus fluide que le GPS natif (~1 Hz), sans saturer CPU/GPU en permanence.
+    if(M.lastVisualAt&&ts-M.lastVisualAt<50)return;
+    M.lastVisualAt=ts;
     const token=routeToken();if(token!==M.routeToken){M.routeToken=token;reset()}
     consumeFix(ts);
-    const dt=M.lastFrame?clamp((ts-M.lastFrame)/1000,.001,.08):1/60;M.lastFrame=ts;
+    const dt=M.lastFrame?clamp((ts-M.lastFrame)/1000,.001,.12):1/20;M.lastFrame=ts;
     if(M.mode==='route')updateRouteDisplay(ts,dt);else updateFreeDisplay(dt);
     renderLeaflet(ts);renderMapLibre(ts);
   }
   window.MonSAEIVVisualGPS={
     getDisplay:()=>finite(M.displayLat)&&finite(M.displayLon)?{lat:Number(M.displayLat),lon:Number(M.displayLon),heading:finite(M.displayHeading)?Number(M.displayHeading):Number(state?.nav?.lastHeading||0),along:finite(M.displayAlong)?Number(M.displayAlong):null,mode:M.mode}:null,
     reset,
-    diagnostics:()=>({mode:M.mode,speedMps:M.speedMps,displayAlong:M.displayAlong,lastFixAlong:M.lastFixAlong,lastFixAgeMs:M.lastFixPerf?performance.now()-M.lastFixPerf:null})
+    diagnostics:()=>({mode:M.mode,speedMps:M.speedMps,displayAlong:M.displayAlong,lastFixAlong:M.lastFixAlong,lastFixAgeMs:M.lastFixPerf?performance.now()-M.lastFixPerf:null,visualFps:20,cameraFps:12.5})
   };
-  M.raf=requestAnimationFrame(frame);
-  window.addEventListener('pagehide',()=>{if(M.raf)cancelAnimationFrame(M.raf)},{once:true});
+  scheduleFrame(false);
+  window.addEventListener('pagehide',()=>{if(M.raf)cancelAnimationFrame(M.raf);if(M.idleTimer!==null)clearTimeout(M.idleTimer)},{once:true});
 })();
 </script>
 
@@ -5895,12 +5934,12 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     }
   `;document.head.appendChild(css);
   [q('routeBadge'),q('headsign'),q('next'),q('v15Line'),q('v15Destination'),q('v15NextStop'),q('simControls')].filter(Boolean).forEach(el=>new MutationObserver(()=>setTimeout(syncFullTexts,0)).observe(el,{attributes:true,childList:true,subtree:true,characterData:true}));
-  setInterval(syncFullTexts,700);syncFullTexts();
+  setInterval(()=>{if(!document.hidden&&state?.running)syncFullTexts()},2200);syncFullTexts();
 })();
 </script>
 
 <script id="v309FinalLabel">
-(()=>{const apply=()=>{document.title='Mon SAEIV · 1.0.18';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
+(()=>{const apply=()=>{document.title='Mon SAEIV · 1.0.21';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
 // V31.4 : liaison finale après toutes les extensions historiques de l'interface.
 // La délégation reste valide même si un bouton est déplacé ou recréé par une extension.
 (()=>{const modes={regularMode:'regular',tadMode:'tad',formationMode:'formation'};
@@ -5991,7 +6030,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     syncVoice();
   }
   [q('v29DeviationBtn'),q('headsign'),q('routeBadge'),q('simControls')].filter(Boolean).forEach(el=>new MutationObserver(()=>setTimeout(syncValidated,0)).observe(el,{attributes:true,childList:true,subtree:true,characterData:true}));
-  q('startStop')?.addEventListener('change',syncValidated);setInterval(syncValidated,550);
+  q('startStop')?.addEventListener('change',syncValidated);setInterval(()=>{if(!document.hidden&&state?.running)syncValidated()},2200);
 
   const css=document.createElement('style');css.id='v315ValidatedLandscapeStyle';css.textContent=`
     @media(orientation:landscape){
@@ -6076,8 +6115,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   `;document.head.appendChild(css);
 
   syncValidated();
-  document.title='Mon SAEIV · 1.0.18';
-  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';
+  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.21';
 })();
 </script>
 
@@ -6404,7 +6443,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Mon SAEIV · 1.0.18';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.18';
+  document.title='Mon SAEIV · 1.0.21';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.21';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -6814,7 +6853,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v1015MultiNetworkUrban">
 'use strict';
-/* Mon SAEIV 1.0.18 — extension multiréseaux Luxembourg.
+/* Mon SAEIV 1.0.21 — extension multiréseaux Luxembourg.
    - Réseau interurbain : fonctionnement Fluo historique inchangé.
    - Réseaux urbains : LE MET’, TeMo’b, STAN, AVL, TICE et Diffbus via leurs GTFS officiels.
    - Réseau interurbain complémentaire : RGTR Luxembourg via le GTFS national officiel.
@@ -7176,11 +7215,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const q=id=>document.getElementById(id);
   q('v3127UsageContinue')?.addEventListener('click',()=>q('v3127UsageNotice')?.classList.add('hidden'));
   const label=()=>{
-    document.title='Mon SAEIV · 1.0.18';
+    document.title='Mon SAEIV · 1.0.21';
     const eyebrow=document.querySelector('.top .eyebrow');
-    if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.18';
+    if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.21';
     const b=q('buildInfo');
-    if(b)b.textContent='Version 1.0.18';
+    if(b)b.textContent='Version 1.0.21';
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{label();setTimeout(label,4000)});
   else{label();setTimeout(label,4000)}
@@ -7190,12 +7229,12 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 <script id="monSaevIdentity101">
 (()=>{
   const apply=()=>{
-    document.title='Mon SAEIV · 1.0.18';
-    const eyebrow=document.querySelector('.top .eyebrow'); if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.18';
+    document.title='Mon SAEIV · 1.0.21';
+    const eyebrow=document.querySelector('.top .eyebrow'); if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.21';
     const h1=document.querySelector('.top h1'); if(h1) h1.textContent='Mon SAEIV';
     const sub=document.querySelector('.top .sub'); if(sub) sub.textContent='Interurbain · Urbain · Fluo · RGTR · LE MET’ · TeMo’b · STAN · AVL · TICE · Diffbus';
     const usage=document.getElementById('v3127UsageTitle'); if(usage) usage.textContent='Mon SAEIV';
-    const authLogo=document.querySelector('.v13-logo'); if(authLogo && /MON SAEIV/.test(authLogo.textContent||'')) authLogo.textContent='MON SAEIV · 1.0.18';
+    const authLogo=document.querySelector('.v13-logo'); if(authLogo && /MON SAEIV/.test(authLogo.textContent||'')) authLogo.textContent='MON SAEIV · 1.0.21';
     const build=document.getElementById('buildInfo'); if(build){build.hidden=true;build.setAttribute('aria-hidden','true');}
     document.querySelectorAll('.audio-note,.fusion-note,#v305SpeedNote').forEach(el=>el.remove());
   };
@@ -7205,7 +7244,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 <script id="monSaevV102JournalPdf">
-/* Mon SAEIV 1.0.18 - export PDF des journaux, sans dépendance externe. */
+/* Mon SAEIV 1.0.21 - export PDF des journaux, sans dépendance externe. */
 (()=>{
   const q=id=>document.getElementById(id), DB='fluo-saeiv-journal-v13', ACCOUNT='fluoSaeivAccountV13';
   const PAGE_W=595.28,PAGE_H=841.89,M=42,CONTENT_W=PAGE_W-2*M;
@@ -7229,7 +7268,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const para=(str,size=9,bold=false,indent=0,gap=3)=>{const ls=wrap(str,size,CONTENT_W-indent);for(const l of ls){if(y<60)newPage();text(M+indent,y,size,l,bold);y-=size+gap}};
     const heading=(str)=>{if(y<95)newPage();y-=4;text(M,y,14,str,true);y-=20;line(M,y+6,PAGE_W-M,y+6,1)};
     newPage();
-    text(M,y,10,'MON SAEIV - EXPORT DES JOURNAUX',true);text(PAGE_W-M-145,y,8,`Version 1.0.18`,false);y-=22;
+    text(M,y,10,'MON SAEIV - EXPORT DES JOURNAUX',true);text(PAGE_W-M-145,y,8,`Version 1.0.21`,false);y-=22;
     para(`Conducteur : ${account()?.matricule||sessions[0]?.matricule||'-'}`,10,true);para(`Export genere le ${dt(new Date().toISOString())}`,8);y-=8;
     sessions.forEach((s,idx)=>{
       if(idx>0){newPage()}
@@ -7272,11 +7311,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 <script id="monSaevV103GpsReliability">
-/* Mon SAEIV 1.0.18 — fiabilisation géométrie, recalcul automatique et guidage routier. */
+/* Mon SAEIV 1.0.21 — fiabilisation géométrie, recalcul automatique et guidage routier. */
 'use strict';
 (()=>{
   const q=id=>document.getElementById(id);
-  const VERSION='1.0.18';
+  const VERSION='1.0.21';
   const GAP_M=650;
   const REPAIR_KEY='monSaevV103RoadGapCache';
   const GUIDANCE_KEY='monSaevV103GuidanceCache';
@@ -7539,7 +7578,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v107IntegratedRadio">
 'use strict';
-/* Mon SAEIV 1.0.18 — radio intégrée : interface mobile robuste, volume multi-plateforme et coupure iOS pendant les voix. */
+/* Mon SAEIV 1.0.21 — radio intégrée : interface mobile robuste, volume multi-plateforme et coupure iOS pendant les voix. */
 (()=>{
   const q=id=>document.getElementById(id), escR=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const API='https://de1.api.radio-browser.info';
@@ -7619,7 +7658,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     .v107-radio-sheet{width:min(780px,98vw);max-height:min(92dvh,850px);display:flex;flex-direction:column;overflow:hidden;border:1px solid #355163;border-radius:20px;background:#081722;box-shadow:0 24px 80px rgba(0,0,0,.62)}.v107-radio-head{padding:14px 16px;border-bottom:1px solid #284250}.v107-radio-head p{margin:5px 0 0;color:#9db0bc;font-size:.78rem}.v107-now{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px 16px;background:#0d202c;border-bottom:1px solid #284250}.v107-now span{display:block;color:#ffd000;font-size:.62rem;font-weight:1000;letter-spacing:.1em}.v107-now strong{display:block;margin-top:3px;font-size:1.05rem}.v107-now small{display:block;margin-top:3px;color:#9fb1bd}.v107-now-actions{display:flex;gap:5px;align-items:start;flex-wrap:wrap}.v107-now-actions button{padding:7px 9px;font-size:.72rem}.v107-volume{grid-column:1/-1;display:grid;grid-template-columns:auto minmax(120px,1fr) 62px;align-items:center;gap:8px;font-size:.72rem}.v107-volume input{width:100%}.v107-volume b{text-align:right}.v107-volume small{grid-column:1/-1;color:#8fa5b2;font-size:.62rem;line-height:1.35}.v107-tabs{display:flex;gap:6px;padding:10px 16px 5px;overflow-x:auto}.v107-tabs button{flex:0 0 auto;padding:7px 10px;font-size:.7rem}.v107-tabs button.active{background:#ffd000;color:#111820;border-color:#ffd000}.v107-search{display:flex;gap:6px;padding:6px 16px}.v107-search input{flex:1;min-width:0}.v107-radio-status{min-height:22px;padding:0 16px 5px;color:#9fb1bd;font-size:.72rem}.v107-radio-status.ok{color:#69df92}.v107-radio-status.err{color:#ff8c87}.v107-radio-status.busy{color:#ffd000}.v107-radio-results{padding:4px 16px 14px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(68px,auto);align-content:start;gap:7px;flex:1 1 260px;min-height:150px;-webkit-overflow-scrolling:touch}.v107-station{display:grid;grid-template-columns:minmax(0,1fr) 48px;min-height:68px;height:auto;border:1px solid #294554;border-radius:12px;background:#0b1d28;overflow:hidden}.v107-station-main{border:0;border-radius:0;background:transparent;text-align:left;padding:10px 12px;min-width:0;min-height:68px;height:auto;display:flex;flex-direction:column;justify-content:center;overflow:hidden}.v107-station-main strong{display:block;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v107-station-main span{display:block;margin-top:4px;color:#91a8b6;font-size:.66rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v107-star{border:0;border-left:1px solid #294554;border-radius:0;background:#102632;color:#ffd000;font-size:1.2rem}.v107-radio-empty{grid-column:1/-1;padding:20px;text-align:center;color:#91a8b6}.v107-custom{margin:0 16px 14px;border:1px solid #294554;border-radius:12px;padding:8px 10px}.v107-custom summary{cursor:pointer;font-size:.72rem;color:#a8bbc6}.v107-custom>div{display:grid;grid-template-columns:1fr 1.5fr auto;gap:6px;margin-top:8px}
     @media(max-width:680px){.v107-radio-backdrop{padding:0;align-items:flex-end}.v107-radio-sheet{width:100%;max-height:94dvh;border-radius:20px 20px 0 0}.v107-radio-results{grid-template-columns:1fr}.v107-now{grid-template-columns:1fr}.v107-custom>div{grid-template-columns:1fr}.v107-radio-head p{font-size:.7rem}.v107-tabs{padding-left:10px;padding-right:10px}.v107-search,.v107-radio-results{padding-left:10px;padding-right:10px}}
     @media(orientation:landscape) and (max-height:650px){.v107-radio-backdrop,.v107-nav-backdrop{padding:5px}.v107-radio-sheet{max-height:97dvh;border-radius:14px}.v107-radio-head{padding:7px 10px}.v107-radio-head p{display:none}.v107-now{padding:7px 10px}.v107-tabs{padding:5px 10px 2px}.v107-search{padding:4px 10px}.v107-radio-results{padding:3px 10px 7px;min-height:125px}.v107-custom{display:none}.v107-nav-sheet{max-height:96dvh;overflow:auto}}
-    /* 1.0.18 : liste volontairement en flex plutôt qu'en grille. Safari iOS comprimait certaines cartes de stations. */
+    /* 1.0.21 : liste volontairement en flex plutôt qu'en grille. Safari iOS comprimait certaines cartes de stations. */
     .v111-radio-results{display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:9px!important;overflow-y:auto!important;overflow-x:hidden!important;min-height:180px!important}
     .v111-station{box-sizing:border-box!important;display:flex!important;flex:0 0 auto!important;width:100%!important;min-width:0!important;height:78px!important;min-height:78px!important;max-height:none!important;margin:0!important;padding:0!important;border:1px solid #355668!important;border-radius:13px!important;background:#0b1d28!important;overflow:hidden!important}
     .v111-station-main{box-sizing:border-box!important;display:flex!important;flex:1 1 auto!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;width:auto!important;min-width:0!important;height:76px!important;min-height:76px!important;max-height:none!important;margin:0!important;padding:10px 12px!important;border:0!important;border-radius:0!important;background:transparent!important;color:#f4fbff!important;text-align:left!important;overflow:hidden!important}
@@ -7649,7 +7688,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v108CashRegister">
 'use strict';
-/* Mon SAEIV 1.0.18 — Ma caisse : fonds personnalisable, ventes par titres ou montant global, récapitulatif jour/semaine/mois. */
+/* Mon SAEIV 1.0.21 — Ma caisse : fonds personnalisable, ventes par titres ou montant global, récapitulatif jour/semaine/mois. */
 (()=>{
   const q=id=>document.getElementById(id);
   const ACCOUNT_KEY='fluoSaeivAccountV13';
@@ -7662,7 +7701,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const NETWORK_LABELS={fluo:'Fluo Grand Est',stan:'STAN · Nancy',lemet:"LE MET’ · Metz",temob:"TeMo’b · Thionville / Fensch",rgtr:'RGTR · Luxembourg',avl:'AVL · Luxembourg-Ville',tice:'TICE · Esch / Sud Luxembourg',diffbus:'Diffbus · Differdange'};
   const key=()=>`${BASE}:${user()}:${driverNetwork()}`;
   const legacyKey=()=>`${BASE}:${user()}`;
-  const uid=()=>crypto.randomUUID?crypto.randomUUID():`cash-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const uid=()=>{try{if(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function')return globalThis.crypto.randomUUID()}catch{}return `cash-${Date.now()}-${Math.random().toString(36).slice(2)}`};
   const CATALOGS={
     fluo:{label:'Fluo Grand Est · hors Bas-Rhin',note:'Titres de cars Fluo hors Bas-Rhin. Tarifs officiels actuellement publiés : 4 € en ligne régulière, 2 € en ligne scolaire, et moitié prix avec carte Fluo / Solidaire.',items:[
       ['fluoUnit','Ticket unitaire',4],['fluoSchool','Ticket unitaire · ligne scolaire',2],['fluoReduced','Ticket unitaire réduit · carte Fluo / Solidaire',2],['fluoSchoolReduced','Ticket unitaire réduit · ligne scolaire',1]
@@ -7687,7 +7726,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   let period='today';
   function empty(){return {fund:50,sales:[],catalog:allowedCatalogs()[0]||'',updatedAt:new Date().toISOString()}}
   function read(){try{let raw=localStorage.getItem(key()),x=raw?JSON.parse(raw):null;if(!x){const legacy=JSON.parse(localStorage.getItem(legacyKey())||'null');if(legacy)x={fund:legacy.fund,sales:(legacy.sales||[]).filter(s=>catalogNetwork(s.catalog)===driverNetwork()),catalog:legacy.catalog,updatedAt:legacy.updatedAt};}if(!x)return empty();const allowed=allowedCatalogs(),cat=allowed.includes(x.catalog)?x.catalog:(allowed[0]||'');return {fund:Number.isFinite(Number(x.fund))?Number(x.fund):50,sales:Array.isArray(x.sales)?x.sales:[],catalog:cat,updatedAt:x.updatedAt||null}}catch{return empty()}}
-  function write(x){x.updatedAt=new Date().toISOString();localStorage.setItem(key(),JSON.stringify(x));return x}
+  function write(x){x.updatedAt=new Date().toISOString();const storageKey=key(),payload=JSON.stringify(x);try{localStorage.setItem(storageKey,payload);if(localStorage.getItem(storageKey)!==payload)throw new Error('Vérification du stockage impossible');return x}catch(err){console.error('[Ma caisse] Échec enregistrement local',err);throw new Error('Impossible d’enregistrer la caisse sur cet appareil.')}}
   function fmtDate(v){try{return new Date(`${v}T12:00:00`).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}catch{return v||'—'}}
   function inPeriod(date,p=period){if(p==='all')return true;const d=new Date(`${date}T12:00:00`),n=new Date();n.setHours(12,0,0,0);if(p==='today')return date===today();if(p==='month')return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth();if(p==='week'){const day=(n.getDay()+6)%7,start=new Date(n);start.setDate(n.getDate()-day);const end=new Date(start);end.setDate(start.getDate()+7);return d>=start&&d<end}return true}
   function filtered(){return read().sales.filter(x=>inPeriod(x.date))}
@@ -7702,45 +7741,61 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const br=breakdown(xs),b=q('v108CashBreakdown');if(b)b.innerHTML=br.length?br.map(x=>`<tr><td>${esc(x.network)}</td><td>${esc(x.label)}</td><td>${money(x.unit)}</td><td>${x.qty}</td><td>${money(x.total)}</td></tr>`).join(''):`<tr><td colspan="5" class="v108-empty-cell">Aucune vente détaillée sur cette période.</td></tr>`;
     const h=q('v108CashHistory');if(h)h.innerHTML=xs.length?xs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt).localeCompare(String(a.createdAt))).map(x=>`<article class="v108-sale" data-v108-sale="${esc(x.id)}"><div><strong>${esc(fmtDate(x.date))} · ${money(x.total)}</strong><span>${esc(x.networkLabel||CATALOGS[x.catalog]?.label||'Réseau non précisé')} · ${x.mode==='global'?'Montant global':`${titleCount([x])} titre${titleCount([x])>1?'s':''}`}${x.note?` · ${esc(x.note)}`:''}</span></div><button type="button" class="danger" data-v108-delete="${esc(x.id)}">Supprimer</button></article>`).join(''):'<div class="v108-empty">Aucune vente enregistrée sur cette période.</div>';
   }
-  function renderCatalog(){const d=read(),allowed=allowedCatalogs(),sel=q('v108CashCatalog'),note=q('v108CashCatalogNote'),box=q('v108CashTitleRows');if(sel){sel.innerHTML=allowed.length?allowed.map(k=>`<option value="${esc(k)}">${esc(CATALOGS[k].label)}</option>`).join(''):`<option value="">${esc(NETWORK_LABELS[driverNetwork()]||'Réseau')} · saisie globale uniquement</option>`;sel.disabled=!allowed.length;sel.value=d.catalog||''}if(!allowed.length){if(note)note.textContent=`Aucun barème de titres conducteur n’est encore intégré pour ${NETWORK_LABELS[driverNetwork()]||'ce réseau'}. Utilise « Montant global » : aucun tarif d’un autre réseau n’est affiché.`;if(box)box.innerHTML='';setEntryMode('global');calcDetail();return}const cat=CATALOGS[d.catalog]||CATALOGS[allowed[0]];if(note)note.textContent=cat.note;if(box)box.innerHTML=cat.items.map(([code,label,price])=>`<label class="v108-title-row" data-code="${esc(code)}" data-label="${esc(label)}" data-unit="${price}"><span><b>${esc(label)}</b><small>${money(price)} / titre</small></span><input type="number" min="0" max="999" step="1" value="0" inputmode="numeric" aria-label="Quantité ${esc(label)}"></label>`).join('');calcDetail()}
+  function renderCatalog(){const d=read(),allowed=allowedCatalogs(),sel=q('v108CashCatalog'),note=q('v108CashCatalogNote'),box=q('v108CashTitleRows');if(sel){sel.innerHTML=allowed.length?allowed.map(k=>`<option value="${esc(k)}">${esc(CATALOGS[k].label)}</option>`).join(''):`<option value="">${esc(NETWORK_LABELS[driverNetwork()]||'Réseau')} · saisie globale uniquement</option>`;sel.disabled=!allowed.length;sel.value=d.catalog||''}if(!allowed.length){if(note)note.textContent=`Aucun barème de titres conducteur n’est encore intégré pour ${NETWORK_LABELS[driverNetwork()]||'ce réseau'}. Utilise « Montant global » : aucun tarif d’un autre réseau n’est affiché.`;if(box)box.innerHTML='';setEntryMode('global');calcDetail();return}const cat=CATALOGS[d.catalog]||CATALOGS[allowed[0]];if(note)note.textContent=cat.note;if(box)box.innerHTML=cat.items.map(([code,label,price])=>`<div class="v108-title-row" data-code="${esc(code)}" data-label="${esc(label)}" data-unit="${price}"><span><b>${esc(label)}</b><small>${money(price)} / titre</small></span><div class="v121-qty-stepper"><button type="button" data-v121-step="-1" aria-label="Retirer un ${esc(label)}">−</button><input type="number" min="0" max="999" step="1" value="0" inputmode="numeric" aria-label="Quantité ${esc(label)}"><button type="button" data-v121-step="1" aria-label="Ajouter un ${esc(label)}">+</button></div></div>`).join('');calcDetail()}
   function calcDetail(){let t=0,c=0;document.querySelectorAll('#v108CashTitleRows .v108-title-row').forEach(r=>{const qn=Math.max(0,Math.floor(Number(r.querySelector('input')?.value)||0));t+=qn*(Number(r.dataset.unit)||0);c+=qn});const cq=Math.max(0,Math.floor(Number(q('v108CashCustomQty')?.value)||0)),cp=Math.max(0,Number(q('v108CashCustomPrice')?.value)||0);if(cq&&cp){t+=cq*cp;c+=cq}if(q('v108CashDetailTotal'))q('v108CashDetailTotal').textContent=`${c} titre${c>1?'s':''} · ${money(t)}`;return {total:Math.round(t*100)/100,count:c}}
   function setEntryMode(mode){document.querySelectorAll('[data-v108-mode]').forEach(b=>b.classList.toggle('active',b.dataset.v108Mode===mode));q('v108CashDetailed')?.classList.toggle('hidden',mode!=='detail');q('v108CashGlobal')?.classList.toggle('hidden',mode!=='global');q('v108CashEntry')?.setAttribute('data-mode',mode)}
   function openCash(opts={}){q('v108CashSheet')?.classList.remove('hidden');if(opts.today)period='today';const d=read();q('v108CashFund').value=Number(d.fund).toFixed(2);q('v108CashDate').value=opts.date||today();const detail=document.querySelector('[data-v108-mode="detail"]');if(detail)detail.disabled=!allowedCatalogs().length;renderCatalog();renderSummary();setEntryMode(allowedCatalogs().length?'detail':'global');}
   function closeCash(){q('v108CashSheet')?.classList.add('hidden')}
   function saveFund(){const n=Number(String(q('v108CashFund')?.value||'').replace(',','.'));if(!Number.isFinite(n)||n<0)return alert('Saisis un fonds de caisse valide.');const d=read();d.fund=Math.round(n*100)/100;write(d);renderSummary();q('v108CashStatus').textContent=`Fonds de caisse enregistré : ${money(d.fund)}.`}
   function saveSale(){
-    const date=q('v108CashDate')?.value||today(),mode=q('v108CashEntry')?.getAttribute('data-mode')||'detail',d=read();let rec={id:uid(),date,mode,catalog:d.catalog,driverNetwork:driverNetwork(),networkLabel:CATALOGS[d.catalog]?.label||NETWORK_LABELS[driverNetwork()]||'Réseau',items:[],total:0,note:(q('v108CashNote')?.value||'').trim(),createdAt:new Date().toISOString()};
-    if(mode==='global'){
-      const n=Number(String(q('v108CashGlobalAmount')?.value||'').replace(',','.'));if(!Number.isFinite(n)||n<=0)return alert('Saisis un montant supérieur à 0 €.');rec.total=Math.round(n*100)/100;
-    }else{
-      document.querySelectorAll('#v108CashTitleRows .v108-title-row').forEach(r=>{const qty=Math.max(0,Math.floor(Number(r.querySelector('input')?.value)||0)),unit=Number(r.dataset.unit)||0;if(qty)rec.items.push({code:r.dataset.code,label:r.dataset.label,unit,qty,total:Math.round(unit*qty*100)/100})});
-      const qty=Math.max(0,Math.floor(Number(q('v108CashCustomQty')?.value)||0)),unit=Math.max(0,Number(String(q('v108CashCustomPrice')?.value||'').replace(',','.'))||0),label=(q('v108CashCustomLabel')?.value||'Titre personnalisé').trim()||'Titre personnalisé';if(qty&&unit)rec.items.push({code:'custom',label,unit,qty,total:Math.round(unit*qty*100)/100});rec.total=Math.round(rec.items.reduce((a,i)=>a+i.total,0)*100)/100;if(rec.total<=0)return alert('Indique au moins une quantité de titre vendue.');
+    const status=q('v108CashStatus');
+    try{
+      const date=q('v108CashDate')?.value||today(),mode=q('v108CashEntry')?.getAttribute('data-mode')||'detail',d=read(),allowed=allowedCatalogs();
+      if(!Array.isArray(d.sales))d.sales=[];
+      if(mode==='detail'){
+        const selected=q('v108CashCatalog')?.value||'';
+        d.catalog=allowed.includes(selected)?selected:(allowed.includes(d.catalog)?d.catalog:(allowed[0]||''));
+        if(!d.catalog||!CATALOGS[d.catalog])throw new Error('Aucun catalogue de titres disponible pour ce réseau.');
+      }
+      let rec={id:uid(),date,mode,catalog:d.catalog,driverNetwork:driverNetwork(),networkLabel:CATALOGS[d.catalog]?.label||NETWORK_LABELS[driverNetwork()]||'Réseau',items:[],total:0,note:(q('v108CashNote')?.value||'').trim(),createdAt:new Date().toISOString()};
+      if(mode==='global'){
+        const n=Number(String(q('v108CashGlobalAmount')?.value||'').replace(',','.'));if(!Number.isFinite(n)||n<=0)return alert('Saisis un montant supérieur à 0 €.');rec.total=Math.round(n*100)/100;
+      }else{
+        document.querySelectorAll('#v108CashTitleRows .v108-title-row').forEach(r=>{const input=r.querySelector('input'),qty=Math.max(0,Math.floor(Number(String(input?.value??'0').replace(',','.'))||0)),unit=Number(r.dataset.unit)||0;if(qty)rec.items.push({code:r.dataset.code||'',label:r.dataset.label||'Titre',unit,qty,total:Math.round(unit*qty*100)/100})});
+        const qty=Math.max(0,Math.floor(Number(String(q('v108CashCustomQty')?.value||'0').replace(',','.'))||0)),unit=Math.max(0,Number(String(q('v108CashCustomPrice')?.value||'').replace(',','.'))||0),label=(q('v108CashCustomLabel')?.value||'Titre personnalisé').trim()||'Titre personnalisé';if(qty&&unit)rec.items.push({code:'custom',label,unit,qty,total:Math.round(unit*qty*100)/100});
+        rec.total=Math.round(rec.items.reduce((a,i)=>a+i.total,0)*100)/100;if(rec.total<=0)return alert('Indique au moins une quantité de titre vendue.');
+      }
+      d.sales=[...d.sales,rec];write(d);
+      const persisted=read().sales.some(s=>s.id===rec.id);if(!persisted)throw new Error('La vente n’a pas été retrouvée après enregistrement.');
+      if(status)status.textContent=`Vente ajoutée : ${money(rec.total)}.`;
+      if(q('v108CashGlobalAmount'))q('v108CashGlobalAmount').value='';if(q('v108CashNote'))q('v108CashNote').value='';if(q('v108CashCustomLabel'))q('v108CashCustomLabel').value='';if(q('v108CashCustomPrice'))q('v108CashCustomPrice').value='';if(q('v108CashCustomQty'))q('v108CashCustomQty').value='0';renderCatalog();renderSummary();
+    }catch(err){
+      console.error('[Ma caisse] Ajout impossible',err);if(status)status.textContent=`Erreur : ${err?.message||'ajout impossible'}`;alert(`Impossible d’ajouter cette vente à la caisse.\n${err?.message||''}`.trim());
     }
-    d.sales.push(rec);write(d);q('v108CashStatus').textContent=`Vente ajoutée : ${money(rec.total)}.`;q('v108CashGlobalAmount').value='';q('v108CashNote').value='';q('v108CashCustomLabel').value='';q('v108CashCustomPrice').value='';q('v108CashCustomQty').value='0';renderCatalog();renderSummary();
   }
 
   const menu=q('v316MenuItems');if(menu&&!q('v108CashBtn')){const b=document.createElement('button');b.id='v108CashBtn';b.type='button';b.className='v316-menu-entry';b.textContent='💶 Ma caisse';const radio=q('v107RadioMainBtn'),admin=q('v29AdminBtn');(radio||admin)?.insertAdjacentElement('beforebegin',b);if(!b.parentElement)menu.appendChild(b)}
   const todayActions=document.querySelector('#v316TodayPanel .v316-today-actions');if(todayActions&&!q('v108TodayCashBtn')){const b=document.createElement('button');b.id='v108TodayCashBtn';b.type='button';b.textContent='💶 Faire ma caisse';todayActions.appendChild(b)}
   if(!q('v108CashSheet'))document.body.insertAdjacentHTML('beforeend',`<div id="v108CashSheet" class="v108-backdrop hidden" role="dialog" aria-modal="true" aria-label="Ma caisse"><section class="v108-sheet"><header class="v108-head"><div><div class="eyebrow">MON SAEIV</div><h2>💶 Ma caisse</h2><p>Suivi local de ton fonds de caisse et des ventes enregistrées.</p></div><button id="v108CashClose" type="button">Fermer</button></header><div class="v108-scroll"><section class="v108-fund"><label>Fonds de caisse (€)<input id="v108CashFund" type="number" min="0" step="0.01" inputmode="decimal"></label><button id="v108CashSaveFund" type="button">Enregistrer le fonds</button><small>50 € sont proposés au premier démarrage, mais tu peux saisir ton propre montant.</small></section><nav class="v108-periods"><button type="button" data-v108-period="today" class="active">Aujourd’hui</button><button type="button" data-v108-period="week">Semaine</button><button type="button" data-v108-period="month">Mois</button><button type="button" data-v108-period="all">Tout</button></nav><div id="v108CashMetrics" class="v108-metrics"></div><section id="v108CashEntry" class="v108-entry" data-mode="detail"><div class="v108-section-head"><div><h3>Ajouter des ventes</h3><p>La date est renseignée automatiquement mais reste modifiable.</p></div></div><div class="v108-entry-top"><label>Date<input id="v108CashDate" type="date"></label><label>Note facultative<input id="v108CashNote" type="text" maxlength="80" placeholder="Ex. service du matin"></label></div><div class="v108-mode-tabs"><button type="button" class="active" data-v108-mode="detail">Par titres vendus</button><button type="button" data-v108-mode="global">Montant global</button></div><div id="v108CashDetailed"><div class="v108-catalog-head"><label>Réseau / tarification<select id="v108CashCatalog"><option value="fluo">Fluo Grand Est · hors Bas-Rhin</option><option value="fluo67">Fluo Grand Est · Bas-Rhin</option><option value="stan">STAN · Nancy</option><option value="lemet">LE MET’ · Metz</option><option value="temob">TeMo’b · Thionville / Fensch</option></select></label><small id="v108CashCatalogNote"></small></div><div id="v108CashTitleRows" class="v108-title-list"></div><details class="v108-custom-title"><summary>Ajouter un titre non présent dans la liste</summary><div><input id="v108CashCustomLabel" type="text" placeholder="Nom du titre"><input id="v108CashCustomPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Prix €"><input id="v108CashCustomQty" type="number" min="0" step="1" inputmode="numeric" value="0" placeholder="Qté"></div></details><div class="v108-entry-total"><span>Total de la saisie</span><b id="v108CashDetailTotal">0 titre · 0,00 €</b></div></div><div id="v108CashGlobal" class="hidden"><label>Montant total des ventes à ajouter (€)<input id="v108CashGlobalAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label><p>Utilise cette saisie lorsque tu veux ajouter directement un montant sans détailler les titres vendus.</p></div><button id="v108CashSaveSale" class="primary full" type="button">＋ Ajouter à ma caisse</button><div id="v108CashStatus" class="v108-status"></div></section><section class="v108-report"><h3>Récapitulatif par titre</h3><div class="v108-table-wrap"><table><thead><tr><th>Réseau</th><th>Titre</th><th>Tarif</th><th>Qté</th><th>Total</th></tr></thead><tbody id="v108CashBreakdown"></tbody></table></div></section><section class="v108-history"><h3>Historique de la période</h3><div id="v108CashHistory"></div></section><p class="v108-source-note">Les tarifs préremplis correspondent aux barèmes officiels consultés pour chaque réseau et servent d’aide à la saisie. Les conditions de vente et documents de référence de l’exploitant restent prioritaires.</p></div></section></div>`);
   const style=document.createElement('style');style.id='v108CashStyle';style.textContent=`
-    .v108-backdrop{position:fixed;inset:0;z-index:5200;background:rgba(2,8,12,.8);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:12px}.v108-backdrop.hidden{display:none!important}.v108-sheet{width:min(980px,98vw);max-height:94dvh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #355163;border-radius:21px;background:#081722;box-shadow:0 25px 80px rgba(0,0,0,.64)}.v108-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:14px 16px;border-bottom:1px solid #294453}.v108-head h2{margin:2px 0}.v108-head p{margin:4px 0 0;color:#9db0bc;font-size:.75rem}.v108-scroll{overflow:auto;padding:13px 16px 18px}.v108-fund{display:grid;grid-template-columns:minmax(180px,260px) auto 1fr;gap:8px;align-items:end;padding:10px;border:1px solid #355163;border-radius:13px;background:#0b1d28}.v108-fund label{font-size:.68rem}.v108-fund input{margin-top:4px}.v108-fund small{color:#8fa5b2;font-size:.62rem;line-height:1.35}.v108-periods,.v108-mode-tabs{display:flex;gap:6px;overflow-x:auto;margin-top:10px}.v108-periods button,.v108-mode-tabs button{flex:0 0 auto}.v108-periods button.active,.v108-mode-tabs button.active{background:#ffd000;color:#111820;border-color:#ffd000}.v108-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:9px}.v108-metrics>div{padding:10px;border:1px solid #355163;border-radius:12px;background:#0a1c26}.v108-metrics span{display:block;color:#8fa5b2;font-size:.56rem;font-weight:900;letter-spacing:.05em}.v108-metrics b{display:block;margin-top:4px;font-size:1rem}.v108-entry,.v108-report,.v108-history{margin-top:11px;padding:12px;border:1px solid #355163;border-radius:14px;background:#091a24}.v108-section-head h3,.v108-report h3,.v108-history h3{margin:0}.v108-section-head p{margin:3px 0 0;color:#8fa5b2;font-size:.64rem}.v108-entry-top{display:grid;grid-template-columns:190px 1fr;gap:8px;margin-top:9px}.v108-entry-top label,.v108-catalog-head label,#v108CashGlobal label{font-size:.67rem}.v108-catalog-head{display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:9px;align-items:end;margin-top:9px}.v108-catalog-head small{color:#8fa5b2;font-size:.61rem}.v108-title-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}.v108-title-row{display:grid;grid-template-columns:minmax(0,1fr) 70px;gap:8px;align-items:center;padding:8px 9px;border:1px solid #294554;border-radius:11px;background:#0b1e29}.v108-title-row span b,.v108-title-row span small{display:block}.v108-title-row span b{font-size:.67rem}.v108-title-row span small{margin-top:2px;color:#8fa5b2;font-size:.57rem}.v108-title-row input{text-align:center;min-height:36px}.v108-custom-title{margin-top:8px;padding:8px 9px;border:1px solid #294554;border-radius:11px}.v108-custom-title summary{cursor:pointer;color:#a8bbc6;font-size:.65rem}.v108-custom-title>div{display:grid;grid-template-columns:1.5fr .7fr .5fr;gap:6px;margin-top:8px}.v108-entry-total{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:9px;padding:9px 10px;border-radius:10px;background:#102734}.v108-entry-total span{color:#a4b7c1;font-size:.66rem}.v108-entry-total b{color:#ffd000}.v108-status{min-height:21px;margin-top:6px;color:#8fbea1;font-size:.65rem}.v108-table-wrap{overflow:auto;margin-top:8px}.v108-table-wrap table{width:100%;border-collapse:collapse;font-size:.67rem}.v108-table-wrap th,.v108-table-wrap td{padding:7px 8px;border-bottom:1px solid #294554;text-align:left}.v108-table-wrap th{color:#9fb3be}.v108-empty-cell{text-align:center!important;color:#8fa5b2}.v108-sale{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:9px;border-bottom:1px solid #294554}.v108-sale:last-child{border-bottom:0}.v108-sale strong,.v108-sale span{display:block}.v108-sale span{margin-top:2px;color:#8fa5b2;font-size:.61rem}.v108-sale button{padding:6px 8px;font-size:.6rem}.v108-empty{padding:15px;text-align:center;color:#8fa5b2}.v108-source-note{margin:11px 2px 0;color:#78909d;font-size:.58rem;line-height:1.4}
+    .v108-backdrop{position:fixed;inset:0;z-index:5200;background:rgba(2,8,12,.8);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:12px}.v108-backdrop.hidden{display:none!important}.v108-sheet{width:min(980px,98vw);max-height:94dvh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #355163;border-radius:21px;background:#081722;box-shadow:0 25px 80px rgba(0,0,0,.64)}.v108-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:14px 16px;border-bottom:1px solid #294453}.v108-head h2{margin:2px 0}.v108-head p{margin:4px 0 0;color:#9db0bc;font-size:.75rem}.v108-scroll{overflow:auto;padding:13px 16px 18px}.v108-fund{display:grid;grid-template-columns:minmax(180px,260px) auto 1fr;gap:8px;align-items:end;padding:10px;border:1px solid #355163;border-radius:13px;background:#0b1d28}.v108-fund label{font-size:.68rem}.v108-fund input{margin-top:4px}.v108-fund small{color:#8fa5b2;font-size:.62rem;line-height:1.35}.v108-periods,.v108-mode-tabs{display:flex;gap:6px;overflow-x:auto;margin-top:10px}.v108-periods button,.v108-mode-tabs button{flex:0 0 auto}.v108-periods button.active,.v108-mode-tabs button.active{background:#ffd000;color:#111820;border-color:#ffd000}.v108-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:9px}.v108-metrics>div{padding:10px;border:1px solid #355163;border-radius:12px;background:#0a1c26}.v108-metrics span{display:block;color:#8fa5b2;font-size:.56rem;font-weight:900;letter-spacing:.05em}.v108-metrics b{display:block;margin-top:4px;font-size:1rem}.v108-entry,.v108-report,.v108-history{margin-top:11px;padding:12px;border:1px solid #355163;border-radius:14px;background:#091a24}.v108-section-head h3,.v108-report h3,.v108-history h3{margin:0}.v108-section-head p{margin:3px 0 0;color:#8fa5b2;font-size:.64rem}.v108-entry-top{display:grid;grid-template-columns:190px 1fr;gap:8px;margin-top:9px}.v108-entry-top label,.v108-catalog-head label,#v108CashGlobal label{font-size:.67rem}.v108-catalog-head{display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:9px;align-items:end;margin-top:9px}.v108-catalog-head small{color:#8fa5b2;font-size:.61rem}.v108-title-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}.v108-title-row{display:grid;grid-template-columns:minmax(0,1fr) 148px;gap:8px;align-items:center;padding:8px 9px;border:1px solid #294554;border-radius:11px;background:#0b1e29}.v108-title-row span b,.v108-title-row span small{display:block}.v108-title-row span b{font-size:.67rem}.v108-title-row span small{margin-top:2px;color:#8fa5b2;font-size:.57rem}.v108-title-row input{text-align:center;min-height:36px}.v121-qty-stepper{display:grid;grid-template-columns:38px minmax(52px,1fr) 38px;gap:4px;align-items:stretch}.v121-qty-stepper button{min-width:0;padding:0;font-size:1.15rem;font-weight:1000;line-height:1}.v121-qty-stepper input{width:100%;min-width:0!important}.v121-custom-qty{display:grid;grid-template-columns:42px minmax(70px,1fr) 42px;gap:5px;align-items:stretch}.v121-custom-qty button{padding:0;font-size:1.15rem;font-weight:1000}.v108-custom-title{margin-top:8px;padding:8px 9px;border:1px solid #294554;border-radius:11px}.v108-custom-title summary{cursor:pointer;color:#a8bbc6;font-size:.65rem}.v108-custom-title>div{display:grid;grid-template-columns:1.5fr .7fr .5fr;gap:6px;margin-top:8px}.v108-entry-total{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:9px;padding:9px 10px;border-radius:10px;background:#102734}.v108-entry-total span{color:#a4b7c1;font-size:.66rem}.v108-entry-total b{color:#ffd000}.v108-status{min-height:21px;margin-top:6px;color:#8fbea1;font-size:.65rem}.v108-table-wrap{overflow:auto;margin-top:8px}.v108-table-wrap table{width:100%;border-collapse:collapse;font-size:.67rem}.v108-table-wrap th,.v108-table-wrap td{padding:7px 8px;border-bottom:1px solid #294554;text-align:left}.v108-table-wrap th{color:#9fb3be}.v108-empty-cell{text-align:center!important;color:#8fa5b2}.v108-sale{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:9px;border-bottom:1px solid #294554}.v108-sale:last-child{border-bottom:0}.v108-sale strong,.v108-sale span{display:block}.v108-sale span{margin-top:2px;color:#8fa5b2;font-size:.61rem}.v108-sale button{padding:6px 8px;font-size:.6rem}.v108-empty{padding:15px;text-align:center;color:#8fa5b2}.v108-source-note{margin:11px 2px 0;color:#78909d;font-size:.58rem;line-height:1.4}
     @media(max-width:680px){.v108-backdrop{padding:0;align-items:flex-end}.v108-sheet{width:100%;max-height:97dvh;border-radius:20px 20px 0 0}.v108-scroll{padding:10px}.v108-fund,.v108-entry-top,.v108-catalog-head{grid-template-columns:1fr}.v108-metrics{grid-template-columns:1fr 1fr}.v108-title-list{grid-template-columns:1fr}.v108-custom-title>div{grid-template-columns:1fr}.v108-head{padding:11px}.v108-fund small{grid-column:1/-1}}
     @media(orientation:landscape) and (max-height:650px){.v108-backdrop{padding:4px}.v108-sheet{max-height:98dvh;border-radius:13px}.v108-head{padding:7px 10px}.v108-head p{display:none}.v108-scroll{padding:7px 10px}.v108-metrics>div{padding:6px 8px}.v108-entry,.v108-report,.v108-history{padding:8px;margin-top:7px}.v108-title-row{padding:5px 7px}}
   `;document.head.appendChild(style);
 
   q('v108CashBtn')?.addEventListener('click',()=>openCash());q('v108TodayCashBtn')?.addEventListener('click',()=>openCash({today:true,date:today()}));q('v108CashClose')?.addEventListener('click',closeCash);q('v108CashSheet')?.addEventListener('click',e=>{if(e.target===q('v108CashSheet'))closeCash()});
   q('v108CashSaveFund')?.addEventListener('click',saveFund);document.querySelectorAll('[data-v108-period]').forEach(b=>b.addEventListener('click',()=>{period=b.dataset.v108Period;renderSummary()}));document.querySelectorAll('[data-v108-mode]').forEach(b=>b.addEventListener('click',()=>setEntryMode(b.dataset.v108Mode)));
-  q('v108CashCatalog')?.addEventListener('change',e=>{const d=read(),v=e.target.value;d.catalog=allowedCatalogs().includes(v)?v:(allowedCatalogs()[0]||'');write(d);renderCatalog()});q('v108CashTitleRows')?.addEventListener('input',calcDetail);['v108CashCustomQty','v108CashCustomPrice'].forEach(id=>q(id)?.addEventListener('input',calcDetail));q('v108CashSaveSale')?.addEventListener('click',saveSale);
+  q('v108CashCatalog')?.addEventListener('change',e=>{const d=read(),v=e.target.value;d.catalog=allowedCatalogs().includes(v)?v:(allowedCatalogs()[0]||'');write(d);renderCatalog()});q('v108CashTitleRows')?.addEventListener('input',calcDetail);q('v108CashTitleRows')?.addEventListener('click',e=>{const b=e.target.closest?.('[data-v121-step]');if(!b)return;const input=b.closest('.v108-title-row')?.querySelector('input');if(!input)return;const v=Math.max(0,Math.min(999,Math.floor(Number(input.value)||0)+Number(b.dataset.v121Step||0)));input.value=String(v);calcDetail()});['v108CashCustomQty','v108CashCustomPrice'].forEach(id=>q(id)?.addEventListener('input',calcDetail));q('v108CashSaveSale')?.addEventListener('click',saveSale);
   q('v108CashHistory')?.addEventListener('click',e=>{const id=e.target.closest('[data-v108-delete]')?.dataset.v108Delete;if(!id)return;const d=read(),x=d.sales.find(s=>s.id===id);if(!x)return;if(confirm(`Supprimer cette vente de ${money(x.total)} du ${fmtDate(x.date)} ?`)){d.sales=d.sales.filter(s=>s.id!==id);write(d);renderSummary()}});
   window.MonSAEIVCash={open:openCash,data:read};
-  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.18';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.18';const b=q('buildInfo');if(b)b.textContent='Version 1.0.18'};applyVersion();setTimeout(applyVersion,5000);
+  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.21';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';const b=q('buildInfo');if(b)b.textContent='Version 1.0.21'};applyVersion();setTimeout(applyVersion,5000);
 })();
 </script>
 
 
 <script id="v110DriverNetworkProfiles">
 'use strict';
-/* Mon SAEIV 1.0.18 — profil réseau conducteur : réseau choisi à la connexion, changement de réseau et déconnexion. */
+/* Mon SAEIV 1.0.21 — profil réseau conducteur : réseau choisi à la connexion, changement de réseau et déconnexion. */
 (()=>{
   const q=id=>document.getElementById(id),h=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const networks=window.MonSAEIVAuthV13?.networks||{};
@@ -7774,9 +7829,76 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 
+<script id="v121PassengerCounting">
+'use strict';
+/* Mon SAEIV 1.0.21 — comptage voyageurs en navigation + boutons +/- Ma caisse. */
+(()=>{
+  const q=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const DB='fluo-saeiv-journal-v13';
+  const P={stop:null,busy:false};
+  const int=v=>Math.max(0,Math.min(999,Math.floor(Number(v)||0)));
+  function dMeters(a,b,c,d){try{if(typeof dist==='function')return dist(a,b,c,d)}catch{}const R=6371000,p=Math.PI/180,x=(c-a)*p,y=(d-b)*p,k=Math.sin(x/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.min(1,Math.sqrt(k)))}
+  function detectedStop(){
+    const stops=state?.pattern?.stops||[];if(!state?.running||!stops.length)return null;
+    const cur=Number(state.current),tar=Number(state.target),c=state?.pos?.coords;
+    let idx=Number.isInteger(cur)&&stops[cur]?cur:null;
+    if(Number.isInteger(tar)&&stops[tar]){
+      let near=false;
+      if(c&&Number.isFinite(c.latitude)&&Number.isFinite(c.longitude)&&Number.isFinite(Number(stops[tar].lat))&&Number.isFinite(Number(stops[tar].lon)))near=dMeters(c.latitude,c.longitude,Number(stops[tar].lat),Number(stops[tar].lon))<=90;
+      if(state.arrivalAnnounced||state.reached||near||idx===null)idx=tar;
+    }
+    if(idx===null)return null;const s=stops[idx];return {index:idx,name:s.name||`Arrêt ${idx+1}`,lat:Number(s.lat),lon:Number(s.lon)};
+  }
+  async function currentEvents(){const id=window.FluoJournalCore?.activeSessionId;if(!id)return [];try{return await window.FluoJournalCore.eventsForSession(id)}catch{return []}}
+  function totals(ev){return (ev||[]).filter(e=>e.type==='PASSENGER_COUNT').reduce((a,e)=>{a.boardings+=int(e.boardings);a.alightings+=int(e.alightings);return a},{boardings:0,alightings:0})}
+  async function refreshCourseTotals(){const t=totals(await currentEvents()),el=q('v121PassengerCourseTotal');if(el)el.innerHTML=`Course : <b>${t.boardings} montée${t.boardings===1?'':'s'}</b> · <b>${t.alightings} descente${t.alightings===1?'':'s'}</b>`;return t}
+  function refreshStop(){P.stop=detectedStop();const n=q('v121PassengerStop'),sub=q('v121PassengerRoute');if(n)n.textContent=P.stop?.name||'Aucun arrêt détecté';if(sub)sub.textContent=state?.running?`${state.route?.short||'Ligne'} · ${state.pattern?.headsign||''}`:'Aucune course en cours';const save=q('v121PassengerSave');if(save)save.disabled=!P.stop||!state?.running}
+  function setInput(id,v){const e=q(id);if(e)e.value=String(int(v))}
+  function step(id,delta){const e=q(id);if(!e)return;setInput(id,int(e.value)+delta)}
+  function openPassenger(){
+    if(!state?.running){alert('Le comptage voyageurs est disponible pendant une course en navigation ou en simulation.');return}
+    refreshStop();setInput('v121PassengerUp',0);setInput('v121PassengerDown',0);q('v121PassengerStatus').textContent='';q('v121PassengerSheet')?.classList.remove('hidden');refreshCourseTotals();
+  }
+  function closePassenger(){q('v121PassengerSheet')?.classList.add('hidden')}
+  async function savePassenger(){
+    if(P.busy)return;refreshStop();const stop=P.stop,up=int(q('v121PassengerUp')?.value),down=int(q('v121PassengerDown')?.value),status=q('v121PassengerStatus');
+    if(!state?.running||!stop){if(status)status.textContent='Aucune course ou aucun arrêt détecté.';return}if(!up&&!down){if(status)status.textContent='Indique au moins une montée ou une descente.';return}
+    P.busy=true;const btn=q('v121PassengerSave');if(btn)btn.disabled=true;
+    try{
+      const c=state?.pos?.coords||{};const ok=await window.FluoJournalCore?.log?.('PASSENGER_COUNT',{stopIndex:stop.index,stopName:stop.name,boardings:up,alightings:down,lat:Number.isFinite(c.latitude)?c.latitude:null,lon:Number.isFinite(c.longitude)?c.longitude:null,accuracyM:Number.isFinite(c.accuracy)?c.accuracy:null});if(!ok)throw new Error('Le journal de service n’est pas actif.');
+      const t=await refreshCourseTotals();try{await window.FluoJournalCore?.snapshot?.({passengerBoardings:t.boardings,passengerAlightings:t.alightings,passengerCountUpdatedAt:new Date().toISOString()})}catch(e){console.warn('[Comptage voyageurs] résumé de session non mis à jour',e)}
+      if(status)status.textContent=`✅ ${up} montée${up===1?'':'s'} et ${down} descente${down===1?'':'s'} enregistrée${down===1&&up===0?'':'s'} à ${stop.name}.`;setInput('v121PassengerUp',0);setInput('v121PassengerDown',0);
+    }catch(e){console.error('[Comptage voyageurs]',e);if(status)status.textContent=`Erreur : ${e?.message||e}`}
+    finally{P.busy=false;refreshStop();if(btn)btn.disabled=!P.stop||!state?.running}
+  }
+
+  // Bouton Comptage à côté de Radio dans le hamburger de navigation.
+  const radioBtn=q('v107NavRadioOpen');if(radioBtn&&!q('v121NavPassengerOpen')){
+    radioBtn.textContent='📻 Radio';const count=document.createElement('button');count.id='v121NavPassengerOpen';count.type='button';count.textContent='👥 Comptage';
+    const row=document.createElement('div');row.className='v121-nav-radio-count';radioBtn.insertAdjacentElement('beforebegin',row);row.append(radioBtn,count);
+    count.addEventListener('click',()=>{q('v107NavMenu')?.classList.add('hidden');openPassenger()});
+  }
+
+  if(!q('v121PassengerSheet'))document.body.insertAdjacentHTML('beforeend',`<div id="v121PassengerSheet" class="v121-passenger-backdrop hidden" role="dialog" aria-modal="true" aria-label="Comptage voyageurs"><section class="v121-passenger-sheet"><header><div><div class="eyebrow">COURSE EN COURS</div><h2>👥 Comptage voyageurs</h2><p id="v121PassengerRoute"></p></div><button id="v121PassengerClose" type="button">Fermer</button></header><div class="v121-stop-card"><span>ARRÊT DÉTECTÉ AUTOMATIQUEMENT</span><b id="v121PassengerStop">—</b><small>Le comptage sera rattaché à cet arrêt dans le journal de la course.</small></div><div class="v121-count-grid"><section><h3>Montées</h3><div class="v121-big-stepper"><button type="button" data-v121-pass-step="up:-1" aria-label="Retirer une montée">−</button><input id="v121PassengerUp" type="number" min="0" max="999" step="1" inputmode="numeric" value="0" aria-label="Nombre de montées"><button type="button" data-v121-pass-step="up:1" aria-label="Ajouter une montée">+</button></div></section><section><h3>Descentes</h3><div class="v121-big-stepper"><button type="button" data-v121-pass-step="down:-1" aria-label="Retirer une descente">−</button><input id="v121PassengerDown" type="number" min="0" max="999" step="1" inputmode="numeric" value="0" aria-label="Nombre de descentes"><button type="button" data-v121-pass-step="down:1" aria-label="Ajouter une descente">+</button></div></section></div><div id="v121PassengerCourseTotal" class="v121-course-total">Course : —</div><button id="v121PassengerSave" class="primary full" type="button">✓ Enregistrer ce comptage</button><div id="v121PassengerStatus" class="v121-pass-status"></div></section></div>`);
+
+  // +/- sur la quantité du titre personnalisé dans Ma caisse.
+  const custom=q('v108CashCustomQty');if(custom&&!custom.closest('.v121-custom-qty')){const wrap=document.createElement('div');wrap.className='v121-custom-qty';custom.insertAdjacentElement('beforebegin',wrap);wrap.appendChild(custom);wrap.insertAdjacentHTML('afterbegin','<button type="button" data-v121-custom-step="-1" aria-label="Retirer un titre personnalisé">−</button>');wrap.insertAdjacentHTML('beforeend','<button type="button" data-v121-custom-step="1" aria-label="Ajouter un titre personnalisé">+</button>');wrap.addEventListener('click',e=>{const b=e.target.closest('[data-v121-custom-step]');if(!b)return;custom.value=String(int(custom.value)+Number(b.dataset.v121CustomStep||0));custom.dispatchEvent(new Event('input',{bubbles:true}))})}
+
+  const st=document.createElement('style');st.id='v121PassengerStyle';st.textContent=`
+    .v121-nav-radio-count{display:grid;grid-template-columns:1fr 1fr;gap:8px}.v121-nav-radio-count button{min-width:0;min-height:48px}
+    .v121-passenger-backdrop{position:fixed;z-index:14500;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center;padding:12px}.v121-passenger-backdrop.hidden{display:none!important}.v121-passenger-sheet{width:min(720px,100%);background:#0d202c;border:1px solid #355163;border-radius:22px;padding:14px;box-shadow:0 -20px 70px rgba(0,0,0,.6)}.v121-passenger-sheet header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v121-passenger-sheet h2{margin:3px 0}.v121-passenger-sheet header p{margin:3px 0;color:#9fb0bb;font-size:.72rem}.v121-stop-card{margin-top:11px;padding:11px;border:1px solid #355163;border-radius:13px;background:#081720}.v121-stop-card span,.v121-stop-card b,.v121-stop-card small{display:block}.v121-stop-card span{color:#8fa5b3;font-size:.58rem;font-weight:950;letter-spacing:.04em}.v121-stop-card b{margin-top:4px;color:#ffd000;font-size:1rem}.v121-stop-card small{margin-top:4px;color:#9fb0bb;font-size:.63rem}.v121-count-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}.v121-count-grid section{padding:10px;border:1px solid #355163;border-radius:13px;background:#091a24}.v121-count-grid h3{margin:0 0 8px;text-align:center}.v121-big-stepper{display:grid;grid-template-columns:54px minmax(72px,1fr) 54px;gap:6px}.v121-big-stepper button{min-width:0;min-height:54px;padding:0;font-size:1.65rem;font-weight:1000}.v121-big-stepper input{min-width:0;text-align:center;font-size:1.35rem;font-weight:950}.v121-course-total{margin:10px 0;padding:9px 10px;border-radius:11px;background:#102734;color:#b9cad5;text-align:center;font-size:.72rem}.v121-course-total b{color:#fff}.v121-pass-status{min-height:22px;margin-top:7px;color:#a8d8b5;font-size:.68rem;line-height:1.35}
+    @media(max-width:600px){.v121-passenger-backdrop{padding:0}.v121-passenger-sheet{border-radius:22px 22px 0 0;padding-bottom:calc(14px + env(safe-area-inset-bottom))}.v121-count-grid{grid-template-columns:1fr}.v121-big-stepper{grid-template-columns:62px 1fr 62px}.v121-big-stepper button{min-height:58px}}
+  `;document.head.appendChild(st);
+  q('v121PassengerClose')?.addEventListener('click',closePassenger);q('v121PassengerSheet')?.addEventListener('click',e=>{if(e.target===q('v121PassengerSheet'))closePassenger()});q('v121PassengerSave')?.addEventListener('click',savePassenger);q('v121PassengerSheet')?.addEventListener('click',e=>{const b=e.target.closest?.('[data-v121-pass-step]');if(!b)return;const [kind,d]=String(b.dataset.v121PassStep||'').split(':');step(kind==='up'?'v121PassengerUp':'v121PassengerDown',Number(d)||0)});
+  ['v121PassengerUp','v121PassengerDown'].forEach(id=>q(id)?.addEventListener('input',e=>{e.target.value=String(int(e.target.value))}));
+  window.MonSAEIVPassengerCount={open:openPassenger,detectStop:detectedStop,refreshTotals:refreshCourseTotals};
+  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.21';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.21';const b=q('buildInfo');if(b)b.textContent='Version 1.0.21'};applyVersion();setTimeout(applyVersion,5200);
+})();
+</script>
+
 <script id="v109MobilePolish">
 'use strict';
-/* Mon SAEIV 1.0.18 — correctifs ergonomie Ma journée + lisibilité radio mobile. */
+/* Mon SAEIV 1.0.21 — correctifs ergonomie Ma journée + lisibilité radio mobile. */
 (()=>{
   const q=id=>document.getElementById(id);
   const polish=()=>{

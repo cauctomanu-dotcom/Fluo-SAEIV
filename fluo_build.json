@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T22:15:00+02:00",
-  "version": "1.0.18",
+  "generated_at": "2026-08-28T01:10:32+02:00",
+  "version": "1.0.21",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -233,7 +233,7 @@
   },
   "app_identity": {
     "name": "Mon SAEIV",
-    "public_version": "1.0.18",
+    "public_version": "1.0.19",
     "previous_internal_series": "V31.x"
   },
   "admin_and_journal_v1_0_2": {
@@ -351,12 +351,46 @@
   },
   "driver_network_profiles_v1_0_18": {
     "login": "sélection obligatoire du réseau conducteur avant connexion",
-    "networks": ["Fluo Grand Est", "LE MET’", "TeMo’b", "STAN", "RGTR", "AVL", "TICE", "Diffbus"],
+    "networks": [
+      "Fluo Grand Est",
+      "LE MET’",
+      "TeMo’b",
+      "STAN",
+      "RGTR",
+      "AVL",
+      "TICE",
+      "Diffbus"
+    ],
     "fluo_scope": "Fluo Grand Est reste un réseau unique à la connexion ; choix du département 54/57/67/68 dans la prise de service",
     "cash_scope": "caisse séparée par réseau ; Fluo conserve les deux tarifications hors Bas-Rhin et Bas-Rhin ; aucun tarif d’un autre réseau n’est affiché",
     "timetables": "bibliothèque Fiches horaires limitée au réseau conducteur actif",
     "connections": "les correspondances restent volontairement inter-réseaux",
     "menu": "ajout Changer de réseau et Déconnexion ; un changement de réseau renvoie à l’écran de connexion",
     "journals": "réseau conducteur enregistré dans les métadonnées de chaque service"
+  },
+  "stability_performance_v1_0_19": {
+    "gps_visuals": "interpolation affichage limitée à 20 i/s ; caméra MapLibre 3D à environ 12,5 i/s ; boucle GPS visuelle au repos réduite à 4 réveils/s",
+    "simulation": "moteur de position limité à 20 calculs/s au lieu d'environ 60 sur smartphone",
+    "duplicate_start_guard": "impossible d'empiler deux watchers GPS ou deux boucles de simulation par double lancement",
+    "ui_fallback_ticks": "rafraîchissements périodiques de secours ralentis et suspendus quand la page est masquée ; MutationObserver conserve les mises à jour immédiates",
+    "network_features": "sélection du réseau conducteur V1.0.18 conservée sans changement fonctionnel",
+    "goal": "réduire la charge CPU/GPU et le risque de fermeture de la PWA par iOS lors de tests prolongés"
+  },
+  "cash_register_fix_v1_0_20": {
+    "scope": "Ma caisse — ajout de ventes par titres et montant global",
+    "fix": "enregistrement renforcé et vérifié après écriture locale ; identifiant de vente compatible Safari/iOS même sans crypto.randomUUID",
+    "network_scope": "catalogue détaillé verrouillé sur le réseau conducteur actif ; Fluo conserve hors Bas-Rhin et Bas-Rhin",
+    "error_feedback": "si le stockage local refuse l’écriture, un message explicite est affiché au lieu d’un clic sans effet",
+    "performance": "aucun réglage GPS, simulation ou navigation modifié par cette version"
+  },
+  "passenger_count_v1_0_21": {
+    "access": "pendant la navigation, menu hamburger Conduite : boutons Radio et Comptage côte à côte",
+    "input": "Montées et Descentes saisissables au clavier ou avec boutons − / +",
+    "stop_binding": "arrêt détecté automatiquement selon la position et l’état de desserte ; chaque validation est journalisée avec arrêt et position",
+    "aggregation": "plusieurs saisies au même arrêt sont additionnées dans la feuille de comptage",
+    "journal": "feuille de comptage voyageurs par arrêt avec totaux montées/descentes dans le journal intégral et son rapport HTML",
+    "session_summary": "total des voyageurs montés et descendus conservé dans les métadonnées de la course",
+    "cash": "ajout de boutons − / + sur les quantités de titres, tout en conservant la saisie directe au clavier",
+    "performance": "aucun réglage GPS, simulation ou navigation modifié par cette version"
   }
 }
