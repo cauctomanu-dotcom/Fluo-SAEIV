@@ -1,7 +1,7 @@
-MON SAEV 1.0.1 — DÉPLOIEMENT
+MON SAEIV 1.0.1 — DÉPLOIEMENT
 ==============================
 
-Identité publique : Mon SAEV · version 1.0.1.
+Identité publique : Mon SAEIV · version 1.0.1.
 Les anciennes références de versions ci-dessous sont conservées uniquement comme historique technique de maintenance et ne sont plus affichées dans l’application.
 
 FLUO SAEIV V31.15 — NOTE DE VERSION
@@ -396,3 +396,28 @@ V31.27 — INFORMATION D’UTILISATION
 
 
 V31.28 — Correctif Fiches horaires : les données embarquées restent prioritaires. Si un paquet core local renvoie HTTP 404 depuis GitHub/PWA, la bibliothèque bascule automatiquement sur le GTFS officiel Fluo pour le département concerné. Aucun changement de design, planning, cockpit ou logique conducteur.
+
+
+Mon SAEIV 1.0.2 — ADMINISTRATION + EXPORT PDF DES JOURNAUX
+----------------------------------------------------------
+- « Création de ligne » n’apparaît plus dans le menu hamburger conducteur.
+- La création de ligne est désormais accessible depuis le module Admin.
+- Les journaux disposent d’un bouton « Exporter PDF ».
+- Si des journaux sont cochés, seuls ceux-ci sont exportés ; sans sélection, tous les journaux du conducteur sont regroupés dans le PDF.
+- Le PDF contient les informations de service et les passages aux arrêts avec horaires réels/prévus, écarts et vitesses.
+- Le PDF est généré localement, sans bibliothèque ni service externe.
+- Planning, Ma journée, cockpit, fiches horaires, annonces, TAD, HLP et données réseau inchangés.
+
+
+MON SAEIV 1.0.3 — FIABILISATION GPS
+- Détection et réparation routière des ruptures de shape importantes.
+- Aucun segment droit artificiel n’est affiché lorsqu’une rupture reste non réparée hors connexion.
+- Recalcul automatique vers le parcours après sortie de route confirmée.
+- Guidage tourner droite/gauche enrichi avec les étapes routières (rond-points, sorties, bretelles, embranchements, noms de voies) quand le réseau est disponible.
+- Cas de contrôle : 57R028 13:50 Château-Salins → Dieuze, ruptures après Mulcey détectées.
+
+
+MON SAEIV 1.0.4 — CORRECTION D’IDENTITÉ
+- Correction du nom public : Mon SAEV devient Mon SAEIV.
+- Version publique : 1.0.4.
+- Aucun changement fonctionnel par rapport à la 1.0.3 : tous les correctifs GPS sont conservés.

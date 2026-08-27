@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T02:20:00+02:00",
-  "version": "1.0.1",
+  "generated_at": "2026-08-27T17:25:00+02:00",
+  "version": "1.0.4",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -189,8 +189,26 @@
     "no_ui_change": true
   },
   "app_identity": {
-    "name": "Mon SAEV",
-    "public_version": "1.0.1",
+    "name": "Mon SAEIV",
+    "public_version": "1.0.4",
     "previous_internal_series": "V31.x"
+  },
+  "admin_and_journal_v1_0_2": {
+    "hamburger": "Création de ligne retirée du menu conducteur principal",
+    "admin": "Création de ligne accessible depuis le module Admin, après accès administrateur",
+    "journals_pdf": "Bouton Exporter PDF dans Journaux ; exporte les journaux cochés, ou tous les journaux du conducteur si aucune sélection",
+    "pdf_content": "résumé du service + passages aux arrêts + horaires prévus/réels + écarts + vitesses ; sans dépendance externe",
+    "existing_features_preserved": true
+  },
+  "gps_reliability_v1_0_3": {
+    "shape_integrity": "détection des ruptures supérieures à 650 m dans un shape ; raccord routier OSRM à la sélection de la course et cache local des raccords",
+    "offline_safety": "si un raccord n’est pas disponible hors connexion, la portion discontinue n’est jamais affichée sous forme de ligne droite ; nouvelle tentative au retour du réseau",
+    "automatic_rerouting": "hors parcours confirmé pendant environ 5 s avec précision GPS exploitable : calcul automatique d’un itinéraire routier vers un point de jonction situé en avant sur le parcours ; recalcul renouvelé si nécessaire ; les zones administrateur à éviter restent prises en compte",
+    "turn_guidance": "les consignes détaillées utilisent les étapes routières OSRM contraintes par des points du shape et des arrêts ; rond-points, sorties, bretelles, embranchements et noms de voies sont pris en charge ; repli sur le guidage géométrique existant hors connexion",
+    "validated_case": "57R028 départ 13:50 Château-Salins Place du Ruisseau Salé → Dieuze Place du Marché : le shape embarqué présente trois ruptures >650 m, dont environ 1,77 km puis 1,70 km après Mulcey ; elles sont désormais détectées avant affichage"
+  },
+  "identity_correction": {
+    "version": "1.0.4",
+    "change": "Correction du nom public Mon SAEV vers Mon SAEIV, sans modification fonctionnelle."
   }
 }

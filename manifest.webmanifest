@@ -1,11 +1,11 @@
 {
-  "name": "Mon SAEV 1.0.1",
-  "short_name": "Mon SAEV",
-  "start_url": "./?v=1.0.1",
+  "name": "Mon SAEIV 1.0.4",
+  "short_name": "Mon SAEIV",
+  "start_url": "./?v=1.0.4",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "Mon SAEV — outil d’aide au conducteur pour le suivi et la préparation des services."
+  "description": "Mon SAEIV — outil d’aide au conducteur avec navigation GPS, suivi des services et préparation des courses."
 }
