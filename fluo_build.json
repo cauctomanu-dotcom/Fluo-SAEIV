@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T19:40:00+02:00",
-  "version": "1.0.11",
+  "generated_at": "2026-08-27T19:55:00+02:00",
+  "version": "1.0.12",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -31,6 +31,18 @@
       "source": "GTFS régional unifié Fluo Grand Est",
       "url": "https://transport.data.gouv.fr/resources/83635/download",
       "mode": "filtrage réseau CG68"
+    },
+    "urban_lemet": {
+      "source": "LE MET’ — GTFS officiel",
+      "url": "https://transport.data.gouv.fr/resources/80725/download",
+      "mode": "chargement à la demande + cache local 6 h",
+      "network_type": "urbain"
+    },
+    "urban_temob": {
+      "source": "TeMo’b — GTFS officiel",
+      "url": "https://transport.data.gouv.fr/resources/80459/download",
+      "mode": "chargement à la demande + cache local 6 h",
+      "network_type": "urbain"
     }
   },
   "flat_format": "fluo-flat-v1",
@@ -266,5 +278,21 @@
     "ios_volume": "volume des flux web contrôlé par les boutons système iPhone ; curseur applicatif désactivé sur iOS pour éviter un faux réglage",
     "ducking": "radio coupée pendant toute voix sur iOS ; sur Android/PC annonces voyageurs coupées et GPS abaissé à environ 2,5 % du volume radio",
     "stream_selection": "priorité HTTPS MP3/AAC 48–128 kb/s, moins de résultats simultanés et bascule plus rapide sur un flux de secours en cas de buffering"
+  },
+  "multinetwork": {
+    "status": "pilote",
+    "network_types": [
+      "interurbain",
+      "urbain"
+    ],
+    "urban_pilots": [
+      "LE MET’",
+      "TeMo’b"
+    ],
+    "connections": "inter-réseaux à proximité ; lignes avec départ entre -10 min et +90 min ; annonce uniquement à l’arrivée",
+    "fluo57_connection_source": {
+      "source": "Fluo Grand Est 57",
+      "url": "https://www.data.gouv.fr/api/1/datasets/r/42be7185-b2a8-4d1e-80c4-f7c402655260"
+    }
   }
 }

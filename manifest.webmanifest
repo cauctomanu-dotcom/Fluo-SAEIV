@@ -1,11 +1,11 @@
 {
-  "name": "Mon SAEIV 1.0.11",
+  "name": "Mon SAEIV 1.0.12",
   "short_name": "Mon SAEIV",
-  "start_url": "./?v=1.0.11",
+  "start_url": "./?v=1.0.12",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "Mon SAEIV — navigation GPS, radio intégrée optimisée pour iPhone/Android, planning, fiches horaires, annonces, suivi de caisse et création de lignes."
+  "description": "Mon SAEIV — SAEIV multiréseaux : Fluo interurbain, pilotes urbains LE MET’ et TeMo’b, correspondances inter-réseaux, GPS, radio, planning, fiches horaires, annonces et caisse."
 }

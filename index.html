@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.11">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.12">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Mon SAEIV · 1.0.11</title>
+  <title>Mon SAEIV · 1.0.12</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style id="v22CoreStyle">
 .stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
@@ -72,7 +72,7 @@
 </div>
 <div class="app">
   <header class="top">
-    <div><div class="eyebrow">MON SAEIV · 1.0.11</div><h1>Mon SAEIV</h1><div class="sub">Réseaux 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68</div></div>
+    <div><div class="eyebrow">MON SAEIV · 1.0.12</div><h1>Mon SAEIV</h1><div class="sub">Interurbain · Urbain · Fluo · LE MET’ · TeMo’b</div></div>
     <div id="gpsPill" class="pill">GPS à vérifier</div>
   </header>
 
@@ -257,7 +257,7 @@ function say(text,opts={}){
   state.audio.queue.push(item); pumpSpeech();
 }
 function spoken(s){ return String(s).replace(/\s+-\s+/g,', ').replace(/GARE ROUTIERE/gi,'Gare routière').trim(); }
-// Mon SAEIV 1.0.11 — corrections phonétiques uniquement pour la synthèse vocale.
+// Mon SAEIV 1.0.12 — corrections phonétiques uniquement pour la synthèse vocale.
 // Les libellés affichés et les données d'arrêt restent strictement inchangés.
 function speechPronunciation(text){
   let t=String(text??'');
@@ -836,7 +836,7 @@ function updateNavigation(p,snap=null){
   if(!Number.isFinite(lat)||!Number.isFinite(lon)) return;
   const h=Number.isFinite(fused.heading)?fused.heading:(Number.isFinite(state.fusion.displayHeading)?state.fusion.displayHeading:state.nav.lastHeading||0);
   state.nav.lastHeading=h;
-  // 1.0.11 : la logique métier reste sur le snap GPS natif, mais le pictogramme peut utiliser
+  // 1.0.12 : la logique métier reste sur le snap GPS natif, mais le pictogramme peut utiliser
   // une position purement VISUELLE interpolée entre deux rafraîchissements. Cela évite le
   // saut d'une mesure GPS à la suivante sans modifier les passages aux arrêts ni les journaux.
   const visual=state.mode==='gps'?window.MonSAEIVVisualGPS?.getDisplay?.():null;
@@ -1333,7 +1333,8 @@ function announce(force=false){
 function announceArrival(){
   const s=state.pattern?.stops[state.target]; if(!s||state.arrivalAnnounced) return;
   const isTerminus=nextOperationalStop(state.target)===null;
-  say(isTerminus?`Arrêt, ${spoken(s.name)}. Terminus de la ligne. Avant de quitter le véhicule, merci de vérifier que vous n'avez oublié aucun effet personnel à bord. Nous vous remercions d'avoir voyagé avec nous et vous souhaitons une excellente journée. À bientôt sur nos lignes.`:`Arrêt, ${spoken(s.name)}.`,{priority:120,kind:'stop'});
+  const v1012Connections=window.MonSAEIVConnections?.voicePhraseFor?.(state.target)||'';
+  say(isTerminus?`Arrêt, ${spoken(s.name)}.${v1012Connections?` ${v1012Connections}`:''} Terminus de la ligne. Avant de quitter le véhicule, merci de vérifier que vous n'avez oublié aucun effet personnel à bord. Nous vous remercions d'avoir voyagé avec nous et vous souhaitons une excellente journée. À bientôt sur nos lignes.`:`Arrêt, ${spoken(s.name)}.${v1012Connections?` ${v1012Connections}`:''}`,{priority:120,kind:'stop'});
   state.arrivalAnnounced=true;
   // Si l'inter-arrêt était exceptionnellement très court, on ne prononce plus "Prochain arrêt" après l'arrivée.
   state.announced=true; state.nextStopDueAt=null;
@@ -1624,10 +1625,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=1.0.11').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.11'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=1.0.12').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.12'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.11').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.12').catch(()=>{});
 
 </script>
 <script>
@@ -1638,9 +1639,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   const q = id => document.getElementById(id);
 
   // --- Injection de l'interface V12 dans la V11 existante ---
-  document.title='Mon SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.11';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.12';
 
   const serviceChoice = document.querySelector('.service-choice');
   if (serviceChoice && !q('v12Preferences')) {
@@ -1976,16 +1977,16 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V13 — identification conducteur + journal de service local */
 (() => {
   const $v13 = id => document.getElementById(id);
-  const APP_VERSION = '1.0.11';
+  const APP_VERSION = '1.0.12';
   const DB_NAME = 'fluo-saeiv-journal-v13';
   const DB_VERSION = 1;
   const ACCOUNT_KEY = 'fluoSaeivAccountV13';
   const SAMPLE_INTERVAL_MS = 10000; // V29 : point de contrôle au moins toutes les 10 s à l'arrêt
   const SAMPLE_MOVE_M = 6;       // V29 : trace GPS réelle tous les ~5 à 7 mètres en mouvement
 
-  document.title='Mon SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.11';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.12';
 
   const V13 = {
     unlocked: false,
@@ -2325,9 +2326,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     cache: new Map()
   };
 
-  document.title='Mon SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.11';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.12';
 
   // --- Information TAD dynamique ---
   const tadHeadText = document.querySelector('.tad-panel-head > div:first-child span');
@@ -2626,9 +2627,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V15 — cockpit smartphone, paysage conducteur + rappel arrêt demandé différé */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.11';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.12';
 
   const driver=q('driver'), mapWrap=document.querySelector('#driver .navmap-wrap');
   if(!driver||!mapWrap) return;
@@ -2829,9 +2830,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V16 — profil de vitesse routier, calcul d'horaires, caméra GPS 3D */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.11';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.12';
 
   const V16={
     profileCache:new Map(), simLegs:new Map(), simReady:false, simLoading:false,
@@ -3251,7 +3252,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     const visual=!deviationRaw&&state.mode==='gps'?window.MonSAEIVVisualGPS?.getDisplay?.():null;
     const lat=Number(Number.isFinite(Number(visual?.lat))?Number(visual.lat):(deviationRaw?c.latitude:(snap?.lat??c.latitude))),lon=Number(Number.isFinite(Number(visual?.lon))?Number(visual.lon):(deviationRaw?c.longitude:(snap?.lon??c.longitude)));
     if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
-    // V22 / 1.0.11 : le cap canonique vient du parcours stabilisé et, lorsque disponible,
+    // V22 / 1.0.12 : le cap canonique vient du parcours stabilisé et, lorsque disponible,
     // de l'animation visuelle continue. Le cap brut de l'iPhone ne pilote pas la caméra.
     const h=Number.isFinite(Number(visual?.heading))?Number(visual.heading):(deviationRaw&&Number.isFinite(c.heading)&&c.heading>=0?c.heading:(Number.isFinite(snap?.heading)?snap.heading:Number(state.nav?.lastHeading||V16.last3dHeading||0)));
     V16.last3dHeading=h;
@@ -3291,9 +3292,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V18 — bus à l'échelle + filtre lignes régulières / scolaires */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.11';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.12';
 
   // --- Taille du Crossway : environ 45 % de V17 pour rester à l'échelle de la carte. ---
   const style=document.createElement('style');
@@ -3452,9 +3453,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V19 — rotation smartphone stable + amorçage audio Bluetooth */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
   const eyebrow=document.querySelector('.top .eyebrow');
-  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.11';
+  if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.12';
 
   const st=document.createElement('style');
   st.id='v19Style';
@@ -3537,8 +3538,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V20 — l'affichage utilise uniquement state.fusion.shape produit par le moteur réécrit dans app.js. */
 (() => {
-  document.title='Mon SAEIV · 1.0.11';
-  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.12';
   const css=document.createElement('style');css.textContent=`
     .route-state.v20-source{max-width:72%}
     .v20-source-note{margin-top:8px;font-size:.69rem;color:#91a8b6;line-height:1.35}
@@ -3553,8 +3554,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V21 — arrêt demandé sonore synchronisé, écran éveillé, prononciation des codes Fluo. */
 (() => {
-  document.title='Mon SAEIV · 1.0.11';
-  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
+  const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.12';
   const n=document.querySelector('.audio-note');
   if(n){
     const b=n.querySelector('b'); if(b)b.textContent='🔊 Annonces V21';
@@ -3566,7 +3567,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 
 <script>
 // V22 — étiquette de version après chargement de tous les modules.
-window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';});
+window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';});
 </script>
 
 <script>
@@ -3795,8 +3796,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   try{const baseEnter23=enterDriver;enterDriver=function(mode){const r=baseEnter23(mode);[350,1800,6000].forEach(ms=>setTimeout(snapshotOpenSession23,ms));return r}}catch(e){console.warn('V23 journal snapshot patch',e)}
 
-  document.title='Mon SAEIV · 1.0.11';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
+  document.title='Mon SAEIV · 1.0.12';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
 })();
 
 </script>
@@ -3936,8 +3937,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v24Delete')?.addEventListener('click',async()=>{const s=V24.current;if(!s)return;if(confirm(`Supprimer la fiche ${s.routeShort||''} départ ${s.departureTime||''} ?`)){await del24(s.id);closeDetail24();await renderList24()}});
 
   window.FluoScheduleSheets={save:save24,open:async()=>{await renderList24();q('v24Library')?.classList.remove('hidden')},refresh:renderList24};
-  document.title='Mon SAEIV · 1.0.11';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
+  document.title='Mon SAEIV · 1.0.12';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
 })();
 </script>
 
@@ -4172,8 +4173,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
   if(q('lineTypeFilter')?.value==='custom')setTimeout(populateCustomDropdown,0);
   window.FluoCustomLines={all:allLines,get:getLine,save:saveLine,open:openCreator,populate:populateCustomDropdown,activate:activateLine};
-  document.title='Mon SAEIV · 1.0.11';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
+  document.title='Mon SAEIV · 1.0.12';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
 })();
 </script>
 
@@ -4235,7 +4236,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const future=indices.filter(i=>i>start);if(!future.length)throw new Error('Sélectionne au moins un arrêt à desservir après le départ.');
     const selected=indices.map(i=>{const s=state.pattern.stops[i];return {index:i,id:s?.id||null,name:s?.name||'',lat:Number(s?.lat),lon:Number(s?.lon)}});
     const dep=departureFor(state.run.trip,start,state.run.serviceDate);
-    return {id:uuid26(),matricule:matricule26(),serviceDate:dateInputValue(),dept:state.dept,routeId:state.route?.id||null,routeShort:state.route?.short||'',routeLong:state.route?.long||'',tripId:state.run?.trip?.id||null,patternHeadsign:state.pattern?.headsign||'',startStopIndex:start,startStopId:state.pattern.stops[start]?.id||null,originName:state.pattern.stops[start]?.name||'',terminusName:state.pattern.stops[future.at(-1)]?.name||'',departureClock:dep?formatClock(dep):'',selectedStops:selected,createdAt:new Date().toISOString(),appVersion:'1.0.11'};
+    return {id:uuid26(),matricule:matricule26(),serviceDate:dateInputValue(),dept:state.dept,routeId:state.route?.id||null,routeShort:state.route?.short||'',routeLong:state.route?.long||'',tripId:state.run?.trip?.id||null,patternHeadsign:state.pattern?.headsign||'',startStopIndex:start,startStopId:state.pattern.stops[start]?.id||null,originName:state.pattern.stops[start]?.name||'',terminusName:state.pattern.stops[future.at(-1)]?.name||'',departureClock:dep?formatClock(dep):'',selectedStops:selected,createdAt:new Date().toISOString(),appVersion:'1.0.12'};
   }
   async function saveCurrentTad26(){try{const rec=currentTadRecord26();await putTad26(rec);if(q('tadSummary'))q('tadSummary').textContent=`✅ TAD enregistré pour le ${fmtDate26(rec.serviceDate)} · ${rec.routeShort} · ${rec.originName} → ${rec.terminusName}. Tu le retrouveras dans « Mes TAD ». `;await renderTads26()}catch(e){alert(e.message||e)}}
   async function loadPreparedTad26(rec){
@@ -4307,8 +4308,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v26DeletePast')?.addEventListener('click',async()=>{const today=localYmd26(),xs=(await allTads26()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun TAD passé à supprimer.');if(!confirm(`Supprimer ${xs.length} TAD passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await deleteTad26(x.id);await renderTads26()});
   q('v26AnnounceBtn')?.addEventListener('click',openAnnouncements26);q('v26AnnounceSide')?.addEventListener('click',openAnnouncements26);q('v26AnnClose')?.addEventListener('click',closeAnnouncements26);q('v26AnnounceSheet')?.addEventListener('click',e=>{if(e.target===q('v26AnnounceSheet'))closeAnnouncements26()});q('v26AnnList')?.addEventListener('click',e=>{const b=e.target.closest('[data-v26-ann]');if(b)selectAnnouncement26(b.dataset.v26Ann)});q('v26AnnSpeak')?.addEventListener('click',speakAnnouncement26);q('v26AnnClear')?.addEventListener('click',()=>{V26.selectedAnnouncement=null;q('v26AnnList')?.querySelectorAll('.selected').forEach(x=>x.classList.remove('selected'));if(q('v26AnnText'))q('v26AnnText').value='';q('v26AnnStatus').textContent='Saisis un message ou choisis une annonce dans la bibliothèque.'});
 
-  document.title='Mon SAEIV · 1.0.11';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
+  document.title='Mon SAEIV · 1.0.12';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
 })();
 </script>
 
@@ -4398,8 +4399,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons paysage doivent rester synchronisés après chaque entrée en service.
   try{const baseEnter28=enterDriver;enterDriver=function(mode){const r=baseEnter28(mode);setTimeout(syncPassengerButtons,30);return r}}catch(e){console.warn('V28 boutons conducteur',e)}
 
-  document.title='Mon SAEIV · 1.0.11';
-  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
+  document.title='Mon SAEIV · 1.0.12';
+  window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
 })();
 </script>
 
@@ -4462,8 +4463,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const b=e.target.closest?.('button,[role="button"]');if(!b||b.disabled||b.getAttribute('aria-disabled')==='true')return;hapticTap();
   },{capture:true,passive:true});
 
-  document.title='Mon SAEIV · 1.0.11';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
+  document.title='Mon SAEIV · 1.0.12';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,20));else setTimeout(label,20);
 })();
 </script>
@@ -4652,7 +4653,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function downloadJournalV29(s,ev){const blob=new Blob([journalReport(s,ev)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a'),d=new Date(s.startedAt||Date.now());a.href=url;a.download=`journal-integral-${String(s.route||'ligne').replace(/[^a-z0-9]+/gi,'-')}-${d.toISOString().slice(0,16).replace(':','-')}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800)}
 
   // ---------- Branchement journal de toutes les fonctions ----------
-  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'1.0.11',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service-v30',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
+  async function snapshotService(){if(!state?.running||!window.FluoJournalCore?.activeSessionId)return;const shape=(state.fusion?.shape?.length>=2?state.fusion.shape:state.pattern?.shape||[]).map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])),stops=(state.pattern?.stops||[]).map((x,index)=>({index,id:x.id||null,name:x.name||'',lat:Number(x.lat),lon:Number(x.lon)})),start=Number(q('startStop')?.value||0);await window.FluoJournalCore.snapshot({appVersion:'1.0.12',routeShape:shape,routeStops:stops,traceSamplingMeters:6,journalPolicy:'complete-service-v30',tadStops:[...(state.service?.tadStops||[])],requestedStops:[...(state.service?.requestedStops||[])],passengerAnnouncementsEnabled:state.audio?.passengerEnabled!==false});await log('SERVICE_CONFIGURATION',{route:state.route?.short||'',destination:state.pattern?.headsign||'',tripId:state.run?.trip?.id||null,startStopIndex:start,startStop:state.pattern?.stops?.[start]?.name||'',serviceMode:state.service?.mode||'',runMode:state.mode||'',tadStops:[...(state.service?.tadStops||[])],routeShapePoints:shape.length})}
   // V30 : les annonces vocales ne sont plus enregistrées dans le journal d'exploitation.
   try{const baseReq=requestStop;requestStop=function(index,checked){const r=baseReq(index,checked);if(state?.running)log(checked?'REQUEST_ADDED':'REQUEST_REMOVED',{stopIndex:index,stopName:state.pattern?.stops?.[index]?.name||''});return r}}catch(e){console.warn('V29 journal demandes',e)}
   try{const baseRec=recenter;recenter=function(){const before={current:state.current,target:state.target};const r=baseRec();if(state?.running)log('RECENTER',{beforeCurrent:before.current,beforeTarget:before.target,afterCurrent:state.current,afterTarget:state.target,stopName:state.pattern?.stops?.[state.current]?.name||''});if(V29.deviation.active)finishDeviation('recalage manuel au poteau',false);return r}}catch(e){console.warn('V29 journal recalage',e)}
@@ -4673,8 +4674,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v29JournalClose')?.addEventListener('click',closeJournalV29);q('v29Journal')?.addEventListener('click',e=>{if(e.target===q('v29Journal'))closeJournalV29()});q('v29JournalDownload')?.addEventListener('click',()=>{const c=V29.journal.current;if(c)downloadJournalV29(c.s,c.ev)});
   q('v13JournalList')?.addEventListener('click',e=>{const item=e.target.closest('.v23-session');if(!item)return;const action=e.target.closest('[data-v23-action]')?.dataset.v23Action;if(e.target.matches('.v23-select')||action==='delete')return;const id=item.dataset.sessionId;if(!id)return;e.preventDefault();e.stopImmediatePropagation();if(action==='download'){Promise.all([getJournalSession(id),getJournalEvents(id)]).then(([s,ev])=>{if(s)downloadJournalV29(s,ev)});return}openJournalV29(id)},true);
 
-  document.title='Mon SAEIV · 1.0.11';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
+  document.title='Mon SAEIV · 1.0.12';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
 
 </script>
@@ -4828,7 +4829,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   };
 
   // Version / journal policy.
-  const label=()=>{document.title='Mon SAEIV · 1.0.11';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
+  const label=()=>{document.title='Mon SAEIV · 1.0.12';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
 })();
 </script>
 
@@ -5026,8 +5027,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Évite de gonfler le journal avec le même nom répété pour chaque point d'une rue évitée.
   if(window.FluoJournalCore?.log&&!window.FluoJournalCore.__v301Wrapped){const base=window.FluoJournalCore.log.bind(window.FluoJournalCore);window.FluoJournalCore.log=(type,payload={})=>{const p={...payload};if(Array.isArray(p.avoidZones))p.avoidZones=[...new Set(p.avoidZones.filter(Boolean))];return base(type,p)};window.FluoJournalCore.__v301Wrapped=true}
 
-  document.title='Mon SAEIV · 1.0.11';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
+  document.title='Mon SAEIV · 1.0.12';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
   settleResponsive();
 })();
@@ -5041,8 +5042,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
    carte, arrivée, simulation et journaux partagent exactement le même point opérationnel. */
 (() => {
   const label=()=>{
-    document.title='Mon SAEIV · 1.0.11';
-    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';
+    document.title='Mon SAEIV · 1.0.12';
+    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';
     const b=document.getElementById('buildInfo');if(b&&!/V30.2/.test(b.textContent))b.textContent+=' · V30.2 poteaux recalés au tracé';
   };
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,80));else setTimeout(label,80);
@@ -5228,8 +5229,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Empêche un lancement pendant un calcul asynchrone, même si un ancien module réactive le bouton.
   document.addEventListener('click',e=>{if(V303.busy&&e.target.closest?.('#start,#simulate')){e.preventDefault();e.stopImmediatePropagation();alert('Recalcul du tracé en cours. Attends quelques secondes avant de lancer le service.')}},true);
 
-  document.title='Mon SAEIV · 1.0.11';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
+  document.title='Mon SAEIV · 1.0.12';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>{setTimeout(label,30);schedule('load',600)});else{setTimeout(label,30);schedule('load',600)}
 })();
 </script>
@@ -5283,7 +5284,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     ensureDate();const serviceDate=q('v304CollectiveDate')?.value;if(!serviceDate)throw new Error('Choisis la date du billet collectif.');
     const rows=[q('v30CollectiveStart')?.querySelector('.v30-point'),...q('v30CollectiveStages')?.querySelectorAll('.v30-point')||[],q('v30CollectiveEnd')?.querySelector('.v30-point')].filter(Boolean);
     const points=route.points.map((p,i)=>{const row=rows[i],kind=row?.querySelector('.v30-point-kind')?.value||p.kind||'stop',query=row?.querySelector('.v30-point-search')?.value||p.name||'';return{...p,lat:Number(p.lat),lon:Number(p.lon),kind,query}});
-    return{id:uuid(),matricule:matricule(),serviceDate,departureTime:q('v30CollectiveTime')?.value||'',name:(q('v30CollectiveName')?.value||route.name||'Billet collectif').trim()||'Billet collectif',points,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),distance:Number(route.distance||0),duration:Number(route.duration||0),createdAt:new Date().toISOString(),appVersion:'1.0.11'};
+    return{id:uuid(),matricule:matricule(),serviceDate,departureTime:q('v30CollectiveTime')?.value||'',name:(q('v30CollectiveName')?.value||route.name||'Billet collectif').trim()||'Billet collectif',points,shape:route.shape.map(p=>[Number(p[0]),Number(p[1])]),distance:Number(route.distance||0),duration:Number(route.duration||0),createdAt:new Date().toISOString(),appVersion:'1.0.12'};
   }
   async function saveCurrent(){try{const rec=currentRecord();await put(rec);window.FluoCollectiveV30?.status?.(`✅ Billet enregistré pour le ${fmtDate(rec.serviceDate)}. Tu le retrouveras dans « Mes billets collectifs ».`,`ok`);await render()}catch(e){alert(e.message||e)}}
 
@@ -5308,8 +5309,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v304DeletePast')?.addEventListener('click',async()=>{const today=ymd(),xs=(await all()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun billet collectif passé à supprimer.');if(!confirm(`Supprimer ${xs.length} billet${xs.length>1?'s':''} collectif${xs.length>1?'s':''} passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await del(x.id);await render()});
 
   window.FluoPreparedCollectivesV304={all,get,save:put,open:openLibrary};
-  document.title='Mon SAEIV · 1.0.11';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
+  document.title='Mon SAEIV · 1.0.12';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
 </script>
@@ -5457,15 +5458,15 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   window.FluoSpeedLimitsV305={build:buildProfile,limitAtAlong,get currentLimit(){return V305.currentLimit},get currentMeta(){return V305.currentMeta},get ready(){return V305.ready},get loading(){return V305.loading},state:V305};
 
   const note=document.querySelector('.fusion-note');if(note&&!q('v305SpeedNote'))note.insertAdjacentHTML('afterend','<div id="v305SpeedNote" class="fusion-note"><b>🚌 Limitations OSM non bloquantes V31</b><span>Les valeurs maxspeed OpenStreetMap sont chargées en arrière-plan et conservées 7 jours. Si une valeur manque ou si le réseau ne répond pas, le profil local 35–50–70–80 reste actif sans interrompre la simulation ni le GPS.</span></div>');
-  document.title='Mon SAEIV · 1.0.11';
-  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
+  document.title='Mon SAEIV · 1.0.12';
+  const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
 })();
 </script>
 
 <script id="v307GpsFluidVisuals">
 'use strict';
-/* Mon SAEIV 1.0.11 — fluidité GPS visuelle continue.
+/* Mon SAEIV 1.0.12 — fluidité GPS visuelle continue.
    IMPORTANT : cette couche ne modifie jamais state.pos, state.fusion.snapped, les passages aux
    arrêts, les journaux ou la ponctualité. Elle anime uniquement le pictogramme et la caméra.
    Sur le parcours, l'animation progresse le long de la géométrie routière entre deux mesures GPS.
@@ -5851,7 +5852,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 
 <script id="v309FinalLabel">
-(()=>{const apply=()=>{document.title='Mon SAEIV · 1.0.11';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
+(()=>{const apply=()=>{document.title='Mon SAEIV · 1.0.12';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
 // V31.4 : liaison finale après toutes les extensions historiques de l'interface.
 // La délégation reste valide même si un bouton est déplacé ou recréé par une extension.
 (()=>{const modes={regularMode:'regular',tadMode:'tad',formationMode:'formation'};
@@ -6027,8 +6028,8 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   `;document.head.appendChild(css);
 
   syncValidated();
-  document.title='Mon SAEIV · 1.0.11';
-  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';
+  const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.12';
 })();
 </script>
 
@@ -6355,7 +6356,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Mon SAEIV · 1.0.11';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.11';
+  document.title='Mon SAEIV · 1.0.12';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.12';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -6763,6 +6764,163 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 
 
+<script id="v1012MultiNetworkUrban">
+'use strict';
+/* Mon SAEIV 1.0.12 — première architecture multiréseaux.
+   - Réseau interurbain : fonctionnement Fluo historique inchangé.
+   - Réseaux urbains pilotes : LE MET’ + TeMo’b via leurs GTFS ouverts officiels.
+   - Correspondances inter-réseaux préparées en amont et annoncées uniquement à l'arrivée.
+   Les GTFS urbains sont chargés à la demande et mis en cache ; aucun gros catalogue supplémentaire
+   n'est embarqué dans l'application. */
+(()=>{
+  const q=id=>document.getElementById(id);
+  const h=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[’']/g,"'").replace(/\s+/g,' ').trim();
+  const pad=n=>String(n).padStart(2,'0');
+  const localIso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const parseIso=iso=>{const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3],12):new Date()};
+  const URBAN={
+    lemet:{key:'lemet',label:"LE MET’",city:'Metz',sources:['https://transport.data.gouv.fr/resources/80725/download','https://data.lemet.fr/documents/LEMET-gtfs.zip']},
+    temob:{key:'temob',label:"TeMo’b",city:'Thionville · Fensch',sources:['https://transport.data.gouv.fr/resources/80459/download','https://www.data.gouv.fr/api/1/datasets/r/f30a3b64-a902-4e7e-981c-d1f6caad933a']}
+  };
+  const U={feeds:new Map(),payloads:new Map(),cacheName:'mon-saeiv-urban-gtfs-v1-0-12'};
+
+  function serviceRecActive(rec,date){
+    if(!rec)return true;const key=`${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}`,ex=rec.exceptions?.[key];
+    if(ex===1)return true;if(ex===2)return false;if(rec.start&&key<rec.start)return false;if(rec.end&&key>rec.end)return false;
+    const wd=(date.getDay()+6)%7;return Array.isArray(rec.days)?!!rec.days[wd]:true;
+  }
+  async function urbanFetchZip(key){
+    const cfg=URBAN[key];if(!cfg)throw new Error('réseau urbain inconnu');let last='';
+    for(const url of cfg.sources){try{
+      const stampKey=`mon-saeiv-urban-gtfs-v1012-${key}-stamp`,fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<21600000;let r=null,cached=null;
+      if('caches'in window){try{cached=await (await caches.open(U.cacheName)).match(url)}catch{}}
+      if(fresh&&cached)r=cached.clone();
+      if(!r){try{r=await fetch(url,{cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error(`HTTP ${r.status}`);if('caches'in window){try{const c=await caches.open(U.cacheName);await c.put(url,r.clone());localStorage.setItem(stampKey,String(Date.now()))}catch{}}}catch(netErr){if(cached)r=cached.clone();else throw netErr}}
+      const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url};
+    }catch(e){last=e?.message||String(e)}}
+    throw new Error(`${cfg.label} inaccessible${last?` : ${last}`:''}`);
+  }
+  async function urbanEntryText(feed,name){if(!feed.textCache.has(name))feed.textCache.set(name,fluoZipText(feed.entries.get(name)));return feed.textCache.get(name)}
+  async function urbanFeed(key){
+    if(U.feeds.has(key))return U.feeds.get(key);
+    const promise=(async()=>{
+      const cfg=URBAN[key],got=await urbanFetchZip(key),entries=fluoZipDirectory(got.bytes);
+      const required=['routes.txt','stops.txt','trips.txt','stop_times.txt'];for(const f of required)if(!entries.has(f))throw new Error(`${cfg.label} : ${f} absent du GTFS`);
+      const [routesTxt,stopsTxt,tripsTxt,calTxt,datesTxt]=await Promise.all([
+        fluoZipText(entries.get('routes.txt')),fluoZipText(entries.get('stops.txt')),fluoZipText(entries.get('trips.txt')),
+        entries.has('calendar.txt')?fluoZipText(entries.get('calendar.txt')):Promise.resolve(''),entries.has('calendar_dates.txt')?fluoZipText(entries.get('calendar_dates.txt')):Promise.resolve('')]);
+      const routesRaw=fluoCsvObjects(routesTxt),stopsRaw=fluoCsvObjects(stopsTxt),trips=fluoCsvObjects(tripsTxt),calendar=fluoCsvObjects(calTxt),dates=fluoCsvObjects(datesTxt);
+      const stops=new Map(),stopList=[];
+      for(const x of stopsRaw){const lat=Number(x.stop_lat),lon=Number(x.stop_lon);if(!x.stop_id)continue;const z={id:String(x.stop_id),name:x.stop_name||x.stop_id,lat,lon,code:x.stop_code||'',parent_station:String(x.parent_station||''),location_type:String(x.location_type||'0'),network:key,networkLabel:cfg.label};stops.set(z.id,z);if(Number.isFinite(lat)&&Number.isFinite(lon)&&z.location_type!=='1')stopList.push(z)}
+      const services={};for(const c of calendar){services[c.service_id]={start:c.start_date||'',end:c.end_date||'',days:['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(k=>Number(c[k]||0)),exceptions:{}}}
+      for(const x of dates){if(!services[x.service_id])services[x.service_id]={start:'',end:'',days:[0,0,0,0,0,0,0],exceptions:{}};services[x.service_id].exceptions[x.date]=Number(x.exception_type||0)}
+      const tripsByRoute=new Map(),tripById=new Map();for(const t of trips){tripById.set(String(t.trip_id),t);const rid=String(t.route_id);if(!tripsByRoute.has(rid))tripsByRoute.set(rid,[]);tripsByRoute.get(rid).push(t)}
+      const routes=routesRaw.map(r=>({id:String(r.route_id),short:r.route_short_name||r.route_id,long:r.route_long_name||'',type:r.route_type||'3',color:r.route_color||'FFFFFF',text_color:r.route_text_color||'000000',urban_gtfs:true,network:key,network_label:cfg.label,patterns:0})).sort((a,b)=>String(a.short).localeCompare(String(b.short),'fr',{numeric:true})||String(a.long).localeCompare(String(b.long),'fr'));
+      const routesById=new Map(routes.map(r=>[String(r.id),r]));
+      return{key,label:cfg.label,city:cfg.city,url:got.url,entries,routes,routesById,stops,stopList,services,tripsByRoute,tripById,textCache:new Map(),correspondenceCache:new Map()};
+    })();U.feeds.set(key,promise);try{return await promise}catch(e){U.feeds.delete(key);throw e}
+  }
+  async function urbanRoutePayload(key,route){
+    const cacheKey=`${key}|${route.id}`;if(U.payloads.has(cacheKey))return U.payloads.get(cacheKey);
+    const promise=(async()=>{
+      const f=await urbanFeed(key),tripRows=f.tripsByRoute.get(String(route.id))||[];if(!tripRows.length)return{route,patterns:[]};
+      const wanted=new Set(tripRows.map(t=>String(t.trip_id))),byTrip=new Map(),stText=await urbanEntryText(f,'stop_times.txt'),lines=stText.replace(/^\uFEFF/,'').split(/\r?\n/),head=fluoCsvRow(lines.shift()||''),ix=Object.fromEntries(head.map((v,i)=>[v,i]));
+      for(const line of lines){if(!line)continue;const a=fluoCsvRow(line),tid=String(a[ix.trip_id]||'');if(!wanted.has(tid))continue;const z={stop_id:String(a[ix.stop_id]||''),arrival:a[ix.arrival_time]||'',departure:a[ix.departure_time]||'',seq:Number(a[ix.stop_sequence]||0),pickup_type:ix.pickup_type==null?'0':String(a[ix.pickup_type]||'0'),drop_off_type:ix.drop_off_type==null?'0':String(a[ix.drop_off_type]||'0')};if(!byTrip.has(tid))byTrip.set(tid,[]);byTrip.get(tid).push(z)}
+      byTrip.forEach(xs=>xs.sort((a,b)=>a.seq-b.seq));
+      const shapeIds=new Set(tripRows.map(t=>String(t.shape_id||'')).filter(Boolean)),shapeMap=new Map();
+      if(shapeIds.size&&f.entries.has('shapes.txt')){const txt=await urbanEntryText(f,'shapes.txt'),sl=txt.replace(/^\uFEFF/,'').split(/\r?\n/),sh=fluoCsvRow(sl.shift()||''),sx=Object.fromEntries(sh.map((v,i)=>[v,i]));for(const line of sl){if(!line)continue;const a=fluoCsvRow(line),sid=String(a[sx.shape_id]||'');if(!shapeIds.has(sid))continue;const lat=Number(a[sx.shape_pt_lat]),lon=Number(a[sx.shape_pt_lon]),seq=Number(a[sx.shape_pt_sequence]||0);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;if(!shapeMap.has(sid))shapeMap.set(sid,[]);shapeMap.get(sid).push({lat,lon,seq})}shapeMap.forEach(xs=>xs.sort((a,b)=>a.seq-b.seq))}
+      const groups=new Map();
+      for(const t of tripRows){const tid=String(t.trip_id),times=byTrip.get(tid)||[];if(!times.length)continue;const sid=String(t.shape_id||''),headsign=t.trip_headsign||'',dir=String(t.direction_id??''),sig=`${dir}|${headsign}|${sid}|${times.map(x=>x.stop_id).join('>')}`;let g=groups.get(sig);if(!g){const shp=(shapeMap.get(sid)||[]).map(x=>[x.lat,x.lon]);g={headsign,direction:dir,examples:[],trips:[],shape_id:sid,trace_source:shp.length?`urban_gtfs_${key}`:'road_fallback',shape_points:shp.length,shape:shp,network:key,network_label:f.label,stops:times.map(x=>{const st=f.stops.get(x.stop_id)||{id:x.stop_id,name:x.stop_id,lat:NaN,lon:NaN,code:'',parent_station:''};return{id:st.id,name:st.name,lat:st.lat,lon:st.lon,code:st.code,parent_station:st.parent_station||'',network:key,networkLabel:f.label,arrival:x.arrival,departure:x.departure}})};groups.set(sig,g)}
+        const arr=times.map(x=>[x.arrival,x.departure]);g.trips.push({id:tid,service:String(t.service_id||''),headsign,trip_short_name:t.trip_short_name||'',block_id:t.block_id||'',times:arr,demand:times.map(x=>({pickup_type:String(x.pickup_type||'0'),drop_off_type:String(x.drop_off_type||'0')}))});const ex=arr[0]?.[1]||arr[0]?.[0];if(ex&&g.examples.length<3&&!g.examples.includes(ex))g.examples.push(ex);
+      }
+      return{route:{...route,network:key,network_label:f.label},patterns:[...groups.values()]};
+    })();U.payloads.set(cacheKey,promise);try{return await promise}catch(e){U.payloads.delete(cacheKey);throw e}
+  }
+  window.MonSAEIVUrbanGTFS={config:URBAN,feed:urbanFeed,route:urbanRoutePayload,serviceActive:serviceRecActive,entryText:urbanEntryText};
+
+  // ---------- Choix Interurbain / Urbain dans la prise de service ----------
+  if(!q('v1012NetworkChoice')){
+    const choice=document.createElement('div');choice.id='v1012NetworkChoice';choice.className='v1012-network-choice';choice.innerHTML=`<div class="service-choice-title">TYPE DE RÉSEAU</div><div class="v1012-network-buttons"><button id="v1012Interurban" type="button" class="active">🛣 Interurbain</button><button id="v1012Urban" type="button">🏙 Urbain</button></div><div id="v1012NetworkHelp" class="v1012-network-help">Réseaux interurbains Fluo Grand Est.</div>`;
+    document.querySelector('#setup .service-choice')?.insertAdjacentElement('afterend',choice);
+  }
+  const deptLabel=q('dept')?.closest('label');if(deptLabel&&!q('v1012DeptCaption')){for(const n of [...deptLabel.childNodes])if(n.nodeType===3)n.nodeValue='';const sp=document.createElement('span');sp.id='v1012DeptCaption';sp.textContent='Département';deptLabel.insertBefore(sp,q('dept'))}
+  const css=document.createElement('style');css.id='v1012MultiNetworkStyle';css.textContent=`
+    .v1012-network-choice{margin:14px 0;padding:14px;border:1px solid #263d4b;border-radius:17px;background:#07151e}.v1012-network-buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:9px}.v1012-network-buttons button{min-height:58px;font-weight:950;font-size:.9rem}.v1012-network-buttons button.active{border-color:#ffd000;background:#332b05;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,208,0,.28)}.v1012-network-help{margin-top:8px;color:#91a9b6;font-size:.69rem;line-height:1.35}#v1012DeptCaption{display:block;margin-bottom:5px}
+    .v1012-connections{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.09)}.v1012-connections.hidden{display:none!important}.v1012-connections-head{display:flex;justify-content:space-between;gap:8px;align-items:center;color:#9fb5c1;font-size:.62rem;font-weight:900;text-transform:uppercase;letter-spacing:.04em}.v1012-connection-groups{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}.v1012-network-tag{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border:1px solid #355869;border-radius:999px;background:#0b2634;font-size:.62rem;font-weight:850;color:#eaf8ff}.v1012-network-tag b{color:#ffd000}.v1012-connections-note{display:block;margin-top:5px;color:#7f9aa9;font-size:.58rem}.v1012-connection-toggle{width:100%;min-height:44px;margin-top:7px;background:#153b28;border-color:#2f7e50;color:#d8ffe5}.v1012-connection-toggle.off{background:#3a2525;border-color:#7d4548;color:#ffd7d4}
+    @media(max-width:680px){.v1012-network-choice{padding:11px}.v1012-network-buttons button{min-height:52px}.v1012-connection-groups{gap:4px}.v1012-network-tag{font-size:.57rem}}
+    @media(orientation:landscape) and (max-height:650px){.v1012-connections{margin-top:4px;padding-top:4px}.v1012-connections-head{font-size:.48rem}.v1012-network-tag{padding:2px 4px;font-size:.46rem}.v1012-connections-note{display:none}}
+  `;document.head.appendChild(css);
+  if(!q('v1012Connections'))q('nextScheduledWrap')?.insertAdjacentHTML('afterend','<div id="v1012Connections" class="v1012-connections hidden"><div class="v1012-connections-head"><span>🔄 Correspondances</span><span id="v1012ConnectionsState"></span></div><div id="v1012ConnectionGroups" class="v1012-connection-groups"></div><small id="v1012ConnectionsNote" class="v1012-connections-note"></small></div>');
+
+  const interurbanOptions='<option value="">Choisir…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option><option value="67">Bas-Rhin (67)</option><option value="68">Haut-Rhin (68)</option>';
+  const urbanOptions='<option value="">Choisir…</option><option value="urban:lemet">LE MET’ · Metz</option><option value="urban:temob">TeMo’b · Thionville / Fensch</option>';
+  let networkType='interurban';
+  function applyNetworkType(type,{keep=false}={}){
+    networkType=type==='urban'?'urban':'interurban';state.networkType=networkType;
+    q('v1012Interurban')?.classList.toggle('active',networkType==='interurban');q('v1012Urban')?.classList.toggle('active',networkType==='urban');
+    if(q('v1012DeptCaption'))q('v1012DeptCaption').textContent=networkType==='urban'?'Réseau urbain':'Département';
+    if(q('v1012NetworkHelp'))q('v1012NetworkHelp').textContent=networkType==='urban'?"Pilotes urbains : LE MET’ et TeMo’b. Les lignes et courses sont lues directement dans les GTFS officiels.":'Réseaux interurbains Fluo Grand Est.';
+    if(!keep){resetSelections('dept');state.dept=null;q('dept').innerHTML=networkType==='urban'?urbanOptions:interurbanOptions;q('dept').value='';status(networkType==='urban'?'Choisis un réseau urbain.':'Choisis un département.');}
+    else if(q('dept'))q('dept').innerHTML=networkType==='urban'?urbanOptions:interurbanOptions;
+  }
+  q('v1012Interurban')?.addEventListener('click',()=>applyNetworkType('interurban'));
+  q('v1012Urban')?.addEventListener('click',()=>{if(state.service.mode==='tad')return alert('Les courses intégralement sur réservation restent gérées en mode TAD interurbain.');applyNetworkType('urban')});
+
+  const baseSetServiceMode=setServiceMode;
+  setServiceMode=function(mode){const r=baseSetServiceMode(mode);if(mode==='tad'&&networkType!=='interurban')applyNetworkType('interurban');q('v1012Urban')&&(q('v1012Urban').disabled=mode==='tad');q('v1012NetworkChoice')?.classList.toggle('hidden',mode==='collective');return r};
+  const baseLoadDept=loadDept,baseLoadRoute=loadRoute;
+  loadDept=async function(d){
+    const raw=String(d||'');if(!raw.startsWith('urban:')){if(raw&&networkType!=='interurban'){applyNetworkType('interurban',{keep:true});q('dept').value=raw}return baseLoadDept(d)}
+    const key=raw.split(':')[1];if(networkType!=='urban'){applyNetworkType('urban',{keep:true});q('dept').value=raw}
+    state.dept=raw;state.networkType='urban';state.networkKey=key;resetSelections('dept');q('route').innerHTML='<option>Chargement…</option>';status(`Chargement du réseau ${URBAN[key]?.label||key}… · synchronisation GTFS officiel`);
+    try{const f=await urbanFeed(key),date=parseIso(q('serviceDate')?.value||localIso(new Date()));state.services=f.services;state.routes=f.routes.filter(r=>{const ts=f.tripsByRoute.get(String(r.id))||[];return !ts.length||ts.some(t=>serviceRecActive(f.services[String(t.service_id||'')],date))});q('route').innerHTML='<option value="">Choisir une ligne…</option>'+state.routes.map(r=>`<option value="${h(r.id)}">${h(r.short)} — ${h(r.long)}</option>`).join('');q('route').disabled=false;status(`${state.routes.length} lignes · ${f.stopList.length} points d’arrêt · ${f.label}.`,'ok')}catch(e){q('route').innerHTML='<option>Données indisponibles</option>';status(`Impossible de charger ${URBAN[key]?.label||key} : ${e.message||e}`,'err')}
+  };
+  loadRoute=async function(r){
+    if(!r?.urban_gtfs)return baseLoadRoute(r);state.route=r;state.networkKey=r.network;resetSelections('route');q('trip').innerHTML='<option>Chargement des courses exactes…</option>';
+    try{const data=await urbanRoutePayload(r.network,r);state.patterns=data.patterns||[];if(state.service.mode==='formation')populateFormationPatterns();else populateRuns();const count=state.patterns.reduce((n,p)=>n+(p.trips?.length||0),0);status(state.service.mode==='formation'?`${state.patterns.length} parcours disponibles pour ${r.short} · ${r.network_label}.`:`${count} courses GTFS disponibles pour ${r.short} · ${r.network_label}. Choisis l’heure exacte.`, 'ok')}catch(e){status(`Courses impossibles à charger : ${e.message||e}`,'err')}
+  };
+
+  // ---------- Correspondances inter-réseaux ----------
+  const C={enabled:localStorage.getItem('monSAEIVConnectionsVoice')!=='off',results:new Map(),pending:new Map(),fingerprint:'',token:0};
+  const currentNetwork=()=>String(state?.dept||'').startsWith('urban:')?String(state.dept).split(':')[1]:(String(state?.dept)==='57'?'fluo57':null);
+  function stopFingerprint(){return `${state?.route?.id||''}|${state?.pattern?.shape_id||''}|${state?.run?.trip?.id||''}`}
+  function plannedAt(index){if(state?.run?.trip&&state?.run?.serviceDate){return arrivalFor(state.run.trip,index,state.run.serviceDate)||departureFor(state.run.trip,index,state.run.serviceDate)}return new Date()}
+  function networksNear(stop){const lat=Number(stop?.lat),lon=Number(stop?.lon),out=[];const cur=currentNetwork();if(cur)out.push(cur);if(Number.isFinite(lat)&&Number.isFinite(lon)){
+      if(lat>=48.92&&lat<=49.28&&lon>=5.88&&lon<=6.50&&!out.includes('lemet'))out.push('lemet');
+      if(lat>=49.20&&lat<=49.68&&lon>=5.78&&lon<=6.58&&!out.includes('temob'))out.push('temob');
+      if(lat>=48.75&&lat<=49.72&&lon>=5.65&&lon<=6.75&&!out.includes('fluo57'))out.push('fluo57');
+    }return out;
+  }
+  async function connectionFeed(key){if(key==='fluo57'){const f=await fluoRemoteFeed('57');if(!f.routesById)f.routesById=new Map((f.routes||[]).map(r=>[String(r.id),r]));f.key='fluo57';f.label='Fluo';f.city='Moselle';if(!f.correspondenceCache)f.correspondenceCache=new Map();return f}return urbanFeed(key)}
+  function feedText(feed,name){return feed.key==='fluo57'?fluoRemoteEntryText(feed,name):urbanEntryText(feed,name)}
+  function nearbyIds(feed,stop){const lat=Number(stop?.lat),lon=Number(stop?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))return[];const first=[];for(const x of feed.stops.values()){if(!Number.isFinite(Number(x.lat))||!Number.isFinite(Number(x.lon)))continue;const d=dist(lat,lon,Number(x.lat),Number(x.lon));if(d<=145||(d<=240&&norm(x.name)===norm(stop.name)))first.push({...x,__d:d})}const parents=new Set(first.map(x=>x.parent_station).filter(Boolean));if(parents.size)for(const x of feed.stops.values())if(parents.has(x.parent_station)||parents.has(x.id))if(!first.some(y=>y.id===x.id))first.push({...x,__d:dist(lat,lon,Number(x.lat),Number(x.lon))});return first.sort((a,b)=>a.__d-b.__d).slice(0,18).map(x=>String(x.id))}
+  function secDiff(a,b){let d=a-b;while(d>43200)d-=86400;while(d<-43200)d+=86400;return d}
+  async function linesAt(feed,ids,at){
+    if(!ids.length)return[];const date=new Date(at),dateKey=localIso(date),bucket=Math.floor((date.getHours()*60+date.getMinutes())/15),ck=`${ids.slice().sort().join(',')}|${dateKey}|${bucket}`;if(feed.correspondenceCache?.has(ck))return feed.correspondenceCache.get(ck);
+    const text=await feedText(feed,'stop_times.txt'),lines=text.replace(/^\uFEFF/,'').split(/\r?\n/),head=fluoCsvRow(lines.shift()||''),ix=Object.fromEntries(head.map((v,i)=>[v,i])),wanted=new Set(ids),nowSec=date.getHours()*3600+date.getMinutes()*60+date.getSeconds(),best=new Map();
+    for(const line of lines){if(!line)continue;const a=fluoCsvRow(line),sid=String(a[ix.stop_id]||'');if(!wanted.has(sid))continue;const tid=String(a[ix.trip_id]||''),trip=feed.tripById.get(tid);if(!trip||!serviceRecActive(feed.services[String(trip.service_id||'')],date))continue;const raw=a[ix.departure_time]||a[ix.arrival_time]||'',sec=gtfsSeconds(raw);if(sec==null)continue;const delta=secDiff(sec,nowSec);if(delta< -600||delta>5400)continue;const rid=String(trip.route_id||''),route=feed.routesById?.get(rid)||(feed.routes||[]).find(r=>String(r.id)===rid);if(!route)continue;const prev=best.get(rid);if(!prev||delta<prev.delta)best.set(rid,{id:rid,short:route.short||route.route_short_name||rid,long:route.long||route.route_long_name||'',delta,at:raw})}
+    const out=[...best.values()].sort((a,b)=>a.delta-b.delta||String(a.short).localeCompare(String(b.short),'fr',{numeric:true}));feed.correspondenceCache?.set(ck,out);return out;
+  }
+  function voiceList(xs){const names=xs.map(x=>spokenLineCode(x.short));if(!names.length)return'';if(names.length===1)return names[0];return `${names.slice(0,-1).join(', ')} et ${names.at(-1)}`}
+  function buildVoice(groups){if(!C.enabled||!groups?.length)return'';const total=groups.reduce((n,g)=>n+g.lines.length,0);if(total>8||groups.some(g=>g.lines.length>5)){const nets=groups.map(g=>g.label);return `Plusieurs correspondances sont disponibles avec ${nets.length===1?`le réseau ${nets[0]}`:`les réseaux ${nets.slice(0,-1).join(', ')} et ${nets.at(-1)}`}.`}
+    if(groups.length===1){const g=groups[0];return `Correspondance avec ${g.lines.length>1?'les lignes':'la ligne'} ${voiceList(g.lines)} du réseau ${g.label}.`}
+    return `Correspondances : ${groups.map(g=>`réseau ${g.label}, ${g.lines.length>1?'lignes':'ligne'} ${voiceList(g.lines)}`).join(' ; ')}.`;
+  }
+  async function resolve(index){const stop=state?.pattern?.stops?.[index];if(!stop)return[];const fp=stopFingerprint(),key=`${fp}|${index}`;if(C.results.has(key))return C.results.get(key);if(C.pending.has(key))return C.pending.get(key);const p=(async()=>{const groups=[];for(const nk of networksNear(stop)){try{const feed=await connectionFeed(nk),ids=nearbyIds(feed,stop);if(!ids.length)continue;let lines=await linesAt(feed,ids,plannedAt(index));const cur=currentNetwork();if(nk===cur&&state?.route){const curId=String(state.route.id||''),curCode=norm(state.route.short||'');lines=lines.filter(x=>String(x.id)!==curId&&norm(x.short||'')!==curCode);}if(lines.length)groups.push({key:nk,label:feed.label,lines})}catch(e){console.info('Correspondances indisponibles',nk,e?.message||e)}}C.results.set(key,groups);C.pending.delete(key);return groups})();C.pending.set(key,p);return p}
+  function render(index,groups,loading=false){const box=q('v1012Connections');if(!box)return;if(index!==state?.target){return}box.classList.toggle('hidden',!loading&&!groups?.length);q('v1012ConnectionsState').textContent=loading?'Recherche…':groups?.length?`${groups.reduce((n,g)=>n+g.lines.length,0)} ligne${groups.reduce((n,g)=>n+g.lines.length,0)>1?'s':''}`:'';q('v1012ConnectionGroups').innerHTML=groups?.map(g=>`<span class="v1012-network-tag"><b>${h(g.label)}</b>${h(g.lines.map(x=>x.short).join(' · '))}</span>`).join('')||'';q('v1012ConnectionsNote').textContent=groups?.length?'Correspondances dont un départ est prévu dans les 90 prochaines minutes.':''}
+  async function prefetch(index){if(!Number.isInteger(index)||!state?.pattern?.stops?.[index]){q('v1012Connections')?.classList.add('hidden');return}const fp=stopFingerprint();if(C.fingerprint!==fp){C.fingerprint=fp;C.results.clear();C.pending.clear()}const token=++C.token;render(index,[],true);const groups=await resolve(index);if(token===C.token&&index===state?.target)render(index,groups,false)}
+  function voicePhraseFor(index){const groups=C.results.get(`${stopFingerprint()}|${index}`)||[];return buildVoice(groups)}
+  function syncToggle(){const on=C.enabled;[q('v1012ConnectionsToggle'),q('v1012ConnectionsToggleLandscape')].filter(Boolean).forEach(b=>{b.classList.toggle('off',!on);b.classList.toggle('v315-off',!on);b.innerHTML=b.id==='v1012ConnectionsToggleLandscape'?`<span>🔄 Correspondances vocales</span><b>${on?'ON':'OFF'}</b>`:`🔄 Correspondances vocales ${on?'ON':'OFF'}`;b.setAttribute('aria-pressed',String(on))})}
+  function toggle(){C.enabled=!C.enabled;localStorage.setItem('monSAEIVConnectionsVoice',C.enabled?'on':'off');syncToggle()}
+  function addToggles(){if(!q('v1012ConnectionsToggle')){const b=document.createElement('button');b.id='v1012ConnectionsToggle';b.type='button';b.className='v1012-connection-toggle';(q('v28PassengerToggle')||q('v26AnnounceBtn')||q('requestsBtn'))?.insertAdjacentElement('afterend',b);b.addEventListener('click',toggle)}const vc=q('v315VoiceControls');if(vc&&!q('v1012ConnectionsToggleLandscape')){const b=document.createElement('button');b.id='v1012ConnectionsToggleLandscape';b.type='button';vc.appendChild(b);b.addEventListener('click',toggle)}syncToggle()}
+  const baseLabels=labels;labels=function(){const r=baseLabels();setTimeout(()=>prefetch(Number(state?.target)),0);return r};
+  addToggles();setTimeout(addToggles,1500);
+  window.MonSAEIVConnections={prefetch,voicePhraseFor,toggle,get enabled(){return C.enabled},resolve};
+  applyNetworkType('interurban',{keep:true});
+})();
+</script>
+
 <script id="v3125NetworkTimetableLibrary">
 'use strict';
 /* V31.26 — bibliothèque des fiches horaires du réseau depuis le menu hamburger.
@@ -6776,10 +6934,12 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const pad=n=>String(n).padStart(2,'0');
   const today=()=>{const d=new Date();return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
   const parseDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3],12):new Date()};
-  const era=(dept,date)=>String(dept)==='54'&&String(date)>='2026-09-01'?'regional-2026':(['67','68'].includes(String(dept))?'regional':'historique');
+  const era=(dept,date)=>String(dept).startsWith('urban:')?'urban':(String(dept)==='54'&&String(date)>='2026-09-01'?'regional-2026':(['67','68'].includes(String(dept))?'regional':'historique'));
   const DEPTS={
     '54':{name:'Meurthe-et-Moselle',icon:'54'},'57':{name:'Moselle',icon:'57'},
-    '67':{name:'Bas-Rhin',icon:'67'},'68':{name:'Haut-Rhin',icon:'68'}
+    '67':{name:'Bas-Rhin',icon:'67'},'68':{name:'Haut-Rhin',icon:'68'},
+    'urban:lemet':{name:"LE MET’",icon:'🏙',urban:true,network:'lemet'},
+    'urban:temob':{name:"TeMo’b",icon:'🏙',urban:true,network:'temob'}
   };
   const B={view:'departments',dept:null,family:null,route:null,routes:[],payload:null,services:{},groups:[],date:q('serviceDate')?.value||today(),dataEra:null,token:0};
   const localCoreCache=new Map(), routesCache=new Map(), servicesCache=new Map(), payloadCache=new Map();
@@ -6825,7 +6985,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     try{return await localCoreCache.get(d)}catch(e){localCoreCache.delete(d);throw e}
   }
   function routeFamily(route,dept){
-    const d=String(dept),s=code(route),hay=norm([route?.short,route?.long].filter(Boolean).join(' '));
+    const d=String(dept),s=code(route),hay=norm([route?.short,route?.long].filter(Boolean).join(' '));if(d.startsWith('urban:'))return'regular';
     if((d==='67'||d==='68')&&window.FluoAlsaceLineCategoryV314){const c=window.FluoAlsaceLineCategoryV314(route,d);if(c==='regular'||c==='school')return c}
     if(/^\d{3}[A-Z]?$/.test(s)||new RegExp(`^${d}R\\d+`).test(s))return'regular';
     if(/^\d{4}[A-Z]?$/.test(s)||/\b(SCOLAIRE|SCOLAIRES|SCOL|ECOLE|ECOLES|COLLEGE|COLLEGES|LYCEE|LYCEES|ELEVES|RAMASSAGE|RPI)\b/.test(hay)||new RegExp(`^${d}(S|SC|SCO|E)`).test(s))return'school';
@@ -6838,7 +6998,9 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   async function routesFor(dept,date){
     const d=String(dept),e=era(d,date),key=`${d}|${e}|${date}`;if(routesCache.has(key))return routesCache.get(key);
     let routes=[];
-    if(e.startsWith('regional')){
+    if(e==='urban'){
+      const net=d.split(':')[1],feed=await window.MonSAEIVUrbanGTFS.feed(net),dt=parseDate(date);routes=(feed.routes||[]).filter(r=>{const ts=feed.tripsByRoute.get(String(r.id))||[];return !ts.length||ts.some(t=>window.MonSAEIVUrbanGTFS.serviceActive(feed.services[String(t.service_id||'')],dt))});
+    }else if(e.startsWith('regional')){
       const [core,feed]=await Promise.all([fluoRemoteCore(d),fluoRemoteFeed(d)]),iso=String(date);
       routes=(core.routesIndex?.routes||[]).filter(r=>{const trips=feed.tripsByRoute.get(String(r.id))||[];return !trips.length||trips.some(t=>fluoServiceCoversIso(feed.services[String(t.service_id||'')],iso))});
       if(d==='54'&&iso>='2026-09-01')routes=routes.filter(r=>/^\d{3,4}$/.test(String(r.short||'').trim()));
@@ -6852,9 +7014,9 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     routes=routes.slice().sort((a,b)=>String(a.short||'').localeCompare(String(b.short||''),'fr',{numeric:true})||String(a.long||'').localeCompare(String(b.long||''),'fr'));
     routesCache.set(key,routes);return routes;
   }
-  async function servicesFor(dept,date){const d=String(dept),e=era(d,date),key=`${d}|${e}`;if(servicesCache.has(key))return servicesCache.get(key);const services=e.startsWith('regional')?(await fluoRemoteFeed(d)).services:((await localCore(d)).servicesIndex?.services||{});servicesCache.set(key,services);return services}
+  async function servicesFor(dept,date){const d=String(dept),e=era(d,date),key=`${d}|${e}`;if(servicesCache.has(key))return servicesCache.get(key);const services=e==='urban'?(await window.MonSAEIVUrbanGTFS.feed(d.split(':')[1])).services:e.startsWith('regional')?(await fluoRemoteFeed(d)).services:((await localCore(d)).servicesIndex?.services||{});servicesCache.set(key,services);return services}
   function localServiceActive(id,date,services){const r=services?.[id];if(!r)return true;const key=`${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}`,ex=r.exceptions?.[key];if(ex===1)return true;if(ex===2)return false;if(r.start&&key<r.start)return false;if(r.end&&key>r.end)return false;const wd=(date.getDay()+6)%7;return!!r.days?.[wd]}
-  async function routePayload(dept,route,date){const key=`${dept}|${era(dept,date)}|${route?.id||route?.file||route?.short}`;if(payloadCache.has(key))return payloadCache.get(key);const raw=route?.remote_gtfs?await fluoRemoteRoutePayload(String(dept),route):await fluoRoutePayload(String(dept),route);const copy={...raw,patterns:(raw?.patterns||[]).map(p=>({...p,trips:(p.trips||[]).map(t=>({...t,demand:Array.isArray(t.demand)?t.demand.map(x=>({...x})):t.demand}))}))};await enrichDemand(String(dept),route,copy);payloadCache.set(key,copy);return copy}
+  async function routePayload(dept,route,date){const key=`${dept}|${era(dept,date)}|${route?.id||route?.file||route?.short}`;if(payloadCache.has(key))return payloadCache.get(key);const d=String(dept),raw=d.startsWith('urban:')?await window.MonSAEIVUrbanGTFS.route(d.split(':')[1],route):route?.remote_gtfs?await fluoRemoteRoutePayload(d,route):await fluoRoutePayload(d,route);const copy={...raw,patterns:(raw?.patterns||[]).map(p=>({...p,trips:(p.trips||[]).map(t=>({...t,demand:Array.isArray(t.demand)?t.demand.map(x=>({...x})):t.demand}))}))};if(!d.startsWith('urban:'))await enrichDemand(d,route,copy);payloadCache.set(key,copy);return copy}
   const depClock=t=>String(t?.times?.[0]?.[1]||t?.times?.[0]?.[0]||'').slice(0,5);
   function scorePattern(a,b){let s=0;if(norm(a?.stops?.[0]?.name)===norm(b?.stops?.[0]?.name))s+=8;if(norm(a?.stops?.at(-1)?.name)===norm(b?.stops?.at(-1)?.name))s+=8;s-=Math.abs((a?.stops?.length||0)-(b?.stops?.length||0))*.15;return s}
   function alignDemand(cur,rem,trip){const out=(cur?.stops||[]).map(()=>({pickup_type:'0',drop_off_type:'0'})),rs=rem?.stops||[],rd=trip?.demand||[];let pos=0,matches=0;for(let i=0;i<(cur?.stops||[]).length;i++){const n=norm(cur.stops[i]?.name);let j=-1;for(let k=pos;k<rs.length;k++)if(norm(rs[k]?.name)===n){j=k;break}if(j<0)for(let k=0;k<rs.length;k++)if(norm(rs[k]?.name)===n){j=k;break}if(j>=0){out[i]={pickup_type:String(rd[j]?.pickup_type||'0'),drop_off_type:String(rd[j]?.drop_off_type||'0')};pos=j+1;matches++}}return matches>=Math.max(2,Math.floor((cur?.stops?.length||0)*.55))?out:null}
@@ -6866,17 +7028,17 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function tripTime(trip,index){const a=clock(trip?.times?.[index]?.[0]),d=clock(trip?.times?.[index]?.[1]);return a==='—'?d:d==='—'||a===d?a:`${a} / ${d}`}
   function buildGroups(){const date=parseDate(B.date),map=new Map();for(const p of B.payload?.patterns||[]){const origin=p.stops?.[0]?.name||'Départ',dest=p.stops?.at(-1)?.name||p.headsign||'Terminus',key=`${origin}→${dest}`;for(const trip of p.trips||[]){if(!localServiceActive(trip.service,date,B.services))continue;const raw=trip.times?.[0]?.[1]||trip.times?.[0]?.[0];if(!raw)continue;if(!map.has(key))map.set(key,{label:`${origin} → ${dest}`,runs:[]});map.get(key).runs.push({p,trip,raw,sec:gtfsSeconds(raw)??Infinity})}}B.groups=[...map.values()].map(g=>({...g,runs:g.runs.sort((a,b)=>a.sec-b.sec)})).sort((a,b)=>a.label.localeCompare(b.label,'fr'));return B.groups}
   function demandFlags(run){const api=window.FluoDemandStopsV3124,full=Boolean(api?.isFullReservationFor?.(B.route,run.p,run.trip));const flags=run.p.stops.map((_,i)=>full?{pickupReservation:false,dropRequest:false}:api?.flagsFor?.(run.p,run.trip,i,B.route)||{pickupReservation:false,dropRequest:false});return{full,flags}}
-  function renderRun(run){if(!run){q('v3125TripDetail').innerHTML='<div class="v3125-empty">Aucun départ disponible pour cette date.</div>';return}const {full,flags}=demandFlags(run),rows=run.p.stops.map((st,i)=>{const f=flags[i]||{},sym=`${f.pickupReservation?'↑':''}${f.dropRequest?'↓':''}`,tip=[f.pickupReservation?'Montée sur réservation':null,f.dropRequest?'Descente à la demande':null].filter(Boolean).join(' · ');return`<tr><td>${i+1}. ${h(st.name)}${sym?`<span class="v3125-demand-flags" title="${h(tip)}">${sym}</span>`:''}</td><td>${h(tripTime(run.trip,i))}</td></tr>`}).join(''),dest=run.p.stops.at(-1)?.name||run.p.headsign||'Terminus',has=flags.some(f=>f.pickupReservation||f.dropRequest),legend=full?'<span class="v3125-demand-legend">📞 Course intégralement sur réservation · exploitation en mode TAD</span>':has?'<span class="v3125-demand-legend">↑ montée sur réservation · ↓ descente à la demande</span>':'';q('v3125TripDetail').innerHTML=`<div class="v3125-detail-head"><b>${h(run.p.stops[0]?.name||'Départ')} → ${h(dest)}</b><span>Départ ${h(clock(run.raw))} · ${run.p.stops.length} arrêts · données Fluo</span>${legend}</div><table class="v3125-table"><thead><tr><th>Arrêt</th><th>Arrivée / départ</th></tr></thead><tbody>${rows}</tbody></table>`}
+  function renderRun(run){if(!run){q('v3125TripDetail').innerHTML='<div class="v3125-empty">Aucun départ disponible pour cette date.</div>';return}const {full,flags}=demandFlags(run),rows=run.p.stops.map((st,i)=>{const f=flags[i]||{},sym=`${f.pickupReservation?'↑':''}${f.dropRequest?'↓':''}`,tip=[f.pickupReservation?'Montée sur réservation':null,f.dropRequest?'Descente à la demande':null].filter(Boolean).join(' · ');return`<tr><td>${i+1}. ${h(st.name)}${sym?`<span class="v3125-demand-flags" title="${h(tip)}">${sym}</span>`:''}</td><td>${h(tripTime(run.trip,i))}</td></tr>`}).join(''),dest=run.p.stops.at(-1)?.name||run.p.headsign||'Terminus',has=flags.some(f=>f.pickupReservation||f.dropRequest),legend=full?'<span class="v3125-demand-legend">📞 Course intégralement sur réservation · exploitation en mode TAD</span>':has?'<span class="v3125-demand-legend">↑ montée sur réservation · ↓ descente à la demande</span>':'';q('v3125TripDetail').innerHTML=`<div class="v3125-detail-head"><b>${h(run.p.stops[0]?.name||'Départ')} → ${h(dest)}</b><span>Départ ${h(clock(run.raw))} · ${run.p.stops.length} arrêts · données ${h(DEPTS[B.dept]?.urban?DEPTS[B.dept].name:'Fluo')}</span>${legend}</div><table class="v3125-table"><thead><tr><th>Arrêt</th><th>Arrivée / départ</th></tr></thead><tbody>${rows}</tbody></table>`}
   function renderDepartures(){const g=B.groups[Number(q('v3125Direction')?.value||0)];if(!g){q('v3125Departures').innerHTML='';renderRun(null);return}q('v3125Departures').innerHTML=g.runs.map((r,i)=>`<button class="v3125-dep${i===0?' active':''}" type="button" data-v3125-run="${i}">${h(clock(r.raw))}</button>`).join('');renderRun(g.runs[0])}
-  function renderSheet(){B.view='sheet';const gs=buildGroups(),dept=DEPTS[B.dept],family=B.family==='school'?'Ligne scolaire':'Ligne régulière';setHead(`${B.route.short} · ${B.route.long||'Fiche horaire'}`,`${family} · ${dept.name} (${B.dept}) · ${parseDate(B.date).toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}`,'Lignes');content().innerHTML=`<div class="v3125-sheet-tools"><label>Sens / destination<select id="v3125Direction">${gs.length?gs.map((g,i)=>`<option value="${i}">${h(g.label)} · ${g.runs.length} départ${g.runs.length>1?'s':''}</option>`).join(''):'<option value="">Aucun service ce jour</option>'}</select></label></div><div id="v3125Departures" class="v3125-departures"></div><div id="v3125TripDetail" class="v3125-detail"></div><div class="v3125-sheet-actions"><button id="v3125Print" type="button">🖨 Imprimer la fiche</button></div>`;q('v3125Direction').disabled=!gs.length;q('v3125Direction').addEventListener('change',renderDepartures);q('v3125Departures').addEventListener('click',e=>{const b=e.target.closest('[data-v3125-run]');if(!b)return;q('v3125Departures').querySelectorAll('.v3125-dep').forEach(x=>x.classList.toggle('active',x===b));const g=B.groups[Number(q('v3125Direction').value||0)];renderRun(g?.runs?.[Number(b.dataset.v3125Run)])});q('v3125Print').addEventListener('click',()=>{document.body.classList.add('v3125-print-network');const done=()=>document.body.classList.remove('v3125-print-network');window.addEventListener('afterprint',done,{once:true});window.print();setTimeout(done,1500)});renderDepartures()}
+  function renderSheet(){B.view='sheet';const gs=buildGroups(),dept=DEPTS[B.dept],family=B.family==='school'?'Ligne scolaire':'Ligne régulière',place=dept?.urban?`${dept.name} · réseau urbain`:`${dept.name} (${B.dept})`;setHead(`${B.route.short} · ${B.route.long||'Fiche horaire'}`,`${family} · ${place} · ${parseDate(B.date).toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}`,'Lignes');content().innerHTML=`<div class="v3125-sheet-tools"><label>Sens / destination<select id="v3125Direction">${gs.length?gs.map((g,i)=>`<option value="${i}">${h(g.label)} · ${g.runs.length} départ${g.runs.length>1?'s':''}</option>`).join(''):'<option value="">Aucun service ce jour</option>'}</select></label></div><div id="v3125Departures" class="v3125-departures"></div><div id="v3125TripDetail" class="v3125-detail"></div><div class="v3125-sheet-actions"><button id="v3125Print" type="button">🖨 Imprimer la fiche</button></div>`;q('v3125Direction').disabled=!gs.length;q('v3125Direction').addEventListener('change',renderDepartures);q('v3125Departures').addEventListener('click',e=>{const b=e.target.closest('[data-v3125-run]');if(!b)return;q('v3125Departures').querySelectorAll('.v3125-dep').forEach(x=>x.classList.toggle('active',x===b));const g=B.groups[Number(q('v3125Direction').value||0)];renderRun(g?.runs?.[Number(b.dataset.v3125Run)])});q('v3125Print').addEventListener('click',()=>{document.body.classList.add('v3125-print-network');const done=()=>document.body.classList.remove('v3125-print-network');window.addEventListener('afterprint',done,{once:true});window.print();setTimeout(done,1500)});renderDepartures()}
   async function openRoute(route){const my=++B.token;B.route=route;B.view='loading';setHead(`${route.short} · ${route.long||'Fiche horaire'}`,`Chargement des horaires · ${DEPTS[B.dept].name}`,'Lignes');loading('Chargement des parcours et des courses…');try{const [payload,services]=await Promise.all([routePayload(B.dept,route,B.date),servicesFor(B.dept,B.date)]);if(my!==B.token)return;B.payload=payload;B.services=services;renderSheet()}catch(e){if(my!==B.token)return;content().innerHTML=`<div class="v3125-empty"><b>Fiche indisponible</b>${h(e?.message||e)}</div>`}}
   function filterLines(){const s=norm(q('v3125LineSearch')?.value||'');document.querySelectorAll('#v3125LineList .v3125-line').forEach(b=>b.hidden=!!s&&!norm(b.dataset.search||'').includes(s));const shown=[...document.querySelectorAll('#v3125LineList .v3125-line')].filter(b=>!b.hidden).length;q('v3125LineCount').textContent=`${shown} ligne${shown>1?'s':''} affichée${shown>1?'s':''}`}
-  async function showLines(family=B.family){const my=++B.token;B.family=family;B.route=null;B.payload=null;B.view='lines';const label=family==='school'?'Lignes scolaires':'Lignes régulières';setHead(`${label} · ${DEPTS[B.dept].name}`,`Choisis une ligne pour ouvrir sa fiche horaire.`,'Types de ligne');loading('Chargement de la liste des lignes…');try{const routes=await routesFor(B.dept,B.date);if(my!==B.token)return;B.dataEra=era(B.dept,B.date);B.routes=routes.filter(r=>routeFamily(r,B.dept)===family);content().innerHTML=`<div class="v3125-lines-head"><input id="v3125LineSearch" type="search" placeholder="Rechercher une ligne, une destination…" autocomplete="off"></div><p id="v3125LineCount" class="v3125-count">${B.routes.length} ligne${B.routes.length>1?'s':''} affichée${B.routes.length>1?'s':''}</p><div id="v3125LineList" class="v3125-line-list">${B.routes.length?B.routes.map((r,i)=>`<button type="button" class="v3125-line" data-v3125-line="${i}" data-search="${h(`${r.short||''} ${r.long||''}`)}"><span class="v3125-line-code">${h(r.short||'Ligne')}</span><span class="v3125-line-text"><b>${h(r.long||'Fiche horaire')}</b><small>Ouvrir les horaires de la ligne</small></span></button>`).join(''):'<div class="v3125-empty"><b>Aucune ligne dans cette catégorie</b>Aucune ligne correspondante n’est publiée pour cette date.</div>'}</div>`;q('v3125LineSearch')?.addEventListener('input',filterLines);q('v3125LineList')?.addEventListener('click',e=>{const b=e.target.closest('[data-v3125-line]');if(b)openRoute(B.routes[Number(b.dataset.v3125Line)])})}catch(e){if(my!==B.token)return;content().innerHTML=`<div class="v3125-empty"><b>Lignes indisponibles</b>${h(e?.message||e)}</div>`}}
-  async function showFamilies(){const my=++B.token;B.family=null;B.route=null;B.view='families';setHead(`Fiches horaires · ${DEPTS[B.dept].name}`,`Choisis le type de ligne du département ${B.dept}.`,'Départements');loading('Chargement des lignes du département…');try{const routes=await routesFor(B.dept,B.date);if(my!==B.token)return;B.routes=routes;B.dataEra=era(B.dept,B.date);const regular=routes.filter(r=>routeFamily(r,B.dept)==='regular').length,school=routes.filter(r=>routeFamily(r,B.dept)==='school').length;content().innerHTML=`<div class="v3125-grid"><button type="button" class="v3125-choice" data-v3125-family="regular"><strong>🚌 Lignes régulières</strong><span>${regular} ligne${regular>1?'s':''}</span><small>Fiches horaires des lignes régulières du département.</small></button><button type="button" class="v3125-choice" data-v3125-family="school"><strong>🎒 Lignes scolaires</strong><span>${school} ligne${school>1?'s':''}</span><small>Fiches horaires des lignes scolaires du département.</small></button></div>`;content().querySelectorAll('[data-v3125-family]').forEach(b=>b.addEventListener('click',()=>showLines(b.dataset.v3125Family)))}catch(e){if(my!==B.token)return;content().innerHTML=`<div class="v3125-empty"><b>Données indisponibles</b>${h(e?.message||e)}</div>`}}
-  function showDepartments(){++B.token;B.view='departments';B.dept=B.family=null;B.route=null;setHead('Fiches horaires',`Choisis un département. La consultation n'altère pas la course ou le planning en cours.`,null);content().innerHTML=`<div class="v3125-grid">${Object.entries(DEPTS).map(([d,x])=>`<button type="button" class="v3125-choice" data-v3125-dept="${d}"><strong>${h(x.name)}</strong><span>Département ${d}</span><small>Lignes régulières et lignes scolaires</small></button>`).join('')}</div>`;content().querySelectorAll('[data-v3125-dept]').forEach(b=>b.addEventListener('click',()=>{B.dept=b.dataset.v3125Dept;showFamilies()}))}
+  async function showLines(family=B.family){const my=++B.token;B.family=family;B.route=null;B.payload=null;B.view='lines';const label=DEPTS[B.dept]?.urban?'Lignes urbaines':(family==='school'?'Lignes scolaires':'Lignes régulières');setHead(`${label} · ${DEPTS[B.dept].name}`,`Choisis une ligne pour ouvrir sa fiche horaire.`,DEPTS[B.dept]?.urban?'Réseaux':'Types de ligne');loading('Chargement de la liste des lignes…');try{const routes=await routesFor(B.dept,B.date);if(my!==B.token)return;B.dataEra=era(B.dept,B.date);B.routes=routes.filter(r=>routeFamily(r,B.dept)===family);content().innerHTML=`<div class="v3125-lines-head"><input id="v3125LineSearch" type="search" placeholder="Rechercher une ligne, une destination…" autocomplete="off"></div><p id="v3125LineCount" class="v3125-count">${B.routes.length} ligne${B.routes.length>1?'s':''} affichée${B.routes.length>1?'s':''}</p><div id="v3125LineList" class="v3125-line-list">${B.routes.length?B.routes.map((r,i)=>`<button type="button" class="v3125-line" data-v3125-line="${i}" data-search="${h(`${r.short||''} ${r.long||''}`)}"><span class="v3125-line-code">${h(r.short||'Ligne')}</span><span class="v3125-line-text"><b>${h(r.long||'Fiche horaire')}</b><small>Ouvrir les horaires de la ligne</small></span></button>`).join(''):'<div class="v3125-empty"><b>Aucune ligne dans cette catégorie</b>Aucune ligne correspondante n’est publiée pour cette date.</div>'}</div>`;q('v3125LineSearch')?.addEventListener('input',filterLines);q('v3125LineList')?.addEventListener('click',e=>{const b=e.target.closest('[data-v3125-line]');if(b)openRoute(B.routes[Number(b.dataset.v3125Line)])})}catch(e){if(my!==B.token)return;content().innerHTML=`<div class="v3125-empty"><b>Lignes indisponibles</b>${h(e?.message||e)}</div>`}}
+  async function showFamilies(){if(DEPTS[B.dept]?.urban){B.family='regular';return showLines('regular')}const my=++B.token;B.family=null;B.route=null;B.view='families';setHead(`Fiches horaires · ${DEPTS[B.dept].name}`,`Choisis le type de ligne du département ${B.dept}.`,'Réseaux');loading('Chargement des lignes du département…');try{const routes=await routesFor(B.dept,B.date);if(my!==B.token)return;B.routes=routes;B.dataEra=era(B.dept,B.date);const regular=routes.filter(r=>routeFamily(r,B.dept)==='regular').length,school=routes.filter(r=>routeFamily(r,B.dept)==='school').length;content().innerHTML=`<div class="v3125-grid"><button type="button" class="v3125-choice" data-v3125-family="regular"><strong>🚌 Lignes régulières</strong><span>${regular} ligne${regular>1?'s':''}</span><small>Fiches horaires des lignes régulières du département.</small></button><button type="button" class="v3125-choice" data-v3125-family="school"><strong>🎒 Lignes scolaires</strong><span>${school} ligne${school>1?'s':''}</span><small>Fiches horaires des lignes scolaires du département.</small></button></div>`;content().querySelectorAll('[data-v3125-family]').forEach(b=>b.addEventListener('click',()=>showLines(b.dataset.v3125Family)))}catch(e){if(my!==B.token)return;content().innerHTML=`<div class="v3125-empty"><b>Données indisponibles</b>${h(e?.message||e)}</div>`}}
+  function showDepartments(){++B.token;B.view='departments';B.dept=B.family=null;B.route=null;setHead('Fiches horaires',`Choisis un réseau. La consultation n'altère pas la course ou le planning en cours.`,null);const inter=Object.entries(DEPTS).filter(([,x])=>!x.urban),urb=Object.entries(DEPTS).filter(([,x])=>x.urban);content().innerHTML=`<div class="v3125-kicker" style="margin:3px 0 8px">INTERURBAIN</div><div class="v3125-grid">${inter.map(([d,x])=>`<button type="button" class="v3125-choice" data-v3125-dept="${d}"><strong>${h(x.name)}</strong><span>Département ${d}</span><small>Lignes régulières et lignes scolaires</small></button>`).join('')}</div><div class="v3125-kicker" style="margin:18px 0 8px">URBAIN</div><div class="v3125-grid">${urb.map(([d,x])=>`<button type="button" class="v3125-choice" data-v3125-dept="${d}"><strong>🏙 ${h(x.name)}</strong><span>Réseau urbain</span><small>Toutes les lignes et courses GTFS disponibles</small></button>`).join('')}</div>`;content().querySelectorAll('[data-v3125-dept]').forEach(b=>b.addEventListener('click',()=>{B.dept=b.dataset.v3125Dept;showFamilies()}))}
   function open(){B.date=q('serviceDate')?.value||B.date||today();q('v3125BrowserDate').value=B.date;q('v3125TimetableBrowser').classList.remove('hidden');showDepartments()}
   function close(){++B.token;q('v3125TimetableBrowser').classList.add('hidden');document.body.classList.remove('v3125-print-network')}
-  function back(){if(B.view==='sheet')showLines(B.family);else if(B.view==='lines')showFamilies();else if(B.view==='families')showDepartments()}
+  function back(){if(B.view==='sheet')showLines(B.family);else if(B.view==='lines'&&DEPTS[B.dept]?.urban)showDepartments();else if(B.view==='lines')showFamilies();else if(B.view==='families')showDepartments()}
   q('v3125NetworkSheetsBtn')?.addEventListener('click',open);q('v3125BrowserClose').addEventListener('click',close);q('v3125BrowserBack').addEventListener('click',back);q('v3125TimetableBrowser').addEventListener('click',e=>{if(e.target===q('v3125TimetableBrowser'))close()});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!q('v3125TimetableBrowser').classList.contains('hidden'))close()});q('v3125BrowserDate').addEventListener('change',()=>{const oldEra=B.dept?era(B.dept,B.date):null;B.date=q('v3125BrowserDate').value||today();if(B.view==='sheet'&&B.dept&&oldEra===era(B.dept,B.date)&&B.route){servicesFor(B.dept,B.date).then(s=>{B.services=s;renderSheet()}).catch(e=>{content().innerHTML=`<div class="v3125-empty"><b>Horaires indisponibles</b>${h(e?.message||e)}</div>`})}else if(B.view==='lines'&&B.family)showLines(B.family);else if(B.view==='families'&&B.dept)showFamilies();else showDepartments()});
   showDepartments();
   window.FluoNetworkTimetablesV3125={open,close,showDepartments,showFamilies,showLines,openRoute};
@@ -6890,11 +7052,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const q=id=>document.getElementById(id);
   q('v3127UsageContinue')?.addEventListener('click',()=>q('v3127UsageNotice')?.classList.add('hidden'));
   const label=()=>{
-    document.title='Mon SAEIV · 1.0.11';
+    document.title='Mon SAEIV · 1.0.12';
     const eyebrow=document.querySelector('.top .eyebrow');
-    if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.11';
+    if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.12';
     const b=q('buildInfo');
-    if(b)b.textContent='Version 1.0.11';
+    if(b)b.textContent='Version 1.0.12';
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{label();setTimeout(label,4000)});
   else{label();setTimeout(label,4000)}
@@ -6904,12 +7066,12 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 <script id="monSaevIdentity101">
 (()=>{
   const apply=()=>{
-    document.title='Mon SAEIV · 1.0.11';
-    const eyebrow=document.querySelector('.top .eyebrow'); if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.11';
+    document.title='Mon SAEIV · 1.0.12';
+    const eyebrow=document.querySelector('.top .eyebrow'); if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.12';
     const h1=document.querySelector('.top h1'); if(h1) h1.textContent='Mon SAEIV';
-    const sub=document.querySelector('.top .sub'); if(sub) sub.textContent='Réseaux 54 · 57 · Bas-Rhin 67 · Haut-Rhin 68';
+    const sub=document.querySelector('.top .sub'); if(sub) sub.textContent='Interurbain · Urbain · Fluo · LE MET’ · TeMo’b';
     const usage=document.getElementById('v3127UsageTitle'); if(usage) usage.textContent='Mon SAEIV';
-    const authLogo=document.querySelector('.v13-logo'); if(authLogo && /MON SAEIV/.test(authLogo.textContent||'')) authLogo.textContent='MON SAEIV · 1.0.11';
+    const authLogo=document.querySelector('.v13-logo'); if(authLogo && /MON SAEIV/.test(authLogo.textContent||'')) authLogo.textContent='MON SAEIV · 1.0.12';
     const build=document.getElementById('buildInfo'); if(build){build.hidden=true;build.setAttribute('aria-hidden','true');}
     document.querySelectorAll('.audio-note,.fusion-note,#v305SpeedNote').forEach(el=>el.remove());
   };
@@ -6919,7 +7081,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 <script id="monSaevV102JournalPdf">
-/* Mon SAEIV 1.0.11 - export PDF des journaux, sans dépendance externe. */
+/* Mon SAEIV 1.0.12 - export PDF des journaux, sans dépendance externe. */
 (()=>{
   const q=id=>document.getElementById(id), DB='fluo-saeiv-journal-v13', ACCOUNT='fluoSaeivAccountV13';
   const PAGE_W=595.28,PAGE_H=841.89,M=42,CONTENT_W=PAGE_W-2*M;
@@ -6943,7 +7105,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const para=(str,size=9,bold=false,indent=0,gap=3)=>{const ls=wrap(str,size,CONTENT_W-indent);for(const l of ls){if(y<60)newPage();text(M+indent,y,size,l,bold);y-=size+gap}};
     const heading=(str)=>{if(y<95)newPage();y-=4;text(M,y,14,str,true);y-=20;line(M,y+6,PAGE_W-M,y+6,1)};
     newPage();
-    text(M,y,10,'MON SAEIV - EXPORT DES JOURNAUX',true);text(PAGE_W-M-145,y,8,`Version 1.0.11`,false);y-=22;
+    text(M,y,10,'MON SAEIV - EXPORT DES JOURNAUX',true);text(PAGE_W-M-145,y,8,`Version 1.0.12`,false);y-=22;
     para(`Conducteur : ${account()?.matricule||sessions[0]?.matricule||'-'}`,10,true);para(`Export genere le ${dt(new Date().toISOString())}`,8);y-=8;
     sessions.forEach((s,idx)=>{
       if(idx>0){newPage()}
@@ -6986,11 +7148,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 <script id="monSaevV103GpsReliability">
-/* Mon SAEIV 1.0.11 — fiabilisation géométrie, recalcul automatique et guidage routier. */
+/* Mon SAEIV 1.0.12 — fiabilisation géométrie, recalcul automatique et guidage routier. */
 'use strict';
 (()=>{
   const q=id=>document.getElementById(id);
-  const VERSION='1.0.11';
+  const VERSION='1.0.12';
   const GAP_M=650;
   const REPAIR_KEY='monSaevV103RoadGapCache';
   const GUIDANCE_KEY='monSaevV103GuidanceCache';
@@ -7253,7 +7415,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v107IntegratedRadio">
 'use strict';
-/* Mon SAEIV 1.0.11 — radio intégrée : interface mobile robuste, volume multi-plateforme et coupure iOS pendant les voix. */
+/* Mon SAEIV 1.0.12 — radio intégrée : interface mobile robuste, volume multi-plateforme et coupure iOS pendant les voix. */
 (()=>{
   const q=id=>document.getElementById(id), escR=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const API='https://de1.api.radio-browser.info';
@@ -7332,7 +7494,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     .v107-radio-sheet{width:min(780px,98vw);max-height:min(92dvh,850px);display:flex;flex-direction:column;overflow:hidden;border:1px solid #355163;border-radius:20px;background:#081722;box-shadow:0 24px 80px rgba(0,0,0,.62)}.v107-radio-head{padding:14px 16px;border-bottom:1px solid #284250}.v107-radio-head p{margin:5px 0 0;color:#9db0bc;font-size:.78rem}.v107-now{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px 16px;background:#0d202c;border-bottom:1px solid #284250}.v107-now span{display:block;color:#ffd000;font-size:.62rem;font-weight:1000;letter-spacing:.1em}.v107-now strong{display:block;margin-top:3px;font-size:1.05rem}.v107-now small{display:block;margin-top:3px;color:#9fb1bd}.v107-now-actions{display:flex;gap:5px;align-items:start;flex-wrap:wrap}.v107-now-actions button{padding:7px 9px;font-size:.72rem}.v107-volume{grid-column:1/-1;display:grid;grid-template-columns:auto minmax(120px,1fr) 62px;align-items:center;gap:8px;font-size:.72rem}.v107-volume input{width:100%}.v107-volume b{text-align:right}.v107-volume small{grid-column:1/-1;color:#8fa5b2;font-size:.62rem;line-height:1.35}.v107-tabs{display:flex;gap:6px;padding:10px 16px 5px;overflow-x:auto}.v107-tabs button{flex:0 0 auto;padding:7px 10px;font-size:.7rem}.v107-tabs button.active{background:#ffd000;color:#111820;border-color:#ffd000}.v107-search{display:flex;gap:6px;padding:6px 16px}.v107-search input{flex:1;min-width:0}.v107-radio-status{min-height:22px;padding:0 16px 5px;color:#9fb1bd;font-size:.72rem}.v107-radio-status.ok{color:#69df92}.v107-radio-status.err{color:#ff8c87}.v107-radio-status.busy{color:#ffd000}.v107-radio-results{padding:4px 16px 14px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(68px,auto);align-content:start;gap:7px;flex:1 1 260px;min-height:150px;-webkit-overflow-scrolling:touch}.v107-station{display:grid;grid-template-columns:minmax(0,1fr) 48px;min-height:68px;height:auto;border:1px solid #294554;border-radius:12px;background:#0b1d28;overflow:hidden}.v107-station-main{border:0;border-radius:0;background:transparent;text-align:left;padding:10px 12px;min-width:0;min-height:68px;height:auto;display:flex;flex-direction:column;justify-content:center;overflow:hidden}.v107-station-main strong{display:block;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v107-station-main span{display:block;margin-top:4px;color:#91a8b6;font-size:.66rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v107-star{border:0;border-left:1px solid #294554;border-radius:0;background:#102632;color:#ffd000;font-size:1.2rem}.v107-radio-empty{grid-column:1/-1;padding:20px;text-align:center;color:#91a8b6}.v107-custom{margin:0 16px 14px;border:1px solid #294554;border-radius:12px;padding:8px 10px}.v107-custom summary{cursor:pointer;font-size:.72rem;color:#a8bbc6}.v107-custom>div{display:grid;grid-template-columns:1fr 1.5fr auto;gap:6px;margin-top:8px}
     @media(max-width:680px){.v107-radio-backdrop{padding:0;align-items:flex-end}.v107-radio-sheet{width:100%;max-height:94dvh;border-radius:20px 20px 0 0}.v107-radio-results{grid-template-columns:1fr}.v107-now{grid-template-columns:1fr}.v107-custom>div{grid-template-columns:1fr}.v107-radio-head p{font-size:.7rem}.v107-tabs{padding-left:10px;padding-right:10px}.v107-search,.v107-radio-results{padding-left:10px;padding-right:10px}}
     @media(orientation:landscape) and (max-height:650px){.v107-radio-backdrop,.v107-nav-backdrop{padding:5px}.v107-radio-sheet{max-height:97dvh;border-radius:14px}.v107-radio-head{padding:7px 10px}.v107-radio-head p{display:none}.v107-now{padding:7px 10px}.v107-tabs{padding:5px 10px 2px}.v107-search{padding:4px 10px}.v107-radio-results{padding:3px 10px 7px;min-height:125px}.v107-custom{display:none}.v107-nav-sheet{max-height:96dvh;overflow:auto}}
-    /* 1.0.11 : liste volontairement en flex plutôt qu'en grille. Safari iOS comprimait certaines cartes de stations. */
+    /* 1.0.12 : liste volontairement en flex plutôt qu'en grille. Safari iOS comprimait certaines cartes de stations. */
     .v111-radio-results{display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:9px!important;overflow-y:auto!important;overflow-x:hidden!important;min-height:180px!important}
     .v111-station{box-sizing:border-box!important;display:flex!important;flex:0 0 auto!important;width:100%!important;min-width:0!important;height:78px!important;min-height:78px!important;max-height:none!important;margin:0!important;padding:0!important;border:1px solid #355668!important;border-radius:13px!important;background:#0b1d28!important;overflow:hidden!important}
     .v111-station-main{box-sizing:border-box!important;display:flex!important;flex:1 1 auto!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;width:auto!important;min-width:0!important;height:76px!important;min-height:76px!important;max-height:none!important;margin:0!important;padding:10px 12px!important;border:0!important;border-radius:0!important;background:transparent!important;color:#f4fbff!important;text-align:left!important;overflow:hidden!important}
@@ -7362,7 +7524,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
 <script id="v108CashRegister">
 'use strict';
-/* Mon SAEIV 1.0.11 — Ma caisse : fonds personnalisable, ventes par titres ou montant global, récapitulatif jour/semaine/mois. */
+/* Mon SAEIV 1.0.12 — Ma caisse : fonds personnalisable, ventes par titres ou montant global, récapitulatif jour/semaine/mois. */
 (()=>{
   const q=id=>document.getElementById(id);
   const ACCOUNT_KEY='fluoSaeivAccountV13';
@@ -7436,13 +7598,13 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v108CashCatalog')?.addEventListener('change',e=>{const d=read();d.catalog=e.target.value==='r67'?'r67':'general';write(d);renderCatalog()});q('v108CashTitleRows')?.addEventListener('input',calcDetail);['v108CashCustomQty','v108CashCustomPrice'].forEach(id=>q(id)?.addEventListener('input',calcDetail));q('v108CashSaveSale')?.addEventListener('click',saveSale);
   q('v108CashHistory')?.addEventListener('click',e=>{const id=e.target.closest('[data-v108-delete]')?.dataset.v108Delete;if(!id)return;const d=read(),x=d.sales.find(s=>s.id===id);if(!x)return;if(confirm(`Supprimer cette vente de ${money(x.total)} du ${fmtDate(x.date)} ?`)){d.sales=d.sales.filter(s=>s.id!==id);write(d);renderSummary()}});
   window.MonSAEIVCash={open:openCash,data:read};
-  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.11';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.11';const b=q('buildInfo');if(b)b.textContent='Version 1.0.11'};applyVersion();setTimeout(applyVersion,5000);
+  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.12';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.12';const b=q('buildInfo');if(b)b.textContent='Version 1.0.12'};applyVersion();setTimeout(applyVersion,5000);
 })();
 </script>
 
 <script id="v109MobilePolish">
 'use strict';
-/* Mon SAEIV 1.0.11 — correctifs ergonomie Ma journée + lisibilité radio mobile. */
+/* Mon SAEIV 1.0.12 — correctifs ergonomie Ma journée + lisibilité radio mobile. */
 (()=>{
   const q=id=>document.getElementById(id);
   const polish=()=>{

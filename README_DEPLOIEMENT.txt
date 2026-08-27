@@ -473,3 +473,15 @@ MON SAEIV 1.0.10 — CORRECTIFS MA JOURNÉE + RADIO
 Mon SAEIV 1.0.10
 - Correctif tactile/iOS de la sélection des arrêts dans Admin > Création de ligne.
 - Aucun changement des données réseau ni des autres fonctions.
+
+
+MON SAEIV 1.0.12 — MULTIRÉSEAUX URBAINS PILOTES
+- Prise de service : choix Interurbain / Urbain avant le réseau.
+- Urbain pilote : LE MET’ (Metz) et TeMo’b (Thionville/Fensch), GTFS officiels chargés à la demande.
+- Fiches horaires : LE MET’ et TeMo’b ajoutés à la bibliothèque réseau.
+- Correspondances inter-réseaux : préparation en avance du prochain arrêt ; Fluo 57 + réseau urbain de la zone ; ligne conduite exclue.
+- Filtre horaire correspondances : départs entre 10 min avant et 90 min après l’heure d’arrivée prévue.
+- Voix : correspondances annoncées uniquement à l’arrivée à l’arrêt ; jamais dans « Prochain arrêt ».
+- Affichage : correspondances visibles sous le prochain arrêt, regroupées par réseau.
+- Option conducteur : correspondances vocales ON/OFF.
+- Les réseaux Fluo, le planning, Ma journée, le TAD, la caisse, la radio et le GPS restent inchangés.
