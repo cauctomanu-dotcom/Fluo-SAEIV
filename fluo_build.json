@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T19:55:00+02:00",
-  "version": "1.0.13",
+  "generated_at": "2026-08-27T20:55:00+02:00",
+  "version": "1.0.14",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -42,6 +42,24 @@
       "source": "TeMo’b — GTFS officiel",
       "url": "https://transport.data.gouv.fr/resources/80459/download",
       "mode": "chargement à la demande + cache local 6 h",
+      "network_type": "urbain"
+    },
+    "urban_avl": {
+      "source": "Administration des transports publics Luxembourg — GTFS national",
+      "url": "https://data.public.lu/fr/datasets/r/64ec20dd-2dd5-44b7-9db1-a603db9a51b3",
+      "mode": "filtrage agence AVL ; téléchargement partagé et cache local",
+      "network_type": "urbain"
+    },
+    "urban_tice": {
+      "source": "Administration des transports publics Luxembourg — GTFS national",
+      "url": "https://data.public.lu/fr/datasets/r/64ec20dd-2dd5-44b7-9db1-a603db9a51b3",
+      "mode": "filtrage agence TICE ; téléchargement partagé et cache local",
+      "network_type": "urbain"
+    },
+    "urban_diffbus": {
+      "source": "Administration des transports publics Luxembourg — GTFS national / Mobiliteit",
+      "url": "https://data.public.lu/fr/datasets/r/64ec20dd-2dd5-44b7-9db1-a603db9a51b3",
+      "mode": "filtrage Diffbus/Differdange ; 4 lignes communales si présentes dans le GTFS national",
       "network_type": "urbain"
     }
   },
@@ -287,12 +305,26 @@
     ],
     "urban_pilots": [
       "LE MET’",
-      "TeMo’b"
+      "TeMo’b",
+      "AVL",
+      "TICE",
+      "Diffbus"
     ],
     "connections": "inter-réseaux à proximité ; lignes avec départ entre -10 min et +90 min ; annonce uniquement à l’arrivée",
     "fluo57_connection_source": {
       "source": "Fluo Grand Est 57",
       "url": "https://www.data.gouv.fr/api/1/datasets/r/42be7185-b2a8-4d1e-80c4-f7c402655260"
+    },
+    "luxembourg_urban_v1_0_14": {
+      "shared_feed": "GTFS national Luxembourg 2026-08-19 → 2026-12-12, ressource mise à jour le 21/08/2026",
+      "networks": [
+        "AVL · Luxembourg-Ville",
+        "TICE · Esch / Sud Luxembourg",
+        "Diffbus · Differdange"
+      ],
+      "filtering": "agency_id/agency_name et libellés de route ; un seul ZIP partagé en mémoire/cache",
+      "connections": "les trois réseaux rejoignent le moteur de correspondances inter-réseaux autour des arrêts luxembourgeois",
+      "timetables": "consultables depuis Fiches horaires > Urbain comme LE MET’ et TeMo’b"
     }
   }
 }

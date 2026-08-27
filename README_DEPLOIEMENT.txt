@@ -491,3 +491,12 @@ Mon SAEIV 1.0.13 — correctif LE MET’ PWA
 - Les liens transport.data.gouv.fr, data.lemet.fr et une copie historisée officielle du PAN restent disponibles en secours.
 - Le cache GTFS urbain est versionné 1.0.13 afin d’éviter de conserver un échec de chargement précédent.
 - TeMo’b et toutes les fonctions existantes restent inchangés.
+
+
+MON SAEIV 1.0.14 — RÉSEAUX URBAINS LUXEMBOURG
+- Ajout AVL (Autobus de la Ville de Luxembourg), TICE (Esch / Sud Luxembourg) et Diffbus (Differdange) dans Urbain.
+- GTFS national luxembourgeois partagé : un seul téléchargement, filtrage par réseau et cache local.
+- Les nouveaux réseaux sont disponibles dans la prise de service et dans la bibliothèque Fiches horaires.
+- Correspondances inter-réseaux étendues aux réseaux luxembourgeois à proximité.
+- Diffbus : détection des lignes Diffbus/Differdange publiées dans le GTFS national ; le réseau officiel comporte 4 lignes depuis la refonte du 13 avril 2026.
+- LE MET’, TeMo’b, Fluo et toutes les fonctions antérieures restent inchangés.
