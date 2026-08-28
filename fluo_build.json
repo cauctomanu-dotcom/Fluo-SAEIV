@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-28T01:10:32+02:00",
-  "version": "1.0.21",
+  "generated_at": "2026-08-28T02:44:09+02:00",
+  "version": "1.0.22",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -392,5 +392,13 @@
     "session_summary": "total des voyageurs montés et descendus conservé dans les métadonnées de la course",
     "cash": "ajout de boutons − / + sur les quantités de titres, tout en conservant la saisie directe au clavier",
     "performance": "aucun réglage GPS, simulation ou navigation modifié par cette version"
+  },
+  "cash_register_fix_v1_0_22": {
+    "scope": "Ma caisse — persistance des ventes par titres sur iPhone/PWA et multiréseaux",
+    "storage": "registre unique par conducteur ; chaque vente porte son réseau ; fonds et catalogue restent séparés par réseau",
+    "migration": "récupération automatique des anciennes caisses V108 globales et par réseau, avec déduplication par identifiant",
+    "save_order": "le récapitulatif est relu et mis à jour avant toute remise à zéro des champs",
+    "confirmation": "confirmation visible du nombre de ventes réellement relues depuis le stockage",
+    "preserved": "comptage voyageurs V1.0.21, GPS, simulation et navigation inchangés"
   }
 }

@@ -548,3 +548,11 @@ V1.0.21 — Comptage voyageurs + ergonomie caisse
 - Journaux : feuille de comptage voyageurs par arrêt, totaux montées/descentes et rapport HTML enrichi.
 - Ma caisse : boutons − / + ajoutés aux quantités de titres, saisie clavier conservée.
 - Aucun réglage GPS, simulation ou performance modifié.
+
+
+V1.0.22 — Correctif persistance Ma caisse
+- Registre de caisse unique par conducteur, avec ventes étiquetées par réseau.
+- Fonds et catalogues restent séparés par réseau.
+- Migration automatique des anciennes ventes V108.
+- Le formulaire n’est remis à zéro qu’après relecture confirmée de la vente.
+- Comptage voyageurs et navigation inchangés.
