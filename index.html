@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.22">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.26">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Mon SAEIV · 1.0.22</title>
@@ -1636,10 +1636,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=1.0.22').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.22'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=1.0.26').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.26'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.22').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.26').catch(()=>{});
 
 </script>
 <script>
@@ -3719,7 +3719,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
         <div class="v23-session-row"><input class="v23-select" type="checkbox" data-select-id="${esc23(s.id)}" ${s.status==='open'?'disabled title="Le service en cours ne peut pas être supprimé"':''}>
           <div class="v23-session-main"><strong>${esc23(s.route||'—')} · ${esc23(s.destination||'')}</strong><span>${fmtDate23(s.startedAt)} · ${esc23(s.serviceMode||'')} · ${s.tripId?`trip ${esc23(s.tripId)}`:'sans horaire'}</span><span>${s.stopEvents||0} arrêts · ${s.samples||0} points GPS · max ${Number.isFinite(s.maxSpeedKmh)?s.maxSpeedKmh:'—'} km/h · ${Number.isFinite(s.distanceKm)?s.distanceKm:'—'} km${Number(s.passengerBoardings)>0?` · ${Number(s.passengerBoardings)} voyageur${Number(s.passengerBoardings)>1?'s':''}`:''}</span></div>
           <span class="v13-session-badge ${cl}">${lab}</span></div>
-        <div class="v23-session-actions"><button type="button" data-v23-action="view">🗺 Voir le journal</button><button type="button" data-v23-action="download">📄 Exporter PDF</button>${s.status==='open'?'':`<button type="button" class="v23-delete" data-v23-action="delete">🗑 Supprimer</button>`}</div>
+        <div class="v23-session-actions"><button type="button" data-v23-action="view">🗺 Voir le journal</button><button type="button" data-v23-action="download">📄 Exporter PDF</button><button type="button" data-v125-action="passenger">👥 Comptage PDF</button>${s.status==='open'?'':`<button type="button" class="v23-delete" data-v23-action="delete">🗑 Supprimer</button>`}</div>
       </div>`}).join(''):'<div class="v23-empty"><strong>Aucun service enregistré</strong><br>Les journaux apparaîtront ici après une prise de service.</div>';
       await storage23();
     }catch(e){box.innerHTML=`<div class="v23-empty"><strong>Journal indisponible</strong><br>${esc23(e.message||e)}</div>`}
@@ -3729,7 +3729,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function ensureJournalControls23(){
     const sheet=q('v13JournalSheet')?.querySelector('.v13-sheet');if(!sheet)return;
     if(!q('v23JournalHelp')){
-      const list=q('v13JournalList');list?.insertAdjacentHTML('beforebegin','<div id="v23JournalHelp" class="v23-journal-help">Clique sur un service pour revoir la carte, les arrêts et les heures de passage. Coche plusieurs services pour supprimer plusieurs journaux en une seule fois.</div>');
+      const list=q('v13JournalList');list?.insertAdjacentHTML('beforebegin','<div id="v23JournalHelp" class="v23-journal-help">Clique sur un service pour revoir la carte, les arrêts et les heures de passage. Coche une ou plusieurs courses pour les exporter ensemble en PDF ou les supprimer.</div>');
     }
     if(!q('v23CleanActions')){
       const actions=sheet.querySelector('.v13-sheet-actions');actions?.insertAdjacentHTML('afterend','<div id="v23CleanActions" class="v23-clean-actions"><button id="v23SelectAll" type="button">☑ Tout sélectionner</button><button id="v23DeleteSelected" class="danger" type="button">🗑 Supprimer la sélection</button><button id="v23DeleteCompleted" class="danger" type="button">🧹 Effacer tous les journaux terminés</button></div>');
@@ -3835,6 +3835,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v13JournalList')?.addEventListener('click',async e=>{
     const item=e.target.closest('.v23-session');if(!item)return;const id=item.dataset.sessionId;if(!id)return;
     if(e.target.matches('.v23-select')){e.stopPropagation();return}
+    if(e.target.closest('[data-v125-action="passenger"]')){e.stopPropagation();window.MonSAEIVPassengerPDF?.exportCourse?.(id).catch(err=>alert(`Export du comptage impossible : ${err?.message||err}`));return}
     const action=e.target.closest('[data-v23-action]')?.dataset.v23Action;
     if(action==='delete'){e.stopPropagation();const s=await session23(id);if(!s||s.status==='open')return;if(confirm(`Supprimer définitivement ce journal ${s.route||''} du ${fmtDate23(s.startedAt)} ?`)){await deleteSession23(id);await renderJournals23()}return}
     if(action==='download'){e.stopPropagation();if(window.MonSAEVJournalPDF?.exportIds){await window.MonSAEVJournalPDF.exportIds([id]);return}const [s,ev]=await Promise.all([session23(id),events23(id)]);if(s)downloadReport23(s,ev);return}
@@ -6851,6 +6852,61 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 
 
+<script id="v126LuxembourgGeometry">
+'use strict';
+/* Mon SAEIV 1.0.26 — suppression ciblée des micro-crochets présents dans certains shapes GTFS luxembourgeois. */
+(()=>{
+  const NETWORKS=new Set(['rgtr','avl','tice','diffbus']);
+  const n=v=>Number(v);
+  const valid=p=>Array.isArray(p)&&Number.isFinite(n(p[0]))&&Number.isFinite(n(p[1]))&&Math.abs(n(p[0]))<=90&&Math.abs(n(p[1]))<=180;
+  function meters(a,b){
+    const p1=n(a[0])*Math.PI/180,p2=n(b[0])*Math.PI/180,dp=p2-p1,dl=(n(b[1])-n(a[1]))*Math.PI/180;
+    const h=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+    return 12742000*Math.asin(Math.min(1,Math.sqrt(h)));
+  }
+  function bearing(a,b){
+    const p1=n(a[0])*Math.PI/180,p2=n(b[0])*Math.PI/180,dl=(n(b[1])-n(a[1]))*Math.PI/180;
+    return (Math.atan2(Math.sin(dl)*Math.cos(p2),Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl))*180/Math.PI+360)%360;
+  }
+  const angleDiff=(a,b)=>Math.abs((a-b+180)%360-180);
+  function segmentDistance(p,a,b){
+    const lat0=(n(a[0])+n(b[0])+n(p[0]))/3*Math.PI/180,kx=111320*Math.cos(lat0),ky=110540;
+    const ax=n(a[1])*kx,ay=n(a[0])*ky,bx=n(b[1])*kx,by=n(b[0])*ky,px=n(p[1])*kx,py=n(p[0])*ky;
+    const dx=bx-ax,dy=by-ay,den=dx*dx+dy*dy,t=den?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/den)):0;
+    return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+  }
+  function protectsStop(stops,a,b,c){
+    for(const s of stops||[]){
+      const p=[n(s?.lat),n(s?.lon)];if(!valid(p))continue;
+      // Une desserte réellement déportée de la chaussée principale reste intacte.
+      if(meters(p,b)<=18&&segmentDistance(p,a,c)>22)return true;
+    }
+    return false;
+  }
+  function cleanShape(shape,stops=[]){
+    const src=(shape||[]).filter(valid).map(p=>[n(p[0]),n(p[1])]),out=[];
+    let removed=0;
+    for(const p of src){if(out.length&&meters(out.at(-1),p)<.8){removed++;continue}out.push(p)}
+    // Plusieurs passes permettent aussi de résorber A-B-C-B-A sans toucher aux boucles de voirie.
+    for(let pass=0;pass<8&&out.length>=3;pass++){
+      let changed=false;
+      for(let i=1;i<out.length-1;i++){
+        const a=out[i-1],b=out[i],c=out[i+1],ab=meters(a,b),bc=meters(b,c),ac=meters(a,c),sum=ab+bc;
+        if(ab<.8||bc<.8){out.splice(i,1);removed++;changed=true;i--;continue}
+        const turn=angleDiff(bearing(a,b),bearing(b,c));
+        const hardReturn=sum<=76&&Math.max(ab,bc)<=40&&turn>=162&&ac<=Math.max(2.8,sum*.11);
+        const tightHook=sum<=62&&Math.max(ab,bc)<=34&&turn>=148&&ac<=sum*.30;
+        if((hardReturn||tightHook)&&!protectsStop(stops,a,b,c)){out.splice(i,1);removed++;changed=true;i--}
+      }
+      if(!changed)break;
+    }
+    return{shape:out,removed,rawPoints:src.length,cleanedPoints:out.length};
+  }
+  function cleanNetworkShape(network,shape,stops=[]){return NETWORKS.has(String(network||'').toLowerCase())?cleanShape(shape,stops):{shape:(shape||[]),removed:0,rawPoints:(shape||[]).length,cleanedPoints:(shape||[]).length}}
+  window.MonSAEIVLuxGeometryV126={networks:NETWORKS,cleanShape,cleanNetworkShape,meters};
+})();
+</script>
+
 <script id="v1015MultiNetworkUrban">
 'use strict';
 /* Mon SAEIV 1.0.22 — extension multiréseaux Luxembourg.
@@ -6952,7 +7008,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
       const shapeIds=new Set(tripRows.map(t=>String(t.shape_id||'')).filter(Boolean)),shapeMap=new Map();
       if(shapeIds.size&&f.entries.has('shapes.txt')){const txt=await urbanEntryText(f,'shapes.txt'),sl=txt.replace(/^\uFEFF/,'').split(/\r?\n/),sh=fluoCsvRow(sl.shift()||''),sx=Object.fromEntries(sh.map((v,i)=>[v,i]));for(const line of sl){if(!line)continue;const a=fluoCsvRow(line),sid=String(a[sx.shape_id]||'');if(!shapeIds.has(sid))continue;const lat=Number(a[sx.shape_pt_lat]),lon=Number(a[sx.shape_pt_lon]),seq=Number(a[sx.shape_pt_sequence]||0);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;if(!shapeMap.has(sid))shapeMap.set(sid,[]);shapeMap.get(sid).push({lat,lon,seq})}shapeMap.forEach(xs=>xs.sort((a,b)=>a.seq-b.seq))}
       const groups=new Map();
-      for(const t of tripRows){const tid=String(t.trip_id),times=byTrip.get(tid)||[];if(!times.length)continue;const sid=String(t.shape_id||''),headsign=t.trip_headsign||'',dir=String(t.direction_id??''),sig=`${dir}|${headsign}|${sid}|${times.map(x=>x.stop_id).join('>')}`;let g=groups.get(sig);if(!g){const shp=(shapeMap.get(sid)||[]).map(x=>[x.lat,x.lon]);g={headsign,direction:dir,examples:[],trips:[],shape_id:sid,trace_source:shp.length?`urban_gtfs_${key}`:'road_fallback',shape_points:shp.length,shape:shp,network:key,network_label:f.label,stops:times.map(x=>{const st=f.stops.get(x.stop_id)||{id:x.stop_id,name:x.stop_id,lat:NaN,lon:NaN,code:'',parent_station:''};return{id:st.id,name:st.name,lat:st.lat,lon:st.lon,code:st.code,parent_station:st.parent_station||'',network:key,networkLabel:f.label,arrival:x.arrival,departure:x.departure}})};groups.set(sig,g)}
+      for(const t of tripRows){const tid=String(t.trip_id),times=byTrip.get(tid)||[];if(!times.length)continue;const sid=String(t.shape_id||''),headsign=t.trip_headsign||'',dir=String(t.direction_id??''),sig=`${dir}|${headsign}|${sid}|${times.map(x=>x.stop_id).join('>')}`;let g=groups.get(sig);if(!g){const rawShape=(shapeMap.get(sid)||[]).map(x=>[x.lat,x.lon]),patternStops=times.map(x=>{const st=f.stops.get(x.stop_id)||{id:x.stop_id,name:x.stop_id,lat:NaN,lon:NaN,code:'',parent_station:''};return{id:st.id,name:st.name,lat:st.lat,lon:st.lon,code:st.code,parent_station:st.parent_station||'',network:key,networkLabel:f.label,arrival:x.arrival,departure:x.departure}}),cleaned=window.MonSAEIVLuxGeometryV126?.cleanNetworkShape(key,rawShape,patternStops)||{shape:rawShape,removed:0,rawPoints:rawShape.length,cleanedPoints:rawShape.length},shp=cleaned.shape;g={headsign,direction:dir,examples:[],trips:[],shape_id:sid,trace_source:shp.length?`urban_gtfs_${key}`:'road_fallback',shape_points:shp.length,raw_shape_points:cleaned.rawPoints,lux_micro_offsets_removed:cleaned.removed,shape:shp,network:key,network_label:f.label,stops:patternStops};groups.set(sig,g)}
         const arr=times.map(x=>[x.arrival,x.departure]);g.trips.push({id:tid,service:String(t.service_id||''),headsign,trip_short_name:t.trip_short_name||'',block_id:t.block_id||'',times:arr,demand:times.map(x=>({pickup_type:String(x.pickup_type||'0'),drop_off_type:String(x.drop_off_type||'0')}))});const ex=arr[0]?.[1]||arr[0]?.[0];if(ex&&g.examples.length<3&&!g.examples.includes(ex))g.examples.push(ex);
       }
       return{route:{...route,network:key,network_label:f.label},patterns:[...groups.values()]};
@@ -7244,7 +7300,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 })();
 </script>
 <script id="monSaevV102JournalPdf">
-/* Mon SAEIV 1.0.22 - export PDF des journaux, sans dépendance externe. */
+/* Mon SAEIV 1.0.26 - export PDF complet ou sélectionné, avec comptage voyageurs par arrêt. */
 (()=>{
   const q=id=>document.getElementById(id), DB='fluo-saeiv-journal-v13', ACCOUNT='fluoSaeivAccountV13';
   const PAGE_W=595.28,PAGE_H=841.89,M=42,CONTENT_W=PAGE_W-2*M;
@@ -7257,6 +7313,15 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function delay(sec){if(!Number.isFinite(Number(sec)))return '-';let n=Math.round(Number(sec)),sg=n<0?'-':'+';n=Math.abs(n);return `${sg}${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`}
   function status(s){return s==='open'?'EN COURS':s==='interrupted'?'INTERROMPU':'TERMINE'}
   function stopRows(events){const arrivals=events.filter(e=>e.type==='STOP_ARRIVAL');return arrivals.length?arrivals:events.filter(e=>e.type==='STOP_PASSED')}
+  function passengerRows(events){
+    const grouped=new Map();
+    events.filter(e=>e.type==='PASSENGER_COUNT').sort((a,b)=>String(a.ts).localeCompare(String(b.ts))).forEach((e,index)=>{
+      const key=Number.isInteger(e.stopIndex)?`i${e.stopIndex}`:`n${safe(e.stopName||'Arrêt non précisé')}`;
+      const row=grouped.get(key)||{stopIndex:Number.isInteger(e.stopIndex)?e.stopIndex:null,stopName:safe(e.stopName)||'Arrêt non précisé',boardings:0,alightings:0,firstTs:e.ts,order:index};
+      row.boardings+=Math.max(0,Math.floor(Number(e.boardings)||0));row.alightings+=Math.max(0,Math.floor(Number(e.alightings)||0));grouped.set(key,row);
+    });
+    let onboard=0;return [...grouped.values()].sort((a,b)=>Number(a.stopIndex??999999)-Number(b.stopIndex??999999)||String(a.firstTs).localeCompare(String(b.firstTs))||a.order-b.order).map(r=>{onboard=Math.max(0,onboard+r.boardings-r.alightings);return {...r,variation:r.boardings-r.alightings,onboard}});
+  }
   function cp1252(ch){const c=ch.codePointAt(0),map={0x20ac:0x80,0x201a:0x82,0x192:0x83,0x201e:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,0x2c6:0x88,0x2030:0x89,0x160:0x8a,0x2039:0x8b,0x152:0x8c,0x17d:0x8e,0x2018:0x91,0x2019:0x92,0x201c:0x93,0x201d:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,0x2dc:0x98,0x2122:0x99,0x161:0x9a,0x203a:0x9b,0x153:0x9c,0x17e:0x9e,0x178:0x9f};if(c<=255)return c;return map[c]??63}
   function lit(text){let out='';for(const ch of safe(text)){const b=cp1252(ch);if(b===40||b===41||b===92)out+='\\'+String.fromCharCode(b);else if(b<32||b>126)out+='\\'+b.toString(8).padStart(3,'0');else out+=String.fromCharCode(b)}return `(${out})`}
   function wrap(text,size,width){const words=safe(text).split(' ').filter(Boolean),lines=[];let cur='';const max=Math.max(8,Math.floor(width/(size*.53)));for(const w of words){if(!cur){cur=w;continue}if((cur+' '+w).length<=max)cur+=' '+w;else{lines.push(cur);cur=w}}if(cur)lines.push(cur);return lines.length?lines:['']}
@@ -7268,7 +7333,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const para=(str,size=9,bold=false,indent=0,gap=3)=>{const ls=wrap(str,size,CONTENT_W-indent);for(const l of ls){if(y<60)newPage();text(M+indent,y,size,l,bold);y-=size+gap}};
     const heading=(str)=>{if(y<95)newPage();y-=4;text(M,y,14,str,true);y-=20;line(M,y+6,PAGE_W-M,y+6,1)};
     newPage();
-    text(M,y,10,'MON SAEIV - EXPORT DES JOURNAUX',true);text(PAGE_W-M-145,y,8,`Version 1.0.22`,false);y-=22;
+    text(M,y,10,'MON SAEIV - EXPORT DES JOURNAUX',true);text(PAGE_W-M-145,y,8,`Version 1.0.26`,false);y-=22;
     para(`Conducteur : ${account()?.matricule||sessions[0]?.matricule||'-'}`,10,true);para(`Export genere le ${dt(new Date().toISOString())}`,8);y-=8;
     sessions.forEach((s,idx)=>{
       if(idx>0){newPage()}
@@ -7287,6 +7352,14 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
         const nameLines=wrap(r.stopName||r.currentStop||'-',7,215),h=Math.max(13,nameLines.length*10+3);if(y-h<55){newPage();text(M,y,9,`${s.route||'Ligne'} - suite`,true);y-=18;drawHeader()}
         text(M,y,7,String(i+1));nameLines.forEach((l,j)=>text(M+22,y-j*10,7,l,j===0));text(M+250,y,7,tm(r.ts));text(M+330,y,7,r.scheduledTime?tm(r.scheduledTime):'-');text(M+405,y,7,delay(r.scheduleDeltaSec));text(M+455,y,7,Number.isFinite(Number(r.speedKmh))?Number(r.speedKmh).toFixed(1).replace('.',',')+' km/h':'-');y-=h;line(M,y+4,PAGE_W-M,y+4,.35)
       });
+      const pax=passengerRows(ev),totalUp=pax.reduce((n,r)=>n+r.boardings,0),totalDown=pax.reduce((n,r)=>n+r.alightings,0);
+      if(y<125)newPage();else y-=12;
+      text(M,y,10,'Comptage voyageurs',true);y-=15;
+      para(`Total course : ${totalUp} montée${totalUp===1?'':'s'} | ${totalDown} descente${totalDown===1?'':'s'}`,8,true);y-=3;
+      const drawPassengerHeader=()=>{text(M,y,7,'Arrêt',true);text(M+270,y,7,'Montées',true);text(M+335,y,7,'Descentes',true);text(M+410,y,7,'Variation',true);text(M+470,y,7,'À bord',true);y-=13;line(M,y+4,PAGE_W-M,y+4,.5)};
+      drawPassengerHeader();
+      if(!pax.length){para('Aucun comptage voyageurs enregistre pour cette course.',8);}
+      pax.forEach(r=>{const nameLines=wrap(r.stopName,7,255),h=Math.max(13,nameLines.length*10+3);if(y-h<55){newPage();text(M,y,9,`${s.route||'Ligne'} - comptage voyageurs (suite)`,true);y-=18;drawPassengerHeader()}nameLines.forEach((l,j)=>text(M,y-j*10,7,l,j===0));text(M+270,y,7,String(r.boardings));text(M+335,y,7,String(r.alightings));text(M+410,y,7,`${r.variation>=0?'+':''}${r.variation}`);text(M+470,y,7,String(r.onboard));y-=h;line(M,y+4,PAGE_W-M,y+4,.35)});
       y-=10;if(y<85)newPage();para('Document genere par Mon SAEIV. Il constitue une aide de suivi et n a pas valeur de justificatif officiel ou opposable.',7,false,0,2);
     });
     if(cmds.length)pages.push(cmds.join('\n'));
@@ -7304,10 +7377,18 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     return new Blob([pdf],{type:'application/pdf'});
   }
   function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2500)}
-  async function exportIds(ids){const mat=account()?.matricule||'',allS=await all('sessions'),allE=await all('events');let ss=allS.filter(s=>!mat||String(s.matricule||'').toLowerCase()===String(mat).toLowerCase());if(ids?.length){const set=new Set(ids);ss=ss.filter(s=>set.has(s.id))}ss.sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt)));if(!ss.length)throw new Error('Aucun journal a exporter.');const set=new Set(ss.map(s=>s.id)),ev=allE.filter(e=>set.has(e.sessionId));const blob=makePdf(ss,ev),stamp=new Date().toISOString().slice(0,10),name=ss.length===1?`mon-saeiv-journal-${safe(ss[0].route||'service').replace(/[^a-zA-Z0-9_-]+/g,'-')}-${stamp}.pdf`:`mon-saeiv-journaux-${safe(mat||'conducteur').replace(/[^a-zA-Z0-9_-]+/g,'-')}-${stamp}.pdf`;download(blob,name)}
-  async function exportFromButton(){const ids=[...document.querySelectorAll('#v13JournalList .v23-select:checked')].map(x=>x.dataset.selectId).filter(Boolean);await exportIds(ids.length?ids:null)}
-  q('v102ExportPdf')?.addEventListener('click',()=>exportFromButton().catch(e=>alert(`Export PDF impossible : ${e.message||e}`)));
-  window.MonSAEVJournalPDF={exportIds,exportAll:()=>exportIds(null)};
+  function selectSessions(allSessions,matricule,ids){let ss=(allSessions||[]).filter(s=>!matricule||String(s.matricule||'').toLowerCase()===String(matricule).toLowerCase());if(ids?.length){const wanted=new Set(ids);ss=ss.filter(s=>wanted.has(s.id))}return ss.sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt)))}
+  async function exportIds(ids){const mat=account()?.matricule||'',allS=await all('sessions'),allE=await all('events'),ss=selectSessions(allS,mat,ids);if(!ss.length)throw new Error('Aucun journal a exporter.');const set=new Set(ss.map(s=>s.id)),ev=allE.filter(e=>set.has(e.sessionId));const blob=makePdf(ss,ev),stamp=new Date().toISOString().slice(0,10),name=ss.length===1?`mon-saeiv-journal-${safe(ss[0].route||'service').replace(/[^a-zA-Z0-9_-]+/g,'-')}-${stamp}.pdf`:`mon-saeiv-journaux-${safe(mat||'conducteur').replace(/[^a-zA-Z0-9_-]+/g,'-')}-${stamp}.pdf`;download(blob,name)}
+  function selectedIds(){return [...document.querySelectorAll('#v13JournalList .v23-select:checked')].map(x=>x.dataset.selectId).filter(Boolean)}
+  function closeChooser(){q('v124PdfChooser')?.classList.add('hidden')}
+  function openChooser(){
+    if(!q('v124PdfChooser'))document.body.insertAdjacentHTML('beforeend',`<div id="v124PdfChooser" class="v124-pdf-backdrop hidden" role="dialog" aria-modal="true" aria-label="Choisir les journaux à exporter"><section class="v124-pdf-sheet"><div class="v13-logo">EXPORT PDF</div><h2>Quels journaux exporter ?</h2><p>Le journal complet rassemble toutes les courses dans un seul PDF. Pour des courses précises, coche-les dans la liste avant de choisir la sélection.</p><div class="v124-pdf-actions"><button id="v124PdfAll" class="primary" type="button">📚 Tous les journaux</button><button id="v124PdfSelected" type="button">☑ Courses sélectionnées</button><button id="v124PdfCancel" type="button">Annuler</button></div><small id="v124PdfSelectionInfo"></small></section></div>`);
+    const ids=selectedIds(),info=q('v124PdfSelectionInfo'),selected=q('v124PdfSelected');if(info)info.textContent=ids.length?`${ids.length} course${ids.length>1?'s':''} sélectionnée${ids.length>1?'s':''}.`:'Aucune course sélectionnée pour le moment.';if(selected)selected.disabled=!ids.length;q('v124PdfChooser')?.classList.remove('hidden');
+  }
+  const chooserStyle=document.createElement('style');chooserStyle.id='v124PdfChooserStyle';chooserStyle.textContent=`.v124-pdf-backdrop{position:fixed;z-index:15100;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;padding:14px}.v124-pdf-backdrop.hidden{display:none!important}.v124-pdf-sheet{width:min(560px,100%);padding:16px;border:1px solid #355163;border-radius:20px;background:#0d202c;box-shadow:0 24px 70px rgba(0,0,0,.6)}.v124-pdf-sheet h2{margin:4px 0 6px}.v124-pdf-sheet p{color:#a8bbc6;font-size:.75rem;line-height:1.45}.v124-pdf-actions{display:grid;gap:8px;margin-top:13px}.v124-pdf-actions button{min-height:48px}.v124-pdf-sheet small{display:block;margin-top:10px;color:#8fa5b2}@media(max-width:600px){.v124-pdf-backdrop{align-items:flex-end;padding:0}.v124-pdf-sheet{border-radius:20px 20px 0 0;padding-bottom:calc(16px + env(safe-area-inset-bottom))}}`;document.head.appendChild(chooserStyle);
+  document.addEventListener('click',e=>{if(e.target===q('v124PdfChooser')||e.target===q('v124PdfCancel'))closeChooser();if(e.target===q('v124PdfAll')){closeChooser();exportIds(null).catch(err=>alert(`Export PDF impossible : ${err.message||err}`))}if(e.target===q('v124PdfSelected')){const ids=selectedIds();closeChooser();exportIds(ids).catch(err=>alert(`Export PDF impossible : ${err.message||err}`))}});
+  q('v102ExportPdf')?.addEventListener('click',openChooser);
+  window.MonSAEVJournalPDF={exportIds,exportAll:()=>exportIds(null),makePdf,passengerRows,selectSessions};
 })();
 </script>
 <script id="monSaevV103GpsReliability">
@@ -7817,7 +7898,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v108CashCatalog')?.addEventListener('change',e=>{const v=e.target.value,catalog=allowedCatalogs().includes(v)?v:(allowedCatalogs()[0]||'');updateSettings({catalog});renderCatalog()});q('v108CashTitleRows')?.addEventListener('input',calcDetail);q('v108CashTitleRows')?.addEventListener('click',e=>{const b=e.target.closest?.('[data-v121-step]');if(!b)return;const input=b.closest('.v108-title-row')?.querySelector('input');if(!input)return;const v=Math.max(0,Math.min(999,Math.floor(Number(input.value)||0)+Number(b.dataset.v121Step||0)));input.value=String(v);calcDetail()});['v108CashCustomQty','v108CashCustomPrice'].forEach(id=>q(id)?.addEventListener('input',calcDetail));q('v108CashSaveSale')?.addEventListener('click',saveSale);
   q('v108CashHistory')?.addEventListener('click',e=>{const id=e.target.closest('[data-v108-delete]')?.dataset.v108Delete;if(!id)return;const d=read(),x=d.sales.find(s=>s.id===id);if(!x)return;if(confirm(`Supprimer cette vente de ${money(x.total)} du ${fmtDate(x.date)} ?`)){deleteSale(id);renderSummary()}});
   window.MonSAEIVCash={open:openCash,data:read};
-  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.23';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.23';const b=q('buildInfo');if(b)b.textContent='Version 1.0.23'};applyVersion();setTimeout(applyVersion,5000);
+  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.26';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.26';const b=q('buildInfo');if(b)b.textContent='Version 1.0.26'};applyVersion();setTimeout(applyVersion,5000);
 })();
 </script>
 
@@ -7921,7 +8002,67 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v121PassengerClose')?.addEventListener('click',closePassenger);q('v121PassengerSheet')?.addEventListener('click',e=>{if(e.target===q('v121PassengerSheet'))closePassenger()});q('v121PassengerSave')?.addEventListener('click',savePassenger);q('v121PassengerSheet')?.addEventListener('click',e=>{const b=e.target.closest?.('[data-v121-pass-step]');if(!b)return;const [kind,d]=String(b.dataset.v121PassStep||'').split(':');step(kind==='up'?'v121PassengerUp':'v121PassengerDown',Number(d)||0)});
   ['v121PassengerUp','v121PassengerDown'].forEach(id=>q(id)?.addEventListener('input',e=>{e.target.value=String(int(e.target.value))}));
   window.MonSAEIVPassengerCount={open:openPassenger,detectStop:detectedStop,refreshTotals:refreshCourseTotals};
-  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.23';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.23';const b=q('buildInfo');if(b)b.textContent='Version 1.0.23'};applyVersion();setTimeout(applyVersion,5200);
+  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.26';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.26';const b=q('buildInfo');if(b)b.textContent='Version 1.0.26'};applyVersion();setTimeout(applyVersion,5200);
+})();
+</script>
+
+<script id="v125PassengerPdf">
+'use strict';
+/* Mon SAEIV 1.0.26 — feuilles PDF de comptage par course et par journée. */
+(()=>{
+  const q=id=>document.getElementById(id),DB='fluo-saeiv-journal-v13',ACCOUNT='fluoSaeivAccountV13';
+  const PAGE_W=595.28,PAGE_H=841.89,M=42,CONTENT_W=PAGE_W-2*M;
+  const safe=v=>String(v??'').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim();
+  const account=()=>{try{return JSON.parse(localStorage.getItem(ACCOUNT)||'null')}catch{return null}};
+  const dayKey=v=>{const d=new Date(v||Date.now());return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+  const dateLabel=v=>{try{return new Date(`${v}T12:00:00`).toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}catch{return v||'—'}};
+  const dt=v=>{try{return new Date(v).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}catch{return safe(v)||'—'}};
+  const time=v=>{try{return new Date(v).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}catch{return safe(v)||'—'}};
+  function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,1);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('sessions')){const s=d.createObjectStore('sessions',{keyPath:'id'});s.createIndex('startedAt','startedAt');s.createIndex('matricule','matricule')}if(!d.objectStoreNames.contains('events')){const e=d.createObjectStore('events',{keyPath:'id',autoIncrement:true});e.createIndex('sessionId','sessionId');e.createIndex('ts','ts');e.createIndex('type','type')}}})}
+  async function all(store){const d=await openDb();return new Promise((res,rej)=>{const r=d.transaction(store).objectStore(store).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
+  function passengerRows(events){
+    const grouped=new Map();
+    (events||[]).filter(e=>e.type==='PASSENGER_COUNT').sort((a,b)=>String(a.ts).localeCompare(String(b.ts))).forEach((e,index)=>{const key=Number.isInteger(e.stopIndex)?`i${e.stopIndex}`:`n${safe(e.stopName||'Arrêt non précisé')}`,r=grouped.get(key)||{stopIndex:Number.isInteger(e.stopIndex)?e.stopIndex:null,stopName:safe(e.stopName)||'Arrêt non précisé',boardings:0,alightings:0,firstTs:e.ts,order:index};r.boardings+=Math.max(0,Math.floor(Number(e.boardings)||0));r.alightings+=Math.max(0,Math.floor(Number(e.alightings)||0));grouped.set(key,r)});
+    let onboard=0;return [...grouped.values()].sort((a,b)=>Number(a.stopIndex??999999)-Number(b.stopIndex??999999)||String(a.firstTs).localeCompare(String(b.firstTs))||a.order-b.order).map(r=>{onboard=Math.max(0,onboard+r.boardings-r.alightings);return {...r,variation:r.boardings-r.alightings,onboard}});
+  }
+  function cp1252(ch){const c=ch.codePointAt(0),map={0x20ac:0x80,0x201a:0x82,0x192:0x83,0x201e:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,0x2c6:0x88,0x2030:0x89,0x160:0x8a,0x2039:0x8b,0x152:0x8c,0x17d:0x8e,0x2018:0x91,0x2019:0x92,0x201c:0x93,0x201d:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,0x2dc:0x98,0x2122:0x99,0x161:0x9a,0x203a:0x9b,0x153:0x9c,0x17e:0x9e,0x178:0x9f};if(c<=255)return c;return map[c]??63}
+  function lit(value){let out='';for(const ch of safe(value)){const b=cp1252(ch);if(b===40||b===41||b===92)out+='\\'+String.fromCharCode(b);else if(b<32||b>126)out+='\\'+b.toString(8).padStart(3,'0');else out+=String.fromCharCode(b)}return `(${out})`}
+  function wrap(value,size,width){const words=safe(value).split(' ').filter(Boolean),lines=[];let cur='',max=Math.max(8,Math.floor(width/(size*.53)));for(const w of words){if(!cur)cur=w;else if((cur+' '+w).length<=max)cur+=' '+w;else{lines.push(cur);cur=w}}if(cur)lines.push(cur);return lines.length?lines:['']}
+  function makePdf(sessions,events,scope={kind:'course',day:''}){
+    const pages=[];let cmds=[],y=PAGE_H-M;
+    const newPage=()=>{if(cmds.length)pages.push(cmds.join('\n'));cmds=[];y=PAGE_H-M;cmds.push('0.97 0.98 0.99 rg 0 0 595.28 841.89 re f','0 0 0 rg');text(M,y,8,'MON SAEIV · COMPTAGE VOYAGEURS',true);text(PAGE_W-M-70,y,8,'1.0.26');y-=22};
+    const text=(x,yy,size,str,bold=false)=>cmds.push(`BT /${bold?'F2':'F1'} ${size} Tf 0 0 0 rg 1 0 0 1 ${x.toFixed(2)} ${yy.toFixed(2)} Tm ${lit(str)} Tj ET`);
+    const line=(x1,yy1,x2,yy2,w=.6)=>cmds.push(`${w} w 0.72 0.77 0.81 RG ${x1.toFixed(2)} ${yy1.toFixed(2)} m ${x2.toFixed(2)} ${yy2.toFixed(2)} l S`);
+    const para=(str,size=9,bold=false,gap=3)=>{for(const l of wrap(str,size,CONTENT_W)){if(y<58)newPage();text(M,y,size,l,bold);y-=size+gap}};
+    const rowsBySession=new Map(sessions.map(s=>[s.id,passengerRows(events.filter(e=>e.sessionId===s.id))]));
+    const totals=[...rowsBySession.values()].flat().reduce((a,r)=>{a.up+=r.boardings;a.down+=r.alightings;return a},{up:0,down:0});
+    newPage();text(M,y,16,scope.kind==='day'?'FEUILLE DE COMPTAGE · JOURNÉE':'FEUILLE DE COMPTAGE · COURSE',true);y-=24;
+    para(`Conducteur : ${account()?.matricule||sessions[0]?.matricule||'—'}`,9,true);if(scope.kind==='day')para(`Journée du ${dateLabel(scope.day)} · ${sessions.length} course${sessions.length>1?'s':''}`,9);else para(`${sessions[0]?.route||'Ligne'} · ${sessions[0]?.destination||''} · ${dt(sessions[0]?.startedAt)}`,9);
+    y-=5;para(`TOTAL : ${totals.up} montée${totals.up===1?'':'s'} · ${totals.down} descente${totals.down===1?'':'s'}`,11,true);y-=9;line(M,y+5,PAGE_W-M,y+5,1);
+    sessions.forEach((s,index)=>{
+      if(index>0)newPage();const rows=rowsBySession.get(s.id)||[],up=rows.reduce((n,r)=>n+r.boardings,0),down=rows.reduce((n,r)=>n+r.alightings,0);
+      text(M,y,12,`${s.route||'Ligne'} · ${s.destination||''}`,true);y-=17;para(`${time(s.startedAt)} → ${s.endedAt?time(s.endedAt):'en cours'} · ${up} montée${up===1?'':'s'} · ${down} descente${down===1?'':'s'}`,8);y-=4;
+      const header=()=>{text(M,y,7,'Arrêt',true);text(M+250,y,7,'Heure',true);text(M+305,y,7,'Montées',true);text(M+370,y,7,'Descentes',true);text(M+445,y,7,'Variation',true);text(M+495,y,7,'À bord',true);y-=13;line(M,y+4,PAGE_W-M,y+4,.5)};header();
+      if(!rows.length){para('Aucun comptage voyageurs enregistré pour cette course.',8);y-=5}
+      rows.forEach(r=>{const names=wrap(r.stopName,7,235),h=Math.max(13,names.length*10+3);if(y-h<55){newPage();text(M,y,9,`${s.route||'Ligne'} · comptage (suite)`,true);y-=17;header()}names.forEach((l,j)=>text(M,y-j*10,7,l,j===0));text(M+250,y,7,time(r.firstTs));text(M+305,y,7,String(r.boardings));text(M+370,y,7,String(r.alightings));text(M+445,y,7,`${r.variation>=0?'+':''}${r.variation}`);text(M+495,y,7,String(r.onboard));y-=h;line(M,y+4,PAGE_W-M,y+4,.35)});
+    });
+    if(y<80)newPage();y-=12;para('Feuille générée par Mon SAEIV à partir des comptages enregistrés dans les journaux locaux.',7);if(cmds.length)pages.push(cmds.join('\n'));
+    const objs=[],add=o=>{objs.push(o);return objs.length},font1=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'),font2=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'),pageIds=[],contentIds=[];
+    for(const content of pages){contentIds.push(add(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`));pageIds.push(add('PENDING_PAGE'))}const pagesId=add('PENDING_PAGES');pageIds.forEach((id,i)=>{objs[id-1]=`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 ${font1} 0 R /F2 ${font2} 0 R >> >> /Contents ${contentIds[i]} 0 R >>`});objs[pagesId-1]=`<< /Type /Pages /Kids [${pageIds.map(id=>`${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;const catalog=add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);let pdf='%PDF-1.4\n%MonSAEIV\n',offs=[0];for(let i=0;i<objs.length;i++){offs.push(pdf.length);pdf+=`${i+1} 0 obj\n${objs[i]}\nendobj\n`}const xref=pdf.length;pdf+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`;for(let i=1;i<=objs.length;i++)pdf+=String(offs[i]).padStart(10,'0')+' 00000 n \n';pdf+=`trailer\n<< /Size ${objs.length+1} /Root ${catalog} 0 R >>\nstartxref\n${xref}\n%%EOF`;return new Blob([pdf],{type:'application/pdf'});
+  }
+  function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2500)}
+  async function data(){const [sessions,events]=await Promise.all([all('sessions'),all('events')]),mat=account()?.matricule||'';return {sessions:sessions.filter(s=>!mat||String(s.matricule||'').toLowerCase()===String(mat).toLowerCase()),events}}
+  async function exportCourse(id){const d=await data(),s=d.sessions.find(x=>x.id===id);if(!s)throw new Error('Course introuvable.');const ev=d.events.filter(e=>e.sessionId===id),stamp=dayKey(s.startedAt),name=safe(s.route||'course').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9_-]+/gi,'-');download(makePdf([s],ev,{kind:'course',day:stamp}),`comptage-${name}-${stamp}.pdf`)}
+  async function exportDay(day=dayKey()){const d=await data(),sessions=d.sessions.filter(s=>dayKey(s.startedAt)===day).sort((a,b)=>String(a.startedAt).localeCompare(String(b.startedAt)));if(!sessions.length)throw new Error(`Aucune course enregistrée le ${dateLabel(day)}.`);const ids=new Set(sessions.map(s=>s.id)),events=d.events.filter(e=>ids.has(e.sessionId));download(makePdf(sessions,events,{kind:'day',day}),`comptage-journee-${day}.pdf`)}
+  function closeEnd(){q('v125PassengerEnd')?.classList.add('hidden')}
+  async function openEnd(id){const d=await data(),s=d.sessions.find(x=>x.id===id);if(!s)return;const day=dayKey(s.startedAt),rows=passengerRows(d.events.filter(e=>e.sessionId===id)),up=rows.reduce((n,r)=>n+r.boardings,0),down=rows.reduce((n,r)=>n+r.alightings,0);q('v125EndTitle').textContent=`${s.route||'Course'} · comptage enregistré`;q('v125EndSummary').textContent=`${up} montée${up===1?'':'s'} · ${down} descente${down===1?'':'s'}`;q('v125EndCourse').dataset.sessionId=id;q('v125EndDay').dataset.day=day;q('v125PassengerEnd').classList.remove('hidden')}
+  if(!q('v125PassengerEnd'))document.body.insertAdjacentHTML('beforeend',`<div id="v125PassengerEnd" class="v125-end-backdrop hidden" role="dialog" aria-modal="true" aria-label="Télécharger le comptage voyageurs"><section class="v125-end-sheet"><div class="v13-logo">FIN DE COURSE</div><h2 id="v125EndTitle">Comptage voyageurs</h2><p id="v125EndSummary"></p><div class="v125-end-actions"><button id="v125EndCourse" class="primary" type="button">📄 PDF de cette course</button><button id="v125EndDay" type="button">📚 PDF de la journée</button><button id="v125EndClose" type="button">Plus tard</button></div></section></div>`);
+  const style=document.createElement('style');style.id='v125PassengerPdfStyle';style.textContent=`.v125-end-backdrop{position:fixed;z-index:15500;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:14px}.v125-end-backdrop.hidden{display:none!important}.v125-end-sheet{width:min(560px,100%);padding:17px;border:1px solid #355163;border-radius:21px;background:#0d202c;box-shadow:0 25px 75px rgba(0,0,0,.65)}.v125-end-sheet h2{margin:4px 0}.v125-end-sheet p{margin:5px 0;color:#c2d2da}.v125-end-actions{display:grid;gap:8px;margin-top:14px}.v125-end-actions button{min-height:49px}@media(max-width:600px){.v125-end-backdrop{align-items:flex-end;padding:0}.v125-end-sheet{border-radius:21px 21px 0 0;padding-bottom:calc(17px + env(safe-area-inset-bottom))}}`;document.head.appendChild(style);
+  function ensureJournalButton(){const actions=q('v13JournalSheet')?.querySelector('.v13-sheet-actions');if(actions&&!q('v125DayPdf')){const b=document.createElement('button');b.id='v125DayPdf';b.type='button';b.textContent='👥 Comptage du jour';actions.appendChild(b);b.addEventListener('click',()=>exportDay(dayKey()).catch(e=>alert(`Export du comptage impossible : ${e?.message||e}`)))}}
+  q('v13JournalBtn')?.addEventListener('click',()=>setTimeout(ensureJournalButton,0));ensureJournalButton();
+  q('v125EndClose')?.addEventListener('click',closeEnd);q('v125PassengerEnd')?.addEventListener('click',e=>{if(e.target===q('v125PassengerEnd'))closeEnd()});q('v125EndCourse')?.addEventListener('click',e=>exportCourse(e.currentTarget.dataset.sessionId).catch(err=>alert(`Export du comptage impossible : ${err?.message||err}`)));q('v125EndDay')?.addEventListener('click',e=>exportDay(e.currentTarget.dataset.day).catch(err=>alert(`Export du comptage impossible : ${err?.message||err}`)));
+  try{const base=finish;finish=function(){const id=window.FluoJournalCore?.activeSessionId||null,r=base();if(id)setTimeout(()=>openEnd(id).catch(console.warn),650);return r}}catch(e){console.warn('[Comptage PDF] fin de course non raccordée',e)}
+  window.MonSAEIVPassengerPDF={exportCourse,exportDay,makePdf,passengerRows,dayKey,openEnd};
 })();
 </script>
 

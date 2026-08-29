@@ -1,7 +1,7 @@
-MON SAEIV 1.0.1 — DÉPLOIEMENT
+MON SAEIV 1.0.26 — DÉPLOIEMENT
 ==============================
 
-Identité publique : Mon SAEIV · version 1.0.1.
+Identité publique : Mon SAEIV · version 1.0.26.
 Les anciennes références de versions ci-dessous sont conservées uniquement comme historique technique de maintenance et ne sont plus affichées dans l’application.
 
 FLUO SAEIV V31.15 — NOTE DE VERSION
@@ -556,3 +556,10 @@ V1.0.22 — Correctif persistance Ma caisse
 - Migration automatique des anciennes ventes V108.
 - Le formulaire n’est remis à zéro qu’après relecture confirmée de la vente.
 - Comptage voyageurs et navigation inchangés.
+
+
+V1.0.26 — Correction des micro-déports Luxembourg
+- Nettoyage automatique des petits allers-retours parasites présents dans certains tracés GTFS RGTR, AVL, TICE et Diffbus.
+- Les vrais virages, les boucles de voirie et les accès d’arrêt significativement déportés sont conservés.
+- Le filtrage s’applique uniquement aux réseaux luxembourgeois au chargement du tracé officiel.
+- GPS général, simulation, comptage voyageurs, caisse, journaux PDF et réglages de performance inchangés.
