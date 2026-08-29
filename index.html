@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=1.0.29">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Mon SAEIV · 1.0.22</title>
+  <title>Mon SAEIV · 1.0.29</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style id="v22CoreStyle">
 .stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
@@ -1650,9 +1650,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   const q = id => document.getElementById(id);
 
   // --- Injection de l'interface V12 dans la V11 existante ---
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.22';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.29';
 
   const serviceChoice = document.querySelector('.service-choice');
   if (serviceChoice && !q('v12Preferences')) {
@@ -2013,9 +2013,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
   const SAMPLE_INTERVAL_MS = 10000; // V29 : point de contrôle au moins toutes les 10 s à l'arrêt
   const SAMPLE_MOVE_M = 6;       // V29 : trace GPS réelle tous les ~5 à 7 mètres en mouvement
 
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.22';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.29';
 
   const V13 = {
     unlocked: false,
@@ -2387,9 +2387,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     cache: new Map()
   };
 
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const eyebrow = document.querySelector('.top .eyebrow');
-  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.22';
+  if (eyebrow) eyebrow.textContent = 'MON SAEIV · 1.0.29';
 
   // --- Information TAD dynamique ---
   const tadHeadText = document.querySelector('.tad-panel-head > div:first-child span');
@@ -2688,7 +2688,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V15 — cockpit smartphone, paysage conducteur + rappel arrêt demandé différé */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const eyebrow=document.querySelector('.top .eyebrow');
   if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.22';
 
@@ -2891,7 +2891,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V16 — profil de vitesse routier, calcul d'horaires, caméra GPS 3D */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const eyebrow=document.querySelector('.top .eyebrow');
   if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.22';
 
@@ -3357,7 +3357,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V18 — bus à l'échelle + filtre lignes régulières / scolaires */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const eyebrow=document.querySelector('.top .eyebrow');
   if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.22';
 
@@ -3518,7 +3518,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V19 — rotation smartphone stable + amorçage audio Bluetooth */
 (() => {
   const q=id=>document.getElementById(id);
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const eyebrow=document.querySelector('.top .eyebrow');
   if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.22';
 
@@ -3603,7 +3603,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V20 — l'affichage utilise uniquement state.fusion.shape produit par le moteur réécrit dans app.js. */
 (() => {
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.22';
   const css=document.createElement('style');css.textContent=`
     .route-state.v20-source{max-width:72%}
@@ -3619,7 +3619,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 'use strict';
 /* V21 — arrêt demandé sonore synchronisé, écran éveillé, prononciation des codes Fluo. */
 (() => {
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const e=document.querySelector('.top .eyebrow'); if(e)e.textContent='MON SAEIV · 1.0.22';
   const n=document.querySelector('.audio-note');
   if(n){
@@ -3862,7 +3862,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   }
   try{const baseEnter23=enterDriver;enterDriver=function(mode){const r=baseEnter23(mode);[350,1800,6000].forEach(ms=>setTimeout(snapshotOpenSession23,ms));return r}}catch(e){console.warn('V23 journal snapshot patch',e)}
 
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V23/.test(b.textContent))b.textContent+=' · V23.2 calcul horaires stable + journaux'},2000)});
 })();
 
@@ -4003,7 +4003,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v24Delete')?.addEventListener('click',async()=>{const s=V24.current;if(!s)return;if(confirm(`Supprimer la fiche ${s.routeShort||''} départ ${s.departureTime||''} ?`)){await del24(s.id);closeDetail24();await renderList24()}});
 
   window.FluoScheduleSheets={save:save24,open:async()=>{await renderList24();q('v24Library')?.classList.remove('hidden')},refresh:renderList24};
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V24/.test(b.textContent))b.textContent+=' · V24 création fiches horaires'},2100)});
 })();
 </script>
@@ -4239,7 +4239,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 
   if(q('lineTypeFilter')?.value==='custom')setTimeout(populateCustomDropdown,0);
   window.FluoCustomLines={all:allLines,get:getLine,save:saveLine,open:openCreator,populate:populateCustomDropdown,activate:activateLine};
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V25/.test(b.textContent))b.textContent+=' · V25 lignes personnalisées'},2200)});
 })();
 </script>
@@ -4374,7 +4374,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v26DeletePast')?.addEventListener('click',async()=>{const today=localYmd26(),xs=(await allTads26()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun TAD passé à supprimer.');if(!confirm(`Supprimer ${xs.length} TAD passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await deleteTad26(x.id);await renderTads26()});
   q('v26AnnounceBtn')?.addEventListener('click',openAnnouncements26);q('v26AnnounceSide')?.addEventListener('click',openAnnouncements26);q('v26AnnClose')?.addEventListener('click',closeAnnouncements26);q('v26AnnounceSheet')?.addEventListener('click',e=>{if(e.target===q('v26AnnounceSheet'))closeAnnouncements26()});q('v26AnnList')?.addEventListener('click',e=>{const b=e.target.closest('[data-v26-ann]');if(b)selectAnnouncement26(b.dataset.v26Ann)});q('v26AnnSpeak')?.addEventListener('click',speakAnnouncement26);q('v26AnnClear')?.addEventListener('click',()=>{V26.selectedAnnouncement=null;q('v26AnnList')?.querySelectorAll('.selected').forEach(x=>x.classList.remove('selected'));if(q('v26AnnText'))q('v26AnnText').value='';q('v26AnnStatus').textContent='Saisis un message ou choisis une annonce dans la bibliothèque.'});
 
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V26/.test(b.textContent))b.textContent+=' · V26 TAD préparés + annonces vocales'},2400)});
 })();
 </script>
@@ -4465,7 +4465,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons paysage doivent rester synchronisés après chaque entrée en service.
   try{const baseEnter28=enterDriver;enterDriver=function(mode){const r=baseEnter28(mode);setTimeout(syncPassengerButtons,30);return r}}catch(e){console.warn('V28 boutons conducteur',e)}
 
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';setTimeout(()=>{const b=q('buildInfo');if(b&&!/V28/.test(b.textContent))b.textContent+=' · V28 stable conducteur'},2600)});
 })();
 </script>
@@ -4529,7 +4529,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const b=e.target.closest?.('button,[role="button"]');if(!b||b.disabled||b.getAttribute('aria-disabled')==='true')return;hapticTap();
   },{capture:true,passive:true});
 
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';const b=q('buildInfo');if(b&&!/V28.1/.test(b.textContent))b.textContent+=' · V28.1 ergonomie tactile'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,20));else setTimeout(label,20);
 })();
@@ -4754,7 +4754,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v29JournalClose')?.addEventListener('click',closeJournalV29);q('v29Journal')?.addEventListener('click',e=>{if(e.target===q('v29Journal'))closeJournalV29()});q('v29JournalDownload')?.addEventListener('click',()=>{const c=V29.journal.current;if(c)downloadJournalV29(c.s,c.ev)});
   q('v13JournalList')?.addEventListener('click',e=>{const item=e.target.closest('.v23-session');if(!item)return;const action=e.target.closest('[data-v23-action]')?.dataset.v23Action;if(e.target.matches('.v23-select')||action==='delete')return;const id=item.dataset.sessionId;if(!id)return;e.preventDefault();e.stopImmediatePropagation();if(action==='download'){Promise.all([getJournalSession(id),getJournalEvents(id)]).then(([s,ev])=>{if(s)downloadJournalV29(s,ev)});return}openJournalV29(id)},true);
 
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';const b=q('buildInfo');if(b&&!/V29/.test(b.textContent))b.textContent+=' · V29 exploitation + journal intégral'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
 
@@ -4909,7 +4909,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   };
 
   // Version / journal policy.
-  const label=()=>{document.title='Mon SAEIV · 1.0.22';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
+  const label=()=>{document.title='Mon SAEIV · 1.0.29';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';const b=q('buildInfo');if(b&&!/V30/.test(b.textContent))b.textContent+=' · V30 billet collectif + journal arrêts + vitesse route'};if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,50));else setTimeout(label,50);
 })();
 </script>
 
@@ -5107,7 +5107,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Évite de gonfler le journal avec le même nom répété pour chaque point d'une rue évitée.
   if(window.FluoJournalCore?.log&&!window.FluoJournalCore.__v301Wrapped){const base=window.FluoJournalCore.log.bind(window.FluoJournalCore);window.FluoJournalCore.log=(type,payload={})=>{const p={...payload};if(Array.isArray(p.avoidZones))p.avoidZones=[...new Set(p.avoidZones.filter(Boolean))];return base(type,p)};window.FluoJournalCore.__v301Wrapped=true}
 
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';const b=q('buildInfo');if(b&&!/V30.1/.test(b.textContent))b.textContent+=' · V30.1 routes à éviter + responsive'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
   settleResponsive();
@@ -5122,7 +5122,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
    carte, arrivée, simulation et journaux partagent exactement le même point opérationnel. */
 (() => {
   const label=()=>{
-    document.title='Mon SAEIV · 1.0.22';
+    document.title='Mon SAEIV · 1.0.29';
     const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';
     const b=document.getElementById('buildInfo');if(b&&!/V30.2/.test(b.textContent))b.textContent+=' · V30.2 poteaux recalés au tracé';
   };
@@ -5309,7 +5309,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Empêche un lancement pendant un calcul asynchrone, même si un ancien module réactive le bouton.
   document.addEventListener('click',e=>{if(V303.busy&&e.target.closest?.('#start,#simulate')){e.preventDefault();e.stopImmediatePropagation();alert('Recalcul du tracé en cours. Attends quelques secondes avant de lancer le service.')}},true);
 
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';const b=q('buildInfo');if(b&&!/V30.3/.test(b.textContent))b.textContent+=' · V30.3 routes à éviter sur le tracé principal'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>{setTimeout(label,30);schedule('load',600)});else{setTimeout(label,30);schedule('load',600)}
 })();
@@ -5389,7 +5389,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v304DeletePast')?.addEventListener('click',async()=>{const today=ymd(),xs=(await all()).filter(x=>x.serviceDate<today);if(!xs.length)return alert('Aucun billet collectif passé à supprimer.');if(!confirm(`Supprimer ${xs.length} billet${xs.length>1?'s':''} collectif${xs.length>1?'s':''} passé${xs.length>1?'s':''} ?`))return;for(const x of xs)await del(x.id);await render()});
 
   window.FluoPreparedCollectivesV304={all,get,save:put,open:openLibrary};
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';const b=q('buildInfo');if(b&&!/V30.4/.test(b.textContent))b.textContent+=' · V30.4 billets collectifs préparés'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,40));else setTimeout(label,40);
 })();
@@ -5538,7 +5538,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   window.FluoSpeedLimitsV305={build:buildProfile,limitAtAlong,get currentLimit(){return V305.currentLimit},get currentMeta(){return V305.currentMeta},get ready(){return V305.ready},get loading(){return V305.loading},state:V305};
 
   const note=document.querySelector('.fusion-note');if(note&&!q('v305SpeedNote'))note.insertAdjacentHTML('afterend','<div id="v305SpeedNote" class="fusion-note"><b>🚌 Limitations OSM non bloquantes V31</b><span>Les valeurs maxspeed OpenStreetMap sont chargées en arrière-plan et conservées 7 jours. Si une valeur manque ou si le réseau ne répond pas, le profil local 35–50–70–80 reste actif sans interrompre la simulation ni le GPS.</span></div>');
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const label=()=>{const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22';const b=q('buildInfo');if(b&&!/V31/.test(b.textContent))b.textContent+=' · V31 limitations OSM différées + profil local de secours'};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>setTimeout(label,60));else setTimeout(label,60);
 })();
@@ -5942,7 +5942,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 </script>
 
 <script id="v309FinalLabel">
-(()=>{const apply=()=>{document.title='Mon SAEIV · 1.0.22';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
+(()=>{const apply=()=>{document.title='Mon SAEIV · 1.0.29';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.22'};if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));else setTimeout(apply,100)})();
 // V31.4 : liaison finale après toutes les extensions historiques de l'interface.
 // La délégation reste valide même si un bouton est déplacé ou recréé par une extension.
 (()=>{const modes={regularMode:'regular',tadMode:'tad',formationMode:'formation'};
@@ -6118,7 +6118,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   `;document.head.appendChild(css);
 
   syncValidated();
-  document.title='Mon SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';
   const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.22';
 })();
 </script>
@@ -6446,7 +6446,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   // Les boutons historiques peuvent être ajoutés juste avant notre patch par d'autres modules : un second passage assure le déplacement.
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
-  document.title='Mon SAEIV · 1.0.22';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.22';
+  document.title='Mon SAEIV · 1.0.29';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.22';
   window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
 })();
 </script>
@@ -7277,7 +7277,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const q=id=>document.getElementById(id);
   q('v3127UsageContinue')?.addEventListener('click',()=>q('v3127UsageNotice')?.classList.add('hidden'));
   const label=()=>{
-    document.title='Mon SAEIV · 1.0.22';
+    document.title='Mon SAEIV · 1.0.29';
     const eyebrow=document.querySelector('.top .eyebrow');
     if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.22';
     const b=q('buildInfo');
@@ -7291,7 +7291,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 <script id="monSaevIdentity101">
 (()=>{
   const apply=()=>{
-    document.title='Mon SAEIV · 1.0.22';
+    document.title='Mon SAEIV · 1.0.29';
     const eyebrow=document.querySelector('.top .eyebrow'); if(eyebrow) eyebrow.textContent='MON SAEIV · 1.0.22';
     const h1=document.querySelector('.top h1'); if(h1) h1.textContent='Mon SAEIV';
     const sub=document.querySelector('.top .sub'); if(sub) sub.textContent='Interurbain · Urbain · Fluo · RGTR · LE MET’ · TeMo’b · STAN · AVL · TICE · Diffbus';
