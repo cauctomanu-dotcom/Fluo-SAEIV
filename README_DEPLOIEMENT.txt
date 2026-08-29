@@ -563,3 +563,11 @@ V1.0.26 — Correction des micro-déports Luxembourg
 - Les vrais virages, les boucles de voirie et les accès d’arrêt significativement déportés sont conservés.
 - Le filtrage s’applique uniquement aux réseaux luxembourgeois au chargement du tracé officiel.
 - GPS général, simulation, comptage voyageurs, caisse, journaux PDF et réglages de performance inchangés.
+
+
+V1.0.29 — Ajout LuxTram Luxembourg
+- Ajout du réseau LuxTram dans le profil conducteur et dans le choix des réseaux urbains.
+- Chargement des lignes LuxTram depuis le GTFS national officiel luxembourgeois déjà utilisé par RGTR, AVL, TICE et Diffbus.
+- Filtrage dédié de l'agence LUXTRAM et prise en charge des lignes de type tramway.
+- Ajout de LuxTram dans la bibliothèque des fiches horaires et les correspondances inter-réseaux.
+- Radio, GPS projeté, reprise hors connexion et autres réseaux inchangés.

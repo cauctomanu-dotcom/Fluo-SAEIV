@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.26">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.29">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <title>Mon SAEIV · 1.0.22</title>
@@ -1636,10 +1636,10 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
 (async()=>{
   if(ui.serviceDate&&!ui.serviceDate.value){ const n=new Date(); ui.serviceDate.value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
   setServiceMode('regular');
-  try{ const b=await jget('fluo_build.json?v=1.0.26').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.26'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
+  try{ const b=await jget('fluo_build.json?v=1.0.29').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.29'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.26').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.29').catch(()=>{});
 
 </script>
 <script>
@@ -1988,7 +1988,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V13 — identification conducteur + journal de service local */
 (() => {
   const $v13 = id => document.getElementById(id);
-  const APP_VERSION = '1.0.22';
+  const APP_VERSION = '1.0.29';
   const DB_NAME = 'fluo-saeiv-journal-v13';
   const DB_VERSION = 1;
   const ACCOUNT_KEY = 'fluoSaeivAccountV13';
@@ -2000,7 +2000,8 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
     rgtr:{key:'rgtr',label:'RGTR · Luxembourg',kind:'interurban'},
     avl:{key:'avl',label:'AVL · Luxembourg-Ville',kind:'urban'},
     tice:{key:'tice',label:'TICE · Esch / Sud Luxembourg',kind:'urban'},
-    diffbus:{key:'diffbus',label:'Diffbus · Differdange',kind:'urban'}
+    diffbus:{key:'diffbus',label:'Diffbus · Differdange',kind:'urban'},
+    luxtram:{key:'luxtram',label:'LuxTram · Luxembourg',kind:'urban'}
   };
   function setDriverNetwork(key){
     const net=DRIVER_NETWORKS[String(key||'')]||null;
@@ -2067,6 +2068,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
               <option value="avl">AVL · Luxembourg-Ville</option>
               <option value="tice">TICE · Esch / Sud Luxembourg</option>
               <option value="diffbus">Diffbus · Differdange</option>
+              <option value="luxtram">LuxTram · Luxembourg</option>
             </optgroup>
           </select></label>
           <label>Matricule<input id="v13Matricule" type="text" inputmode="text" autocapitalize="characters" autocomplete="username" maxlength="40" required></label>
@@ -6856,7 +6858,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 'use strict';
 /* Mon SAEIV 1.0.26 — suppression ciblée des micro-crochets présents dans certains shapes GTFS luxembourgeois. */
 (()=>{
-  const NETWORKS=new Set(['rgtr','avl','tice','diffbus']);
+  const NETWORKS=new Set(['rgtr','avl','tice','diffbus','luxtram']);
   const n=v=>Number(v);
   const valid=p=>Array.isArray(p)&&Number.isFinite(n(p[0]))&&Number.isFinite(n(p[1]))&&Math.abs(n(p[0]))<=90&&Math.abs(n(p[1]))<=180;
   function meters(a,b){
@@ -6911,7 +6913,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 'use strict';
 /* Mon SAEIV 1.0.22 — extension multiréseaux Luxembourg.
    - Réseau interurbain : fonctionnement Fluo historique inchangé.
-   - Réseaux urbains : LE MET’, TeMo’b, STAN, AVL, TICE et Diffbus via leurs GTFS officiels.
+   - Réseaux urbains : LE MET’, TeMo’b, STAN, AVL, TICE, Diffbus et LuxTram via leurs GTFS officiels.
    - Réseau interurbain complémentaire : RGTR Luxembourg via le GTFS national officiel.
    - Correspondances inter-réseaux préparées en amont et annoncées uniquement à l'arrivée.
    Les GTFS urbains sont chargés à la demande et mis en cache ; aucun gros catalogue supplémentaire
@@ -6933,6 +6935,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     avl:{key:'avl',label:'AVL',city:'Luxembourg-Ville',sources:LUX_GTFS_SOURCES,filter:'avl'},
     tice:{key:'tice',label:'TICE',city:'Esch-sur-Alzette · Sud Luxembourg',sources:LUX_GTFS_SOURCES,filter:'tice'},
     diffbus:{key:'diffbus',label:'Diffbus',city:'Differdange',sources:LUX_GTFS_SOURCES,filter:'diffbus'},
+    luxtram:{key:'luxtram',label:'LuxTram',city:'Luxembourg',sources:LUX_GTFS_SOURCES,filter:'luxtram'},
     rgtr:{key:'rgtr',label:'RGTR',city:'Luxembourg',sources:LUX_GTFS_SOURCES,filter:'rgtr'},
     stan:{key:'stan',label:'STAN',city:'Nancy · Grand Nancy',sources:['https://www.data.gouv.fr/api/1/datasets/r/6fa33c41-dc16-4328-a010-8ce2fcac10f0','https://transport.data.gouv.fr/resources/83710/download']}
   };
@@ -6947,6 +6950,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     if(cfg.filter==='avl')return /(^|\s)AVL($|\s)|AUTOBUS.*VILLE.*LUXEMBOURG|VILLE.*LUXEMBOURG.*AUTOBUS/.test(agencyText)||/^AVL([ :_-]|$)/.test(routeText);
     if(cfg.filter==='tice')return /(^|\s)TICE($|\s)|TRANSPORT.*INTERCOMMUNAL.*CANTON.*ESCH/.test(agencyText)||/^TICE([ :_-]|$)/.test(routeText);
     if(cfg.filter==='diffbus')return /DIFFBUS|DIFFERDANGE/.test(agencyText)||/DIFFBUS|CITYBUS.*DIFFERDANGE|DIFFERDANGE.*CITYBUS/.test(routeText);
+    if(cfg.filter==='luxtram')return /LUXTRAM/.test(agencyText)||/LUXTRAM/.test(routeText)||String(r.route_type||'')==='0';
     if(cfg.filter==='rgtr'){
       if(/(^|\s)RGTR($|\s)|REGIME.*GENERAL.*TRANSPORT.*ROUT/.test(agencyText)||/(^|\s)RGTR($|\s)/.test(routeText))return true;
       // Repli défensif : le GTFS national luxembourgeois peut faire évoluer le libellé d'agence.
@@ -7033,7 +7037,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const fluoOptions='<option value="">Choisir un département…</option><option value="57">Moselle (57)</option><option value="54">Meurthe-et-Moselle (54)</option><option value="67">Bas-Rhin (67)</option><option value="68">Haut-Rhin (68)</option>';
   const rgtrOptions='<option value="interurban:rgtr">RGTR · Luxembourg</option>';
   const interurbanOptions=fluoOptions.replace('Choisir un département…','Choisir…')+'<option value="interurban:rgtr">RGTR · Luxembourg</option>';
-  const urbanOptions='<option value="">Choisir…</option><option value="urban:lemet">LE MET’ · Metz</option><option value="urban:temob">TeMo’b · Thionville / Fensch</option><option value="urban:stan">STAN · Nancy</option><option value="urban:avl">AVL · Luxembourg-Ville</option><option value="urban:tice">TICE · Esch / Sud Luxembourg</option><option value="urban:diffbus">Diffbus · Differdange</option>';
+  const urbanOptions='<option value="">Choisir…</option><option value="urban:lemet">LE MET’ · Metz</option><option value="urban:temob">TeMo’b · Thionville / Fensch</option><option value="urban:stan">STAN · Nancy</option><option value="urban:avl">AVL · Luxembourg-Ville</option><option value="urban:tice">TICE · Esch / Sud Luxembourg</option><option value="urban:diffbus">Diffbus · Differdange</option><option value="urban:luxtram">LuxTram · Luxembourg</option>';
   const scopeKey=()=>window.MonSAEIVDriverNetwork?.key||null;
   const scopeLabel=()=>window.MonSAEIVDriverNetwork?.label||'';
   function scopeType(){const k=scopeKey();return !k?null:(k==='fluo'||k==='rgtr'?'interurban':'urban')}
@@ -7099,6 +7103,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
       if(lat>=49.43&&lat<=49.76&&lon>=5.92&&lon<=6.35&&!out.includes('avl'))out.push('avl');
       if(lat>=49.38&&lat<=49.63&&lon>=5.70&&lon<=6.25&&!out.includes('tice'))out.push('tice');
       if(lat>=49.46&&lat<=49.58&&lon>=5.78&&lon<=5.98&&!out.includes('diffbus'))out.push('diffbus');
+      if(lat>=49.48&&lat<=49.70&&lon>=6.00&&lon<=6.28&&!out.includes('luxtram'))out.push('luxtram');
       if(lat>=49.35&&lat<=50.20&&lon>=5.65&&lon<=6.60&&!out.includes('rgtr'))out.push('rgtr');
       if(lat>=48.52&&lat<=48.82&&lon>=5.98&&lon<=6.40&&!out.includes('stan'))out.push('stan');
       if(lat>=48.75&&lat<=49.72&&lon>=5.65&&lon<=6.75&&!out.includes('fluo57'))out.push('fluo57');
@@ -7156,6 +7161,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     'urban:avl':{name:'AVL · Luxembourg-Ville',icon:'🇱🇺',urban:true,gtfs:true,network:'avl'},
     'urban:tice':{name:'TICE · Esch / Sud Luxembourg',icon:'🇱🇺',urban:true,gtfs:true,network:'tice'},
     'urban:diffbus':{name:'Diffbus · Differdange',icon:'🇱🇺',urban:true,gtfs:true,network:'diffbus'},
+    'urban:luxtram':{name:'LuxTram · Luxembourg',icon:'🚋',urban:true,gtfs:true,network:'luxtram'},
     'urban:stan':{name:'STAN · Nancy',icon:'🏙',urban:true,gtfs:true,network:'stan'},
     'interurban:rgtr':{name:'RGTR · Luxembourg',icon:'🇱🇺',urban:false,gtfs:true,network:'rgtr',group:'interurban'}
   };
@@ -7396,7 +7402,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
 'use strict';
 (()=>{
   const q=id=>document.getElementById(id);
-  const VERSION='1.0.22';
+  const VERSION='1.0.29';
   const GAP_M=650;
   const REPAIR_KEY='monSaevV103RoadGapCache';
   const GUIDANCE_KEY='monSaevV103GuidanceCache';
@@ -7781,7 +7787,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
   const user=()=>{try{return JSON.parse(localStorage.getItem(ACCOUNT_KEY)||'null')?.matricule||'local'}catch{return'local'}};
   const driverNetwork=()=>window.MonSAEIVDriverNetwork?.key||'fluo';
-  const NETWORK_LABELS={fluo:'Fluo Grand Est',stan:'STAN · Nancy',lemet:"LE MET’ · Metz",temob:"TeMo’b · Thionville / Fensch",rgtr:'RGTR · Luxembourg',avl:'AVL · Luxembourg-Ville',tice:'TICE · Esch / Sud Luxembourg',diffbus:'Diffbus · Differdange'};
+  const NETWORK_LABELS={fluo:'Fluo Grand Est',stan:'STAN · Nancy',lemet:"LE MET’ · Metz",temob:"TeMo’b · Thionville / Fensch",rgtr:'RGTR · Luxembourg',avl:'AVL · Luxembourg-Ville',tice:'TICE · Esch / Sud Luxembourg',diffbus:'Diffbus · Differdange',luxtram:'LuxTram · Luxembourg'};
   const masterKey=()=>`${MASTER_BASE}:${user()}`;
   const storeKey=(net=driverNetwork())=>`${STORE_BASE}:${encodeURIComponent(user())}:${net}`;
   const oldNetworkKey=n=>`${OLD_BASE}:${user()}:${n}`;
@@ -7805,7 +7811,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
       ['temob1','Ticket 1 voyage · achat',2],['temob10','Ticket 10 voyages · achat',15.2],['temob10Reduced','Ticket 10 voyages · tarif réduit',10],['temobDay','Forfait journée · achat',5.2],['temobGroup','Forfait groupe · achat',14.2],['temob2Days','Titre 2 jours illimités · achat',7.2],['temobWeek','Pass hebdo · achat',15.2]
     ]}
   };
-  const NETWORK_CATALOGS={fluo:['fluo','fluo67'],stan:['stan'],lemet:['lemet'],temob:['temob'],rgtr:[],avl:[],tice:[],diffbus:[]};
+  const NETWORK_CATALOGS={fluo:['fluo','fluo67'],stan:['stan'],lemet:['lemet'],temob:['temob'],rgtr:[],avl:[],tice:[],diffbus:[],luxtram:[]};
   const allowedCatalogs=()=>NETWORK_CATALOGS[driverNetwork()]||[];
   const catalogNetwork=c=>c==='fluo'||c==='fluo67'?'fluo':c;
   const NETWORK_KEYS=Object.keys(NETWORK_LABELS);
@@ -7898,7 +7904,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v108CashCatalog')?.addEventListener('change',e=>{const v=e.target.value,catalog=allowedCatalogs().includes(v)?v:(allowedCatalogs()[0]||'');updateSettings({catalog});renderCatalog()});q('v108CashTitleRows')?.addEventListener('input',calcDetail);q('v108CashTitleRows')?.addEventListener('click',e=>{const b=e.target.closest?.('[data-v121-step]');if(!b)return;const input=b.closest('.v108-title-row')?.querySelector('input');if(!input)return;const v=Math.max(0,Math.min(999,Math.floor(Number(input.value)||0)+Number(b.dataset.v121Step||0)));input.value=String(v);calcDetail()});['v108CashCustomQty','v108CashCustomPrice'].forEach(id=>q(id)?.addEventListener('input',calcDetail));q('v108CashSaveSale')?.addEventListener('click',saveSale);
   q('v108CashHistory')?.addEventListener('click',e=>{const id=e.target.closest('[data-v108-delete]')?.dataset.v108Delete;if(!id)return;const d=read(),x=d.sales.find(s=>s.id===id);if(!x)return;if(confirm(`Supprimer cette vente de ${money(x.total)} du ${fmtDate(x.date)} ?`)){deleteSale(id);renderSummary()}});
   window.MonSAEIVCash={open:openCash,data:read};
-  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.26';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.26';const b=q('buildInfo');if(b)b.textContent='Version 1.0.26'};applyVersion();setTimeout(applyVersion,5000);
+  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.29';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.29';const b=q('buildInfo');if(b)b.textContent='Version 1.0.29'};applyVersion();setTimeout(applyVersion,5000);
 })();
 </script>
 
@@ -8002,7 +8008,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v121PassengerClose')?.addEventListener('click',closePassenger);q('v121PassengerSheet')?.addEventListener('click',e=>{if(e.target===q('v121PassengerSheet'))closePassenger()});q('v121PassengerSave')?.addEventListener('click',savePassenger);q('v121PassengerSheet')?.addEventListener('click',e=>{const b=e.target.closest?.('[data-v121-pass-step]');if(!b)return;const [kind,d]=String(b.dataset.v121PassStep||'').split(':');step(kind==='up'?'v121PassengerUp':'v121PassengerDown',Number(d)||0)});
   ['v121PassengerUp','v121PassengerDown'].forEach(id=>q(id)?.addEventListener('input',e=>{e.target.value=String(int(e.target.value))}));
   window.MonSAEIVPassengerCount={open:openPassenger,detectStop:detectedStop,refreshTotals:refreshCourseTotals};
-  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.26';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.26';const b=q('buildInfo');if(b)b.textContent='Version 1.0.26'};applyVersion();setTimeout(applyVersion,5200);
+  const applyVersion=()=>{document.title='Mon SAEIV · 1.0.29';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.29';const b=q('buildInfo');if(b)b.textContent='Version 1.0.29'};applyVersion();setTimeout(applyVersion,5200);
 })();
 </script>
 
@@ -8030,7 +8036,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   function wrap(value,size,width){const words=safe(value).split(' ').filter(Boolean),lines=[];let cur='',max=Math.max(8,Math.floor(width/(size*.53)));for(const w of words){if(!cur)cur=w;else if((cur+' '+w).length<=max)cur+=' '+w;else{lines.push(cur);cur=w}}if(cur)lines.push(cur);return lines.length?lines:['']}
   function makePdf(sessions,events,scope={kind:'course',day:''}){
     const pages=[];let cmds=[],y=PAGE_H-M;
-    const newPage=()=>{if(cmds.length)pages.push(cmds.join('\n'));cmds=[];y=PAGE_H-M;cmds.push('0.97 0.98 0.99 rg 0 0 595.28 841.89 re f','0 0 0 rg');text(M,y,8,'MON SAEIV · COMPTAGE VOYAGEURS',true);text(PAGE_W-M-70,y,8,'1.0.26');y-=22};
+    const newPage=()=>{if(cmds.length)pages.push(cmds.join('\n'));cmds=[];y=PAGE_H-M;cmds.push('0.97 0.98 0.99 rg 0 0 595.28 841.89 re f','0 0 0 rg');text(M,y,8,'MON SAEIV · COMPTAGE VOYAGEURS',true);text(PAGE_W-M-70,y,8,'1.0.29');y-=22};
     const text=(x,yy,size,str,bold=false)=>cmds.push(`BT /${bold?'F2':'F1'} ${size} Tf 0 0 0 rg 1 0 0 1 ${x.toFixed(2)} ${yy.toFixed(2)} Tm ${lit(str)} Tj ET`);
     const line=(x1,yy1,x2,yy2,w=.6)=>cmds.push(`${w} w 0.72 0.77 0.81 RG ${x1.toFixed(2)} ${yy1.toFixed(2)} m ${x2.toFixed(2)} ${yy2.toFixed(2)} l S`);
     const para=(str,size=9,bold=false,gap=3)=>{for(const l of wrap(str,size,CONTENT_W)){if(y<58)newPage();text(M,y,size,l,bold);y-=size+gap}};
@@ -8084,6 +8090,12 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     .v107-radio-results{scrollbar-gutter:stable}
   `;document.head.appendChild(st);
 })();
+</script>
+
+<script id="v129LuxTramNetwork">
+'use strict';
+/* Mon SAEIV 1.0.29 — ajout du réseau LuxTram au catalogue luxembourgeois officiel. */
+window.MonSAEIVBuildPatch='1.0.29-luxtram';
 </script>
 </body>
 </html>
