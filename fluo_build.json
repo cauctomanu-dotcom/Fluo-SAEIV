@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-08-28T02:44:09+02:00",
-  "version": "1.0.29",
+  "version": "1.0.30",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -400,5 +400,15 @@
     "save_order": "le récapitulatif est relu et mis à jour avant toute remise à zéro des champs",
     "confirmation": "confirmation visible du nombre de ventes réellement relues depuis le stockage",
     "preserved": "comptage voyageurs V1.0.21, GPS, simulation et navigation inchangés"
+  },
+  "network_switch_v1_0_30": {
+    "behavior": "Changer de réseau conserve la session conducteur et ne demande plus une nouvelle authentification.",
+    "safety": "Le changement de réseau est refusé pendant une course active afin de ne pas altérer le service en cours."
+  },
+  "landscape_driver_v1_0_30": {
+    "setup": "Préparation, recherche et sélection de course autorisées en portrait ou paysage.",
+    "driver": "Au lancement GPS ou simulation, tentative de verrouillage paysage via Screen Orientation API.",
+    "fallback": "Si le verrouillage automatique n’est pas disponible, notamment sur iOS/PWA, le cockpit est masqué en portrait et un écran demande de tourner le téléphone.",
+    "end": "À la fin de la course, l’orientation redevient libre."
   }
 }
