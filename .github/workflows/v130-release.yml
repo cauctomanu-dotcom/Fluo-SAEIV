@@ -1,0 +1,72 @@
+name: Mon SAEIV 1.0.30 release patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v130-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Harmoniser Mon SAEIV 1.0.30
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          index = Path('index.html')
+          s = index.read_text(encoding='utf-8')
+          replacements = {
+              'manifest.webmanifest?v=1.0.29': 'manifest.webmanifest?v=1.0.30',
+              'fluo_build.json?v=1.0.29': 'fluo_build.json?v=1.0.30',
+              'sw.js?v=1.0.29': 'sw.js?v=1.0.30',
+              "const APP_VERSION = '1.0.29';": "const APP_VERSION = '1.0.30';",
+              '<title>Mon SAEIV · 1.0.29</title>': '<title>Mon SAEIV · 1.0.30</title>',
+              "document.title='Mon SAEIV · 1.0.29'": "document.title='Mon SAEIV · 1.0.30'",
+              "document.title=\"Mon SAEIV · 1.0.29\"": "document.title=\"Mon SAEIV · 1.0.30\"",
+          }
+          for old, new in replacements.items():
+              s = s.replace(old, new)
+          if 'v130-session-orientation.js' not in s:
+              s = s.replace('</body>', '<script src="./v130-session-orientation.js?v=1.0.30"></script>\n</body>', 1)
+          index.write_text(s, encoding='utf-8')
+
+          build_path = Path('fluo_build.json')
+          build = json.loads(build_path.read_text(encoding='utf-8'))
+          build['version'] = '1.0.30'
+          build['network_switch_v1_0_30'] = {
+              'behavior': 'Changer de réseau conserve la session conducteur et ne demande plus une nouvelle authentification.',
+              'safety': 'Le changement de réseau est refusé pendant une course active afin de ne pas altérer le service en cours.'
+          }
+          build['landscape_driver_v1_0_30'] = {
+              'setup': 'Préparation, recherche et sélection de course autorisées en portrait ou paysage.',
+              'driver': 'Au lancement GPS ou simulation, tentative de verrouillage paysage via Screen Orientation API.',
+              'fallback': 'Si le verrouillage automatique n’est pas disponible, notamment sur iOS/PWA, le cockpit est masqué en portrait et un écran demande de tourner le téléphone.',
+              'end': 'À la fin de la course, l’orientation redevient libre.'
+          }
+          build_path.write_text(json.dumps(build, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          manifest_path = Path('manifest.webmanifest')
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          manifest['name'] = 'Mon SAEIV 1.0.30'
+          manifest['start_url'] = './?v=1.0.30'
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          Path('.github/workflows/v130-release.yml').unlink()
+          PY
+
+      - name: Commit de la version 1.0.30
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html fluo_build.json manifest.webmanifest .github/workflows/v130-release.yml
+          git commit -m "Mon SAEIV 1.0.30: réseau sans déconnexion et paysage de conduite"
+          git push
