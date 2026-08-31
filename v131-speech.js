@@ -1,5 +1,5 @@
 'use strict';
-/* Mon SAEIV 1.0.31 — synthèse vocale robuste iOS/Android + phonétique non bloquante. */
+/* Mon SAEIV 1.0.31 — synthèse vocale robuste iOS/Android + phonétique non bloquante. Déploiement final. */
 (()=>{
   const VERSION='1.0.31';
   const START_RETRY_MS=2200;
