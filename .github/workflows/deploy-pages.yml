@@ -41,6 +41,21 @@ jobs:
           cp styles.css site/styles.css
           cp sw.js site/sw.js
           cp manifest.webmanifest site/manifest.webmanifest
+          [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
+          for f in v128-gps.js v128-offline.js v130-session-orientation.js v131-speech.js v132-journals.js v133-profile-journals.js; do
+            [ -f "$f" ] && cp "$f" "site/$f"
+          done
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('site/index.html')
+          t=p.read_text(encoding='utf-8')
+          if 'v133RuntimeProfileJournals' not in t:
+              t=t.replace('</body>', '<script id="v133RuntimeProfileJournals" src="./v133-profile-journals.js?v=1.0.33"></script>\n</body>')
+          t=t.replace('manifest.webmanifest?v=1.0.32','manifest.webmanifest?v=1.0.33')
+          t=t.replace('sw.js?v=1.0.32','sw.js?v=1.0.33')
+          t=t.replace('<title>Mon SAEIV · 1.0.32</title>','<title>Mon SAEIV · 1.0.33</title>')
+          p.write_text(t,encoding='utf-8')
+          PY
           touch site/data/.gitkeep
 
       - name: Download and prepare official Fluo GTFS 54 and 57
