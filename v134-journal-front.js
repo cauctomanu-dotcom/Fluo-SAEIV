@@ -37,8 +37,16 @@
   function watch(el){
     if(!el||watched.has(el))return;
     watched.add(el);
-    new MutationObserver(()=>{if(!el.classList.contains('hidden'))promote(el)}).observe(el,{attributes:true,attributeFilter:['class','style']});
+    // On observe uniquement l'ouverture/fermeture via la classe afin d'éviter une boucle
+    // de MutationObserver lorsque promote() modifie les styles inline.
+    new MutationObserver(()=>{if(!el.classList.contains('hidden'))promote(el)}).observe(el,{attributes:true,attributeFilter:['class']});
     if(!el.classList.contains('hidden'))promote(el);
+  }
+
+  function versionUi(){
+    document.title='Mon SAEIV · 1.0.34';
+    const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.34';
+    const b=q('buildInfo');if(b)b.textContent='Version 1.0.34';
   }
 
   function attach(){
@@ -51,10 +59,11 @@
   style.textContent=`#v133JournalHub,#v133ProfileSheet{z-index:${TOP}!important}#v133JournalHub:not(.hidden),#v133ProfileSheet:not(.hidden){visibility:visible!important;opacity:1!important;pointer-events:auto!important}`;
   document.head.appendChild(style);
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',attach,{once:true});else attach();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{attach();versionUi()},{once:true});else{attach();versionUi()}
   new MutationObserver(attach).observe(document.documentElement,{childList:true,subtree:true});
-  window.addEventListener('pageshow',()=>setTimeout(attach,0));
-  window.addEventListener('orientationchange',()=>setTimeout(()=>{attach();promote(q('v133JournalHub'));promote(q('v133ProfileSheet'))},80));
+  window.addEventListener('pageshow',()=>setTimeout(()=>{attach();versionUi()},0));
+  window.addEventListener('orientationchange',()=>setTimeout(()=>{attach();promote(q('v133JournalHub'));promote(q('v133ProfileSheet'));versionUi()},80));
+  setTimeout(versionUi,700);setTimeout(versionUi,4000);
   window.MonSAEIVV134={installed:true,promote,version:'1.0.34'};
   console.info('[Mon SAEIV] 1.0.34 affichage Journaux/Profil au premier plan actif');
 })();
