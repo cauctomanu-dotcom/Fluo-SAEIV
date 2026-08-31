@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-08-28T02:44:09+02:00",
-  "version": "1.0.31",
+  "version": "1.0.32",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -417,5 +417,11 @@
     "watchdog": "si une annonce ne démarre pas, nouvel essai automatique avec texte original et voix système par défaut",
     "resume": "reprise du moteur speechSynthesis au retour au premier plan et lors d’une interaction utilisateur",
     "preserved": "priorités des annonces, annonces manuelles, voix homme/femme, radio ducking et corrections Marché / Ars-Laquenexy / Cimetière conservés"
+  },
+  "journal_consultation_v1_0_32": {
+    "issue": "concurrence entre le rendu historique V13 et le rendu enrichi V23 sur la même liste de journaux",
+    "fix": "contrôleur unique de consultation, détail et carte ; aucune suppression ni migration des données IndexedDB existantes",
+    "storage": "fluo-saeiv-journal-v13 conservé intact",
+    "ios": "ouverture et clics capturés avant les anciens gestionnaires pour éviter les réécritures concurrentes Safari/PWA"
   }
 }

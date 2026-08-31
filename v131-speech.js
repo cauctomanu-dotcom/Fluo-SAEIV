@@ -1,7 +1,7 @@
 'use strict';
-/* Mon SAEIV 1.0.31 — synthèse vocale robuste iOS/Android + phonétique non bloquante. Déploiement final. */
+/* Mon SAEIV 1.0.32 — synthèse vocale robuste iOS/Android + phonétique non bloquante. Déploiement final. */
 (()=>{
-  const VERSION='1.0.31';
+  const VERSION='1.0.32';
   const START_RETRY_MS=2200;
   const CANCEL_RESTART_MS=140;
   let installed=false;
@@ -137,7 +137,7 @@
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{if(s.paused)s.resume()}catch{};setTimeout(()=>{try{pumpSpeech()}catch{}},120)}});
 
     window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,restart:()=>{try{s.resume()}catch{};setTimeout(()=>{try{pumpSpeech()}catch{}},80)}};
-    console.info('[Mon SAEIV] moteur vocal 1.0.31 actif');
+    console.info('[Mon SAEIV] moteur vocal 1.0.32 actif');
     return true;
   }
 
