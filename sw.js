@@ -1,4 +1,4 @@
-const C='mon-saeiv-v1-0-31';
+const C='mon-saeiv-v1-0-32';
 const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(C).catch(()=>{})))});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('mon-saeiv-v1-')&&k!==C).map(k=>caches.delete(k)));await self.clients.claim()})()));
