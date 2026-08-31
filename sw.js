@@ -1,17 +1,17 @@
-const C='mon-saeiv-v1-0-30';
-const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js'];
+const C='mon-saeiv-v1-0-31';
+const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(C).catch(()=>{})))});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('mon-saeiv-v1-')&&k!==C).map(k=>caches.delete(k)));await self.clients.claim()})()));
 function patchIndex(t){
-  t=t.replace(/<script id="v307GpsFluidVisuals">[\s\S]*?<\/script>/,'<script src="./v128-gps.js?v=1.0.30"><\/script>');
-  t=t.replace("const APP_VERSION = '1.0.22';","const APP_VERSION = '1.0.30';");
-  t=t.replace("const APP_VERSION = '1.0.29';","const APP_VERSION = '1.0.30';");
-  t=t.replace(/manifest\.webmanifest\?v=1\.0\.(?:26|29)/g,'manifest.webmanifest?v=1.0.30');
-  t=t.replace(/fluo_build\.json\?v=1\.0\.(?:26|29)/g,'fluo_build.json?v=1.0.30');
-  t=t.replace(/sw\.js\?v=1\.0\.(?:26|29)/g,'sw.js?v=1.0.30');
-  t=t.replace(/Mon SAEIV · 1\.0\.29/g,'Mon SAEIV · 1.0.30');
-  t=t.replace(/MON SAEIV · 1\.0\.(?:22|29)/g,'MON SAEIV · 1.0.30');
-  t=t.replace(/Version 1\.0\.29/g,'Version 1.0.30');
+  t=t.replace(/<script id="v307GpsFluidVisuals">[\s\S]*?<\/script>/,'<script src="./v128-gps.js?v=1.0.31"><\/script>');
+  t=t.replace("const APP_VERSION = '1.0.22';","const APP_VERSION = '1.0.31';");
+  t=t.replace("const APP_VERSION = '1.0.29';","const APP_VERSION = '1.0.31';");
+  t=t.replace(/manifest\.webmanifest\?v=1\.0\.(?:26|29)/g,'manifest.webmanifest?v=1.0.31');
+  t=t.replace(/fluo_build\.json\?v=1\.0\.(?:26|29)/g,'fluo_build.json?v=1.0.31');
+  t=t.replace(/sw\.js\?v=1\.0\.(?:26|29)/g,'sw.js?v=1.0.31');
+  t=t.replace(/Mon SAEIV · 1\.0\.29/g,'Mon SAEIV · 1.0.31');
+  t=t.replace(/MON SAEIV · 1\.0\.(?:22|29)/g,'MON SAEIV · 1.0.31');
+  t=t.replace(/Version 1\.0\.29/g,'Version 1.0.31');
   t=t.replace("const R={audio:new Audio(),volume:Math.max(0,Math.min(1,Number(pref.volume)||.68)),station:pref.last||null,restoreTimer:null,ramp:0,tab:'main',results:[],loading:false,stallTimer:null,recovering:false,tried:new Set(),stallCount:0,stallWindow:0,duckMuted:false,preDuckMuted:false};","const R={audio:new Audio(),volume:Math.max(0,Math.min(1,Number(pref.volume)||.68)),station:pref.last||null,restoreTimer:null,ramp:0,tab:'main',results:[],loading:false,stallTimer:null,recovering:false,tried:new Set(),stallCount:0,stallWindow:0,duckMuted:false,preDuckMuted:false,lastRecoveryAt:0,waitingSince:0};");
   t=t.replace("R.audio.preload='none';R.audio.volume=R.volume;R.audio.playsInline=true;","R.audio.preload='auto';R.audio.volume=R.volume;R.audio.playsInline=true;R.audio.setAttribute('playsinline','');");
   t=t.replace("if(br===0)sc+=3;else if(br>=48&&br<=128)sc+=58;else if(br<=160)sc+=38;else if(br<=192)sc+=12;else if(br<=256)sc-=25;else sc-=70;if(st?.hls||/\\.m3u8(?:\\?|$)/i.test(u))sc-=28;","if(br===0)sc+=5;else if(br>=48&&br<=96)sc+=105;else if(br<=128)sc+=72;else if(br<=160)sc+=18;else if(br<=192)sc-=28;else if(br<=256)sc-=72;else sc-=140;if(st?.hls||/\\.m3u8(?:\\?|$)/i.test(u))sc-=55;");
@@ -20,8 +20,9 @@ function patchIndex(t){
   t=t.replace(/function scheduleRecovery\(label\)\{[\s\S]*?\}\n  function stopRadio/,`function scheduleRecovery(label,delay=14000){setStatus(label,'busy');if(R.audio.paused)return;clearStallTimer();if(!R.waitingSince)R.waitingSince=Date.now();R.stallTimer=setTimeout(()=>{if(R.audio.paused||R.audio.readyState>=3){R.waitingSince=0;return}recoverStream(false)},delay)}\n  function stopRadio`);
   t=t.replace("function stopRadio(){clearStallTimer();R.audio.pause();","function stopRadio(){clearStallTimer();R.waitingSince=0;R.audio.pause();");
   t=t.replace("R.audio.addEventListener('playing',()=>{clearStallTimer();setStatus(R.station?`En écoute : ${R.station.name}`:'Radio en lecture','ok');renderCurrent()});","R.audio.addEventListener('playing',()=>{clearStallTimer();R.waitingSince=0;setStatus(R.station?`En écoute : ${R.station.name}${R.station.bitrate?` · ${R.station.bitrate} kb/s`:''}`:'Radio en lecture','ok');renderCurrent()});R.audio.addEventListener('canplay',()=>{clearStallTimer();R.waitingSince=0});");
-  if(!t.includes('v128-offline.js'))t=t.replace('</body>',`<script src="./v128-offline.js?v=1.0.30"><\/script><script>window.MonSAEIVBuildPatch='1.0.30-radio-gps-offline-continuity';(()=>{const a=()=>{document.title='Mon SAEIV · 1.0.30';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.30';const b=document.getElementById('buildInfo');if(b)b.textContent='Version 1.0.30'};a();setTimeout(a,5000)})();<\/script></body>`);
-  if(!t.includes('v130-session-orientation.js'))t=t.replace('</body>',`<script src="./v130-session-orientation.js?v=1.0.30"><\/script></body>`);
+  if(!t.includes('v128-offline.js'))t=t.replace('</body>',`<script src="./v128-offline.js?v=1.0.31"><\/script><script>window.MonSAEIVBuildPatch='1.0.31-radio-gps-offline-continuity';(()=>{const a=()=>{document.title='Mon SAEIV · 1.0.31';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.31';const b=document.getElementById('buildInfo');if(b)b.textContent='Version 1.0.31'};a();setTimeout(a,5000)})();<\/script></body>`);
+  if(!t.includes('v130-session-orientation.js'))t=t.replace('</body>',`<script src="./v130-session-orientation.js?v=1.0.31"><\/script></body>`);
+  if(!t.includes('v131-speech.js'))t=t.replace('</body>',`<script src="./v131-speech.js?v=1.0.31"><\/script></body>`);
   return t;
 }
 async function appResponse(req){const cache=await caches.open(C);let r;try{r=await fetch(req,{cache:'no-store'});if(r.ok)cache.put(req,r.clone()).catch(()=>{})}catch{}if(!r)r=await cache.match(req)||await cache.match('index.html');if(!r)return new Response('Mon SAEIV indisponible',{status:503});const text=patchIndex(await r.text());return new Response(text,{status:r.status,headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-cache'}})}

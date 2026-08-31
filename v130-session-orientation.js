@@ -1,7 +1,7 @@
 'use strict';
 /* Mon SAEIV 1.0.30 — changement de réseau sans déconnexion + conduite paysage obligatoire. */
 (()=>{
-  const VERSION='1.0.30';
+  const VERSION='1.0.31';
   const q=id=>document.getElementById(id);
   const html=document.documentElement;
   let driving=false;

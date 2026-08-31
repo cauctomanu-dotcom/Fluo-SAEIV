@@ -1,7 +1,7 @@
 {
-  "name": "Mon SAEIV 1.0.30",
+  "name": "Mon SAEIV 1.0.31",
   "short_name": "Mon SAEIV",
-  "start_url": "./?v=1.0.30",
+  "start_url": "./?v=1.0.31",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",

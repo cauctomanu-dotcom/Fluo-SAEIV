@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-08-28T02:44:09+02:00",
-  "version": "1.0.30",
+  "version": "1.0.31",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -410,5 +410,12 @@
     "driver": "Au lancement GPS ou simulation, tentative de verrouillage paysage via Screen Orientation API.",
     "fallback": "Si le verrouillage automatique n’est pas disponible, notamment sur iOS/PWA, le cockpit est masqué en portrait et un écran demande de tourner le téléphone.",
     "end": "À la fin de la course, l’orientation redevient libre."
+  },
+  "speech_fix_v1_0_31": {
+    "phonetic_fallback": "les corrections phonétiques sont isolées ; en cas d’erreur, le texte original est prononcé au lieu de bloquer la diffusion",
+    "ios_restart": "après cancel(), délai de reprise avant une nouvelle synthèse pour éviter le moteur vocal muet sur iOS/Safari",
+    "watchdog": "si une annonce ne démarre pas, nouvel essai automatique avec texte original et voix système par défaut",
+    "resume": "reprise du moteur speechSynthesis au retour au premier plan et lors d’une interaction utilisateur",
+    "preserved": "priorités des annonces, annonces manuelles, voix homme/femme, radio ducking et corrections Marché / Ars-Laquenexy / Cimetière conservés"
   }
 }
