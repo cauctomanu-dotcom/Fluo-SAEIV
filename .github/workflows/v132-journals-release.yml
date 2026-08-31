@@ -1,0 +1,97 @@
+name: Mon SAEIV 1.0.32 journals release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v132-journals-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Intégrer le correctif journaux 1.0.32
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+
+          V='1.0.32'
+
+          # index.html : version publique + scripts runtime au vrai bas de page.
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          s=re.sub(r'manifest\.webmanifest\?v=1\.0\.\d+',f'manifest.webmanifest?v={V}',s)
+          s=re.sub(r'fluo_build\.json\?v=1\.0\.\d+',f'fluo_build.json?v={V}',s)
+          s=re.sub(r'sw\.js\?v=1\.0\.\d+',f'sw.js?v={V}',s)
+          s=s.replace("const APP_VERSION = '1.0.31';",f"const APP_VERSION = '{V}';")
+          s=s.replace('Mon SAEIV · 1.0.31',f'Mon SAEIV · {V}')
+          s=s.replace('MON SAEIV · 1.0.31',f'MON SAEIV · {V}')
+          s=s.replace('Version 1.0.31',f'Version {V}')
+          s=re.sub(r'v130-session-orientation\.js\?v=1\.0\.\d+',f'v130-session-orientation.js?v={V}',s)
+          s=re.sub(r'v131-speech\.js\?v=1\.0\.\d+',f'v131-speech.js?v={V}',s)
+          s=re.sub(r'\n?\s*<script[^>]*id="v132RuntimeJournals"[^>]*>\s*</script>\s*','\n',s)
+          pos=s.rfind('</body>')
+          if pos<0: raise SystemExit('balise body finale introuvable')
+          runtime=f'\n<script id="v132RuntimeJournals" src="./v132-journals.js?v={V}"></script>\n'
+          s=s[:pos]+runtime+s[pos:]
+          p.write_text(s,encoding='utf-8')
+
+          # Manifest.
+          mp=Path('manifest.webmanifest')
+          m=json.loads(mp.read_text(encoding='utf-8'))
+          m['name']=f'Mon SAEIV {V}'
+          m['start_url']=f'./?v={V}'
+          mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          # Build metadata.
+          bp=Path('fluo_build.json')
+          b=json.loads(bp.read_text(encoding='utf-8'))
+          b['version']=V
+          b['journal_consultation_v1_0_32']={
+            'issue':'concurrence entre le rendu historique V13 et le rendu enrichi V23 sur la même liste de journaux',
+            'fix':'contrôleur unique de consultation, détail et carte ; aucune suppression ni migration des données IndexedDB existantes',
+            'storage':'fluo-saeiv-journal-v13 conservé intact',
+            'ios':'ouverture et clics capturés avant les anciens gestionnaires pour éviter les réécritures concurrentes Safari/PWA'
+          }
+          bp.write_text(json.dumps(b,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          # Modules runtime déjà existants : éviter qu'ils réécrivent l'étiquette en 1.0.31.
+          for name in ['v130-session-orientation.js','v131-speech.js']:
+            rp=Path(name)
+            x=rp.read_text(encoding='utf-8').replace('1.0.31',V)
+            rp.write_text(x,encoding='utf-8')
+
+          # Service worker : nouveau cache + module journaux pré-caché et injecté en repli.
+          swp=Path('sw.js')
+          w=swp.read_text(encoding='utf-8').replace('1.0.31',V)
+          if "'v132-journals.js'" not in w:
+            w=w.replace("'v131-speech.js'];","'v131-speech.js','v132-journals.js'];")
+          if 'v132RuntimeJournals' not in w:
+            lines=w.splitlines()
+            out=[]
+            inserted=False
+            for line in lines:
+              if line.strip()=='return t;' and not inserted:
+                out.append("  if(!t.includes('id=\\\"v132RuntimeJournals\\\"'))t=t.replace(/<\\/body>\\s*<\\/html>\\s*$/i,`<script id=\\\"v132RuntimeJournals\\\" src=\\\"./v132-journals.js?v=1.0.32\\\"><\\/script><\\/body><\\/html>`);")
+                inserted=True
+              out.append(line)
+            w='\n'.join(out)+'\n'
+          swp.write_text(w,encoding='utf-8')
+
+          # Le workflow est volontairement auto-nettoyant.
+          Path('.github/workflows/v132-journals-release.yml').unlink()
+          PY
+
+      - name: Commit release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html manifest.webmanifest fluo_build.json sw.js v130-session-orientation.js v131-speech.js .github/workflows/v132-journals-release.yml
+          git commit -m "Mon SAEIV 1.0.32: répare la consultation des journaux"
+          git push
