@@ -1,11 +1,11 @@
 {
-  "name": "Mon SAEIV 1.0.36",
+  "name": "Mon SAEIV 1.0.37",
   "short_name": "Mon SAEIV",
-  "start_url": "./?v=1.0.36",
+  "start_url": "./?v=1.0.37",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "Mon SAEIV — SAEIV multiréseaux avec changement de réseau sans déconnexion, conduite paysage, GPS, radio, planning, prise de service véhicule, régulation, comptage voyageurs, fiches horaires, annonces, journaux, profil conducteur et caisse."
+  "description": "Mon SAEIV — SAEIV multiréseaux avec Espace conducteur, journaux, statistiques, véhicule, planning, GPS, annonces, comptage voyageurs et outils de service."
 }

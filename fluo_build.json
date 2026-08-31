@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-08-28T02:44:09+02:00",
-  "version": "1.0.33",
+  "version": "1.0.37",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
