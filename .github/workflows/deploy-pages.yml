@@ -1,4 +1,4 @@
-# Déploiement final Mon SAEIV 1.0.33 — journaux indépendants + Mon profil
+# Déploiement final Mon SAEIV 1.0.34 — journaux toujours au premier plan
 name: Build and deploy Fluo SAEIV
 
 on:
@@ -43,7 +43,7 @@ jobs:
           cp sw.js site/sw.js
           cp manifest.webmanifest site/manifest.webmanifest
           [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
-          for f in v128-gps.js v128-offline.js v130-session-orientation.js v131-speech.js v132-journals.js v133-profile-journals.js; do
+          for f in v128-gps.js v128-offline.js v130-session-orientation.js v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js; do
             [ -f "$f" ] && cp "$f" "site/$f"
           done
           python - <<'PY'
@@ -51,10 +51,17 @@ jobs:
           p=Path('site/index.html')
           t=p.read_text(encoding='utf-8')
           if 'v133RuntimeProfileJournals' not in t:
-              t=t.replace('</body>', '<script id="v133RuntimeProfileJournals" src="./v133-profile-journals.js?v=1.0.33"></script>\n</body>')
-          t=t.replace('manifest.webmanifest?v=1.0.32','manifest.webmanifest?v=1.0.33')
-          t=t.replace('sw.js?v=1.0.32','sw.js?v=1.0.33')
-          t=t.replace('<title>Mon SAEIV · 1.0.32</title>','<title>Mon SAEIV · 1.0.33</title>')
+              i=t.rfind('</body>')
+              if i!=-1:
+                  t=t[:i]+'<script id="v133RuntimeProfileJournals" src="./v133-profile-journals.js?v=1.0.34"></script>\n'+t[i:]
+          t=t.replace('./v133-profile-journals.js?v=1.0.33','./v133-profile-journals.js?v=1.0.34')
+          if 'v134RuntimeJournalFront' not in t:
+              i=t.rfind('</body>')
+              if i!=-1:
+                  t=t[:i]+'<script id="v134RuntimeJournalFront" src="./v134-journal-front.js?v=1.0.34"></script>\n'+t[i:]
+          t=t.replace('manifest.webmanifest?v=1.0.33','manifest.webmanifest?v=1.0.34')
+          t=t.replace('sw.js?v=1.0.33','sw.js?v=1.0.34')
+          t=t.replace('<title>Mon SAEIV · 1.0.33</title>','<title>Mon SAEIV · 1.0.34</title>')
           p.write_text(t,encoding='utf-8')
           PY
           touch site/data/.gitkeep
