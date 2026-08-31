@@ -1,4 +1,4 @@
-# Déploiement final Mon SAEIV 1.0.34 — journaux toujours au premier plan
+# Déploiement final Mon SAEIV 1.0.35 — routeur unique Journaux iOS
 name: Build and deploy Fluo SAEIV
 
 on:
@@ -43,26 +43,40 @@ jobs:
           cp sw.js site/sw.js
           cp manifest.webmanifest site/manifest.webmanifest
           [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
-          for f in v128-gps.js v128-offline.js v130-session-orientation.js v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js; do
+          for f in v128-gps.js v128-offline.js v130-session-orientation.js v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js v135-journal-router.js; do
             [ -f "$f" ] && cp "$f" "site/$f"
           done
           python - <<'PY'
           from pathlib import Path
+          import json
           p=Path('site/index.html')
           t=p.read_text(encoding='utf-8')
+          # Versions des modules runtime déjà présents.
+          for old in ('1.0.32','1.0.33','1.0.34'):
+              t=t.replace(f'./v132-journals.js?v={old}','./v132-journals.js?v=1.0.35')
+              t=t.replace(f'./v133-profile-journals.js?v={old}','./v133-profile-journals.js?v=1.0.35')
+              t=t.replace(f'./v134-journal-front.js?v={old}','./v134-journal-front.js?v=1.0.35')
+          # Garantit une seule injection des modules modernes tout en fin de document.
           if 'v133RuntimeProfileJournals' not in t:
               i=t.rfind('</body>')
-              if i!=-1:
-                  t=t[:i]+'<script id="v133RuntimeProfileJournals" src="./v133-profile-journals.js?v=1.0.34"></script>\n'+t[i:]
-          t=t.replace('./v133-profile-journals.js?v=1.0.33','./v133-profile-journals.js?v=1.0.34')
+              if i!=-1:t=t[:i]+'<script id="v133RuntimeProfileJournals" src="./v133-profile-journals.js?v=1.0.35"></script>\n'+t[i:]
           if 'v134RuntimeJournalFront' not in t:
               i=t.rfind('</body>')
-              if i!=-1:
-                  t=t[:i]+'<script id="v134RuntimeJournalFront" src="./v134-journal-front.js?v=1.0.34"></script>\n'+t[i:]
-          t=t.replace('manifest.webmanifest?v=1.0.33','manifest.webmanifest?v=1.0.34')
-          t=t.replace('sw.js?v=1.0.33','sw.js?v=1.0.34')
-          t=t.replace('<title>Mon SAEIV · 1.0.33</title>','<title>Mon SAEIV · 1.0.34</title>')
+              if i!=-1:t=t[:i]+'<script id="v134RuntimeJournalFront" src="./v134-journal-front.js?v=1.0.35"></script>\n'+t[i:]
+          if 'v135RuntimeJournalRouter' not in t:
+              i=t.rfind('</body>')
+              if i!=-1:t=t[:i]+'<script id="v135RuntimeJournalRouter" src="./v135-journal-router.js?v=1.0.35"></script>\n'+t[i:]
+          for old in ('1.0.32','1.0.33','1.0.34'):
+              t=t.replace(f'manifest.webmanifest?v={old}','manifest.webmanifest?v=1.0.35')
+              t=t.replace(f'sw.js?v={old}','sw.js?v=1.0.35')
+              t=t.replace(f'<title>Mon SAEIV · {old}</title>','<title>Mon SAEIV · 1.0.35</title>')
           p.write_text(t,encoding='utf-8')
+          # Le build publié doit afficher la même version, même si le fichier source contient un historique plus ancien.
+          bp=Path('site/fluo_build.json')
+          if bp.exists():
+              try:
+                  d=json.loads(bp.read_text(encoding='utf-8'));d['version']='1.0.35';bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+              except Exception as e: print('build json version warning',e)
           PY
           touch site/data/.gitkeep
 
