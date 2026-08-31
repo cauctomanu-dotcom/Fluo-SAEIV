@@ -1,0 +1,85 @@
+name: Mon SAEIV 1.0.31 speech fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v131-speech-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Harmoniser Mon SAEIV 1.0.31
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          index = Path('index.html')
+          s = index.read_text(encoding='utf-8')
+          replacements = {
+              'manifest.webmanifest?v=1.0.30': 'manifest.webmanifest?v=1.0.31',
+              'fluo_build.json?v=1.0.30': 'fluo_build.json?v=1.0.31',
+              'sw.js?v=1.0.30': 'sw.js?v=1.0.31',
+              "const APP_VERSION = '1.0.30';": "const APP_VERSION = '1.0.31';",
+              '<title>Mon SAEIV · 1.0.30</title>': '<title>Mon SAEIV · 1.0.31</title>',
+              "document.title='Mon SAEIV · 1.0.30'": "document.title='Mon SAEIV · 1.0.31'",
+              'MON SAEIV · 1.0.30': 'MON SAEIV · 1.0.31',
+              'Version 1.0.30': 'Version 1.0.31',
+          }
+          for old, new in replacements.items():
+              s = s.replace(old, new)
+          if 'v131-speech.js' not in s:
+              s = s.replace('</body>', '<script src="./v131-speech.js?v=1.0.31"></script>\n</body>', 1)
+          index.write_text(s, encoding='utf-8')
+
+          swp = Path('sw.js')
+          sw = swp.read_text(encoding='utf-8')
+          sw = sw.replace("mon-saeiv-v1-0-30", "mon-saeiv-v1-0-31")
+          sw = sw.replace("1.0.30", "1.0.31")
+          if "'v131-speech.js'" not in sw:
+              sw = sw.replace("'v130-session-orientation.js']", "'v130-session-orientation.js','v131-speech.js']")
+          if "if(!t.includes('v131-speech.js'))" not in sw:
+              sw = sw.replace("  return t;", "  if(!t.includes('v131-speech.js'))t=t.replace('</body>',`<script src=\"./v131-speech.js?v=1.0.31\"><\\/script></body>`);\n  return t;")
+          swp.write_text(sw, encoding='utf-8')
+
+          manifest_path = Path('manifest.webmanifest')
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          manifest['name'] = 'Mon SAEIV 1.0.31'
+          manifest['start_url'] = './?v=1.0.31'
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          build_path = Path('fluo_build.json')
+          build = json.loads(build_path.read_text(encoding='utf-8'))
+          build['version'] = '1.0.31'
+          build['speech_fix_v1_0_31'] = {
+              'phonetic_fallback': 'les corrections phonétiques sont isolées ; en cas d’erreur, le texte original est prononcé au lieu de bloquer la diffusion',
+              'ios_restart': 'après cancel(), délai de reprise avant une nouvelle synthèse pour éviter le moteur vocal muet sur iOS/Safari',
+              'watchdog': 'si une annonce ne démarre pas, nouvel essai automatique avec texte original et voix système par défaut',
+              'resume': 'reprise du moteur speechSynthesis au retour au premier plan et lors d’une interaction utilisateur',
+              'preserved': 'priorités des annonces, annonces manuelles, voix homme/femme, radio ducking et corrections Marché / Ars-Laquenexy / Cimetière conservés'
+          }
+          build_path.write_text(json.dumps(build, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          p = Path('v130-session-orientation.js')
+          if p.exists():
+              txt = p.read_text(encoding='utf-8').replace("const VERSION='1.0.30';", "const VERSION='1.0.31';")
+              p.write_text(txt, encoding='utf-8')
+
+          Path('.github/workflows/v131-speech-release.yml').unlink()
+          PY
+
+      - name: Commit de la version 1.0.31
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js manifest.webmanifest fluo_build.json v130-session-orientation.js .github/workflows/v131-speech-release.yml
+          git commit -m "Mon SAEIV 1.0.31: répare les annonces vocales"
+          git push
