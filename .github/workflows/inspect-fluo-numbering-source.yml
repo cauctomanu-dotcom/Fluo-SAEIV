@@ -13,52 +13,29 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Query official Fluo selector choices
+      - name: Query official Fluo mappings directly
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json,re,urllib.request
           from html.parser import HTMLParser
-          UA='Mozilla/5.0'
-          page='https://www.fluo.grandest.fr/nouveaux-numeros/'
-          req=urllib.request.Request(page,headers={'User-Agent':UA})
-          text=urllib.request.urlopen(req,timeout=30).read().decode('utf-8','replace')
+          UA='Mozilla/5.0'; page='https://www.fluo.grandest.fr/nouveaux-numeros/'
+          text=urllib.request.urlopen(urllib.request.Request(page,headers={'User-Agent':UA}),timeout=30).read().decode('utf-8','replace')
           m=re.search(r'var GPPA = (\{[^\n]+\});',text)
-          if not m:
-              i=text.find('var GPPA = ')
-              print(text[i:i+2500] if i>=0 else 'NO GPPA MARKER')
-              raise SystemExit('GPPA config absent')
-          cfg=json.loads(m.group(1))
-          nonce=cfg['NONCE']; ajax=cfg['AJAXURL']+'?action=gppa_get_batch_field_html'
-          print('NONCE',nonce,'AJAX',ajax)
-          def call(field_ids, values):
-              payload={
-                'form-id':39,'lead-id':None,'field-ids':field_ids,
-                'gravityview-meta':False,'field-values':values,
-                'merge-tags':[],'lmt-nonces':{},'current-merge-tag-values':{},
-                'security':nonce,'show_admin_fields_in_ajax':''
-              }
+          cfg=json.loads(m.group(1)); nonce=cfg['NONCE']; ajax=cfg['AJAXURL']+'?action=gppa_get_batch_field_html'
+          def call(value):
+              payload={'form-id':39,'lead-id':None,'field-ids':[4],'gravityview-meta':False,
+                'field-values':{'1':value},'merge-tags':[],'lmt-nonces':{},'current-merge-tag-values':{},
+                'security':nonce,'show_admin_fields_in_ajax':''}
               r=urllib.request.Request(ajax,data=json.dumps(payload).encode(),headers={'User-Agent':UA,'Content-Type':'application/json','Referer':page})
               raw=urllib.request.urlopen(r,timeout=30).read().decode('utf-8','replace')
-              print('RAW_PREFIX',raw[:240])
-              return json.loads(raw)
-          ans=call([1],{})
-          fh=str(ans.get('fields',{}).get('1',''))
-          print('FIELD1_HTML_LEN',len(fh))
-          class P(HTMLParser):
-              def __init__(self): super().__init__(); self.options=[]; self.cur=None
-              def handle_starttag(self,tag,attrs):
-                  if tag=='option': self.cur={'attrs':dict(attrs),'text':''}
-              def handle_data(self,data):
-                  if self.cur is not None:self.cur['text']+=data
-              def handle_endtag(self,tag):
-                  if tag=='option' and self.cur is not None:self.options.append(self.cur);self.cur=None
-          p=P();p.feed(fh)
-          print('OPTION_COUNT',len(p.options))
-          for o in p.options[:80]:print('OPT',repr(o['attrs'].get('value','')),'|',o['text'].strip())
-          print('TARGET OLD CHOICES')
-          for o in p.options:
-              s=(o['attrs'].get('value','')+' '+o['text']).upper()
-              if any(x in s for x in ['54R350','54R360','54R710','54R060','54R330']): print('TARGETOPT',repr(o['attrs'].get('value','')),'|',o['text'].strip())
+              ans=json.loads(raw); return str(ans.get('fields',{}).get('4',''))
+          tests=['54R350','54R350 - CHATEAU-SALINS / NANCY','54R360','54R360 - CHAMBREY - NANCY','54R710','54R060','54R330']
+          for v in tests:
+              try:
+                  out=call(v)
+                  print('\nTEST',repr(v),'LEN',len(out))
+                  print(out[:2000])
+              except Exception as e: print('ERR',repr(v),repr(e))
           PY
