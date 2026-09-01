@@ -1,4 +1,4 @@
-# Déploiement final Mon SAEIV 1.0.38 — bascule numérotation Fluo du 1er septembre
+# Déploiement final Mon SAEIV 1.0.39 — GTFS Fluo préparés côté GitHub
 name: Build and deploy Fluo SAEIV
 
 on:
@@ -35,6 +35,7 @@ jobs:
           set -e
           mkdir -p scripts/trace_overrides site/data
           cp build_gtfs.py scripts/build_gtfs.py
+          cp build_gtfs_2026.py scripts/build_gtfs_2026.py
           cp 54.json scripts/trace_overrides/54.json
           cp 57.json scripts/trace_overrides/57.json
           cp index.html site/index.html
@@ -43,13 +44,13 @@ jobs:
           cp sw.js site/sw.js
           cp manifest.webmanifest site/manifest.webmanifest
           [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
-          for f in v128-gps.js v128-offline.js v130-session-orientation.js v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js v135-journal-router.js v136-driver-operations.js v137-driver-hub.js; do
+          for f in v128-gps.js v128-offline.js v130-session-orientation.js v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js v135-journal-router.js v136-driver-operations.js v137-driver-hub.js v139-static-fluo.js; do
             [ -f "$f" ] && cp "$f" "site/$f"
           done
           python - <<'PY'
           from pathlib import Path
           import json,re
-          VERSION='1.0.38'
+          VERSION='1.0.39'
 
           # Garde-fou : neutralise la boucle MutationObserver V136 même si une ancienne
           # révision réapparaissait dans un cache/build.
@@ -62,7 +63,7 @@ jobs:
 
           p=Path('site/index.html')
           t=p.read_text(encoding='utf-8')
-          for mod in ('v130-session-orientation','v131-speech','v132-journals','v133-profile-journals','v134-journal-front','v135-journal-router','v136-driver-operations','v137-driver-hub'):
+          for mod in ('v130-session-orientation','v131-speech','v132-journals','v133-profile-journals','v134-journal-front','v135-journal-router','v136-driver-operations','v137-driver-hub','v139-static-fluo'):
               t=re.sub(rf'\./{re.escape(mod)}\.js\?v=1\.0\.\d+',f'./{mod}.js?v={VERSION}',t)
           injections=[
             ('v133RuntimeProfileJournals','v133-profile-journals.js'),
@@ -70,6 +71,7 @@ jobs:
             ('v135RuntimeJournalRouter','v135-journal-router.js'),
             ('v136RuntimeDriverOperations','v136-driver-operations.js'),
             ('v137RuntimeDriverHub','v137-driver-hub.js'),
+            ('v139RuntimeStaticFluo','v139-static-fluo.js'),
           ]
           for ident,src in injections:
               if ident not in t:
@@ -80,15 +82,16 @@ jobs:
           t=re.sub(r'<title>Mon SAEIV · 1\.0\.\d+</title>',f'<title>Mon SAEIV · {VERSION}</title>',t)
           p.write_text(t,encoding='utf-8')
 
-          # Service worker publié : cache neuf pour forcer la bascule au 1er septembre.
+          # Service worker publié : nouveau cache + index statiques Fluo disponibles hors ligne.
           sw=Path('site/sw.js')
           s=sw.read_text(encoding='utf-8')
-          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';", "const C='mon-saeiv-v1-0-38';", s, count=1)
-          s=re.sub(r"const CORE=\[[^\n]+\];", "const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js'];", s, count=1)
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';", "const C='mon-saeiv-v1-0-39';", s, count=1)
+          core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v139-static-fluo.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
+          s=re.sub(r"const CORE=\[[^\n]+\];",core,s,count=1)
           s=re.sub(r'1\.0\.\d+',VERSION,s)
           anchor='  return t;\n}'
           extras=[]
-          for ident,src in [('v134RuntimeJournalFront','v134-journal-front.js'),('v135RuntimeJournalRouter','v135-journal-router.js'),('v136RuntimeDriverOperations','v136-driver-operations.js'),('v137RuntimeDriverHub','v137-driver-hub.js')]:
+          for ident,src in [('v134RuntimeJournalFront','v134-journal-front.js'),('v135RuntimeJournalRouter','v135-journal-router.js'),('v136RuntimeDriverOperations','v136-driver-operations.js'),('v137RuntimeDriverHub','v137-driver-hub.js'),('v139RuntimeStaticFluo','v139-static-fluo.js')]:
               if ident not in s:
                   extras.append(f'''  if(!t.includes('id="{ident}"'))t=t.replace(/<\\/body>\\s*<\\/html>\\s*$/i,`<script id="{ident}" src="./{src}?v={VERSION}"><\\/script><\\/body><\\/html>`);''')
           if extras and anchor in s:s=s.replace(anchor,'\n'.join(extras)+'\n'+anchor)
@@ -97,19 +100,19 @@ jobs:
           mp=Path('site/manifest.webmanifest')
           try:
               m=json.loads(mp.read_text(encoding='utf-8'))
-              m['name']='Mon SAEIV 1.0.38';m['start_url']='./?v=1.0.38';m['orientation']='any'
-              m['description']='Mon SAEIV — SAEIV multiréseaux avec numérotation Fluo actualisée au 1er septembre 2026, Espace conducteur, GPS, annonces, journaux, planning et caisse locale préservée.'
+              m['name']='Mon SAEIV 1.0.39';m['start_url']='./?v=1.0.39';m['orientation']='any'
+              m['description']='Mon SAEIV — SAEIV multiréseaux avec données Fluo 54/67/68 préparées côté serveur, nouvelle numérotation de septembre 2026, Espace conducteur, GPS, annonces, journaux, planning et caisse locale préservée.'
               mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           except Exception as e: print('manifest version warning',e)
           bp=Path('site/fluo_build.json')
           if bp.exists():
               try:
-                  d=json.loads(bp.read_text(encoding='utf-8'));d['version']=VERSION;bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+                  d=json.loads(bp.read_text(encoding='utf-8'));d['version']=VERSION;d.setdefault('numbering_switch',{})['status']='ACTIVE — données 54/67/68 préparées côté GitHub';bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
               except Exception as e: print('build json version warning',e)
           PY
           touch site/data/.gitkeep
 
-      - name: Validate runtime JavaScript and numbering cutover
+      - name: Validate runtime JavaScript
         shell: bash
         run: |
           set -e
@@ -119,18 +122,41 @@ jobs:
           node --check site/v135-journal-router.js
           node --check site/v136-driver-operations.js
           node --check site/v137-driver-hub.js
+          node --check site/v139-static-fluo.js
           node --check site/sw.js
-          grep -q "v137RuntimeDriverHub" site/index.html
-          grep -q "mon-saeiv-v1-0-38" site/sw.js
-          grep -q "resources/80423/download" site/index.html
-          grep -q "resources/80417/download" site/index.html
-          grep -q "resources/80419/download" site/index.html
-          grep -q "fluo-regional-gtfs-v138-cutover" site/index.html
+          grep -q "v139RuntimeStaticFluo" site/index.html
+          grep -q "mon-saeiv-v1-0-39" site/sw.js
           grep -q "monSaeivCashV123" site/index.html
           ! grep -q "localStorage.clear" site/index.html
 
-      - name: Download and prepare official Fluo GTFS 54 and 57
-        run: python scripts/build_gtfs.py
+      - name: Download and prepare official Fluo GTFS 54 57 67 68
+        run: python scripts/build_gtfs_2026.py
+
+      - name: Validate prepared Fluo data
+        shell: bash
+        run: |
+          set -e
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          for d in ('54','67','68'):
+              p=Path('site/data')/d/'routes.json'
+              assert p.exists(), f'{d}: routes.json absent'
+              x=json.loads(p.read_text(encoding='utf-8'))
+              rs=x.get('routes') or []
+              assert rs, f'{d}: aucune ligne générée'
+              assert x.get('prepared_at_build') is True, f'{d}: données non marquées statiques'
+              print(d, len(rs), 'lignes', 'exemples:', [str(r.get('short','')) for r in rs[:8]])
+          r54=json.loads(Path('site/data/54/routes.json').read_text(encoding='utf-8')).get('routes') or []
+          legacy=[str(r.get('short','')) for r in r54 if re.match(r'^54[RSDEM]',str(r.get('short','')).upper())]
+          assert not legacy, f'54: anciens codes encore présents: {legacy[:10]}'
+          PY
+          test -s site/data/54/services.json
+          test -s site/data/67/services.json
+          test -s site/data/68/services.json
+          test -s site/data/54/stops.json
+          test -s site/data/67/stops.json
+          test -s site/data/68/stops.json
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
