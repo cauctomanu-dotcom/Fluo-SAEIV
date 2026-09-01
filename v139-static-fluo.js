@@ -29,6 +29,24 @@
     if(d==='67'||d==='68')return true;
     return d==='54'&&String(date)>=CUTOVER;
   }
+  function displayRoute(dept,route,date=selectedIso()){
+    const d=String(dept),r={...(route||{})};
+    const source=String(r.legacy_short||r.short||'').trim();
+    r.legacy_short=source;
+    // Les GTFS officiels conservent encore leurs codes techniques historiques.
+    // Pour les lignes régulières, la correspondance voyageurs est certaine : on retire
+    // uniquement le préfixe département/type et on conserve les trois chiffres officiels.
+    if(d==='54'&&String(date)>=CUTOVER){
+      const m=source.match(/^54R(\d{3})$/i);
+      if(m)r.short=m[1];
+    }else if(d==='68'){
+      const m=source.match(/^R(\d{3})$/i);
+      if(m)r.short=m[1];
+    }
+    // Les scolaires/TAD ne sont pas convertis par déduction : leurs nouveaux numéros
+    // doivent venir d'une correspondance officielle afin d'éviter toute fausse ligne.
+    return r;
+  }
   async function json(path){
     const key=String(path);
     if(!cache.has(key))cache.set(key,(async()=>{
@@ -43,14 +61,15 @@
   async function staticRoutes(dept){
     const d=String(dept),x=await json(`./data/${d}/routes.json`);
     if(!Array.isArray(x?.routes)||!x.routes.length)throw new Error(`Aucune ligne Fluo ${d} publiée dans l'application`);
-    return x;
+    return {...x,routes:x.routes.map(r=>displayRoute(d,r))};
   }
   async function staticServices(dept){return json(`./data/${String(dept)}/services.json`)}
   async function staticStops(dept){return json(`./data/${String(dept)}/stops.json`)}
   async function staticRoute(dept,route){
     const d=String(dept),file=String(route?.file||'');
     if(!file)throw new Error(`Parcours Fluo ${d} sans fichier local`);
-    return json(`./data/${d}/${file.replace(/^\.\//,'')}`);
+    const payload=await json(`./data/${d}/${file.replace(/^\.\//,'')}`);
+    return {...payload,route:displayRoute(d,payload?.route||route)};
   }
   async function staticCore(dept){
     const d=String(dept),[routesIndex,servicesIndex,stopsIndex]=await Promise.all([
@@ -93,6 +112,6 @@
   window.fluoRemoteCore=remoteCore;
   window.fluoRemoteFeed=remoteFeed;
   window.FluoFlatData={...(window.FluoFlatData||{}),core,routes,services,stops,route};
-  window.MonSAEIVStaticFluoV139={version:VERSION,useStatic,clear:()=>cache.clear()};
+  window.MonSAEIVStaticFluoV139={version:VERSION,useStatic,displayRoute,clear:()=>cache.clear()};
   console.info('[Mon SAEIV] données Fluo statiques 1.0.39 actives');
 })();
