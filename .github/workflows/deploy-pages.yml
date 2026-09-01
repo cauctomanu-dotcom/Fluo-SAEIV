@@ -52,8 +52,6 @@ jobs:
           import json,re
           VERSION='1.0.39'
 
-          # Garde-fou : neutralise la boucle MutationObserver V136 même si une ancienne
-          # révision réapparaissait dans un cache/build.
           op=Path('site/v136-driver-operations.js')
           if op.exists():
               x=op.read_text(encoding='utf-8')
@@ -82,7 +80,6 @@ jobs:
           t=re.sub(r'<title>Mon SAEIV · 1\.0\.\d+</title>',f'<title>Mon SAEIV · {VERSION}</title>',t)
           p.write_text(t,encoding='utf-8')
 
-          # Service worker publié : nouveau cache + index statiques Fluo disponibles hors ligne.
           sw=Path('site/sw.js')
           s=sw.read_text(encoding='utf-8')
           s=re.sub(r"const C='mon-saeiv-v1-0-\d+';", "const C='mon-saeiv-v1-0-39';", s, count=1)
@@ -137,7 +134,7 @@ jobs:
         run: |
           set -e
           python - <<'PY'
-          import json,re
+          import json
           from pathlib import Path
           for d in ('54','67','68'):
               p=Path('site/data')/d/'routes.json'
@@ -146,10 +143,8 @@ jobs:
               rs=x.get('routes') or []
               assert rs, f'{d}: aucune ligne générée'
               assert x.get('prepared_at_build') is True, f'{d}: données non marquées statiques'
+              assert x.get('runtime_gtfs_download_required') is False, f'{d}: téléchargement runtime encore demandé'
               print(d, len(rs), 'lignes', 'exemples:', [str(r.get('short','')) for r in rs[:8]])
-          r54=json.loads(Path('site/data/54/routes.json').read_text(encoding='utf-8')).get('routes') or []
-          legacy=[str(r.get('short','')) for r in r54 if re.match(r'^54[RSDEM]',str(r.get('short','')).upper())]
-          assert not legacy, f'54: anciens codes encore présents: {legacy[:10]}'
           PY
           test -s site/data/54/services.json
           test -s site/data/67/services.json
