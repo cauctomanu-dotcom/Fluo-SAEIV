@@ -1,4 +1,4 @@
-name: Inspect official Fluo advanced select AJAX
+name: Extract official Fluo 54 renumbering table
 
 on:
   push:
@@ -13,27 +13,74 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect GP Advanced Select JavaScript
+      - name: Query official old-to-new mapping
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://www.fluo.grandest.fr/wp-content/plugins/gpadvancedselect/js/built/gp-advanced-select.js'
-          curl -L --fail --retry 3 -A 'Mozilla/5.0' -o /tmp/gpads.js "$URL"
           python - <<'PY'
-          from pathlib import Path
-          import re
-          s=Path('/tmp/gpads.js').read_text(encoding='utf-8',errors='ignore')
-          print('JS_BYTES',len(s))
-          for needle in ['action','ajax','lazyLoad','load','search','nonce','security','formId','fieldId','admin-ajax','gpadvs']:
-              print('===',needle,'===')
-              c=0
-              for m in re.finditer(re.escape(needle),s,re.I):
-                  out=re.sub(r'\s+',' ',s[max(0,m.start()-600):min(len(s),m.end()+1200)])
-                  print(out[:2200])
-                  c+=1
-                  if c>=15: break
-          strings=set(re.findall(r'["\']([A-Za-z0-9_\-]{4,100})["\']',s))
-          for x in sorted(strings):
-              if any(k in x.lower() for k in ('ajax','advanced','select','search','choice','field','gpadv')):
-                  print('STRING',x)
+          import urllib.request, json, re, html as htmllib
+          page='https://www.fluo.grandest.fr/nouveaux-numeros/'
+          UA='Mozilla/5.0'
+          s=urllib.request.urlopen(urllib.request.Request(page,headers={'User-Agent':UA}),timeout=30).read().decode('utf-8','ignore')
+          m=re.search(r'var GPPA = \{.*?"NONCE":"([^"]+)"',s,re.S)
+          if not m: raise SystemExit('nonce not found')
+          nonce=m.group(1)
+          base='https://www.fluo.grandest.fr/wp-admin/admin-ajax.php'
+          def post(action,payload,page_num=None):
+              url=base+'?action='+action+(('&page='+str(page_num)) if page_num else '')
+              req=urllib.request.Request(url,data=json.dumps(payload,separators=(',',':')).encode(),headers={
+                'User-Agent':UA,'Content-Type':'application/json','Referer':page,'Origin':'https://www.fluo.grandest.fr'
+              })
+              return json.loads(urllib.request.urlopen(req,timeout=30).read().decode('utf-8','ignore'))
+          def search(term):
+              return post('gp_advanced_select_get_gppa_results',{
+                'fieldId':1,'security':nonce,'term':term,'form-id':39,'field-values':{}
+              })
+          def new_value(internal_id):
+              return post('gppa_get_batch_field_html',{
+                'form-id':39,'lead-id':None,'field-ids':[4],'gravityview-meta':False,
+                'field-values':{'1':str(internal_id)},'merge-tags':[],'lmt-nonces':{},
+                'current-merge-tag-values':{},'security':nonce,'show_admin_fields_in_ajax':''
+              })
+          olds=['R060','R330','R340','R350','R360','R370','R380','R410','R570','R580','R650','R670','R710','R800']
+          final={}
+          for old in olds:
+              sr=search(old)
+              results=sr.get('results') or []
+              print('SEARCH',old,json.dumps(results,ensure_ascii=False))
+              # Prefer a result whose visible text contains the exact old code as a token.
+              exact=[]
+              for r in results:
+                  text=str(r.get('text',''))
+                  if re.search(r'(?<![A-Z0-9])'+re.escape(old)+r'(?![A-Z0-9])',text,re.I): exact.append(r)
+              candidates=exact or results
+              if not candidates:
+                  print('MAP',old,'=> NO_SEARCH_RESULT'); continue
+              chosen=candidates[0]
+              internal=chosen.get('id')
+              nv=new_value(internal)
+              field_html=str((nv.get('fields') or {}).get('4',''))
+              # Decode HTML and collect non-empty option text/value pairs.
+              decoded=htmllib.unescape(field_html)
+              opts=re.findall(r'<option[^>]*value=[\'\"]([^\'\"]*)[\'\"][^>]*>(.*?)</option>',decoded,re.I|re.S)
+              clean=[]
+              for val,text in opts:
+                  text=re.sub(r'<[^>]+>',' ',text); text=re.sub(r'\s+',' ',htmllib.unescape(text)).strip()
+                  if val.strip() or (text and 'No Results' not in text): clean.append((val.strip(),text))
+              print('INTERNAL',old,'=>',repr(internal),'TEXT',repr(chosen.get('text')))
+              print('FIELD4',old,json.dumps(clean,ensure_ascii=False),'RAW',decoded[:3000])
+              # New line number: prefer visible/value token of 3 or 4 digits.
+              tokens=[]
+              for val,text in clean:
+                  for source in (text,val):
+                      mm=re.search(r'(?<!\d)(\d{3,4})(?!\d)',source)
+                      if mm: tokens.append(mm.group(1))
+              if tokens:
+                  final[old]=tokens[0]
+                  print('MAP',old,'=>',tokens[0])
+              else:
+                  print('MAP',old,'=> UNPARSED')
+          print('FINAL_TABLE',json.dumps(final,ensure_ascii=False,sort_keys=True))
+          if len(final)!=len(olds):
+              raise SystemExit(f'incomplete mapping: {len(final)}/{len(olds)}')
           PY
