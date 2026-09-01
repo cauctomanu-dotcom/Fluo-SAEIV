@@ -18,88 +18,79 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import requests,re,json,html as htmllib
+          import requests,re,json
           from html import unescape
 
           PAGE='https://www.fluo.grandest.fr/nouveaux-numeros/'
-          AJAX='https://www.fluo.grandest.fr/wp-admin/admin-ajax.php?action=gppa_get_batch_field_html'
+          BASE='https://www.fluo.grandest.fr/wp-admin/admin-ajax.php'
           s=requests.Session()
-          s.headers.update({'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36','Referer':PAGE})
+          s.headers.update({'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36','Referer':PAGE,'X-Requested-With':'XMLHttpRequest'})
           page=s.get(PAGE,timeout=40).text
           nonce_m=re.search(r'var GPPA\s*=\s*\{.*?"NONCE":"([^"]+)"',page,re.S)
           if not nonce_m: raise SystemExit('GPPA nonce not found')
           nonce=nonce_m.group(1)
           print('NONCE_FOUND',bool(nonce))
 
-          def ajax(field_ids, field_values):
-              payload={
-                'form-id':39,
-                'lead-id':None,
-                'field-ids':field_ids,
-                'gravityview-meta':False,
-                'field-values':field_values,
-                'merge-tags':[],
-                'lmt-nonces':{},
-                'current-merge-tag-values':{},
-                'security':nonce,
-                'show_admin_fields_in_ajax':''
-              }
-              r=s.post(AJAX,data=json.dumps(payload),headers={'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},timeout=40)
-              print('AJAX',field_ids,'STATUS',r.status_code,'LEN',len(r.text))
+          def post_json(url,payload):
+              r=s.post(url,data=json.dumps(payload),headers={'Content-Type':'application/json'},timeout=40)
+              print('POST',url.split('?')[-1],'STATUS',r.status_code,'LEN',len(r.text))
               if r.status_code!=200:
-                  print(r.text[:3000]);r.raise_for_status()
+                  print(r.text[:4000]);r.raise_for_status()
               try:return r.json()
               except Exception:
-                  print('NONJSON',r.text[:5000]);raise
+                  print('NONJSON',r.text[:6000]);raise
 
-          first=ajax([1],{})
-          print('TOP_KEYS',list(first.keys()) if isinstance(first,dict) else type(first))
-          print('FIELD_KEYS',list((first.get('fields') or {}).keys()) if isinstance(first,dict) else [])
-          field1=str((first.get('fields') or {}).get('1',''))
-          print('FIELD1_LEN',len(field1))
-          print('FIELD1_HEAD',field1[:5000].replace('\n',' '))
-          opts=[]
-          for m in re.finditer(r'<option\b([^>]*)>(.*?)</option>',field1,re.I|re.S):
-              attrs,label=m.group(1),re.sub(r'<[^>]+>',' ',m.group(2))
-              vm=re.search(r'\bvalue=["\']([^"\']*)',attrs,re.I)
-              val=unescape(vm.group(1)) if vm else ''
-              label=unescape(re.sub(r'\s+',' ',label).strip())
-              if val or label: opts.append((val,label))
-          print('OPTION_COUNT',len(opts))
-          for val,label in opts:
-              if re.search(r'(?:^|\b)(?:54)?R(?:060|330|340|350|360|370|380|410|570|580|650|670|710|800)\b',label,re.I) or re.search(r'54R(?:060|330|340|350|360|370|380|410|570|580|650|670|710|800)',val,re.I):
-                  print('OLD_OPTION',json.dumps({'value':val,'label':label},ensure_ascii=False))
+          def search_old(term):
+              payload={'fieldId':1,'security':nonce,'term':term,'form-id':39,'field-values':{}}
+              data=post_json(BASE+'?action=gp_advanced_select_get_gppa_results',payload)
+              print('SEARCH',term,json.dumps(data,ensure_ascii=False)[:8000])
+              return data
 
-          targets=['R060','R330','R340','R350','R360','R370','R380','R410','R570','R580','R650','R670','R710','R800']
-          mapping={}
-          def norm(x): return re.sub(r'[^A-Z0-9]','',str(x).upper())
-          for old in targets:
-              candidates=[]
-              for val,label in opts:
-                  nv,nl=norm(val),norm(label)
-                  if norm(old) in nl or norm('54'+old) in nl or nv in {norm(old),norm('54'+old)}:
-                      candidates.append((val,label))
-              print('CANDIDATES',old,json.dumps(candidates[:20],ensure_ascii=False))
-              if not candidates: continue
-              val,label=candidates[0]
-              # GPPA getFormFieldValues() uses field id as the key and the option's value as value.
-              result=ajax([4],{'1':val})
-              field4=str((result.get('fields') or {}).get('4',''))
-              print('FIELD4',old,'VALUE',json.dumps(val,ensure_ascii=False),'HTML',field4[:5000].replace('\n',' '))
-              newopts=[]
+          def new_for(value):
+              payload={
+                'form-id':39,'lead-id':None,'field-ids':[4],'gravityview-meta':False,
+                'field-values':{'1':value},'merge-tags':[],'lmt-nonces':{},
+                'current-merge-tag-values':{},'security':nonce,'show_admin_fields_in_ajax':''
+              }
+              data=post_json(BASE+'?action=gppa_get_batch_field_html',payload)
+              field4=str((data.get('fields') or {}).get('4',''))
+              print('FIELD4_FOR',json.dumps(value,ensure_ascii=False),field4[:6000].replace('\n',' '))
+              vals=[]
               for m in re.finditer(r'<option\b([^>]*)>(.*?)</option>',field4,re.I|re.S):
                   attrs,lbl=m.group(1),re.sub(r'<[^>]+>',' ',m.group(2))
                   vm=re.search(r'\bvalue=["\']([^"\']*)',attrs,re.I)
                   vv=unescape(vm.group(1)) if vm else ''
                   lbl=unescape(re.sub(r'\s+',' ',lbl).strip())
-                  if vv or lbl:newopts.append((vv,lbl))
+                  if vv or lbl: vals.append((vv,lbl))
               nums=[]
-              for vv,lbl in newopts:
+              for vv,lbl in vals:
                   for txt in (lbl,vv):
-                      mm=re.search(r'\b(\d{3,4})\b',txt)
+                      mm=re.search(r'(?<!\d)(\d{3,4})(?!\d)',txt)
                       if mm: nums.append(mm.group(1))
-              if nums:
-                  mapping[old]=nums[-1]
-                  print('OFFICIAL_MAP',old,'=>',mapping[old])
+              return nums[-1] if nums else None
+
+          targets=['R060','R330','R340','R350','R360','R370','R380','R410','R570','R580','R650','R670','R710','R800']
+          mapping={}
+          for old in targets:
+              data=search_old(old)
+              results=[]
+              if isinstance(data,dict): results=data.get('results') or []
+              elif isinstance(data,list): results=data
+              print('RESULT_COUNT',old,len(results))
+              chosen=None
+              for item in results:
+                  if not isinstance(item,dict): continue
+                  ident=str(item.get('id',''))
+                  text=str(item.get('text',''))
+                  print('CHOICE',old,json.dumps(item,ensure_ascii=False))
+                  compact=re.sub(r'[^A-Z0-9]','',(ident+' '+text).upper())
+                  if re.sub(r'[^A-Z0-9]','',old.upper()) in compact:
+                      chosen=ident;break
+              if chosen is None and results and isinstance(results[0],dict): chosen=str(results[0].get('id',''))
+              if not chosen:
+                  print('NO_CHOICE',old);continue
+              new=new_for(chosen)
+              print('OFFICIAL_MAP',old,'=>',new,'USING',json.dumps(chosen,ensure_ascii=False))
+              if new:mapping[old]=new
           print('FINAL_MAP_JSON',json.dumps(mapping,ensure_ascii=False,sort_keys=True))
           PY
