@@ -1,0 +1,85 @@
+name: Mon SAEIV 1.0.40 numbering cache fix
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/v140-numbering-cache.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build 1.0.40 with a fresh PWA cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import json,re
+          VERSION='1.0.40'
+
+          # Nouveau nom de runtime : Safari ne peut pas réutiliser le premier v139 déjà en cache.
+          src=Path('v139-static-fluo.js').read_text(encoding='utf-8')
+          src=src.replace('1.0.39',VERSION).replace('V139','V140').replace('v139','v140')
+          # Numéros voyageurs : 54R060 -> 60, 54R350 -> 350 ; R010 -> 10, etc.
+          src=src.replace("if(m)r.short=m[1];", "if(m)r.short=String(Number(m[1]));")
+          src=src.replace("window.MonSAEIVStaticFluoV140={version:VERSION,useStatic,displayRoute,clear:()=>cache.clear()};",
+                          "window.MonSAEIVStaticFluoV140={version:VERSION,useStatic,displayRoute,clear:()=>cache.clear()};")
+          Path('v140-static-fluo.js').write_text(src,encoding='utf-8')
+
+          # Le build Pages charge uniquement le nouveau runtime et renouvelle réellement le cache.
+          p=Path('.github/workflows/deploy-pages.yml')
+          t=p.read_text(encoding='utf-8')
+          t=t.replace('mon-saeiv-v1-0-39','mon-saeiv-v1-0-40')
+          t=t.replace('1.0.39',VERSION)
+          t=t.replace('v139-static-fluo','v140-static-fluo')
+          t=t.replace('v139RuntimeStaticFluo','v140RuntimeStaticFluo')
+          p.write_text(t,encoding='utf-8')
+
+          # Métadonnées de la PWA source.
+          ip=Path('index.html'); x=ip.read_text(encoding='utf-8')
+          x=re.sub(r'manifest\.webmanifest\?v=1\.0\.\d+',f'manifest.webmanifest?v={VERSION}',x,count=1)
+          x=re.sub(r'sw\.js\?v=1\.0\.\d+',f'sw.js?v={VERSION}',x,count=1)
+          x=re.sub(r'<title>Mon SAEIV · 1\.0\.\d+</title>',f'<title>Mon SAEIV · {VERSION}</title>',x,count=1)
+          x=re.sub(r"const APP_VERSION = '1\.0\.\d+';",f"const APP_VERSION = '{VERSION}';",x,count=1)
+          if 'monSaeivCashV123' not in x or 'localStorage.clear' in x: raise SystemExit('cash safety guard failed')
+          ip.write_text(x,encoding='utf-8')
+
+          sw=Path('sw.js'); s=sw.read_text(encoding='utf-8')
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-40';",s,count=1)
+          s=s.replace('1.0.39',VERSION).replace('v139-static-fluo','v140-static-fluo').replace('v139RuntimeStaticFluo','v140RuntimeStaticFluo')
+          sw.write_text(s,encoding='utf-8')
+
+          mp=Path('manifest.webmanifest'); m=json.loads(mp.read_text(encoding='utf-8'))
+          m['name']=f'Mon SAEIV {VERSION}';m['start_url']=f'./?v={VERSION}';m['orientation']='any'
+          mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          bp=Path('fluo_build.json'); b=json.loads(bp.read_text(encoding='utf-8'));b['version']=VERSION
+          b['numbering_cache_v1_0_40']={'date':'2026-09-01','reason':'nouveau nom de runtime + nouveau cache PWA afin de forcer la numérotation active','54_regular':'codes GTFS 54Rxxx affichés en numéro voyageur xxx sans préfixe ni zéro initial','cash_storage':'monSaeivCashV123 inchangé'}
+          bp.write_text(json.dumps(b,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          bg=Path('build_gtfs_2026.py'); g=bg.read_text(encoding='utf-8').replace('1.0.39',VERSION);bg.write_text(g,encoding='utf-8')
+          PY
+
+          node --check v140-static-fluo.js
+          grep -q "VERSION='1.0.40'" v140-static-fluo.js
+          grep -q "String(Number(m\[1\]))" v140-static-fluo.js
+          grep -q "v140RuntimeStaticFluo" .github/workflows/deploy-pages.yml
+          grep -q "mon-saeiv-v1-0-40" .github/workflows/deploy-pages.yml
+          grep -q "v140-static-fluo.js" .github/workflows/deploy-pages.yml
+          grep -q "monSaeivCashV123" index.html
+          ! grep -q "localStorage.clear" index.html
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/deploy-pages.yml v140-static-fluo.js index.html sw.js manifest.webmanifest fluo_build.json build_gtfs_2026.py
+          git rm .github/workflows/v140-numbering-cache.yml
+          git commit -m 'Mon SAEIV 1.0.40: force la nouvelle numérotation Fluo'
+          git push
