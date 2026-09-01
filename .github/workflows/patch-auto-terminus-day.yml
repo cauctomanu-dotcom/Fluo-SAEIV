@@ -1,0 +1,130 @@
+name: Patch auto terminus and day flow
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-auto-terminus-day.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch driver runtime
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('v137-driver-hub.js')
+          text = p.read_text(encoding='utf-8')
+          marker = 'Mon SAEIV 1.0.42 — fin automatique au terminus + enchaînement Ma journée.'
+          if marker not in text:
+              text = text.replace('Mon SAEIV 1.0.37 — Espace conducteur centralisé.', 'Mon SAEIV 1.0.42 — Espace conducteur centralisé.')
+              text = text.replace("const VERSION='1.0.37';", "const VERSION='1.0.42';")
+              text = text.replace("console.info('[Mon SAEIV] 1.0.37 Espace conducteur centralisé actif');", "console.info('[Mon SAEIV] 1.0.42 Espace conducteur centralisé actif');")
+              text += r'''
+
+'use strict';
+/* Mon SAEIV 1.0.42 — fin automatique au terminus + enchaînement Ma journée.
+   L'arrivée au dernier arrêt déclenche la fin réelle du service après l'annonce voyageurs.
+   Si la course vient de « Ma journée », le planning existant est ensuite repris automatiquement :
+   prochaine course liée, haut-le-pied, ou retour au planning pour coupure/pause/fin de service. */
+(()=>{
+  if(window.MonSAEIVAutoDayFlow?.installed)return;
+  const q=id=>document.getElementById(id);
+  const PREPARED_KEY='fluo-v316-prepared-item';
+  let pending=false,sequence=0;
+
+  function terminusTarget(){
+    try{
+      if(!state?.running||!state?.pattern?.stops?.[state.target])return false;
+      return typeof nextOperationalStop==='function'&&nextOperationalStop(state.target)===null;
+    }catch{return false}
+  }
+
+  function stopAnnouncementBusy(){
+    try{
+      if(state?.audio?.current?.kind==='stop')return true;
+      return Array.isArray(state?.audio?.queue)&&state.audio.queue.some(x=>x?.kind==='stop');
+    }catch{return false}
+  }
+
+  function clickNextDayAction(token,attempt=0){
+    if(token!==sequence)return;
+    const panel=q('v316TodayPanel');
+    const active=panel?.querySelector('.v316-today-item.active:not(.done)');
+    if(!active){
+      if(attempt<16)setTimeout(()=>clickNextDayAction(token,attempt+1),100);
+      return;
+    }
+    // Une course liée est simplement préparée : le conducteur garde la maîtrise du départ GPS.
+    const course=active.querySelector('[data-v316-prepare]');
+    if(course){course.click();return}
+    // Pour un HLP, privilégier le guidage vers la prochaine course liée quand il existe.
+    const hlpNext=active.querySelector('[data-v316-hlp-next]');
+    if(hlpNext){hlpNext.click();return}
+    const hlp=active.querySelector('[data-v316-hlp]');
+    if(hlp){hlp.click();return}
+    // Coupure, pause, mise à disposition, fin de service, etc. : aucun démarrage forcé.
+    // « Ma journée » reste affichée avec cette étape active.
+  }
+
+  function finishAtTerminus(){
+    if(pending||!state?.running)return;
+    pending=true;
+    const token=++sequence,started=Date.now();
+    const fromDay=!!sessionStorage.getItem(PREPARED_KEY);
+    const complete=()=>{
+      if(token!==sequence){pending=false;return}
+      if(!state?.running){pending=false;return}
+      // Laisser l'annonce d'arrivée/terminus aller jusqu'au bout. Sécurité : 24 s maximum.
+      if(stopAnnouncementBusy()&&Date.now()-started<24000){setTimeout(complete,250);return}
+      const fin=q('finish');
+      if(fin){
+        fin.dataset.v142AutoTerminus='1';
+        fin.click();
+        setTimeout(()=>{try{delete fin.dataset.v142AutoTerminus}catch{}},0);
+      }else if(typeof finish==='function')finish();
+      pending=false;
+      if(fromDay)setTimeout(()=>clickNextDayAction(token),260);
+    };
+    setTimeout(complete,180);
+  }
+
+  function install(){
+    if(typeof announceArrival!=='function')return false;
+    const base=announceArrival;
+    announceArrival=function(...args){
+      const isTerminus=terminusTarget(),already=!!state?.arrivalAnnounced;
+      const out=base.apply(this,args);
+      if(isTerminus&&!already&&state?.arrivalAnnounced)finishAtTerminus();
+      return out;
+    };
+    return true;
+  }
+
+  if(!install()){
+    let tries=0;
+    const timer=setInterval(()=>{if(install()||++tries>40)clearInterval(timer)},100);
+  }
+  window.MonSAEIVAutoDayFlow={installed:true,version:'1.0.42',finishAtTerminus};
+  console.info('[Mon SAEIV] 1.0.42 fin automatique terminus + Ma journée active');
+})();
+'''
+              p.write_text(text, encoding='utf-8')
+          PY
+          node --check v137-driver-hub.js
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/patch-auto-terminus-day.yml
+          git add v137-driver-hub.js
+          git diff --cached --check
+          git commit -m "Mon SAEIV 1.0.42: termine les courses au terminus et enchaine le planning"
+          git push
