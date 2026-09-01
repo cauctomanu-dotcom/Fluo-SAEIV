@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.39">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.40">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Mon SAEIV · 1.0.39</title>
+  <title>Mon SAEIV · 1.0.40</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style id="v22CoreStyle">
 .stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
@@ -1640,7 +1640,7 @@ ui.requestsList?.addEventListener('change',e=>{ const cb=e.target.closest('.requ
   try{ const b=await jget('fluo_build.json?v=1.0.32').catch(()=>jget('data/build.json')); ui.buildInfo.textContent=`Version ${b.version||'1.0.29'} · Données Fluo actualisées : ${new Date(b.generated_at).toLocaleString('fr-FR')}`; }catch{}
   if(!window.isSecureContext) status('Copie locale : le GPS réel sera bloqué. La simulation reste disponible dès que les données de ligne sont servies par GitHub Pages.','err');
 })();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.33').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js?v=1.0.40').catch(()=>{});
 
 </script>
 <script>
@@ -1989,7 +1989,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V13 — identification conducteur + journal de service local */
 (() => {
   const $v13 = id => document.getElementById(id);
-  const APP_VERSION = '1.0.39';
+  const APP_VERSION = '1.0.40';
   const DB_NAME = 'fluo-saeiv-journal-v13';
   const DB_VERSION = 1;
   const ACCOUNT_KEY = 'fluoSaeivAccountV13';

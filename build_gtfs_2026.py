@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prépare côté GitHub Pages les données Fluo 54/57/67/68.
 
-Objectif 1.0.39 : l'iPhone ne télécharge plus et ne décompresse plus les GTFS
+Objectif 1.0.40 : l'iPhone ne télécharge plus et ne décompresse plus les GTFS
 54/67/68 à l'exécution. Les flux officiels sont transformés au build en JSON
 statiques servis par Mon SAEIV.
 """
@@ -115,7 +115,7 @@ def main():
 
     build_path = base.DATA / 'build.json'
     build = json.loads(build_path.read_text(encoding='utf-8')) if build_path.exists() else {}
-    build['version'] = 'Mon SAEIV 1.0.39 — GTFS Fluo préparés côté GitHub'
+    build['version'] = 'Mon SAEIV 1.0.40 — GTFS Fluo préparés côté GitHub'
     build['departments'] = ['54', '57', '67', '68']
     build['runtime_gtfs_download'] = {'54': False, '67': False, '68': False}
     build_path.write_text(json.dumps(build, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
