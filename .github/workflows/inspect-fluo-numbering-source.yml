@@ -13,17 +13,26 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect dynamic official numbering source
+      - name: Inspect GP Populate Anything AJAX payload
         shell: bash
         run: |
           set -euo pipefail
           curl -L --fail --retry 3 -A 'Mozilla/5.0' -o /tmp/fluo.html 'https://www.fluo.grandest.fr/nouveaux-numeros/'
           curl -L --fail --retry 3 -A 'Mozilla/5.0' -o /tmp/gppa.js 'https://www.fluo.grandest.fr/wp-content/plugins/gppopulateanything/js/built/gp-populate-anything.js?ver%5B0%5D=gform_gravityforms&ver%5B1%5D=jquery'
-          echo '=== INLINE GPPA CONFIG ==='
-          grep -oinE '.{0,300}(GPPA|gppa|populate_anything|populateAnything|gp_populate).{0,700}' /tmp/fluo.html | head -200 || true
-          echo '=== FIELD 39 CONFIG ==='
-          grep -oinE '.{0,300}(formId.?[:=].?39|fieldId.?[:=].?[14]|input_39_[14]|field_39_[14]).{0,700}' /tmp/fluo.html | tail -120 || true
-          echo '=== AJAX ACTIONS IN PLUGIN ==='
-          grep -oE '.{0,100}(admin-ajax|ajaxurl|action[:=][^,;}{]{0,100}|gppa_[A-Za-z0-9_-]+|gp_populate[A-Za-z0-9_-]*).{0,200}' /tmp/gppa.js | head -200 || true
-          echo '=== NONCES / CONFIG ==='
-          grep -oinE '.{0,250}(NONCE|nonce|ajaxUrl|ajaxurl|GF_BASEURL|fieldValueObjects|field_values|objectType|primaryProperty|filters).{0,500}' /tmp/fluo.html | tail -200 || true
+          python - <<'PY'
+          from pathlib import Path
+          js=Path('/tmp/gppa.js').read_text(encoding='utf-8',errors='replace')
+          html=Path('/tmp/fluo.html').read_text(encoding='utf-8',errors='replace')
+          for needle in ['gppa_get_batch_field_html','field-ids','gppa-ajax-context','gppa-nonce','gppa_ajax_form_field_values']:
+              print('\n=== JS AROUND',needle,'===')
+              start=0
+              for n in range(4):
+                  i=js.find(needle,start)
+                  if i<0: break
+                  print(js[max(0,i-2200):min(len(js),i+3200)])
+                  start=i+len(needle)
+          for needle in ['GPPA_FILTER_FIELD_MAP_39','GPPA_FORM_39','GPPA =','gppa-ajax-context','CodeLibelleActuel']:
+              print('\n=== HTML AROUND',needle,'===')
+              i=html.find(needle)
+              if i>=0: print(html[max(0,i-1800):min(len(html),i+4200)])
+          PY
