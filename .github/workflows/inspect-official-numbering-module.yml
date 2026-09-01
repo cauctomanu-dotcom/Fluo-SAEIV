@@ -13,30 +13,93 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect GP Populate Anything API
+      - name: Extract official old-to-new numbering table
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import requests,re,html
-          from urllib.parse import urljoin
-          s=requests.Session();s.headers['User-Agent']='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36'
-          page=s.get('https://www.fluo.grandest.fr/nouveaux-numeros/',timeout=40).text
-          print('PAGE_LEN',len(page))
-          # Print the complete inline GPPA configuration for form 39.
-          for pat in [r'var GPPA_FILTER_FIELD_MAP_39\s*=.*?;',r'var GPPA_FORM_39\s*=.*?;',r'var GPPA\s*=.*?;']:
-              m=re.search(pat,page,re.S)
-              print('CONFIG',m.group(0)[:12000] if m else 'NOT_FOUND')
-          scripts=re.findall(r'<script[^>]+src=["\']([^"\']+)',page,re.I)
-          target=None
-          for src in scripts:
-              if 'gppopulateanything' in src.lower(): target=urljoin('https://www.fluo.grandest.fr/nouveaux-numeros/',html.unescape(src));break
-          print('PLUGIN',target)
-          js=s.get(target,timeout=40).text
-          print('PLUGIN_LEN',len(js))
-          print('GPPA_LITERALS',sorted(set(re.findall(r'[A-Za-z0-9_-]*gppa[A-Za-z0-9_-]*',js,re.I))))
-          for needle in ['AJAXURL','security','field-values','action:',"action=",'batch','populate']:
-              print('\n===',needle,'===')
-              for m in list(re.finditer(re.escape(needle),js,re.I))[:20]:
-                  print(js[max(0,m.start()-900):min(len(js),m.end()+1500)].replace('\n',' ')[:2500])
+          import requests,re,json,html as htmllib
+          from html import unescape
+
+          PAGE='https://www.fluo.grandest.fr/nouveaux-numeros/'
+          AJAX='https://www.fluo.grandest.fr/wp-admin/admin-ajax.php?action=gppa_get_batch_field_html'
+          s=requests.Session()
+          s.headers.update({'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36','Referer':PAGE})
+          page=s.get(PAGE,timeout=40).text
+          nonce_m=re.search(r'var GPPA\s*=\s*\{.*?"NONCE":"([^"]+)"',page,re.S)
+          if not nonce_m: raise SystemExit('GPPA nonce not found')
+          nonce=nonce_m.group(1)
+          print('NONCE_FOUND',bool(nonce))
+
+          def ajax(field_ids, field_values):
+              payload={
+                'form-id':39,
+                'lead-id':None,
+                'field-ids':field_ids,
+                'gravityview-meta':False,
+                'field-values':field_values,
+                'merge-tags':[],
+                'lmt-nonces':{},
+                'current-merge-tag-values':{},
+                'security':nonce,
+                'show_admin_fields_in_ajax':''
+              }
+              r=s.post(AJAX,data=json.dumps(payload),headers={'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},timeout=40)
+              print('AJAX',field_ids,'STATUS',r.status_code,'LEN',len(r.text))
+              if r.status_code!=200:
+                  print(r.text[:3000]);r.raise_for_status()
+              try:return r.json()
+              except Exception:
+                  print('NONJSON',r.text[:5000]);raise
+
+          first=ajax([1],{})
+          print('TOP_KEYS',list(first.keys()) if isinstance(first,dict) else type(first))
+          print('FIELD_KEYS',list((first.get('fields') or {}).keys()) if isinstance(first,dict) else [])
+          field1=str((first.get('fields') or {}).get('1',''))
+          print('FIELD1_LEN',len(field1))
+          print('FIELD1_HEAD',field1[:5000].replace('\n',' '))
+          opts=[]
+          for m in re.finditer(r'<option\b([^>]*)>(.*?)</option>',field1,re.I|re.S):
+              attrs,label=m.group(1),re.sub(r'<[^>]+>',' ',m.group(2))
+              vm=re.search(r'\bvalue=["\']([^"\']*)',attrs,re.I)
+              val=unescape(vm.group(1)) if vm else ''
+              label=unescape(re.sub(r'\s+',' ',label).strip())
+              if val or label: opts.append((val,label))
+          print('OPTION_COUNT',len(opts))
+          for val,label in opts:
+              if re.search(r'(?:^|\b)(?:54)?R(?:060|330|340|350|360|370|380|410|570|580|650|670|710|800)\b',label,re.I) or re.search(r'54R(?:060|330|340|350|360|370|380|410|570|580|650|670|710|800)',val,re.I):
+                  print('OLD_OPTION',json.dumps({'value':val,'label':label},ensure_ascii=False))
+
+          targets=['R060','R330','R340','R350','R360','R370','R380','R410','R570','R580','R650','R670','R710','R800']
+          mapping={}
+          def norm(x): return re.sub(r'[^A-Z0-9]','',str(x).upper())
+          for old in targets:
+              candidates=[]
+              for val,label in opts:
+                  nv,nl=norm(val),norm(label)
+                  if norm(old) in nl or norm('54'+old) in nl or nv in {norm(old),norm('54'+old)}:
+                      candidates.append((val,label))
+              print('CANDIDATES',old,json.dumps(candidates[:20],ensure_ascii=False))
+              if not candidates: continue
+              val,label=candidates[0]
+              # GPPA getFormFieldValues() uses field id as the key and the option's value as value.
+              result=ajax([4],{'1':val})
+              field4=str((result.get('fields') or {}).get('4',''))
+              print('FIELD4',old,'VALUE',json.dumps(val,ensure_ascii=False),'HTML',field4[:5000].replace('\n',' '))
+              newopts=[]
+              for m in re.finditer(r'<option\b([^>]*)>(.*?)</option>',field4,re.I|re.S):
+                  attrs,lbl=m.group(1),re.sub(r'<[^>]+>',' ',m.group(2))
+                  vm=re.search(r'\bvalue=["\']([^"\']*)',attrs,re.I)
+                  vv=unescape(vm.group(1)) if vm else ''
+                  lbl=unescape(re.sub(r'\s+',' ',lbl).strip())
+                  if vv or lbl:newopts.append((vv,lbl))
+              nums=[]
+              for vv,lbl in newopts:
+                  for txt in (lbl,vv):
+                      mm=re.search(r'\b(\d{3,4})\b',txt)
+                      if mm: nums.append(mm.group(1))
+              if nums:
+                  mapping[old]=nums[-1]
+                  print('OFFICIAL_MAP',old,'=>',mapping[old])
+          print('FINAL_MAP_JSON',json.dumps(mapping,ensure_ascii=False,sort_keys=True))
           PY
