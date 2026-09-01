@@ -8,16 +8,10 @@ SITE = ROOT / 'site'
 DATA = SITE / 'data'
 
 FEEDS = {
-    '57': {
-        'label': 'Moselle (57)',
-        'url': 'https://www.data.gouv.fr/api/1/datasets/r/42be7185-b2a8-4d1e-80c4-f7c402655260',
-        'source': 'Fluo Grand Est 57',
-    },
-    '54': {
-        'label': 'Meurthe-et-Moselle (54)',
-        'url': 'https://www.data.gouv.fr/api/1/datasets/r/02d8c64b-734e-4e37-ace7-50fbfa5d5298',
-        'source': 'Fluo Grand Est 54',
-    },
+    '57': {'label':'Moselle (57)','url':'https://www.data.gouv.fr/api/1/datasets/r/42be7185-b2a8-4d1e-80c4-f7c402655260','source':'Fluo Grand Est 57'},
+    '54': {'label':'Meurthe-et-Moselle (54)','url':'https://transport.data.gouv.fr/resources/80423/download','source':'Fluo Grand Est 54 — GTFS officiel'},
+    '67': {'label':'Bas-Rhin (67)','url':'https://transport.data.gouv.fr/resources/80417/download','source':'Fluo Grand Est 67 — GTFS officiel'},
+    '68': {'label':'Haut-Rhin (68)','url':'https://transport.data.gouv.fr/resources/80419/download','source':'Fluo Grand Est 68 — GTFS officiel'},
 }
 
 def download(url: str, dept: str) -> bytes:
@@ -204,6 +198,8 @@ def build(dept, cfg):
             'stop_id': sid,
             'arrival': clean(st.get('arrival_time')),
             'departure': clean(st.get('departure_time')),
+            'pickup_type': clean(st.get('pickup_type')) or '0',
+            'drop_off_type': clean(st.get('drop_off_type')) or '0',
         })
 
     outdir = DATA / dept
@@ -239,6 +235,7 @@ def build(dept, cfg):
                 'trip_short_name': t.get('trip_short_name',''),
                 'block_id': t.get('block_id',''),
                 'times': [[x['arrival'], x['departure']] for x in seq_items],
+                'demand': [{'pickup_type': x.get('pickup_type','0'), 'drop_off_type': x.get('drop_off_type','0')} for x in seq_items],
             })
             ft = seq_items[0]['departure'] or seq_items[0]['arrival']
             if ft and len(groups[key]['examples']) < 8 and ft not in groups[key]['examples']:

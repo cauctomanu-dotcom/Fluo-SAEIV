@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-08-28T02:44:09+02:00",
-  "version": "1.0.38",
+  "version": "1.0.39",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
@@ -426,5 +426,17 @@
     "fix": "contrôleur unique de consultation, détail et carte ; aucune suppression ni migration des données IndexedDB existantes",
     "storage": "fluo-saeiv-journal-v13 conservé intact",
     "ios": "ouverture et clics capturés avant les anciens gestionnaires pour éviter les réécritures concurrentes Safari/PWA"
+  },
+  "fluo_static_data_v1_0_39": {
+    "reason": "corrige Données indisponibles en servant les GTFS préparés côté GitHub",
+    "departments_built": [
+      "54",
+      "57",
+      "67",
+      "68"
+    ],
+    "54_from": "2026-09-01",
+    "67_2026": "régulières inchangées jusqu’en septembre 2027",
+    "cash_storage": "monSaeivCashV123 inchangé"
   }
 }
