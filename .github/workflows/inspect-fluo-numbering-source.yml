@@ -13,17 +13,17 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect official numbering page source
+      - name: Inspect dynamic official numbering source
         shell: bash
         run: |
           set -euo pipefail
           curl -L --fail --retry 3 -A 'Mozilla/5.0' -o /tmp/fluo.html 'https://www.fluo.grandest.fr/nouveaux-numeros/'
-          echo 'SIZE' $(wc -c </tmp/fluo.html)
-          echo '=== MATCHES R350 / 465 / R360 / 468 ==='
-          grep -oiE '.{0,180}(54R350|R350|54R360|R360|>465<|>468<).{0,220}' /tmp/fluo.html | head -80 || true
-          echo '=== FORM MARKERS ==='
-          grep -oiE '.{0,120}(gravity|gform|wpforms|forminator|acf|select2|nouveau.{0,30}num|ancien.{0,30}num).{0,180}' /tmp/fluo.html | head -120 || true
-          echo '=== SCRIPT SRCS ==='
-          grep -oE '<script[^>]+src=[^ >]+' /tmp/fluo.html | sed 's/&amp;/\&/g' | tail -80 || true
-          echo '=== SELECT / OPTION SAMPLE ==='
-          grep -oiE '<(select|option)[^>]*>[^<]{0,180}' /tmp/fluo.html | head -120 || true
+          curl -L --fail --retry 3 -A 'Mozilla/5.0' -o /tmp/gppa.js 'https://www.fluo.grandest.fr/wp-content/plugins/gppopulateanything/js/built/gp-populate-anything.js?ver%5B0%5D=gform_gravityforms&ver%5B1%5D=jquery'
+          echo '=== INLINE GPPA CONFIG ==='
+          grep -oinE '.{0,300}(GPPA|gppa|populate_anything|populateAnything|gp_populate).{0,700}' /tmp/fluo.html | head -200 || true
+          echo '=== FIELD 39 CONFIG ==='
+          grep -oinE '.{0,300}(formId.?[:=].?39|fieldId.?[:=].?[14]|input_39_[14]|field_39_[14]).{0,700}' /tmp/fluo.html | tail -120 || true
+          echo '=== AJAX ACTIONS IN PLUGIN ==='
+          grep -oE '.{0,100}(admin-ajax|ajaxurl|action[:=][^,;}{]{0,100}|gppa_[A-Za-z0-9_-]+|gp_populate[A-Za-z0-9_-]*).{0,200}' /tmp/gppa.js | head -200 || true
+          echo '=== NONCES / CONFIG ==='
+          grep -oinE '.{0,250}(NONCE|nonce|ajaxUrl|ajaxurl|GF_BASEURL|fieldValueObjects|field_values|objectType|primaryProperty|filters).{0,500}' /tmp/fluo.html | tail -200 || true
