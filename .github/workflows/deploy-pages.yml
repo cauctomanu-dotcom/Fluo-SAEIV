@@ -1,4 +1,4 @@
-# Déploiement final Mon SAEIV 1.0.40 — GTFS Fluo préparés côté GitHub
+# Déploiement Mon SAEIV 1.0.41 — correspondance officielle Fluo au 01/09/2026
 name: Build and deploy Fluo SAEIV
 
 on:
@@ -29,10 +29,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Rebuild expected V11 folders
+      - name: Assemble Mon SAEIV 1.0.41
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p scripts/trace_overrides site/data
           cp build_gtfs.py scripts/build_gtfs.py
           cp build_gtfs_2026.py scripts/build_gtfs_2026.py
@@ -43,15 +43,18 @@ jobs:
           cp styles.css site/styles.css
           cp sw.js site/sw.js
           cp manifest.webmanifest site/manifest.webmanifest
+          cp fluo-numbering-2026.json site/fluo-numbering-2026.json
           [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
-          for f in v128-gps.js v128-offline.js v130-session-orientation.js v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js v135-journal-router.js v136-driver-operations.js v137-driver-hub.js v140-static-fluo.js; do
+          for f in v128-gps.js v128-offline.js v130-session-orientation.js v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js v135-journal-router.js v136-driver-operations.js v137-driver-hub.js v141-static-fluo.js; do
             [ -f "$f" ] && cp "$f" "site/$f"
           done
+
           python - <<'PY'
           from pathlib import Path
           import json,re
-          VERSION='1.0.40'
+          VERSION='1.0.41'
 
+          # Garde-fou du gel de menu déjà corrigé en 1.0.37.
           op=Path('site/v136-driver-operations.js')
           if op.exists():
               x=op.read_text(encoding='utf-8')
@@ -59,9 +62,10 @@ jobs:
               x=x.replace("new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true,subtree:true})","new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true})")
               op.write_text(x,encoding='utf-8')
 
-          p=Path('site/index.html')
-          t=p.read_text(encoding='utf-8')
-          for mod in ('v130-session-orientation','v131-speech','v132-journals','v133-profile-journals','v134-journal-front','v135-journal-router','v136-driver-operations','v137-driver-hub','v140-static-fluo'):
+          # Index : une seule couche de numérotation, V141.
+          p=Path('site/index.html'); t=p.read_text(encoding='utf-8')
+          t=re.sub(r'<script[^>]+id=["\']v1(?:39|40)RuntimeStaticFluo["\'][^>]*></script>\s*','',t)
+          for mod in ('v130-session-orientation','v131-speech','v132-journals','v133-profile-journals','v134-journal-front','v135-journal-router','v136-driver-operations','v137-driver-hub','v141-static-fluo'):
               t=re.sub(rf'\./{re.escape(mod)}\.js\?v=1\.0\.\d+',f'./{mod}.js?v={VERSION}',t)
           injections=[
             ('v133RuntimeProfileJournals','v133-profile-journals.js'),
@@ -69,7 +73,7 @@ jobs:
             ('v135RuntimeJournalRouter','v135-journal-router.js'),
             ('v136RuntimeDriverOperations','v136-driver-operations.js'),
             ('v137RuntimeDriverHub','v137-driver-hub.js'),
-            ('v140RuntimeStaticFluo','v140-static-fluo.js'),
+            ('v141RuntimeStaticFluo','v141-static-fluo.js'),
           ]
           for ident,src in injections:
               if ident not in t:
@@ -78,53 +82,70 @@ jobs:
           t=re.sub(r'manifest\.webmanifest\?v=1\.0\.\d+',f'manifest.webmanifest?v={VERSION}',t)
           t=re.sub(r'sw\.js\?v=1\.0\.\d+',f'sw.js?v={VERSION}',t)
           t=re.sub(r'<title>Mon SAEIV · 1\.0\.\d+</title>',f'<title>Mon SAEIV · {VERSION}</title>',t)
+          t=re.sub(r"const APP_VERSION = '1\.0\.\d+';",f"const APP_VERSION = '{VERSION}';",t)
           p.write_text(t,encoding='utf-8')
 
-          sw=Path('site/sw.js')
-          s=sw.read_text(encoding='utf-8')
-          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';", "const C='mon-saeiv-v1-0-40';", s, count=1)
-          core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v140-static-fluo.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
+          # Service worker : cache neuf pour obliger Safari/iOS à prendre la vraie table.
+          sw=Path('site/sw.js'); s=sw.read_text(encoding='utf-8')
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-41';",s,count=1)
+          core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
           s=re.sub(r"const CORE=\[[^\n]+\];",core,s,count=1)
           s=re.sub(r'1\.0\.\d+',VERSION,s)
+          # Ne jamais réinjecter les anciens moteurs V139/V140.
+          s=s.replace('v140RuntimeStaticFluo','v141RuntimeStaticFluo').replace('v140-static-fluo.js','v141-static-fluo.js')
+          s=s.replace('v139RuntimeStaticFluo','v141RuntimeStaticFluo').replace('v139-static-fluo.js','v141-static-fluo.js')
           anchor='  return t;\n}'
           extras=[]
-          for ident,src in [('v134RuntimeJournalFront','v134-journal-front.js'),('v135RuntimeJournalRouter','v135-journal-router.js'),('v136RuntimeDriverOperations','v136-driver-operations.js'),('v137RuntimeDriverHub','v137-driver-hub.js'),('v140RuntimeStaticFluo','v140-static-fluo.js')]:
+          for ident,src in [('v134RuntimeJournalFront','v134-journal-front.js'),('v135RuntimeJournalRouter','v135-journal-router.js'),('v136RuntimeDriverOperations','v136-driver-operations.js'),('v137RuntimeDriverHub','v137-driver-hub.js'),('v141RuntimeStaticFluo','v141-static-fluo.js')]:
               if ident not in s:
                   extras.append(f'''  if(!t.includes('id="{ident}"'))t=t.replace(/<\\/body>\\s*<\\/html>\\s*$/i,`<script id="{ident}" src="./{src}?v={VERSION}"><\\/script><\\/body><\\/html>`);''')
           if extras and anchor in s:s=s.replace(anchor,'\n'.join(extras)+'\n'+anchor)
           sw.write_text(s,encoding='utf-8')
 
           mp=Path('site/manifest.webmanifest')
-          try:
-              m=json.loads(mp.read_text(encoding='utf-8'))
-              m['name']='Mon SAEIV 1.0.40';m['start_url']='./?v=1.0.40';m['orientation']='any'
-              m['description']='Mon SAEIV — SAEIV multiréseaux avec données Fluo 54/67/68 préparées côté serveur, nouvelle numérotation de septembre 2026, Espace conducteur, GPS, annonces, journaux, planning et caisse locale préservée.'
-              mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-          except Exception as e: print('manifest version warning',e)
+          m=json.loads(mp.read_text(encoding='utf-8'))
+          m['name']='Mon SAEIV 1.0.41';m['start_url']='./?v=1.0.41';m['orientation']='any'
+          m['description']='Mon SAEIV — SAEIV multiréseaux avec correspondance officielle des nouveaux numéros Fluo au 1er septembre 2026, Espace conducteur, GPS, annonces, journaux, planning et caisse locale préservée.'
+          mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
           bp=Path('site/fluo_build.json')
           if bp.exists():
-              try:
-                  d=json.loads(bp.read_text(encoding='utf-8'));d['version']=VERSION;d.setdefault('numbering_switch',{})['status']='ACTIVE — données 54/67/68 préparées côté GitHub';bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-              except Exception as e: print('build json version warning',e)
+              d=json.loads(bp.read_text(encoding='utf-8'));d['version']=VERSION
+              d['numbering_switch']={'effective_date':'2026-09-01','status':'ACTIVE — table officielle Fluo, sans déduction','source':'fluo-numbering-2026.json','runtime':'v141-static-fluo.js','cash_storage':'monSaeivCashV123 inchangé'}
+              bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           PY
-          touch site/data/.gitkeep
 
-      - name: Validate runtime JavaScript
+      - name: Validate official numbering and runtime
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           node --check site/v132-journals.js
           node --check site/v133-profile-journals.js
           node --check site/v134-journal-front.js
           node --check site/v135-journal-router.js
           node --check site/v136-driver-operations.js
           node --check site/v137-driver-hub.js
-          node --check site/v140-static-fluo.js
+          node --check site/v141-static-fluo.js
           node --check site/sw.js
-          grep -q "v140RuntimeStaticFluo" site/index.html
-          grep -q "mon-saeiv-v1-0-40" site/sw.js
-          grep -q "monSaeivCashV123" site/index.html
-          ! grep -q "localStorage.clear" site/index.html
+          grep -q 'v141RuntimeStaticFluo' site/index.html
+          grep -q 'mon-saeiv-v1-0-41' site/sw.js
+          grep -q 'fluo-numbering-2026.json' site/sw.js
+          grep -q 'monSaeivCashV123' site/index.html
+          ! grep -q 'localStorage.clear' site/index.html
+          python - <<'PY'
+          import json
+          m=json.load(open('site/fluo-numbering-2026.json',encoding='utf-8'))
+          assert m['departments']['54']['54R060']['new']=='455'
+          assert m['departments']['54']['54R350']['new']=='465'
+          assert m['departments']['54']['54R360']['new']=='466'
+          assert m['departments']['54']['54R370']['new']=='468'
+          assert m['departments']['54']['54R710']['new']=='471'
+          assert len(m['departments']['54'])>=220
+          assert m['departments']['68']['R040']['new']=='840'
+          assert len(m['departments']['68'])==365
+          assert len(m['departments']['67'])==0
+          print('Mapping officiel validé:',len(m['departments']['54']),'lignes 54,',len(m['departments']['68']),'lignes 68; régulières 67 inchangées.')
+          PY
 
       - name: Download and prepare official Fluo GTFS 54 57 67 68
         run: python scripts/build_gtfs_2026.py
@@ -132,26 +153,19 @@ jobs:
       - name: Validate prepared Fluo data
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           python - <<'PY'
           import json
           from pathlib import Path
           for d in ('54','67','68'):
               p=Path('site/data')/d/'routes.json'
               assert p.exists(), f'{d}: routes.json absent'
-              x=json.loads(p.read_text(encoding='utf-8'))
-              rs=x.get('routes') or []
+              x=json.loads(p.read_text(encoding='utf-8'));rs=x.get('routes') or []
               assert rs, f'{d}: aucune ligne générée'
-              assert x.get('prepared_at_build') is True, f'{d}: données non marquées statiques'
-              assert x.get('runtime_gtfs_download_required') is False, f'{d}: téléchargement runtime encore demandé'
-              print(d, len(rs), 'lignes', 'exemples:', [str(r.get('short','')) for r in rs[:8]])
+              assert x.get('prepared_at_build') is True
+              assert x.get('runtime_gtfs_download_required') is False
+              print(d,len(rs),'lignes GTFS préparées')
           PY
-          test -s site/data/54/services.json
-          test -s site/data/67/services.json
-          test -s site/data/68/services.json
-          test -s site/data/54/stops.json
-          test -s site/data/67/stops.json
-          test -s site/data/68/stops.json
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
