@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.33">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.38">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <title>Mon SAEIV · 1.0.33</title>
+  <title>Mon SAEIV · 1.0.38</title>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style id="v22CoreStyle">
 .stop-check.tad-terminus{background:linear-gradient(90deg,rgba(255,208,0,.16),rgba(255,208,0,.04));box-shadow:inset 3px 0 0 #ffd000}.stop-check.tad-terminus .stop-check-tag{background:#ffd000;color:#111}
@@ -365,11 +365,12 @@ const fluoFlatCache={cores:new Map(),bundles:new Map()};
 const FLUO_RENUMBER_CUTOVER_2026='2026-09-01';
 const FluoRemoteGTFS={
   sources:{
-    '54':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358'],
+    '54':['https://transport.data.gouv.fr/resources/80423/download','https://transport.data.gouv.fr/resources/83635/download'],
     '57':['https://www.data.gouv.fr/api/1/datasets/r/42be7185-b2a8-4d1e-80c4-f7c402655260'],
-    '67':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358'],
-    '68':['https://transport.data.gouv.fr/resources/83635/download','https://www.data.gouv.fr/api/1/datasets/r/dcf8b63c-51f4-4cf1-9411-2825ed493358']
+    '67':['https://transport.data.gouv.fr/resources/80417/download','https://transport.data.gouv.fr/resources/83635/download'],
+    '68':['https://transport.data.gouv.fr/resources/80419/download']
   },
+  dedicatedResource:{'54':'80423','67':'80417','68':'80419'},
   labels:{'54':'Meurthe-et-Moselle (54)','57':'Moselle (57)','67':'Bas-Rhin (67)','68':'Haut-Rhin (68)'}, feeds:new Map(), payloads:new Map()
 };
 function fluoLocalIsoDate(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
@@ -424,10 +425,10 @@ function fluoRegionalStopBelongs(row,dept){
 }
 async function fluoFetchRemoteZip(dept){
   let last='';for(const url of (FluoRemoteGTFS.sources[dept]||[]))try{
-    const cacheName='fluo-regional-gtfs-v31-24',stampKey='fluo-regional-gtfs-v31-24-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;
+    const resource=FluoRemoteGTFS.dedicatedResource?.[String(dept)]||'',cacheName='fluo-regional-gtfs-v138-cutover',stampKey=`fluo-regional-gtfs-v138-stamp:${String(dept)}:${url}`,fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<21600000;let r=null;
     if(fresh&&'caches'in window){try{r=await (await caches.open(cacheName)).match(url)}catch{}}
     if(!r){r=await fetch(url,{cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error(`HTTP ${r.status}`);if('caches'in window){try{const c=await caches.open(cacheName);await c.put(url,r.clone());localStorage.setItem(stampKey,String(Date.now()))}catch{}}}
-    const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url}
+    const b=new Uint8Array(await r.arrayBuffer());if(b[0]!==0x50||b[1]!==0x4b)throw new Error('réponse non ZIP');return{bytes:b,url:r.url||url,sourceUrl:url,dedicated:!!resource&&String(url).includes(`/resources/${resource}/download`)}
   }catch(e){last=e?.message||String(e)}
   throw new Error(`flux GTFS régional inaccessible${last?` : ${last}`:''}`);
 }
@@ -439,17 +440,17 @@ async function fluoRemoteFeed(dept){
       fluoZipText(entries.get('routes.txt')),fluoZipText(entries.get('stops.txt')),fluoZipText(entries.get('trips.txt')),
       entries.has('calendar.txt')?fluoZipText(entries.get('calendar.txt')):Promise.resolve(''),entries.has('calendar_dates.txt')?fluoZipText(entries.get('calendar_dates.txt')):Promise.resolve('')
     ]);
-    const allRoutes=fluoCsvObjects(routesTxt),stopsRaw=fluoCsvObjects(stopsTxt),allTrips=fluoCsvObjects(tripsTxt),calendar=fluoCsvObjects(calTxt),dates=fluoCsvObjects(datesTxt);
-    const routes=allRoutes.filter(r=>fluoRegionalRouteBelongs(r,d)),routeIds=new Set(routes.map(r=>String(r.route_id)));
+    const allRoutes=fluoCsvObjects(routesTxt),stopsRaw=fluoCsvObjects(stopsTxt),allTrips=fluoCsvObjects(tripsTxt),calendar=fluoCsvObjects(calTxt),dates=fluoCsvObjects(datesTxt),scoped=!!got.dedicated;
+    const routes=(scoped?allRoutes:allRoutes.filter(r=>fluoRegionalRouteBelongs(r,d))),routeIds=new Set(routes.map(r=>String(r.route_id)));
     const trips=allTrips.filter(t=>routeIds.has(String(t.route_id)));
     const stops=new Map(),stopList=[];
-    for(const x of stopsRaw){const lat=Number(x.stop_lat),lon=Number(x.stop_lon);if(!x.stop_id||!Number.isFinite(lat)||!Number.isFinite(lon))continue;const z={id:String(x.stop_id),name:x.stop_name||x.stop_id,lat,lon,code:x.stop_code||'',dept:d};stops.set(z.id,z);if(fluoRegionalStopBelongs(x,d))stopList.push(z)}
+    for(const x of stopsRaw){const lat=Number(x.stop_lat),lon=Number(x.stop_lon);if(!x.stop_id||!Number.isFinite(lat)||!Number.isFinite(lon))continue;const z={id:String(x.stop_id),name:x.stop_name||x.stop_id,lat,lon,code:x.stop_code||'',dept:d};stops.set(z.id,z);if(scoped||fluoRegionalStopBelongs(x,d))stopList.push(z)}
     const services={};for(const c of calendar){services[c.service_id]={start:c.start_date||'',end:c.end_date||'',days:['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(k=>Number(c[k]||0)),exceptions:{}}}
     for(const x of dates){if(!services[x.service_id])services[x.service_id]={start:'',end:'',days:[0,0,0,0,0,0,0],exceptions:{}};services[x.service_id].exceptions[x.date]=Number(x.exception_type||0)}
     const tripsByRoute=new Map(),tripById=new Map();for(const t of trips){tripById.set(String(t.trip_id),t);const id=String(t.route_id);if(!tripsByRoute.has(id))tripsByRoute.set(id,[]);tripsByRoute.get(id).push(t)}
     const routeIndex=routes.map(r=>({id:String(r.route_id),short:r.route_short_name||r.route_id,long:r.route_long_name||'',type:r.route_type||'3',color:r.route_color||'FFFFFF',text_color:r.route_text_color||'000000',remote_gtfs:true,department:d,patterns:0})).sort((a,b)=>String(a.short).localeCompare(String(b.short),'fr',{numeric:true}));
     if(!routeIndex.length)throw new Error(`aucune ligne du réseau ${d} trouvée dans le GTFS régional`);
-    return{dept:d,url:got.url,entries,routesRaw:routes,routes:routeIndex,stops,stopList,services,tripsByRoute,tripById,textCache:new Map(),regional:true};
+    return{dept:d,url:got.url,sourceUrl:got.sourceUrl,dedicated:scoped,entries,routesRaw:routes,routes:routeIndex,stops,stopList,services,tripsByRoute,tripById,textCache:new Map(),regional:true};
   })();FluoRemoteGTFS.feeds.set(d,promise);try{return await promise}catch(e){FluoRemoteGTFS.feeds.delete(d);throw e}
 }
 async function fluoRemoteEntryText(feed,name){if(!feed.textCache.has(name))feed.textCache.set(name,fluoZipText(feed.entries.get(name)));return feed.textCache.get(name)}
@@ -493,15 +494,15 @@ async function fluoRoutesData(dept){
       routes=renum;
     }
     return{...idx,routes,numbering_era:d==='54'?(String(iso)>=FLUO_RENUMBER_CUTOVER_2026?'nouvelle-2026':'historique'):idx.numbering_era};
-  }catch{return jget(`data/${dept}/routes.json`);}
+  }catch(e){if(fluoUsesRegionalData(String(dept)))throw e;return jget(`data/${dept}/routes.json`);}
 }
 async function fluoServicesData(dept){
   try{return (await fluoDeptCore(dept)).servicesIndex;}
-  catch{return jget(`data/${dept}/services.json`);}
+  catch(e){if(fluoUsesRegionalData(String(dept)))throw e;return jget(`data/${dept}/services.json`);}
 }
 async function fluoStopsData(dept){
   try{return (await fluoDeptCore(dept)).stopsIndex;}
-  catch{return jget(`data/${dept}/stops.json`);}
+  catch(e){if(fluoUsesRegionalData(String(dept)))throw e;return jget(`data/${dept}/stops.json`);}
 }
 async function fluoRoutePayload(dept,route){
   if(route?.remote_gtfs) return fluoRemoteRoutePayload(String(dept),route);
@@ -1988,7 +1989,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator
 /* Mon SAEIV V13 — identification conducteur + journal de service local */
 (() => {
   const $v13 = id => document.getElementById(id);
-  const APP_VERSION = '1.0.32';
+  const APP_VERSION = '1.0.38';
   const DB_NAME = 'fluo-saeiv-journal-v13';
   const DB_VERSION = 1;
   const ACCOUNT_KEY = 'fluoSaeivAccountV13';

@@ -1,11 +1,12 @@
 {
   "generated_at": "2026-08-28T02:44:09+02:00",
-  "version": "1.0.37",
+  "version": "1.0.38",
   "numbering_switch": {
     "cutover_date": "2026-09-01",
     "54": "anciens numéros avant le 01/09/2026 ; GTFS régional officiel et nouveaux numéros à partir du 01/09/2026 selon la date de service sélectionnée",
     "67": "GTFS régional officiel conservé dès maintenant ; transition gérée par les données officielles",
-    "68": "GTFS régional officiel conservé dès maintenant ; nouvelle numérotation régionale"
+    "68": "GTFS régional officiel conservé dès maintenant ; nouvelle numérotation régionale",
+    "status": "ACTIVE depuis le 01/09/2026"
   },
   "feeds": {
     "54_before_2026_09_01": {
@@ -14,23 +15,25 @@
       "mode": "numérotation historique"
     },
     "54_from_2026_09_01": {
-      "source": "GTFS régional unifié Fluo Grand Est",
-      "url": "https://transport.data.gouv.fr/resources/83635/download",
-      "mode": "filtrage réseau CG54 et nouvelle numérotation officielle"
+      "source": "Fluo Grand Est 54 — GTFS officiel dédié",
+      "url": "https://transport.data.gouv.fr/resources/80423/download",
+      "fallback": "https://transport.data.gouv.fr/resources/83635/download",
+      "mode": "nouvelle numérotation officielle ; aucun repli silencieux vers les anciens numéros après la date de bascule"
     },
     "57": {
       "source": "Fluo Grand Est 57",
       "url": "https://www.data.gouv.fr/api/1/datasets/r/42be7185-b2a8-4d1e-80c4-f7c402655260"
     },
     "67": {
-      "source": "GTFS régional unifié Fluo Grand Est",
-      "url": "https://transport.data.gouv.fr/resources/83635/download",
-      "mode": "filtrage réseau CG67"
+      "source": "Fluo Grand Est 67 — GTFS officiel dédié",
+      "url": "https://transport.data.gouv.fr/resources/80417/download",
+      "fallback": "https://transport.data.gouv.fr/resources/83635/download",
+      "mode": "numérotation pilotée directement par le flux officiel du département"
     },
     "68": {
-      "source": "GTFS régional unifié Fluo Grand Est",
-      "url": "https://transport.data.gouv.fr/resources/83635/download",
-      "mode": "filtrage réseau CG68"
+      "source": "Fluo Grand Est 68 — GTFS officiel dédié",
+      "url": "https://transport.data.gouv.fr/resources/80419/download",
+      "mode": "numérotation pilotée directement par le flux officiel du département"
     },
     "urban_lemet": {
       "source": "LE MET’ — GTFS officiel",
