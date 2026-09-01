@@ -7,35 +7,114 @@ on:
       - '.github/workflows/inspect-fluo-numbering-source.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Query official Fluo mappings directly
+      - uses: actions/checkout@v4
+      - name: Generate official Fluo 2026 mapping
         shell: bash
         run: |
           set -euo pipefail
+          curl -L --fail --retry 3 -o /tmp/fluo.zip 'https://transport.data.gouv.fr/resources/83635/download'
+          rm -rf /tmp/gtfs && mkdir -p /tmp/gtfs
+          unzip -q /tmp/fluo.zip -d /tmp/gtfs
           python - <<'PY'
-          import json,re,urllib.request
+          import csv,json,re,urllib.request,urllib.error,time,os
+          from concurrent.futures import ThreadPoolExecutor,as_completed
           from html.parser import HTMLParser
+          from pathlib import Path
+
           UA='Mozilla/5.0'; page='https://www.fluo.grandest.fr/nouveaux-numeros/'
           text=urllib.request.urlopen(urllib.request.Request(page,headers={'User-Agent':UA}),timeout=30).read().decode('utf-8','replace')
           m=re.search(r'var GPPA = (\{[^\n]+\});',text)
+          if not m: raise SystemExit('GPPA config absent')
           cfg=json.loads(m.group(1)); nonce=cfg['NONCE']; ajax=cfg['AJAXURL']+'?action=gppa_get_batch_field_html'
-          def call(value):
+
+          def rows(name):
+              with open('/tmp/gtfs/'+name,encoding='utf-8-sig',newline='') as f:return list(csv.DictReader(f))
+          agencies=rows('agency.txt'); routes=rows('routes.txt')
+          agency_dept={}
+          for a in agencies:
+              name=(a.get('agency_name') or '').strip()
+              mm=re.search(r'Fluo Grand Est\s+(54|67|68)\b',name,re.I)
+              if mm: agency_dept[a.get('agency_id','')]=mm.group(1)
+          selected=[]
+          for r in routes:
+              dept=agency_dept.get(r.get('agency_id',''))
+              if not dept: continue
+              short=(r.get('route_short_name') or '').strip()
+              long=(r.get('route_long_name') or '').strip()
+              if not short: continue
+              label=f'{short} - {long}' if long else short
+              selected.append({'dept':dept,'old':short,'long':long,'label':label,'route_id':r.get('route_id','')})
+          print('CANDIDATES',len(selected),{d:sum(x['dept']==d for x in selected) for d in ('54','67','68')})
+
+          class P(HTMLParser):
+              def __init__(self):super().__init__();self.opts=[];self.cur=None
+              def handle_starttag(self,tag,attrs):
+                  if tag=='option':self.cur={'attrs':dict(attrs),'text':''}
+              def handle_data(self,data):
+                  if self.cur is not None:self.cur['text']+=data
+              def handle_endtag(self,tag):
+                  if tag=='option' and self.cur is not None:self.opts.append(self.cur);self.cur=None
+
+          def query(item):
               payload={'form-id':39,'lead-id':None,'field-ids':[4],'gravityview-meta':False,
-                'field-values':{'1':value},'merge-tags':[],'lmt-nonces':{},'current-merge-tag-values':{},
+                'field-values':{'1':item['label']},'merge-tags':[],'lmt-nonces':{},'current-merge-tag-values':{},
                 'security':nonce,'show_admin_fields_in_ajax':''}
-              r=urllib.request.Request(ajax,data=json.dumps(payload).encode(),headers={'User-Agent':UA,'Content-Type':'application/json','Referer':page})
-              raw=urllib.request.urlopen(r,timeout=30).read().decode('utf-8','replace')
-              ans=json.loads(raw); return str(ans.get('fields',{}).get('4',''))
-          tests=['54R350','54R350 - CHATEAU-SALINS / NANCY','54R360','54R360 - CHAMBREY - NANCY','54R710','54R060','54R330']
-          for v in tests:
-              try:
-                  out=call(v)
-                  print('\nTEST',repr(v),'LEN',len(out))
-                  print(out[:2000])
-              except Exception as e: print('ERR',repr(v),repr(e))
+              data=json.dumps(payload).encode()
+              last=None
+              for attempt in range(4):
+                  try:
+                      req=urllib.request.Request(ajax,data=data,headers={'User-Agent':UA,'Content-Type':'application/json','Referer':page})
+                      raw=urllib.request.urlopen(req,timeout=30).read().decode('utf-8','replace')
+                      ans=json.loads(raw); fh=str(ans.get('fields',{}).get('4',''))
+                      p=P();p.feed(fh)
+                      vals=[]
+                      for o in p.opts:
+                          v=(o['attrs'].get('value') or '').strip(); txt=o['text'].strip()
+                          if v and 'No Results' not in txt and '–'!=txt: vals.append((v,txt))
+                      if vals:
+                          out=dict(item);out['new']=vals[0][0];out['official_result_text']=vals[0][1];return out
+                      return None
+                  except Exception as e:
+                      last=e;time.sleep(0.7*(attempt+1))
+              print('ERROR',item['label'],repr(last));return None
+
+          mapped=[]; failures=[]
+          with ThreadPoolExecutor(max_workers=8) as ex:
+              future={ex.submit(query,x):x for x in selected}
+              done=0
+              for f in as_completed(future):
+                  x=future[f];res=f.result();done+=1
+                  if res:mapped.append(res)
+                  else:failures.append(x)
+                  if done%50==0:print('PROGRESS',done,'mapped',len(mapped),'unmapped',len(failures))
+          mapped.sort(key=lambda x:(x['dept'],x['old'],x['long']))
+          failures.sort(key=lambda x:(x['dept'],x['old'],x['long']))
+          out={
+            'source':'https://www.fluo.grandest.fr/nouveaux-numeros/',
+            'source_form':39,
+            'effective_date':'2026-09-01',
+            'generated_from':'official Fluo GP Populate Anything selector + current regional GTFS labels',
+            'departments':{},
+            'unmapped':{}
+          }
+          for d in ('54','67','68'):
+              out['departments'][d]={x['old']:{'new':x['new'],'long':x['long'],'route_id':x['route_id']} for x in mapped if x['dept']==d}
+              out['unmapped'][d]=[{'old':x['old'],'long':x['long'],'route_id':x['route_id']} for x in failures if x['dept']==d]
+              print('DEPT',d,'MAPPED',len(out['departments'][d]),'UNMAPPED',len(out['unmapped'][d]))
+          Path('fluo-numbering-2026.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          for old in ('54R060','54R330','54R350','54R360','54R710'):
+              print('CHECK54',old,'=>',out['departments']['54'].get(old))
+          print('WHO_IS_468',[(d,k,v) for d,mp in out['departments'].items() for k,v in mp.items() if str(v.get('new'))=='468'][:20])
+          print('WHO_IS_466',[(d,k,v) for d,mp in out['departments'].items() for k,v in mp.items() if str(v.get('new'))=='466'][:20])
           PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fluo-numbering-2026.json
+          git commit -m 'Ajoute la table officielle de renumérotation Fluo 2026'
+          git push
