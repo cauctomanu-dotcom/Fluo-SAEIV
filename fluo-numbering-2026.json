@@ -1,0 +1,1379 @@
+{
+  "source": "https://www.fluo.grandest.fr/nouveaux-numeros/",
+  "source_form": 39,
+  "effective_date": "2026-09-01",
+  "generated_from": "official Fluo GP Populate Anything selector + current regional GTFS labels",
+  "departments": {
+    "54": {
+      "54D460": {
+        "new": "491",
+        "long": "FAVIERES / COLOMBEY / TOUL",
+        "route_id": "TED:1003918"
+      },
+      "54M110": {
+        "new": "451",
+        "long": "MARVILLE / LONGUYON",
+        "route_id": "TED:1004053"
+      },
+      "54M120": {
+        "new": "452",
+        "long": "ALLONDRELLE-LA-MALMAISON / LONGUYON",
+        "route_id": "TED:1004054"
+      },
+      "54M130": {
+        "new": "453",
+        "long": "MERCY-LE-HAUT / LONGUYON",
+        "route_id": "TED:1004055"
+      },
+      "54M210": {
+        "new": "450",
+        "long": "FILLIERES / LONGWY",
+        "route_id": "TED:1004056"
+      },
+      "54R060": {
+        "new": "455",
+        "long": "VILLERUPT / VAL DE BRIEY / METZ",
+        "route_id": "TED:1004061"
+      },
+      "54R330": {
+        "new": "460",
+        "long": "PONT-A-MOUSSON / NANCY",
+        "route_id": "TED:1004062"
+      },
+      "54R340": {
+        "new": "461",
+        "long": "ARRAYE-ET-HAN / NOMENY / PONT-A-MOUSSON",
+        "route_id": "TED:1004788"
+      },
+      "54R350": {
+        "new": "465",
+        "long": "CHATEAU-SALINS / NANCY",
+        "route_id": "TED:1004063"
+      },
+      "54R360": {
+        "new": "466",
+        "long": "CHAMBREY - NANCY",
+        "route_id": "TED:1004064"
+      },
+      "54R370": {
+        "new": "468",
+        "long": "NOMENY / NANCY",
+        "route_id": "TED:1004789"
+      },
+      "54R380": {
+        "new": "469",
+        "long": "ECUELLE / NANCY",
+        "route_id": "TED:1004066"
+      },
+      "54R410": {
+        "new": "490",
+        "long": "TOUL / NANCY",
+        "route_id": "TED:1004067"
+      },
+      "54R570": {
+        "new": "495",
+        "long": "FAVIERES / COLOMBEY / NANCY",
+        "route_id": "TED:1004068"
+      },
+      "54R580": {
+        "new": "496",
+        "long": "GRIMONVILLER / VEZELISE / NANCY",
+        "route_id": "TED:1004069"
+      },
+      "54R650": {
+        "new": "470",
+        "long": "LUNEVILLE / NANCY",
+        "route_id": "TED:1004071"
+      },
+      "54R670": {
+        "new": "480",
+        "long": "CHARMES / NANCY",
+        "route_id": "TED:1004072"
+      },
+      "54R710": {
+        "new": "471",
+        "long": "BADONVILLER / CIREY-VEZOUZE / LUNEVILLE",
+        "route_id": "TED:1004073"
+      },
+      "54R800": {
+        "new": "472",
+        "long": "RAMBERVILLERS / LUNEVILLE",
+        "route_id": "TED:1004074"
+      },
+      "54S030": {
+        "new": "4070",
+        "long": "LONGWY / LONGUYON / VAL DE BRIEY",
+        "route_id": "TED:1004082"
+      },
+      "54S040": {
+        "new": "4026",
+        "long": "OTTANGE / AUMETZ",
+        "route_id": "TED:1004083"
+      },
+      "54S041": {
+        "new": "4027",
+        "long": "OTTANGE / AUMETZ",
+        "route_id": "TED:1004084"
+      },
+      "54S043": {
+        "new": "4028",
+        "long": "ROCHONVILLERS / AUMETZ",
+        "route_id": "TED:1004085"
+      },
+      "54S045": {
+        "new": "4029",
+        "long": "REDANGE / AUDUN-LE-TICHE",
+        "route_id": "TED:1004086"
+      },
+      "54S100": {
+        "new": "4000",
+        "long": "ST-PANCRE / LEXY",
+        "route_id": "TED:1004087"
+      },
+      "54S104": {
+        "new": "4001",
+        "long": "BASLIEUX / LEXY",
+        "route_id": "TED:1004091"
+      },
+      "54S106": {
+        "new": "4002",
+        "long": "TELLANCOURT / LEXY",
+        "route_id": "TED:1004092"
+      },
+      "54S107": {
+        "new": "4003",
+        "long": "LONGUYON / LEXY",
+        "route_id": "TED:1004093"
+      },
+      "54S110": {
+        "new": "4005",
+        "long": "VILLERUPT / VERDUN",
+        "route_id": "TED:1004094"
+      },
+      "54S111": {
+        "new": "4010",
+        "long": "LONGWY / MONT-ST-MARTIN",
+        "route_id": "TED:1004095"
+      },
+      "54S112": {
+        "new": "4011",
+        "long": "LONGWY / LONGLAVILLE",
+        "route_id": "TED:1004096"
+      },
+      "54S113": {
+        "new": "4012",
+        "long": "LONGWY",
+        "route_id": "TED:1004097"
+      },
+      "54S114": {
+        "new": "4013",
+        "long": "LONGUYON / LONGWY",
+        "route_id": "TED:1004098"
+      },
+      "54S115": {
+        "new": "4014",
+        "long": "HAN-DVT-PIERREPONT / LONGWY",
+        "route_id": "TED:1004099"
+      },
+      "54S116": {
+        "new": "4015",
+        "long": "BRIEY / LONGWY",
+        "route_id": "TED:1004100"
+      },
+      "54S117": {
+        "new": "4016",
+        "long": "PIENNES / LONGWY",
+        "route_id": "TED:1004101"
+      },
+      "54S119": {
+        "new": "4017",
+        "long": "COLMEY / LONGWY",
+        "route_id": "TED:1004103"
+      },
+      "54S120": {
+        "new": "4018",
+        "long": "VIVIERS-SUR-CHIERS / LONGWY",
+        "route_id": "TED:1004104"
+      },
+      "54S121": {
+        "new": "4019",
+        "long": "CHARENCY-VEZIN / LONGWY",
+        "route_id": "TED:1004105"
+      },
+      "54S122": {
+        "new": "4020",
+        "long": "VILLE-HOUDLEMONT / LONGWY",
+        "route_id": "TED:1004106"
+      },
+      "54S123": {
+        "new": "4021",
+        "long": "LONGWY",
+        "route_id": "TED:1009746"
+      },
+      "54S130": {
+        "new": "4040",
+        "long": "LONGWY / ALGRANGE",
+        "route_id": "TED:1004107"
+      },
+      "54S131": {
+        "new": "4041",
+        "long": "AUDUN-LE-ROMAN / ALGRANGE",
+        "route_id": "TED:1004448"
+      },
+      "54S135": {
+        "new": "4042",
+        "long": "AUDUN-LE-ROMAN / OTTANGE",
+        "route_id": "TED:1004108"
+      },
+      "54S140": {
+        "new": "4030",
+        "long": "ALLONDRELLE-LA-MALMAISON / LONGUYON",
+        "route_id": "TED:1004109"
+      },
+      "54S141": {
+        "new": "4031",
+        "long": "HAN-DVT-PIERREPONT / LONGUYON",
+        "route_id": "TED:1004110"
+      },
+      "54S142": {
+        "new": "4032",
+        "long": "VIVIERS-SUR-CHIERS / LONGUYON",
+        "route_id": "TED:1004111"
+      },
+      "54S143": {
+        "new": "4033",
+        "long": "ST-JEAN-LES-LONGUYON / LONGUYON",
+        "route_id": "TED:1004112"
+      },
+      "54S145": {
+        "new": "4034",
+        "long": "DONCOURT-LES-LONGUYON / LONGUYON",
+        "route_id": "TED:1004113"
+      },
+      "54S146": {
+        "new": "4035",
+        "long": "VILLERS-LE-ROND / LONGUYON",
+        "route_id": "TED:1004470"
+      },
+      "54S147": {
+        "new": "4036",
+        "long": "LONGUYON",
+        "route_id": "TED:1004114"
+      },
+      "54S152": {
+        "new": "4025",
+        "long": "MERCY-LE-BAS / REHON",
+        "route_id": "TED:1004115"
+      },
+      "54S154": {
+        "new": "4045",
+        "long": "BRIEY - THIONVILLE",
+        "route_id": "TED:1009786"
+      },
+      "54S155": {
+        "new": "4046",
+        "long": "LONGWY / THIONVILLE",
+        "route_id": "TED:1004116"
+      },
+      "54S156": {
+        "new": "4050",
+        "long": "AUDUN-LE-ROMAN / VILLERUPT",
+        "route_id": "TED:1004117"
+      },
+      "54S261": {
+        "new": "4060",
+        "long": "ST-JULIEN-LES-GORZE / JARNY",
+        "route_id": "TED:1004121"
+      },
+      "54S274": {
+        "new": "4061",
+        "long": "CHAMBLEY-BUSSIERES / TRONVILLE / JARNY",
+        "route_id": "TED:1004122"
+      },
+      "54S275": {
+        "new": "4065",
+        "long": "JARNY",
+        "route_id": "TED:1004123"
+      },
+      "54S279": {
+        "new": "4063",
+        "long": "HAN-DVT-PIERREPONT / JARNY",
+        "route_id": "TED:1004124"
+      },
+      "54S280": {
+        "new": "4071",
+        "long": "MONTOIS-LA-MONTAGNE / VAL DE BRIEY",
+        "route_id": "TED:1004125"
+      },
+      "54S281": {
+        "new": "4072",
+        "long": "MOYEUVRE-GRANDE / VAL DE BRIEY",
+        "route_id": "TED:1004126"
+      },
+      "54S301": {
+        "new": "4120",
+        "long": "MARBACHE / DIEULOUARD",
+        "route_id": "TED:1004127"
+      },
+      "54S302": {
+        "new": "4121",
+        "long": "SAIZERAIS / DIEULOUARD",
+        "route_id": "TED:1004128"
+      },
+      "54S304": {
+        "new": "4122",
+        "long": "MILLERY / DIEULOUARD",
+        "route_id": "TED:1004129"
+      },
+      "54S310": {
+        "new": "4080",
+        "long": "WAVILLE / PAGNY-SUR-MOSELLE",
+        "route_id": "TED:1004130"
+      },
+      "54S311": {
+        "new": "4081",
+        "long": "ONVILLE / PAGNY-SUR-MOSELLE",
+        "route_id": "TED:1004131"
+      },
+      "54S312": {
+        "new": "4082",
+        "long": "VILCEY-SUR-TREY / PAGNY-SUR-MOSELLE",
+        "route_id": "TED:1004132"
+      },
+      "54S316": {
+        "new": "4085",
+        "long": "MANDRES-QUATRE-TOURS / THIAUCOURT-REGNIE",
+        "route_id": "TED:1004133"
+      },
+      "54S317": {
+        "new": "4086",
+        "long": "BEAUMONT / THIAUCOURT-REGNIEVILLE",
+        "route_id": "TED:1004134"
+      },
+      "54S318": {
+        "new": "4087",
+        "long": "JAULNY / THIAUCOURT-REGNIEVILLE",
+        "route_id": "TED:1004135"
+      },
+      "54S319": {
+        "new": "4088",
+        "long": "MONTSEC / THIAUCOURT-REGNIEVILLE",
+        "route_id": "TED:1004136"
+      },
+      "54S320": {
+        "new": "4125",
+        "long": "AINGERAY / LIVERDUN",
+        "route_id": "TED:1004778"
+      },
+      "54S331": {
+        "new": "4100",
+        "long": "ROGEVILLE / PONT-A-MOUSSON",
+        "route_id": "TED:1004137"
+      },
+      "54S332": {
+        "new": "4101",
+        "long": "HAMONVILLE / PONT-A-MOUSSON",
+        "route_id": "TED:1004138"
+      },
+      "54S333": {
+        "new": "4102",
+        "long": "HAGEVILLE / PONT-A-MOUSSON",
+        "route_id": "TED:1004139"
+      },
+      "54S334": {
+        "new": "4103",
+        "long": "BENEY-EN-WOEVRE / PONT-A-MOUSSON",
+        "route_id": "TED:1004140"
+      },
+      "54S335": {
+        "new": "4104",
+        "long": "TOUL / PONT-A-MOUSSON",
+        "route_id": "TED:1004141"
+      },
+      "54S336": {
+        "new": "4105",
+        "long": "REMBERCOURT-SUR-MAD / PONT-A-MOUSSON",
+        "route_id": "TED:1004142"
+      },
+      "54S340": {
+        "new": "4115",
+        "long": "BLENOD-LES-PONT-A-MOUSSON",
+        "route_id": "TED:1004143"
+      },
+      "54S350": {
+        "new": "4130",
+        "long": "BELLEAU / NOMENY",
+        "route_id": "TED:1004144"
+      },
+      "54S351": {
+        "new": "4131",
+        "long": "BEY-SUR-SEILLE / NOMENY",
+        "route_id": "TED:1004145"
+      },
+      "54S352": {
+        "new": "4132",
+        "long": "VILLERS-LES-MOIVRONS / NOMENY",
+        "route_id": "TED:1004782"
+      },
+      "54S353": {
+        "new": "4133",
+        "long": "BRATTE / NOMENY",
+        "route_id": "TED:1004146"
+      },
+      "54S354": {
+        "new": "4134",
+        "long": "ABAUCOURT / NOMENY",
+        "route_id": "TED:1004147"
+      },
+      "54S355": {
+        "new": "4135",
+        "long": "EPLY / NOMENY",
+        "route_id": "TED:1004148"
+      },
+      "54S356": {
+        "new": "4136",
+        "long": "PORT-SUR-SEILLE / NOMENY",
+        "route_id": "TED:1004149"
+      },
+      "54S359": {
+        "new": "4140",
+        "long": "LEYR / CUSTINES",
+        "route_id": "TED:1004783"
+      },
+      "54S360": {
+        "new": "4106",
+        "long": "BEY-SUR-SEILLE / PONT-A-MOUSSON",
+        "route_id": "TED:1004150"
+      },
+      "54S361": {
+        "new": "4107",
+        "long": "MILLERY / PONT-A-MOUSSON",
+        "route_id": "TED:1004151"
+      },
+      "54S362": {
+        "new": "4108",
+        "long": "BRATTE / PONT-A-MOUSSON",
+        "route_id": "TED:1004152"
+      },
+      "54S365": {
+        "new": "4109",
+        "long": "THEZEY-ST-MARTIN / PONT-A-MOUSSON",
+        "route_id": "TED:1004153"
+      },
+      "54S370": {
+        "new": "4150",
+        "long": "BRIN-SUR-SEILLE / ESSEY-LES-NANCY",
+        "route_id": "TED:1004154"
+      },
+      "54S371": {
+        "new": "4151",
+        "long": "MONCEL-SUR-SEILLE / ESSEY-LES-NANCY",
+        "route_id": "TED:1004155"
+      },
+      "54S372": {
+        "new": "4152",
+        "long": "CHAMPENOUX / ESSEY-LES-NANCY",
+        "route_id": "TED:1004156"
+      },
+      "54S375": {
+        "new": "4154",
+        "long": "MONCEL-SUR-SEILLE / TOMBLAINE / PULNOY",
+        "route_id": "TED:1004157"
+      },
+      "54S376": {
+        "new": "4155",
+        "long": "BRIN-SUR-SEILLE / TOMBLAINE",
+        "route_id": "TED:1004158"
+      },
+      "54S380": {
+        "new": "4160",
+        "long": "AMANCE / EULMONT / MALZEVILLE",
+        "route_id": "TED:1004160"
+      },
+      "54S387": {
+        "new": "4165",
+        "long": "AMANCE / NANCY",
+        "route_id": "TED:1004161"
+      },
+      "54S400": {
+        "new": "4445",
+        "long": "TOUL",
+        "route_id": "TED:1004163"
+      },
+      "54S401": {
+        "new": "4446",
+        "long": "TOUL",
+        "route_id": "TED:1004164"
+      },
+      "54S420": {
+        "new": "4490",
+        "long": "VILLEY-ST-ETIENNE / SEXEY-BOIS / NANCY",
+        "route_id": "TED:1004167"
+      },
+      "54S450": {
+        "new": "4450",
+        "long": "VAUCOULEURS / BLENOD / GIBEAUMEIX / TOUL",
+        "route_id": "TED:1004169"
+      },
+      "54S460": {
+        "new": "4460",
+        "long": "VANDELEVILLE / COLOMBEY-BELLES / TOUL",
+        "route_id": "TED:1004170"
+      },
+      "54S461": {
+        "new": "4461",
+        "long": "VANDELEVILLE / COLOMBEY-LES-BELLES",
+        "route_id": "TED:1004171"
+      },
+      "54S462": {
+        "new": "4462",
+        "long": "MOUTROT / COLOMBEY-LES-BELLES",
+        "route_id": "TED:1004172"
+      },
+      "54S463": {
+        "new": "4463",
+        "long": "THUILLEY-AUX-GROSEILLES / CREPEY",
+        "route_id": "TED:1004173"
+      },
+      "54S464": {
+        "new": "4464",
+        "long": "SAULXEROTTE / COLOMBEY-LES-BELLES",
+        "route_id": "TED:1004174"
+      },
+      "54S465": {
+        "new": "4465",
+        "long": "GIBEAUMEIX / COLOMBEY-LES-BELLES",
+        "route_id": "TED:1004175"
+      },
+      "54S466": {
+        "new": "4466",
+        "long": "MONT-L-ETROIT / COLOMBEY-LES-BELLES",
+        "route_id": "TED:1004176"
+      },
+      "54S467": {
+        "new": "4467",
+        "long": "VANNES-LE-CHATEL / COLOMBEY-LES-BELLES",
+        "route_id": "TED:1004177"
+      },
+      "54S468": {
+        "new": "4468",
+        "long": "OCHEY / COLOMBEY-LES-BELLES",
+        "route_id": "TED:1004178"
+      },
+      "54S500": {
+        "new": "4491",
+        "long": "MESSEIN / VILLERS-LES-NANCY",
+        "route_id": "TED:1004179"
+      },
+      "54S510": {
+        "new": "4492",
+        "long": "SEXEY-AUX-FORGES / NANCY",
+        "route_id": "TED:1004180"
+      },
+      "54S520": {
+        "new": "4470",
+        "long": "PULNEY / VEZELISE",
+        "route_id": "TED:1004181"
+      },
+      "54S521": {
+        "new": "4471",
+        "long": "FRAISNES-EN-SAINTOIS / VEZELISE",
+        "route_id": "TED:1004182"
+      },
+      "54S522": {
+        "new": "4472",
+        "long": "ST-FIRMIN / VEZELISE",
+        "route_id": "TED:1004183"
+      },
+      "54S523": {
+        "new": "4473",
+        "long": "JEVONCOURT / VEZELISE",
+        "route_id": "TED:1004184"
+      },
+      "54S524": {
+        "new": "4474",
+        "long": "VAUDIGNY / VEZELISE",
+        "route_id": "TED:1004185"
+      },
+      "54S525": {
+        "new": "4475",
+        "long": "VOINEMONT / VEZELISE",
+        "route_id": "TED:1004186"
+      },
+      "54S526": {
+        "new": "4476",
+        "long": "CEINTREY / VEZELISE",
+        "route_id": "TED:1004187"
+      },
+      "54S527": {
+        "new": "4477",
+        "long": "PAREY-ST-CESAIRE / VEZELISE",
+        "route_id": "TED:1004188"
+      },
+      "54S528": {
+        "new": "4478",
+        "long": "LALOEUF / VEZELISE",
+        "route_id": "TED:1004189"
+      },
+      "54S590": {
+        "new": "4495",
+        "long": "GERMONVILLE / FROLOIS / NANCY",
+        "route_id": "TED:1004190"
+      },
+      "54S600": {
+        "new": "4250",
+        "long": "LUNEVILLE / ART-SUR-MEURTHE",
+        "route_id": "TED:1004191"
+      },
+      "54S601": {
+        "new": "4251",
+        "long": "MANONCOURT-EN-VERMOIS / ART-SUR-MEURTHE",
+        "route_id": "TED:1004192"
+      },
+      "54S605": {
+        "new": "4260",
+        "long": "ROSIERES-AUX-SALINES / DOMBASLE-MEURTHE",
+        "route_id": "TED:1004193"
+      },
+      "54S607": {
+        "new": "4261",
+        "long": "ROSIERES-AUX-SALINES / DOMBASLE-MEURTHE",
+        "route_id": "TED:1004194"
+      },
+      "54S608": {
+        "new": "4262",
+        "long": "GELLENONCOURT / DOMBASLE-SUR-MEURTHE",
+        "route_id": "TED:1004195"
+      },
+      "54S611": {
+        "new": "4263",
+        "long": "LUNEVILLE / DOMBASLE-SUR-MEURTHE",
+        "route_id": "TED:1004196"
+      },
+      "54S612": {
+        "new": "4264",
+        "long": "SOMMERVILLER / DOMBASLE-SUR-MEURTHE",
+        "route_id": "TED:1004197"
+      },
+      "54S613": {
+        "new": "4265",
+        "long": "VEZELISE / DOMBASLE-SUR-MEURTHE",
+        "route_id": "TED:1004198"
+      },
+      "54S615": {
+        "new": "4266",
+        "long": "VARANGEVILLE / DOMBASLE-SUR-MEURTHE",
+        "route_id": "TED:1004199"
+      },
+      "54S620": {
+        "new": "4270",
+        "long": "SOMMERVILLER / TOMBLAINE",
+        "route_id": "TED:1004200"
+      },
+      "54S622": {
+        "new": "4271",
+        "long": "FERRIERES / TOMBLAINE",
+        "route_id": "TED:1004201"
+      },
+      "54S625": {
+        "new": "4272",
+        "long": "SAFFAIS / TOMBLAINE",
+        "route_id": "TED:1004202"
+      },
+      "54S626": {
+        "new": "4273",
+        "long": "DOMBASLE-SUR-MEURTHE / TOMBLAINE",
+        "route_id": "TED:1004203"
+      },
+      "54S630": {
+        "new": "4280",
+        "long": "VILLE-EN-VERMOIS / ST-NICOLAS-DE-PORT",
+        "route_id": "TED:1004204"
+      },
+      "54S632": {
+        "new": "4281",
+        "long": "VARANGEVILLE / ST-NICOLAS-DE-PORT",
+        "route_id": "TED:1004206"
+      },
+      "54S635": {
+        "new": "4290",
+        "long": "ST-NICOLAS-PORT / BLAINVILLE-SUR-L-EAU",
+        "route_id": "TED:1004207"
+      },
+      "54S636": {
+        "new": "4291",
+        "long": "VIRECOURT / BLAINVILLE-SUR-L-EAU",
+        "route_id": "TED:1004208"
+      },
+      "54S637": {
+        "new": "4292",
+        "long": "CHARMOIS / BLAINVILLE-SUR-L-EAU",
+        "route_id": "TED:1004209"
+      },
+      "54S638": {
+        "new": "4293",
+        "long": "DAMELEVIERES / BLAINVILLE-SUR-L-EAU",
+        "route_id": "TED:1004210"
+      },
+      "54S639": {
+        "new": "4294",
+        "long": "BLAINVILLE-SUR-L-EAU",
+        "route_id": "TED:1004211"
+      },
+      "54S640": {
+        "new": "4295",
+        "long": "ROSIERES-SALINES / BLAINVILLE-SUR-L-EAU",
+        "route_id": "TED:1004212"
+      },
+      "54S641": {
+        "new": "4296",
+        "long": "MONT-SUR-MEURTHE / BLAINVILLE-SUR-L-EAU",
+        "route_id": "TED:1004213"
+      },
+      "54S642": {
+        "new": "4297",
+        "long": "BLAINVILLE-SUR-L-EAU",
+        "route_id": "TED:1004214"
+      },
+      "54S645": {
+        "new": "4300",
+        "long": "REMEREVILLE / EINVILLE-AU-JARD",
+        "route_id": "TED:1004215"
+      },
+      "54S646": {
+        "new": "4301",
+        "long": "BATHELEMONT / EINVILLE-AU-JARD",
+        "route_id": "TED:1004216"
+      },
+      "54S647": {
+        "new": "4302",
+        "long": "DEUXVILLE / EINVILLE-AU-JARD",
+        "route_id": "TED:1004217"
+      },
+      "54S648": {
+        "new": "4303",
+        "long": "XURES / EINVILLE-AU-JARD",
+        "route_id": "TED:1004218"
+      },
+      "54S649": {
+        "new": "4304",
+        "long": "JUVRECOURT / EINVILLE-AU-JARD",
+        "route_id": "TED:1004219"
+      },
+      "54S656": {
+        "new": "4311",
+        "long": "CREVIC / LUNEVILLE",
+        "route_id": "TED:1004221"
+      },
+      "54S657": {
+        "new": "4312",
+        "long": "SERRES / LUNEVILLE",
+        "route_id": "TED:1004222"
+      },
+      "54S658": {
+        "new": "4313",
+        "long": "BAUZEMONT / LUNEVILLE",
+        "route_id": "TED:1004223"
+      },
+      "54S659": {
+        "new": "4314",
+        "long": "BEZANGE-LA-GRANDE / LUNEVILLE",
+        "route_id": "TED:1004224"
+      },
+      "54S660": {
+        "new": "4315",
+        "long": "NANCY / LUNEVILLE",
+        "route_id": "TED:1004225"
+      },
+      "54S675": {
+        "new": "4330",
+        "long": "EINVILLE-AU-JARD / NANCY",
+        "route_id": "TED:1004226"
+      },
+      "54S676": {
+        "new": "4331",
+        "long": "BURTHECOURT-AUX-CHENES / NANCY",
+        "route_id": "TED:1004227"
+      },
+      "54S680": {
+        "new": "4316",
+        "long": "LUNEVILLE",
+        "route_id": "TED:1004228"
+      },
+      "54S700": {
+        "new": "4370",
+        "long": "AZERAILLES / BACCARAT",
+        "route_id": "TED:1004229"
+      },
+      "54S701": {
+        "new": "4371",
+        "long": "FLIN / BACCARAT",
+        "route_id": "TED:1004230"
+      },
+      "54S704": {
+        "new": "4372",
+        "long": "THIAVILLE-SUR-MEURTHE / BACCARAT",
+        "route_id": "TED:1004231"
+      },
+      "54S705": {
+        "new": "4373",
+        "long": "BERTRICHAMPS / BACCARAT",
+        "route_id": "TED:1004232"
+      },
+      "54S706": {
+        "new": "4374",
+        "long": "VENEY / BACCARAT",
+        "route_id": "TED:1004233"
+      },
+      "54S725": {
+        "new": "4340",
+        "long": "DOMEVRE-SUR-VEZOUZE / BENAMENIL",
+        "route_id": "TED:1004234"
+      },
+      "54S726": {
+        "new": "4341",
+        "long": "REMONCOURT / BENAMENIL",
+        "route_id": "TED:1004235"
+      },
+      "54S727": {
+        "new": "4342",
+        "long": "EMBERMENIL / BENAMENIL",
+        "route_id": "TED:1004236"
+      },
+      "54S728": {
+        "new": "4343",
+        "long": "LUNEVILLE / BENAMENIL",
+        "route_id": "TED:1004237"
+      },
+      "54S729": {
+        "new": "4344",
+        "long": "MIGNEVILLE / BENAMENIL",
+        "route_id": "TED:1004238"
+      },
+      "54S730": {
+        "new": "4350",
+        "long": "TANCONVILLE / CIREY-SUR-VEZOUZE",
+        "route_id": "TED:1004239"
+      },
+      "54S731": {
+        "new": "4351",
+        "long": "ANGOMONT / CIREY-SUR-VEZOUZE",
+        "route_id": "TED:1004240"
+      },
+      "54S732": {
+        "new": "4352",
+        "long": "ST-MAURICE-AUX-FORGES / CIREY-VEZOUZE",
+        "route_id": "TED:1004241"
+      },
+      "54S733": {
+        "new": "4353",
+        "long": "MONTIGNY / CIREY-SUR-VEZOUZE",
+        "route_id": "TED:1004242"
+      },
+      "54S734": {
+        "new": "4354",
+        "long": "NEUFMAISONS / CIREY-SUR-VEZOUZE",
+        "route_id": "TED:1004243"
+      },
+      "54S735": {
+        "new": "4355",
+        "long": "AUTREPIERRE / CIREY-SUR-VEZOUZE",
+        "route_id": "TED:1004244"
+      },
+      "54S736": {
+        "new": "4356",
+        "long": "GONDREXON / CIREY-SUR-VEZOUZE",
+        "route_id": "TED:1004245"
+      },
+      "54S737": {
+        "new": "4357",
+        "long": "ANCERVILLER / CIREY-SUR-VEZOUZE",
+        "route_id": "TED:1004246"
+      },
+      "54S738": {
+        "new": "4375",
+        "long": "BADONVILLER / RAON-L-ETAPE",
+        "route_id": "TED:1004247"
+      },
+      "54S740": {
+        "new": "4380",
+        "long": "BACCARAT / LUNEVILLE",
+        "route_id": "TED:1004248"
+      },
+      "54S741": {
+        "new": "4381",
+        "long": "VATHIMENIL / MOYEN / LUNEVILLE",
+        "route_id": "TED:1004249"
+      },
+      "54S742": {
+        "new": "4382",
+        "long": "FRAIMBOIS / LUNEVILLE",
+        "route_id": "TED:1004250"
+      },
+      "54S743": {
+        "new": "4360",
+        "long": "VAL ET CHATILLON / LUNEVILLE",
+        "route_id": "TED:1004251"
+      },
+      "54S744": {
+        "new": "4361",
+        "long": "GOGNEY / LUNEVILLE / EMBERMENIL",
+        "route_id": "TED:1004252"
+      },
+      "54S745": {
+        "new": "4383",
+        "long": "PARUX / LUNEVILLE",
+        "route_id": "TED:1004253"
+      },
+      "54S746": {
+        "new": "4362",
+        "long": "HARBOUEY / LUNEVILLE",
+        "route_id": "TED:1004254"
+      },
+      "54S747": {
+        "new": "4384",
+        "long": "ST-SAUVEUR / LUNEVILLE",
+        "route_id": "TED:1004255"
+      },
+      "54S748": {
+        "new": "4385",
+        "long": "LACHAPELLE / LUNEVILLE",
+        "route_id": "TED:1004256"
+      },
+      "54S749": {
+        "new": "4386",
+        "long": "GELACOURT / LUNEVILLE",
+        "route_id": "TED:1004257"
+      },
+      "54S750": {
+        "new": "4387",
+        "long": "NEUFMAISONS / LUNEVILLE",
+        "route_id": "TED:1004258"
+      },
+      "54S751": {
+        "new": "4363",
+        "long": "ST-MARTIN / LUNEVILLE",
+        "route_id": "TED:1004259"
+      },
+      "54S752": {
+        "new": "4388",
+        "long": "BACCARAT / LUNEVILLE",
+        "route_id": "TED:1004260"
+      },
+      "54S753": {
+        "new": "4364",
+        "long": "BERTRAMBOIS / LUNEVILLE",
+        "route_id": "TED:1004774"
+      },
+      "54S761": {
+        "new": "4390",
+        "long": "LUNEVILLE",
+        "route_id": "TED:1004262"
+      },
+      "54S762": {
+        "new": "4391",
+        "long": "LUNEVILLE / MARAINVILLER / EMBERMENIL",
+        "route_id": "TED:1004263"
+      },
+      "54S763": {
+        "new": "4365",
+        "long": "LUNEVILLE / BLAMONT",
+        "route_id": "TED:1004264"
+      },
+      "54S764": {
+        "new": "4392",
+        "long": "LUNEVILLE",
+        "route_id": "TED:1004265"
+      },
+      "54S780": {
+        "new": "4366",
+        "long": "LUNEVILLE",
+        "route_id": "TED:1004267"
+      },
+      "54S800": {
+        "new": "4400",
+        "long": "ST-GERMAIN / BAYON",
+        "route_id": "TED:1004268"
+      },
+      "54S801": {
+        "new": "4401",
+        "long": "LANDECOURT / BAYON",
+        "route_id": "TED:1004269"
+      },
+      "54S802": {
+        "new": "4402",
+        "long": "GRIPPORT / BAYON",
+        "route_id": "TED:1004270"
+      },
+      "54S803": {
+        "new": "4403",
+        "long": "LEMAINVILLE / BAYON",
+        "route_id": "TED:1004271"
+      },
+      "54S804": {
+        "new": "4404",
+        "long": "BENNEY / BAYON",
+        "route_id": "TED:1004272"
+      },
+      "54S805": {
+        "new": "4405",
+        "long": "TONNOY / BAYON",
+        "route_id": "TED:1004273"
+      },
+      "54S806": {
+        "new": "4406",
+        "long": "BENNEY / BAYON",
+        "route_id": "TED:1004274"
+      },
+      "54S807": {
+        "new": "4407",
+        "long": "HAIGNEVILLE / BAYON",
+        "route_id": "TED:1004275"
+      },
+      "54S815": {
+        "new": "4410",
+        "long": "GRIPPORT / LUNEVILLE",
+        "route_id": "TED:1004276"
+      },
+      "54S816": {
+        "new": "4411",
+        "long": "ST-BOINGT / LUNEVILLE",
+        "route_id": "TED:1004277"
+      },
+      "54S817": {
+        "new": "4412",
+        "long": "SERANVILLE / LUNEVILLE",
+        "route_id": "TED:1004278"
+      },
+      "54S818": {
+        "new": "4317",
+        "long": "VIGNEULLES / LUNEVILLE",
+        "route_id": "TED:1004279"
+      },
+      "54S819": {
+        "new": "4318",
+        "long": "CHARMOIS / HERIMENIL / LUNEVILLE",
+        "route_id": "TED:1004280"
+      },
+      "54S821": {
+        "new": "4319",
+        "long": "DAMELEVIERES / LUNEVILLE",
+        "route_id": "TED:1004281"
+      },
+      "54S825": {
+        "new": "4320",
+        "long": "HERIMENIL / LUNEVILLE",
+        "route_id": "TED:1004282"
+      },
+      "54S826": {
+        "new": "4321",
+        "long": "REHAINVILLER / LUNEVILLE",
+        "route_id": "TED:1004283"
+      },
+      "54S831": {
+        "new": "4322",
+        "long": "LUNEVILLE",
+        "route_id": "TED:1004284"
+      },
+      "54S835": {
+        "new": "4420",
+        "long": "CHENEVIERES / GERBEVILLER",
+        "route_id": "TED:1004285"
+      },
+      "54S837": {
+        "new": "4422",
+        "long": "CHENEVIERES / GERBEVILLER",
+        "route_id": "TED:1004287"
+      },
+      "54S838": {
+        "new": "4423",
+        "long": "SERANVILLE / GERBEVILLER",
+        "route_id": "TED:1004288"
+      },
+      "54S839": {
+        "new": "4424",
+        "long": "LAMATH / GERBEVILLER",
+        "route_id": "TED:1004289"
+      },
+      "54S845": {
+        "new": "4430",
+        "long": "FLAVIGNY-SUR-MOSELLE / LUDRES",
+        "route_id": "TED:1004290"
+      },
+      "54S846": {
+        "new": "4431",
+        "long": "LUDRES",
+        "route_id": "TED:1004291"
+      },
+      "54S847": {
+        "new": "4432",
+        "long": "RICHARDMENIL",
+        "route_id": "TED:1005870"
+      },
+      "54S880": {
+        "new": "4393",
+        "long": "LUNEVILLE",
+        "route_id": "TED:1004292"
+      }
+    },
+    "67": {},
+    "68": {}
+  },
+  "unmapped": {
+    "54": [
+      {
+        "old": "54S374",
+        "long": "CERVILLE - college PULNOY",
+        "route_id": "TED:1010543"
+      }
+    ],
+    "67": [
+      {
+        "old": "201",
+        "long": "BRUMATH - HOENHEIM",
+        "route_id": "CG67:201"
+      },
+      {
+        "old": "203",
+        "long": "SAESSOLSHEIM - STRASBOURG",
+        "route_id": "CG67:203"
+      },
+      {
+        "old": "205",
+        "long": "WOELLENHEIM - STRASBOURG",
+        "route_id": "CG67:205"
+      },
+      {
+        "old": "209",
+        "long": "STRASBOURG - DUPPIGHEIM",
+        "route_id": "CG67:209"
+      },
+      {
+        "old": "210",
+        "long": "WINGERSHEIM - STRASBOURG",
+        "route_id": "CG67:210"
+      },
+      {
+        "old": "220",
+        "long": "KIENHEIM - TRUCHTERSHEIM - STRASBOURG",
+        "route_id": "CG67:220"
+      },
+      {
+        "old": "230",
+        "long": "WASSELONNE - STRASBOURG",
+        "route_id": "CG67:230"
+      },
+      {
+        "old": "231",
+        "long": "ZEINHEIM - WASSELONNE",
+        "route_id": "CG67:231"
+      },
+      {
+        "old": "232",
+        "long": "WANGENBOURG - WASSELONNE",
+        "route_id": "CG67:232"
+      },
+      {
+        "old": "233",
+        "long": "WESTHOFFEN - NORDHEIM",
+        "route_id": "CG67:233"
+      },
+      {
+        "old": "234",
+        "long": "MARLENHEIM - BALBRONN",
+        "route_id": "CG67:234"
+      },
+      {
+        "old": "235",
+        "long": "WASSELONNE - MARLENHEIM-MOLSHEIM - DORLISHEIM",
+        "route_id": "CG67:235"
+      },
+      {
+        "old": "236",
+        "long": "COSSWILLER - WASSELONNE",
+        "route_id": "CG67:236"
+      },
+      {
+        "old": "240",
+        "long": "SCHARRACHBERGHEIM - OSTHOFFEN - STRASBOURG",
+        "route_id": "CG67:240"
+      },
+      {
+        "old": "252",
+        "long": "Navette des Neiges - SCHIRMECK",
+        "route_id": "CG67:252"
+      },
+      {
+        "old": "257",
+        "long": "MONT SAINTE-ODILE - STRASBOURG",
+        "route_id": "CG67:257"
+      },
+      {
+        "old": "258",
+        "long": "Navette des Neiges - STRASBOURG",
+        "route_id": "CG67:258"
+      },
+      {
+        "old": "260",
+        "long": "ERSTEIN - STRASBOURG Baggersee",
+        "route_id": "CG67:260"
+      },
+      {
+        "old": "262",
+        "long": "OTTROTT - OBERNAI - ERSTEIN",
+        "route_id": "CG67:262"
+      },
+      {
+        "old": "263",
+        "long": "ERSTEIN - BENFELD",
+        "route_id": "CG67:263"
+      },
+      {
+        "old": "270",
+        "long": "RHINAU - STRASBOURG Baggersee",
+        "route_id": "CG67:270"
+      },
+      {
+        "old": "271",
+        "long": "STRASBOURG - EUROPA PARK",
+        "route_id": "CG67:271"
+      },
+      {
+        "old": "307",
+        "long": "HERRLISHEIM - HAGUENAU",
+        "route_id": "CG67:307"
+      },
+      {
+        "old": "309",
+        "long": "HATTEN - HAGUENAU",
+        "route_id": "CG67:309"
+      },
+      {
+        "old": "310",
+        "long": "LEMBACH - WOERTH - HAGUENAU",
+        "route_id": "CG67:310"
+      },
+      {
+        "old": "330",
+        "long": "SELTZ - HAGUENAU",
+        "route_id": "CG67:330"
+      },
+      {
+        "old": "404",
+        "long": "SAVERNE - TRUCHTERSHEIM",
+        "route_id": "CG67:404"
+      },
+      {
+        "old": "405",
+        "long": "SAVERNE - DUNTZENHEIM",
+        "route_id": "CG67:405"
+      },
+      {
+        "old": "410",
+        "long": "SAVERNE - DRULINGEN - SARRE UNION",
+        "route_id": "CG67:410"
+      },
+      {
+        "old": "411",
+        "long": "HATTMATT - SAVERNE",
+        "route_id": "CG67:411"
+      },
+      {
+        "old": "420",
+        "long": "WASSELONNE - SAVERNE",
+        "route_id": "CG67:420"
+      },
+      {
+        "old": "500",
+        "long": "SELESTAT - HAUT-KOENIGSBOURG",
+        "route_id": "CG67:500"
+      },
+      {
+        "old": "510",
+        "long": "VILLE - SELESTAT",
+        "route_id": "CG67:510"
+      },
+      {
+        "old": "511",
+        "long": "Navette des Neiges - SELESTAT",
+        "route_id": "CG67:511"
+      },
+      {
+        "old": "520",
+        "long": "SELESTAT - MARCKOLSHEIM",
+        "route_id": "CG67:520"
+      },
+      {
+        "old": "530",
+        "long": "SUNDHOUSE - SELESTAT",
+        "route_id": "CG67:530"
+      },
+      {
+        "old": "531",
+        "long": "SELESTAT - EUROPA PARK",
+        "route_id": "CG67:531"
+      },
+      {
+        "old": "542",
+        "long": "Navette des Neiges - BARR",
+        "route_id": "CG67:542"
+      },
+      {
+        "old": "903",
+        "long": "DONNENHEIM - ECKWERSHEIM",
+        "route_id": "CG67:903"
+      },
+      {
+        "old": "904",
+        "long": "ROHR - TRUCHTERSHEIM",
+        "route_id": "CG67:904"
+      },
+      {
+        "old": "905",
+        "long": "HURTIGHEIM - TRUCHTERSHEIM",
+        "route_id": "CG67:905"
+      },
+      {
+        "old": "906",
+        "long": "FURDENHEIM - TRUCHTERSHEIM",
+        "route_id": "CG67:906"
+      },
+      {
+        "old": "907",
+        "long": "FESSENHEIM - TRUCHTERSHEIM",
+        "route_id": "CG67:907"
+      },
+      {
+        "old": "908",
+        "long": "WESTHOFFEN - WASSELONNE",
+        "route_id": "CG67:908"
+      },
+      {
+        "old": "909",
+        "long": "DAHLENHEIM - MARLENHEIM",
+        "route_id": "CG67:909"
+      },
+      {
+        "old": "910",
+        "long": "WESTHOFFEN - MOLSHEIM",
+        "route_id": "CG67:910"
+      },
+      {
+        "old": "911",
+        "long": "BALBRONN - MOLSHEIM",
+        "route_id": "CG67:911"
+      },
+      {
+        "old": "912",
+        "long": "SCHARRACHBERGHEIM - MOLSHEIM",
+        "route_id": "CG67:912"
+      },
+      {
+        "old": "913",
+        "long": "KUTTOLSHEIM - TRUCHTERSHEIM",
+        "route_id": "CG67:913"
+      }
+    ],
+    "68": []
+  }
+}
