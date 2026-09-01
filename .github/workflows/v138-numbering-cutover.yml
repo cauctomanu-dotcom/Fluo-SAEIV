@@ -43,8 +43,7 @@ jobs:
             },
             dedicatedResource:{'54':'80423','67':'80417','68':'80419'},
             labels:"""
-          if old_sources not in t:
-              raise SystemExit('FluoRemoteGTFS source block not found')
+          if old_sources not in t: raise SystemExit('FluoRemoteGTFS source block not found')
           t=t.replace(old_sources,new_sources,1)
 
           old="const cacheName='fluo-regional-gtfs-v31-24',stampKey='fluo-regional-gtfs-v31-24-stamp',fresh=Date.now()-Number(localStorage.getItem(stampKey)||0)<86400000;let r=null;"
@@ -62,10 +61,8 @@ jobs:
           if old not in t: raise SystemExit('regional route filter not found')
           t=t.replace(old,new,1)
 
-          old="if(fluoRegionalStopBelongs(x,d))stopList.push(z)"
-          new="if(scoped||fluoRegionalStopBelongs(x,d))stopList.push(z)"
-          if old not in t: raise SystemExit('regional stop filter not found')
-          t=t.replace(old,new,1)
+          if "if(fluoRegionalStopBelongs(x,d))stopList.push(z)" not in t: raise SystemExit('regional stop filter not found')
+          t=t.replace("if(fluoRegionalStopBelongs(x,d))stopList.push(z)","if(scoped||fluoRegionalStopBelongs(x,d))stopList.push(z)",1)
 
           old="return{dept:d,url:got.url,entries,routesRaw:routes,routes:routeIndex,stops,stopList,services,tripsByRoute,tripById,textCache:new Map(),regional:true};"
           new="return{dept:d,url:got.url,sourceUrl:got.sourceUrl,dedicated:scoped,entries,routesRaw:routes,routes:routeIndex,stops,stopList,services,tripsByRoute,tripById,textCache:new Map(),regional:true};"
@@ -77,9 +74,9 @@ jobs:
           if old not in t: raise SystemExit('legacy fallback block not found')
           t=t.replace(old,new,1)
 
-          t=re.sub(r'manifest\.webmanifest\?v=1\.0\.\d+',f'manifest.webmanifest?v={VERSION}',t, count=1)
-          t=re.sub(r'<title>Mon SAEIV · 1\.0\.\d+</title>',f'<title>Mon SAEIV · {VERSION}</title>',t, count=1)
-          t=re.sub(r"const APP_VERSION = '1\.0\.\d+';",f"const APP_VERSION = '{VERSION}';",t, count=1)
+          t=re.sub(r'manifest\.webmanifest\?v=1\.0\.\d+',f'manifest.webmanifest?v={VERSION}',t,count=1)
+          t=re.sub(r'<title>Mon SAEIV · 1\.0\.\d+</title>',f'<title>Mon SAEIV · {VERSION}</title>',t,count=1)
+          t=re.sub(r"const APP_VERSION = '1\.0\.\d+';",f"const APP_VERSION = '{VERSION}';",t,count=1)
           p.write_text(t,encoding='utf-8')
 
           bp=Path('fluo_build.json')
@@ -101,33 +98,18 @@ jobs:
 
           sw=Path('sw.js')
           s=sw.read_text(encoding='utf-8')
-          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';", "const C='mon-saeiv-v1-0-38';", s, count=1)
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-38';",s,count=1)
           s=re.sub(r'1\.0\.\d+',VERSION,s)
           sw.write_text(s,encoding='utf-8')
 
-          wf=Path('.github/workflows/deploy-pages.yml')
-          w=wf.read_text(encoding='utf-8')
-          w=w.replace('Mon SAEIV 1.0.37 — démarrage corrigé + Espace conducteur','Mon SAEIV 1.0.38 — bascule numérotation Fluo du 1er septembre')
-          w=w.replace("VERSION='1.0.37'",f"VERSION='{VERSION}'")
-          w=w.replace("mon-saeiv-v1-0-37","mon-saeiv-v1-0-38")
-          w=w.replace("m['name']='Mon SAEIV 1.0.37';m['start_url']='./?v=1.0.37'", "m['name']='Mon SAEIV 1.0.38';m['start_url']='./?v=1.0.38'")
-          w=w.replace("m['description']='Mon SAEIV — SAEIV multiréseaux avec Espace conducteur, journaux, statistiques, véhicule, planning, GPS, annonces, comptage voyageurs et outils de service.'", "m['description']='Mon SAEIV — SAEIV multiréseaux avec numérotation Fluo actualisée au 1er septembre 2026, Espace conducteur, GPS, annonces, journaux, planning et caisse locale préservée.'")
-          needle="          grep -q \"mon-saeiv-v1-0-38\" site/sw.js\n"
-          checks="          grep -q \"resources/80423/download\" site/index.html\n          grep -q \"resources/80417/download\" site/index.html\n          grep -q \"resources/80419/download\" site/index.html\n          grep -q \"fluo-regional-gtfs-v138-cutover\" site/index.html\n"
-          if checks not in w:
-              w=w.replace(needle,needle+checks)
-          wf.write_text(w,encoding='utf-8')
-
-          # Assertions de sécurité : la caisse n'est jamais migrée, effacée ni renommée par ce patch.
           assert 'monSaeivCashV123' in t
           assert 'localStorage.clear' not in t
-          assert 'resources/80423/download' in t and 'resources/80417/download' in t and 'resources/80419/download' in t
-          assert 'fluo-regional-gtfs-v138-cutover' in t
+          assert all(x in t for x in ('resources/80423/download','resources/80417/download','resources/80419/download','fluo-regional-gtfs-v138-cutover'))
           PY
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html fluo_build.json manifest.webmanifest sw.js .github/workflows/deploy-pages.yml
+          git add index.html fluo_build.json manifest.webmanifest sw.js
           git rm .github/workflows/v138-numbering-cutover.yml
           git commit -m 'Mon SAEIV 1.0.38: active la numérotation Fluo du 1er septembre'
           git push
