@@ -1,0 +1,217 @@
+name: Mon SAEIV 1.0.39 static Fluo data
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/v139-static-fluo-data.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build robust static Fluo data support
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import json,re
+
+          VERSION='1.0.39'
+
+          # 1) Le générateur GitHub prépare désormais 54, 57, 67 et 68.
+          p=Path('build_gtfs.py')
+          t=p.read_text(encoding='utf-8')
+          start=t.index('FEEDS = {')
+          end=t.index('\n}\n',start)+3
+          feeds="""FEEDS = {
+              '57': {
+                  'label': 'Moselle (57)',
+                  'url': 'https://www.data.gouv.fr/api/1/datasets/r/42be7185-b2a8-4d1e-80c4-f7c402655260',
+                  'source': 'Fluo Grand Est 57',
+              },
+              '54': {
+                  'label': 'Meurthe-et-Moselle (54)',
+                  'url': 'https://transport.data.gouv.fr/resources/80423/download',
+                  'source': 'Fluo Grand Est 54 — GTFS officiel',
+              },
+              '67': {
+                  'label': 'Bas-Rhin (67)',
+                  'url': 'https://transport.data.gouv.fr/resources/80417/download',
+                  'source': 'Fluo Grand Est 67 — GTFS officiel',
+              },
+              '68': {
+                  'label': 'Haut-Rhin (68)',
+                  'url': 'https://transport.data.gouv.fr/resources/80419/download',
+                  'source': 'Fluo Grand Est 68 — GTFS officiel',
+              },
+          }
+          """
+          t=t[:start]+feeds+t[end:]
+
+          old="""        stop_times[tid].append({
+              'seq': seq,
+              'stop_id': sid,
+              'arrival': clean(st.get('arrival_time')),
+              'departure': clean(st.get('departure_time')),
+          })"""
+          new="""        stop_times[tid].append({
+              'seq': seq,
+              'stop_id': sid,
+              'arrival': clean(st.get('arrival_time')),
+              'departure': clean(st.get('departure_time')),
+              'pickup_type': clean(st.get('pickup_type')) or '0',
+              'drop_off_type': clean(st.get('drop_off_type')) or '0',
+          })"""
+          if old not in t: raise SystemExit('stop_times block not found')
+          t=t.replace(old,new,1)
+
+          old="""                'times': [[x['arrival'], x['departure']] for x in seq_items],
+              })"""
+          new="""                'times': [[x['arrival'], x['departure']] for x in seq_items],
+                  'demand': [{'pickup_type': x.get('pickup_type','0'), 'drop_off_type': x.get('drop_off_type','0')} for x in seq_items],
+              })"""
+          if old not in t: raise SystemExit('trip times block not found')
+          t=t.replace(old,new,1)
+          p.write_text(t,encoding='utf-8')
+
+          # 2) Runtime : les départements concernés utilisent les paquets statiques construits sur GitHub,
+          # jamais le téléchargement/décompactage GTFS côté téléphone.
+          runtime=Path('v139-fluo-published-data.js')
+          runtime.write_text(r'''\
+'use strict';
+/* Mon SAEIV 1.0.39 — données Fluo préconstruites côté GitHub, sans téléchargement GTFS côté conducteur. */
+(()=>{
+  const VERSION='1.0.39';
+  const CUTOVER='2026-09-01';
+  const originals={
+    core:window.fluoDeptCore,
+    routes:window.fluoRoutesData,
+    services:window.fluoServicesData,
+    stops:window.fluoStopsData,
+    route:window.fluoRoutePayload
+  };
+  if(!originals.routes||!originals.services||!originals.stops||!originals.route)return;
+  const coreCache=new Map();
+  const routeCache=new Map();
+  const isoToday=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+  const selectedDate=()=>{const x=String(document.getElementById('serviceDate')?.value||'');return /^\d{4}-\d{2}-\d{2}$/.test(x)?x:isoToday()};
+  const usePublished=(dept,date=selectedDate())=>{
+    const d=String(dept);
+    if(d==='54')return String(date)>=CUTOVER;
+    if(d==='67'||d==='68')return true;
+    return false;
+  };
+  async function getJson(path){
+    if(!routeCache.has(path))routeCache.set(path,jget(path).catch(e=>{routeCache.delete(path);throw e}));
+    return routeCache.get(path);
+  }
+  async function publishedCore(dept){
+    const d=String(dept);
+    if(!coreCache.has(d))coreCache.set(d,Promise.all([
+      getJson(`data/${d}/routes.json`),
+      getJson(`data/${d}/services.json`),
+      getJson(`data/${d}/stops.json`)
+    ]).then(([routesIndex,servicesIndex,stopsIndex])=>({routesIndex,servicesIndex,stopsIndex,published_local:true})).catch(e=>{coreCache.delete(d);throw e}));
+    return coreCache.get(d);
+  }
+  function displayRoute(dept,route,date=selectedDate()){
+    const d=String(dept),r={...route,published_local:true};
+    r.legacy_short=String(route?.legacy_short||route?.short||'');
+    // 54 : les lignes régulières passent au format régional à 3 chiffres au 01/09/2026.
+    // Le GTFS source conserve encore temporairement le code historique 54Rxxx : seul le libellé affiché change,
+    // l'identifiant GTFS et le fichier de parcours restent strictement inchangés.
+    if(d==='54'&&String(date)>=CUTOVER){
+      const m=r.legacy_short.match(/^54R(\d{3})$/i);
+      if(m)r.short=m[1];
+    }
+    // 67 : les régulières restent volontairement sur leur numérotation actuelle jusqu'en septembre 2027.
+    // Les scolaires et le 68 restent libellés comme fournis par le GTFS tant que la table officielle
+    // ancien -> nouveau n'est pas publiée dans l'Open Data : aucune correspondance n'est inventée.
+    return r;
+  }
+  window.fluoDeptCore=async function(dept){
+    return usePublished(dept)?publishedCore(dept):originals.core(dept);
+  };
+  window.fluoRoutesData=async function(dept){
+    const d=String(dept),date=selectedDate();
+    if(!usePublished(d,date))return originals.routes(d);
+    const core=await publishedCore(d),idx=core.routesIndex||{};
+    return {...idx,routes:(idx.routes||[]).map(r=>displayRoute(d,r,date)),numbering_era:d==='54'?'2026-published-local':idx.numbering_era,data_mode:'static-github'};
+  };
+  window.fluoServicesData=async function(dept){
+    const d=String(dept);return usePublished(d)?(await publishedCore(d)).servicesIndex:originals.services(d);
+  };
+  window.fluoStopsData=async function(dept){
+    const d=String(dept);return usePublished(d)?(await publishedCore(d)).stopsIndex:originals.stops(d);
+  };
+  window.fluoRoutePayload=async function(dept,route){
+    const d=String(dept);
+    if(route?.published_local||usePublished(d)){
+      if(!route?.file)throw new Error(`Parcours local ${route?.short||route?.id||''} introuvable`);
+      const payload=await getJson(`data/${d}/${route.file}`);
+      return {...payload,route:displayRoute(d,payload.route||route)};
+    }
+    return originals.route(d,route);
+  };
+  window.FluoFlatData={core:window.fluoDeptCore,routes:window.fluoRoutesData,services:window.fluoServicesData,stops:window.fluoStopsData,route:window.fluoRoutePayload};
+  window.MonSAEIVFluoPublishedData={version:VERSION,usePublished,clear:()=>{coreCache.clear();routeCache.clear()}};
+  console.info('[Mon SAEIV] données Fluo statiques 1.0.39 actives');
+})();
+''',encoding='utf-8')
+
+          # 3) Charge le runtime dans la vraie page, sans toucher à la caisse.
+          ip=Path('index.html'); x=ip.read_text(encoding='utf-8')
+          x=re.sub(r'manifest\.webmanifest\?v=1\.0\.\d+',f'manifest.webmanifest?v={VERSION}',x, count=1)
+          x=re.sub(r'<title>Mon SAEIV · 1\.0\.\d+</title>',f'<title>Mon SAEIV · {VERSION}</title>',x, count=1)
+          x=re.sub(r"const APP_VERSION = '1\.0\.\d+';",f"const APP_VERSION = '{VERSION}';",x, count=1)
+          x=re.sub(r'<script id="v139RuntimeFluoPublished"[^>]*></script>\s*','',x)
+          i=x.rfind('</body>')
+          if i<0: raise SystemExit('final body not found')
+          x=x[:i]+f'<script id="v139RuntimeFluoPublished" src="./v139-fluo-published-data.js?v={VERSION}"></script>\n'+x[i:]
+          if 'monSaeivCashV123' not in x: raise SystemExit('cash storage guard missing')
+          if 'localStorage.clear' in x: raise SystemExit('unsafe localStorage.clear found')
+          ip.write_text(x,encoding='utf-8')
+
+          mp=Path('manifest.webmanifest'); m=json.loads(mp.read_text(encoding='utf-8'))
+          m['name']=f'Mon SAEIV {VERSION}';m['start_url']=f'./?v={VERSION}';m['orientation']='any'
+          m['description']='Mon SAEIV — SAEIV multiréseaux avec données Fluo 54/67/68 préconstruites côté serveur, GPS, annonces, journaux, planning et caisse locale préservée.'
+          mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          bp=Path('fluo_build.json'); d=json.loads(bp.read_text(encoding='utf-8'));d['version']=VERSION
+          d['fluo_static_data_v1_0_39']={
+            'reason':'supprime la dépendance au téléchargement/décompactage GTFS dans le navigateur et corrige Données indisponibles',
+            'departments_built':['54','57','67','68'],
+            '54_from':'2026-09-01',
+            '67_2026':'lignes régulières non renumérotées avant septembre 2027 ; scolaires préparées localement',
+            '68_2026':'paquet officiel préparé localement',
+            'cash_storage':'inchangé : monSaeivCashV123'
+          }
+          bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          sw=Path('sw.js'); s=sw.read_text(encoding='utf-8')
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-39';",s,count=1)
+          s=re.sub(r'1\.0\.\d+',VERSION,s)
+          sw.write_text(s,encoding='utf-8')
+          PY
+
+          node --check v139-fluo-published-data.js
+          grep -q "'67'" build_gtfs.py
+          grep -q "'68'" build_gtfs.py
+          grep -q "pickup_type" build_gtfs.py
+          grep -q "v139RuntimeFluoPublished" index.html
+          grep -q "monSaeivCashV123" index.html
+          ! grep -q "localStorage.clear" index.html
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add build_gtfs.py v139-fluo-published-data.js index.html manifest.webmanifest fluo_build.json sw.js
+          git commit -m 'Mon SAEIV 1.0.39: fiabilise les données Fluo 54 67 68'
+          git push
