@@ -1,4 +1,4 @@
-name: Inspect exact Fluo 54 renumbering
+name: Inspect official Fluo renumbering module
 
 on:
   push:
@@ -13,43 +13,36 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Read TC Infos new-line pages
+      - name: Read official Fluo renumbering page
         shell: bash
         run: |
           set -euo pipefail
+          curl -L --fail --retry 3 -A 'Mozilla/5.0' -o /tmp/fluo.html 'https://www.fluo.grandest.fr/nouveaux-numeros/'
           python - <<'PY'
-          import re, urllib.request
-          pages={
-            '455':'https://tc-infos.fr/reseau/983/ligne/38937',
-            '460':'https://tc-infos.fr/reseau/983/ligne/38938',
-            '461':'https://tc-infos.fr/reseau/983/ligne/38939',
-            '465':'https://tc-infos.fr/reseau/983/ligne/38961',
-            '466':'https://tc-infos.fr/reseau/983/ligne/38964',
-            '468':'https://tc-infos.fr/reseau/983/ligne/38969',
-            '469':'https://tc-infos.fr/reseau/983/ligne/39564',
-            '470':'https://tc-infos.fr/reseau/983/ligne/39567',
-            '471':'https://tc-infos.fr/reseau/983/ligne/39569',
-            '472':'https://tc-infos.fr/reseau/983/ligne/39570',
-            '480':'https://tc-infos.fr/reseau/983/ligne/39568',
-            '490':'https://tc-infos.fr/reseau/983/ligne/39563',
-            '495':'https://tc-infos.fr/reseau/983/ligne/39565',
-            '496':'https://tc-infos.fr/reseau/983/ligne/39566',
-          }
-          for new,url in pages.items():
-              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
-              try:
-                  html=urllib.request.urlopen(req,timeout=20).read().decode('utf-8','ignore')
-              except Exception as e:
-                  print('MAP',new,'ERROR',repr(e)); continue
-              text=re.sub(r'<script.*?</script>',' ',html,flags=re.I|re.S)
-              text=re.sub(r'<style.*?</style>',' ',text,flags=re.I|re.S)
-              text=re.sub(r'<[^>]+>',' ',text)
-              text=re.sub(r'\s+',' ',text)
-              m=re.search(r'(?:ancienne ligne|ligne est devenu(?:e)?(?: la)? ligne)\s*(R?\d+)',text,re.I)
-              # also print useful neighbourhood for manual validation
-              hits=[]
-              for pat in ('ancienne ligne','devenu','R060','R330','R340','R350','R360','R370','R380','R410','R570','R580','R650','R670','R710','R800'):
-                  i=text.lower().find(pat.lower())
-                  if i>=0: hits.append(text[max(0,i-100):i+180])
-              print('MAP',new,'=>',m.group(1).upper() if m else 'UNKNOWN','|',' || '.join(hits[:3]))
+          from pathlib import Path
+          import re, html
+          s=Path('/tmp/fluo.html').read_text(encoding='utf-8',errors='ignore')
+          print('HTML_BYTES',len(s))
+          print('R350_COUNT',s.upper().count('R350'))
+          # Print neighborhoods around the 54 regular old numbers.
+          for old in ['R060','R330','R340','R350','R360','R370','R380','R410','R570','R580','R650','R670','R710','R800']:
+              up=s.upper(); pos=0; found=0
+              while True:
+                  i=up.find(old,pos)
+                  if i<0: break
+                  found+=1
+                  snippet=s[max(0,i-500):i+800]
+                  snippet=re.sub(r'\s+',' ',html.unescape(snippet))
+                  print('OLD',old,'HIT',found,'|',snippet)
+                  pos=i+len(old)
+                  if found>=5: break
+          # Surface likely JSON / select / JS structures involving old/new numbers.
+          for pat in [r'R350.{0,500}465',r'465.{0,500}R350',r'R360.{0,500}468',r'468.{0,500}R360',r'R370.{0,500}466',r'466.{0,500}R370']:
+              for m in re.finditer(pat,s,re.I|re.S):
+                  snippet=re.sub(r'\s+',' ',html.unescape(m.group(0)))
+                  print('PAIR',pat,'|',snippet[:1200])
+          # List JS assets that may carry form population data.
+          for u in re.findall(r'<script[^>]+src=["\']([^"\']+)',s,re.I):
+              if any(k in u.lower() for k in ('form','gravity','fluo','numero','script','acf')):
+                  print('SCRIPT',u)
           PY
