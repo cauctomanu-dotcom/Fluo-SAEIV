@@ -1,10 +1,10 @@
 'use strict';
-/* Mon SAEIV 1.0.37 — Espace conducteur centralisé.
+/* Mon SAEIV 1.0.42 — Espace conducteur centralisé.
    Regroupe Journaux, statistiques, véhicule, contacts et fin de journée
    dans Mon profil, sans intervenir sur l'écran de connexion. */
 (()=>{
   if(window.MonSAEIVV137?.installed)return;
-  const VERSION='1.0.37';
+  const VERSION='1.0.42';
   const q=id=>document.getElementById(id);
   const ACCOUNT='fluoSaeivAccountV13';
   let installed=false;
@@ -91,5 +91,87 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
   window.MonSAEIVV137={installed:true,version:VERSION,openProfile:openHub,openSection};
-  console.info('[Mon SAEIV] 1.0.37 Espace conducteur centralisé actif');
+  console.info('[Mon SAEIV] 1.0.42 Espace conducteur centralisé actif');
+})();
+
+'use strict';
+/* Mon SAEIV 1.0.42 — fin automatique au terminus + enchaînement Ma journée.
+   L'arrivée au dernier arrêt déclenche la fin réelle du service après l'annonce voyageurs.
+   Si la course vient de « Ma journée », le planning existant est ensuite repris automatiquement :
+   prochaine course liée, haut-le-pied, ou retour au planning pour coupure/pause/fin de service. */
+(()=>{
+  if(window.MonSAEIVAutoDayFlow?.installed)return;
+  const q=id=>document.getElementById(id);
+  const PREPARED_KEY='fluo-v316-prepared-item';
+  let pending=false,sequence=0;
+
+  function terminusTarget(){
+    try{
+      if(!state?.running||!state?.pattern?.stops?.[state.target])return false;
+      return typeof nextOperationalStop==='function'&&nextOperationalStop(state.target)===null;
+    }catch{return false}
+  }
+
+  function stopAnnouncementBusy(){
+    try{
+      if(state?.audio?.current?.kind==='stop')return true;
+      return Array.isArray(state?.audio?.queue)&&state.audio.queue.some(x=>x?.kind==='stop');
+    }catch{return false}
+  }
+
+  function clickNextDayAction(token,attempt=0){
+    if(token!==sequence)return;
+    const panel=q('v316TodayPanel');
+    const active=panel?.querySelector('.v316-today-item.active:not(.done)');
+    if(!active){
+      if(attempt<16)setTimeout(()=>clickNextDayAction(token,attempt+1),100);
+      return;
+    }
+    const course=active.querySelector('[data-v316-prepare]');
+    if(course){course.click();return}
+    const hlpNext=active.querySelector('[data-v316-hlp-next]');
+    if(hlpNext){hlpNext.click();return}
+    const hlp=active.querySelector('[data-v316-hlp]');
+    if(hlp){hlp.click();return}
+  }
+
+  function finishAtTerminus(){
+    if(pending||!state?.running)return;
+    pending=true;
+    const token=++sequence,started=Date.now();
+    const fromDay=!!sessionStorage.getItem(PREPARED_KEY);
+    const complete=()=>{
+      if(token!==sequence){pending=false;return}
+      if(!state?.running){pending=false;return}
+      if(stopAnnouncementBusy()&&Date.now()-started<24000){setTimeout(complete,250);return}
+      const fin=q('finish');
+      if(fin){
+        fin.dataset.v142AutoTerminus='1';
+        fin.click();
+        setTimeout(()=>{try{delete fin.dataset.v142AutoTerminus}catch{}},0);
+      }else if(typeof finish==='function')finish();
+      pending=false;
+      if(fromDay)setTimeout(()=>clickNextDayAction(token),260);
+    };
+    setTimeout(complete,180);
+  }
+
+  function install(){
+    if(typeof announceArrival!=='function')return false;
+    const base=announceArrival;
+    announceArrival=function(...args){
+      const isTerminus=terminusTarget(),already=!!state?.arrivalAnnounced;
+      const out=base.apply(this,args);
+      if(isTerminus&&!already&&state?.arrivalAnnounced)finishAtTerminus();
+      return out;
+    };
+    return true;
+  }
+
+  if(!install()){
+    let tries=0;
+    const timer=setInterval(()=>{if(install()||++tries>40)clearInterval(timer)},100);
+  }
+  window.MonSAEIVAutoDayFlow={installed:true,version:'1.0.42',finishAtTerminus};
+  console.info('[Mon SAEIV] 1.0.42 fin automatique terminus + Ma journée active');
 })();
