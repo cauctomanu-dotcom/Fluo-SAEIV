@@ -1,0 +1,46 @@
+name: Inspect Fluo 54 mapping 2026
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/inspect-fluo54-mapping.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download current regional GTFS and inspect Fluo 54 routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 -o /tmp/fluo.zip 'https://transport.data.gouv.fr/resources/83635/download'
+          rm -rf /tmp/gtfs && mkdir -p /tmp/gtfs
+          unzip -q /tmp/fluo.zip -d /tmp/gtfs
+          python - <<'PY'
+          import csv, os, re
+          base='/tmp/gtfs'
+          def rows(name):
+              with open(os.path.join(base,name),encoding='utf-8-sig',newline='') as f:
+                  return list(csv.DictReader(f))
+          agencies=rows('agency.txt')
+          routes=rows('routes.txt')
+          print('=== AGENCIES MATCHING 54 ===')
+          for a in agencies:
+              txt=' '.join(str(v) for v in a.values())
+              if 'Fluo Grand Est 54' in txt or re.search(r'\b54\b',txt): print(a)
+          ids={a.get('agency_id','') for a in agencies if 'Fluo Grand Est 54' in ' '.join(str(v) for v in a.values())}
+          print('AGENCY_IDS',sorted(ids))
+          rr=[r for r in routes if r.get('agency_id') in ids]
+          print('ROUTE_COUNT',len(rr))
+          for r in sorted(rr,key=lambda x:(x.get('route_short_name',''),x.get('route_long_name',''))):
+              print('ROUTE',r.get('route_id'),'|',r.get('route_short_name'),'|',r.get('route_long_name'))
+          print('=== TARGET REGULARS ===')
+          targets=['R060','R330','R340','R350','R360','R370','R380','R410','R570','R580','R650','R670','R710','R800','455','460','461','465','466','468','469','470','471','472','480','490','495','496']
+          for t in targets:
+              hits=[r for r in rr if str(r.get('route_short_name','')).upper().replace('54','')==t.upper() or str(r.get('route_short_name','')).upper()==('54'+t).upper()]
+              for r in hits: print('TARGET',t,'=>',r.get('route_short_name'),'|',r.get('route_long_name'),'|',r.get('route_id'))
+          PY
