@@ -1,4 +1,4 @@
-name: Inspect official Fluo renumbering module
+name: Inspect official Fluo renumbering AJAX
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Read official Fluo renumbering page
+      - name: Extract Gravity Forms / GPPA parameters
         shell: bash
         run: |
           set -euo pipefail
@@ -23,26 +23,27 @@ jobs:
           import re, html
           s=Path('/tmp/fluo.html').read_text(encoding='utf-8',errors='ignore')
           print('HTML_BYTES',len(s))
-          print('R350_COUNT',s.upper().count('R350'))
-          # Print neighborhoods around the 54 regular old numbers.
-          for old in ['R060','R330','R340','R350','R360','R370','R380','R410','R570','R580','R650','R670','R710','R800']:
-              up=s.upper(); pos=0; found=0
-              while True:
-                  i=up.find(old,pos)
-                  if i<0: break
-                  found+=1
-                  snippet=s[max(0,i-500):i+800]
-                  snippet=re.sub(r'\s+',' ',html.unescape(snippet))
-                  print('OLD',old,'HIT',found,'|',snippet)
-                  pos=i+len(old)
-                  if found>=5: break
-          # Surface likely JSON / select / JS structures involving old/new numbers.
-          for pat in [r'R350.{0,500}465',r'465.{0,500}R350',r'R360.{0,500}468',r'468.{0,500}R360',r'R370.{0,500}466',r'466.{0,500}R370']:
-              for m in re.finditer(pat,s,re.I|re.S):
-                  snippet=re.sub(r'\s+',' ',html.unescape(m.group(0)))
-                  print('PAIR',pat,'|',snippet[:1200])
-          # List JS assets that may carry form population data.
-          for u in re.findall(r'<script[^>]+src=["\']([^"\']+)',s,re.I):
-              if any(k in u.lower() for k in ('form','gravity','fluo','numero','script','acf')):
-                  print('SCRIPT',u)
+          patterns=[
+            r'<form[^>]+id=["\']gform_[^>]+>',
+            r'gform_wrapper[_-]?\d+', r'gform_\d+', r'field_\d+_\d+',
+            r'gppa[^\n<]{0,3000}', r'populate[^\n<]{0,3000}',
+            r'gp_populate_anything[^\n<]{0,3000}', r'GPPA[^\n<]{0,3000}',
+            r'ajaxurl[^\n<]{0,1000}', r'admin-ajax\.php[^\n<]{0,1000}',
+          ]
+          seen=set()
+          for pat in patterns:
+            print('=== PATTERN',pat,'===')
+            for m in re.finditer(pat,s,re.I|re.S):
+              a=max(0,m.start()-800); b=min(len(s),m.end()+1800)
+              out=re.sub(r'\s+',' ',html.unescape(s[a:b]))
+              if out in seen: continue
+              seen.add(out)
+              print(out[:5000])
+              if len(seen)>40: break
+          # Inline scripts are especially useful for GPPA configuration.
+          for block in re.findall(r'<script[^>]*>(.*?)</script>',s,re.I|re.S):
+            low=block.lower()
+            if any(k in low for k in ('gppa','populate anything','gform.initialize','gform.initializeonloaded')):
+              print('=== INLINE ===')
+              print(re.sub(r'\s+',' ',html.unescape(block))[:15000])
           PY
