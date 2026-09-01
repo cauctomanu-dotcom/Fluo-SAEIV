@@ -1,0 +1,41 @@
+name: Mon SAEIV 1.0.39 final cleanup
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/v139-clean-index.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Remove obsolete duplicate runtime reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          t=p.read_text(encoding='utf-8')
+          old='<script id="v139RuntimeFluoPublished" src="./v139-fluo-published-data.js?v=1.0.39"></script>\n'
+          if old in t:
+              t=t.replace(old,'')
+          if 'monSaeivCashV123' not in t:
+              raise SystemExit('cash storage guard missing')
+          if 'localStorage.clear' in t:
+              raise SystemExit('unsafe localStorage.clear found')
+          p.write_text(t,encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git rm .github/workflows/v139-clean-index.yml
+          git commit -m 'Mon SAEIV 1.0.39: nettoie le chargement Fluo final'
+          git push
