@@ -13,38 +13,30 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect official numbering page assets and form payload
+      - name: Inspect GP Populate Anything API
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import requests,re,html,json
+          import requests,re,html
           from urllib.parse import urljoin
           s=requests.Session();s.headers['User-Agent']='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36'
-          url='https://www.fluo.grandest.fr/nouveaux-numeros/'
-          r=s.get(url,timeout=40);print('PAGE',r.status_code,len(r.text),r.url)
-          text=r.text
-          keys=['54R350','54R360','R350','R360','465','468','gform','gravity','wp-json','admin-ajax','formidable','acf','nouveau','numero','numéro']
-          for k in keys:
-              hits=list(re.finditer(re.escape(k),text,re.I))
-              if hits:
-                  print('\nPAGE_KEY',k,'COUNT',len(hits))
-                  for m in hits[:5]:print(text[max(0,m.start()-450):m.end()+700].replace('\n',' ')[:1400])
-          print('\n=== SCRIPTS ===')
-          scripts=re.findall(r'<script[^>]+src=["\']([^"\']+)',text,re.I)
-          for src in scripts: print(urljoin(url,html.unescape(src)))
+          page=s.get('https://www.fluo.grandest.fr/nouveaux-numeros/',timeout=40).text
+          print('PAGE_LEN',len(page))
+          # Print the complete inline GPPA configuration for form 39.
+          for pat in [r'var GPPA_FILTER_FIELD_MAP_39\s*=.*?;',r'var GPPA_FORM_39\s*=.*?;',r'var GPPA\s*=.*?;']:
+              m=re.search(pat,page,re.S)
+              print('CONFIG',m.group(0)[:12000] if m else 'NOT_FOUND')
+          scripts=re.findall(r'<script[^>]+src=["\']([^"\']+)',page,re.I)
+          target=None
           for src in scripts:
-              u=urljoin(url,html.unescape(src))
-              try: rr=s.get(u,timeout=30);tx=rr.text
-              except Exception as e: print('ERR',u,e);continue
-              hits=[k for k in keys if k.lower() in tx.lower()]
-              if hits:
-                  print('\nSCRIPT_MATCH',u,'STATUS',rr.status_code,'LEN',len(tx),'KEYS',hits)
-                  for k in hits:
-                      for m in list(re.finditer(re.escape(k),tx,re.I))[:3]:print('CTX',k,tx[max(0,m.start()-400):m.end()+800].replace('\n',' ')[:1500])
-          print('\n=== FORMS ===')
-          for m in re.finditer(r'<form\b.*?</form>',text,re.I|re.S):
-              f=m.group(0)
-              if any(k.lower() in f.lower() for k in ['nouveau','ligne','numero','numéro']):
-                  print(f[:25000].replace('\n',' '))
+              if 'gppopulateanything' in src.lower(): target=urljoin('https://www.fluo.grandest.fr/nouveaux-numeros/',html.unescape(src));break
+          print('PLUGIN',target)
+          js=s.get(target,timeout=40).text
+          print('PLUGIN_LEN',len(js))
+          print('GPPA_LITERALS',sorted(set(re.findall(r'[A-Za-z0-9_-]*gppa[A-Za-z0-9_-]*',js,re.I))))
+          for needle in ['AJAXURL','security','field-values','action:',"action=",'batch','populate']:
+              print('\n===',needle,'===')
+              for m in list(re.finditer(re.escape(needle),js,re.I))[:20]:
+                  print(js[max(0,m.start()-900):min(len(js),m.end()+1500)].replace('\n',' ')[:2500])
           PY
