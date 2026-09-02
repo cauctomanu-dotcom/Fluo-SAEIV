@@ -4,7 +4,7 @@
    dans Mon profil, sans intervenir sur l'écran de connexion. */
 (()=>{
   if(window.MonSAEIVV137?.installed)return;
-  const VERSION='1.0.42';
+  const VERSION='1.0.43';
   const q=id=>document.getElementById(id);
   const ACCOUNT='fluoSaeivAccountV13';
   let installed=false;
@@ -91,7 +91,7 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
   window.MonSAEIVV137={installed:true,version:VERSION,openProfile:openHub,openSection};
-  console.info('[Mon SAEIV] 1.0.42 Espace conducteur centralisé actif');
+  console.info('[Mon SAEIV] 1.0.43 Espace conducteur centralisé actif');
 })();
 
 'use strict';
@@ -174,4 +174,16 @@
   }
   window.MonSAEIVAutoDayFlow={installed:true,version:'1.0.42',finishAtTerminus};
   console.info('[Mon SAEIV] 1.0.42 fin automatique terminus + Ma journée active');
+})();
+
+
+'use strict';
+/* Mon SAEIV 1.0.43 — chargement du pilote automatique Ma journée. */
+(()=>{
+  if(document.getElementById('v143RuntimeDayAutopilot'))return;
+  const s=document.createElement('script');
+  s.id='v143RuntimeDayAutopilot';
+  s.src='./v143-day-autopilot.js?v=1.0.43';
+  s.async=false;
+  document.head.appendChild(s);
 })();
