@@ -1,4 +1,4 @@
-# Déploiement Mon SAEIV 1.0.50 — runtime complet conducteur
+# Déploiement Mon SAEIV 1.0.51 — runtime complet conducteur
 name: Build and deploy Fluo SAEIV
 
 on:
@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Assemble Mon SAEIV 1.0.50
+      - name: Assemble Mon SAEIV 1.0.51
         shell: bash
         run: |
           set -euo pipefail
@@ -59,7 +59,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import json,re
-          VERSION='1.0.50'
+          VERSION='1.0.51'
 
           # Garde-fou historique du menu conducteur.
           op=Path('site/v136-driver-operations.js')
@@ -69,7 +69,28 @@ jobs:
               x=x.replace("new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true,subtree:true})","new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true})")
               op.write_text(x,encoding='utf-8')
 
+          # Le nouveau hub conducteur renomme l'ancien bouton v133ProfileBtn en v137ProfileBtn.
+          # L'ancien module ne doit surtout pas recréer ensuite un deuxième « Mon profil ».
+          prof=Path('site/v133-profile-journals.js')
+          if prof.exists():
+              x=prof.read_text(encoding='utf-8')
+              x=x.replace("let b=q('v133ProfileBtn');","let b=q('v133ProfileBtn')||q('v137ProfileBtn');")
+              prof.write_text(x,encoding='utf-8')
+
           p=Path('site/index.html'); t=p.read_text(encoding='utf-8')
+
+          # Safari/iOS : l'ancien générateur V23 contenait des balises <script> littérales
+          # à l'intérieur d'un template JS lui-même placé dans un <script>. Le parseur HTML
+          # pouvait fermer le script externe trop tôt et afficher la fin du JavaScript en texte.
+          # On coupe le mot « script » dans le SOURCE ; le rapport généré reste strictement identique.
+          a=t.find('  function reportHtml23(s,ev){')
+          b=t.find('  async function downloadReport23',a)
+          if a!=-1 and b!=-1:
+              frag=t[a:b]
+              frag=frag.replace('<script',"<scr${''}ipt")
+              frag=frag.replace('<\\/script>',"<\\/scr${''}ipt>")
+              t=t[:a]+frag+t[b:]
+
           # Une seule couche de numérotation officielle.
           t=re.sub(r'<script[^>]+id=["\']v1(?:39|40)RuntimeStaticFluo["\'][^>]*></script>\s*','',t)
           modules=(
@@ -108,7 +129,7 @@ jobs:
 
           # Service worker : cache neuf + tous les runtimes métier récents.
           sw=Path('site/sw.js'); s=sw.read_text(encoding='utf-8')
-          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-50';",s,count=1)
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-51';",s,count=1)
           core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
           s=re.sub(r"const CORE=\[[^\n]+\];",core,s,count=1)
           s=re.sub(r'1\.0\.\d+',VERSION,s)
@@ -118,7 +139,7 @@ jobs:
 
           mp=Path('site/manifest.webmanifest')
           m=json.loads(mp.read_text(encoding='utf-8'))
-          m['name']='Mon SAEIV 1.0.50';m['start_url']='./?v=1.0.50';m['orientation']='any'
+          m['name']='Mon SAEIV 1.0.51';m['start_url']='./?v=1.0.51';m['orientation']='any'
           m['description']='Mon SAEIV — SAEIV conducteur multiréseaux avec GPS, annonces prioritaires, Ma journée continue, TAD, haut-le-pied guidé et journaux détaillant arrivée, départ et régulation.'
           mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 
@@ -129,7 +150,7 @@ jobs:
               bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           PY
 
-      - name: Validate runtime 1.0.50
+      - name: Validate runtime 1.0.51
         shell: bash
         run: |
           set -euo pipefail
@@ -144,7 +165,7 @@ jobs:
           grep -q 'v144RuntimeDayAutopilotDirect' site/index.html
           grep -q 'v148RuntimeContinuousDay' site/index.html
           grep -q 'v150RuntimeJournalRegulation' site/index.html
-          grep -q 'mon-saeiv-v1-0-50' site/sw.js
+          grep -q 'mon-saeiv-v1-0-51' site/sw.js
           grep -q 'v148-continuous-day.js' site/sw.js
           grep -q 'v150-journal-regulation.js' site/sw.js
           grep -q 'fluo-numbering-2026.json' site/sw.js
@@ -152,6 +173,18 @@ jobs:
           ! grep -q 'localStorage.clear' site/index.html
           python - <<'PY'
           import json
+          from pathlib import Path
+
+          t=Path('site/index.html').read_text(encoding='utf-8')
+          a=t.find('  function reportHtml23(s,ev){')
+          b=t.find('  async function downloadReport23',a)
+          assert a!=-1 and b!=-1
+          frag=t[a:b]
+          assert '<script' not in frag, 'V23 contient encore une balise <script> littérale dangereuse pour Safari'
+
+          prof=Path('site/v133-profile-journals.js').read_text(encoding='utf-8')
+          assert "let b=q('v133ProfileBtn')||q('v137ProfileBtn');" in prof
+
           m=json.load(open('site/fluo-numbering-2026.json',encoding='utf-8'))
           assert m['departments']['54']['54R060']['new']=='455'
           assert m['departments']['54']['54R350']['new']=='465'
@@ -162,7 +195,7 @@ jobs:
           assert m['departments']['68']['R040']['new']=='840'
           assert len(m['departments']['68'])==365
           assert len(m['departments']['67'])==0
-          print('Runtime 1.0.50, journaux régulation et mapping officiel validés.')
+          print('Runtime 1.0.51, correctif Safari V23, profil unique et mapping officiel validés.')
           PY
 
       - name: Download and prepare official Fluo GTFS 54 57 67 68
