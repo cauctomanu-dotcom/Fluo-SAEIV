@@ -1,4 +1,4 @@
-# Déploiement Mon SAEIV 1.0.48 — runtime complet conducteur
+# Déploiement Mon SAEIV 1.0.50 — runtime complet conducteur
 name: Build and deploy Fluo SAEIV
 
 on:
@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Assemble Mon SAEIV 1.0.48
+      - name: Assemble Mon SAEIV 1.0.50
         shell: bash
         run: |
           set -euo pipefail
@@ -52,20 +52,20 @@ jobs:
             v136-driver-operations.js v137-driver-hub.js \
             v141-static-fluo.js \
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
-            v147-flow-journals-fix.js v148-continuous-day.js; do
+            v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js; do
             [ -f "$f" ] && cp "$f" "site/$f"
           done
 
           python - <<'PY'
           from pathlib import Path
           import json,re
-          VERSION='1.0.48'
+          VERSION='1.0.50'
 
           # Garde-fou historique du menu conducteur.
           op=Path('site/v136-driver-operations.js')
           if op.exists():
               x=op.read_text(encoding='utf-8')
-              x=x.replace("const old=q('v133ProfileBtn');if(old){old.textContent='👤 Mon profil';old.classList.add('v316-menu-entry')}","const old=q('v133ProfileBtn');if(old){if(old.textContent!=='👤 Mon profil')old.textContent='👤 Mon profil';old.classList.add('v316-menu-entry')}")
+              x=x.replace("const old=q('v133ProfileBtn');if(old){old.textContent='👤 Mon profil';old.classList.add('v316-menu-entry')}","const old=q('v133ProfileBtn');if(old){if(old.textContent!='👤 Mon profil')old.textContent='👤 Mon profil';old.classList.add('v316-menu-entry')}")
               x=x.replace("new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true,subtree:true})","new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true})")
               op.write_text(x,encoding='utf-8')
 
@@ -76,7 +76,7 @@ jobs:
             'v130-session-orientation','v131-speech','v132-journals','v133-profile-journals',
             'v134-journal-front','v135-journal-router','v136-driver-operations','v137-driver-hub',
             'v141-static-fluo','v144-day-hlp-driver','v145-planning-tad','v146-planning-tad-bridge',
-            'v147-flow-journals-fix','v148-continuous-day'
+            'v147-flow-journals-fix','v148-continuous-day','v150-journal-regulation'
           )
           for mod in modules:
               t=re.sub(rf'\./{re.escape(mod)}\.js\?v=1\.0\.\d+',f'./{mod}.js?v={VERSION}',t)
@@ -94,6 +94,7 @@ jobs:
             ('v146RuntimePlanningTadBridge','v146-planning-tad-bridge.js'),
             ('v147RuntimeFlowJournals','v147-flow-journals-fix.js'),
             ('v148RuntimeContinuousDay','v148-continuous-day.js'),
+            ('v150RuntimeJournalRegulation','v150-journal-regulation.js'),
           ]
           for ident,src in injections:
               if ident not in t:
@@ -105,10 +106,10 @@ jobs:
           t=re.sub(r"const APP_VERSION = '1\.0\.\d+';",f"const APP_VERSION = '{VERSION}';",t)
           p.write_text(t,encoding='utf-8')
 
-          # Service worker : cache 1.0.48 + tous les runtimes métier récents.
+          # Service worker : cache neuf + tous les runtimes métier récents.
           sw=Path('site/sw.js'); s=sw.read_text(encoding='utf-8')
-          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-48';",s,count=1)
-          core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-50';",s,count=1)
+          core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
           s=re.sub(r"const CORE=\[[^\n]+\];",core,s,count=1)
           s=re.sub(r'1\.0\.\d+',VERSION,s)
           s=s.replace('v140RuntimeStaticFluo','v141RuntimeStaticFluo').replace('v140-static-fluo.js','v141-static-fluo.js')
@@ -117,8 +118,8 @@ jobs:
 
           mp=Path('site/manifest.webmanifest')
           m=json.loads(mp.read_text(encoding='utf-8'))
-          m['name']='Mon SAEIV 1.0.48';m['start_url']='./?v=1.0.48';m['orientation']='any'
-          m['description']='Mon SAEIV — SAEIV conducteur multiréseaux avec GPS, annonces prioritaires sans doublon, Ma journée continue, TAD, haut-le-pied guidé, journaux, comptage et caisse.'
+          m['name']='Mon SAEIV 1.0.50';m['start_url']='./?v=1.0.50';m['orientation']='any'
+          m['description']='Mon SAEIV — SAEIV conducteur multiréseaux avec GPS, annonces prioritaires, Ma journée continue, TAD, haut-le-pied guidé et journaux détaillant arrivée, départ et régulation.'
           mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 
           bp=Path('site/fluo_build.json')
@@ -128,7 +129,7 @@ jobs:
               bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           PY
 
-      - name: Validate runtime 1.0.48
+      - name: Validate runtime 1.0.50
         shell: bash
         run: |
           set -euo pipefail
@@ -136,14 +137,16 @@ jobs:
             v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js \
             v135-journal-router.js v136-driver-operations.js v137-driver-hub.js v141-static-fluo.js \
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
-            v147-flow-journals-fix.js v148-continuous-day.js sw.js; do
+            v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js sw.js; do
             node --check "site/$f"
           done
           grep -q 'v141RuntimeStaticFluo' site/index.html
           grep -q 'v144RuntimeDayAutopilotDirect' site/index.html
           grep -q 'v148RuntimeContinuousDay' site/index.html
-          grep -q 'mon-saeiv-v1-0-48' site/sw.js
+          grep -q 'v150RuntimeJournalRegulation' site/index.html
+          grep -q 'mon-saeiv-v1-0-50' site/sw.js
           grep -q 'v148-continuous-day.js' site/sw.js
+          grep -q 'v150-journal-regulation.js' site/sw.js
           grep -q 'fluo-numbering-2026.json' site/sw.js
           grep -q 'monSaeivCashV123' site/index.html
           ! grep -q 'localStorage.clear' site/index.html
@@ -159,7 +162,7 @@ jobs:
           assert m['departments']['68']['R040']['new']=='840'
           assert len(m['departments']['68'])==365
           assert len(m['departments']['67'])==0
-          print('Runtime 1.0.48 et mapping officiel validés.')
+          print('Runtime 1.0.50, journaux régulation et mapping officiel validés.')
           PY
 
       - name: Download and prepare official Fluo GTFS 54 57 67 68
