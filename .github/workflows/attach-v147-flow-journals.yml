@@ -1,0 +1,29 @@
+name: Attach Mon SAEIV 1.0.47 runtime
+on:
+  push:
+    paths:
+      - '.github/workflows/attach-v147-flow-journals.yml'
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Attach runtime and validate
+        run: |
+          if ! grep -q "v147RuntimeFlowJournals" v137-driver-hub.js; then
+            printf '\n\n\x27use strict\x27;\n/* Mon SAEIV 1.0.47 — charge le correctif Ma journée + Journaux. */\n(()=>{\n  if(document.getElementById(\x27v147RuntimeFlowJournals\x27))return;\n  const s=document.createElement(\x27script\x27);\n  s.id=\x27v147RuntimeFlowJournals\x27;\n  s.async=false;\n  s.src=\x27./v147-flow-journals-fix.js?v=1.0.47\x27;\n  document.head.appendChild(s);\n})();\n' >> v137-driver-hub.js
+          fi
+          node --check v147-flow-journals-fix.js
+          node --check v137-driver-hub.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add v137-driver-hub.js
+          git diff --cached --quiet || git commit -m "Mon SAEIV 1.0.47: charge flow et journaux"
+          git push
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/attach-v147-flow-journals.yml
+          git commit -m "Cleanup temporary 1.0.47 workflow"
+          git push
