@@ -1,11 +1,11 @@
 {
-  "name": "Mon SAEIV 1.0.40",
+  "name": "Mon SAEIV 1.0.43",
   "short_name": "Mon SAEIV",
-  "start_url": "./?v=1.0.40",
+  "start_url": "./?v=1.0.43",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
   "lang": "fr",
-  "description": "Mon SAEIV — données Fluo 54/67/68 préconstruites côté serveur, GPS, annonces, journaux, planning et caisse locale préservée."
+  "description": "Mon SAEIV — GPS, annonces, régulation, journaux, planning Ma journée, haut-le-pied, comptage et caisse conducteur."
 }
