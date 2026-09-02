@@ -4,7 +4,7 @@
    dans Mon profil, sans intervenir sur l'écran de connexion. */
 (()=>{
   if(window.MonSAEIVV137?.installed)return;
-  const VERSION='1.0.44';
+  const VERSION='1.0.46';
   const q=id=>document.getElementById(id);
   const ACCOUNT='fluoSaeivAccountV13';
   let installed=false;
@@ -185,5 +185,17 @@
   s.id='v144RuntimeDayAutopilot';
   s.src='./v144-day-hlp-driver.js?v=1.0.44';
   s.async=false;
+  document.head.appendChild(s);
+})();
+
+
+'use strict';
+/* Mon SAEIV 1.0.46 — charge le pont TAD planning même avec un ancien index PWA. */
+(()=>{
+  if(document.getElementById('v146RuntimePlanningTadBridge'))return;
+  const s=document.createElement('script');
+  s.id='v146RuntimePlanningTadBridge';
+  s.async=false;
+  s.src='./v146-planning-tad-bridge.js?v=1.0.46';
   document.head.appendChild(s);
 })();
