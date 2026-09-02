@@ -199,3 +199,15 @@
   s.src='./v146-planning-tad-bridge.js?v=1.0.46';
   document.head.appendChild(s);
 })();
+
+
+'use strict';
+/* Mon SAEIV 1.0.47 — charge le correctif Ma journée + Journaux. */
+(()=>{
+  if(document.getElementById('v147RuntimeFlowJournals'))return;
+  const s=document.createElement('script');
+  s.id='v147RuntimeFlowJournals';
+  s.async=false;
+  s.src='./v147-flow-journals-fix.js?v=1.0.47';
+  document.head.appendChild(s);
+})();
