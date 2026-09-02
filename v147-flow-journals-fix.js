@@ -125,7 +125,7 @@
   }
   function installJournalFlow(){ensureJournalUi();hookJournalMenu();const menu=q('v316MenuItems');if(menu)new MutationObserver(()=>hookJournalMenu()).observe(menu,{childList:true,subtree:false});document.addEventListener('click',e=>{const o=e.target.closest?.('[data-v147-open]');if(o){e.preventDefault();openJournal(o.dataset.v147Open);return}const d=e.target.closest?.('[data-v147-delete]');if(d){e.preventDefault();requestDelete(d.dataset.v147Delete);return}const x=e.target.closest?.('[data-v147-export]');if(x){e.preventDefault();exportJournal(x.dataset.v147Export)}},true)}
 
-  function versionUi(){document.title='Mon SAEIV · 1.0.47';const b=q('buildInfo');if(b)b.textContent='Version 1.0.47';const v=q('v137Identity')?.querySelector('.v137-version');if(v)v.textContent='Version 1.0.47'}
-  function install(){installStyle();installDayFlow();installJournalFlow();versionUi();setTimeout(versionUi,700);window.MonSAEIVFlowJournalsV147={installed:true,version:'1.0.47',openJournals:renderJournals};console.info('[Mon SAEIV] 1.0.47 enchaînement Ma journée + journaux corrigés')}
+  function versionUi(){document.title='Mon SAEIV · 1.0.48';const b=q('buildInfo');if(b)b.textContent='Version 1.0.48';const v=q('v137Identity')?.querySelector('.v137-version');if(v)v.textContent='Version 1.0.48'}
+  function install(){installStyle();installJournalFlow();versionUi();setTimeout(versionUi,700);window.MonSAEIVFlowJournalsV147={installed:true,version:'1.0.47',openJournals:renderJournals};console.info('[Mon SAEIV] 1.0.47 enchaînement Ma journée + journaux corrigés')}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();

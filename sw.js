@@ -1,5 +1,5 @@
-const C='mon-saeiv-v1-0-40';
-const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js'];
+const C='mon-saeiv-v1-0-48';
+const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v144-day-hlp-driver.js','v147-flow-journals-fix.js','v148-continuous-day.js'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(C).catch(()=>{})))});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('mon-saeiv-v1-')&&k!==C).map(k=>caches.delete(k)));await self.clients.claim()})()));
 function patchIndex(t){
@@ -26,6 +26,8 @@ function patchIndex(t){
   if(!t.includes('id=\"v132RuntimeJournals\"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id=\"v132RuntimeJournals\" src=\"./v132-journals.js?v=1.0.40\"><\/script><\/body><\/html>`);
   if(!t.includes('id="v133RuntimeProfileJournals"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id="v133RuntimeProfileJournals" src="./v133-profile-journals.js?v=1.0.40"><\/script><\/body><\/html>`);
   if(!t.includes('id="v137RuntimeDriverHub"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id="v137RuntimeDriverHub" src="./v137-driver-hub.js?v=1.0.40"><\/script><\/body><\/html>`);
+  if(!t.includes('id="v144RuntimeDayAutopilotDirect"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id="v144RuntimeDayAutopilotDirect" src="./v144-day-hlp-driver.js?v=1.0.48"><\/script><\/body><\/html>`);
+  if(!t.includes('id="v148RuntimeContinuousDay"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id="v148RuntimeContinuousDay" src="./v148-continuous-day.js?v=1.0.48"><\/script><\/body><\/html>`);
   return t;
 }
 async function appResponse(req){const cache=await caches.open(C);let r;try{r=await fetch(req,{cache:'no-store'});if(r.ok)cache.put(req,r.clone()).catch(()=>{})}catch{}if(!r)r=await cache.match(req)||await cache.match('index.html');if(!r)return new Response('Mon SAEIV indisponible',{status:503});const text=patchIndex(await r.text());return new Response(text,{status:r.status,headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-cache'}})}

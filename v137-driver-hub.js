@@ -4,7 +4,7 @@
    dans Mon profil, sans intervenir sur l'écran de connexion. */
 (()=>{
   if(window.MonSAEIVV137?.installed)return;
-  const VERSION='1.0.46';
+  const VERSION='1.0.48';
   const q=id=>document.getElementById(id);
   const ACCOUNT='fluoSaeivAccountV13';
   let installed=false;
@@ -151,7 +151,7 @@
         setTimeout(()=>{try{delete fin.dataset.v142AutoTerminus}catch{}},0);
       }else if(typeof finish==='function')finish();
       pending=false;
-      if(fromDay)setTimeout(()=>clickNextDayAction(token),260);
+      if(fromDay&&!window.MonSAEIVFlowV148?.installed)setTimeout(()=>clickNextDayAction(token),260);
     };
     setTimeout(complete,180);
   }
@@ -211,3 +211,8 @@
   s.src='./v147-flow-journals-fix.js?v=1.0.47';
   document.head.appendChild(s);
 })();
+
+
+'use strict';
+/* Mon SAEIV 1.0.48 — charge le fil continu de la journée. */
+(()=>{if(document.getElementById('v148RuntimeContinuousDay'))return;const s=document.createElement('script');s.id='v148RuntimeContinuousDay';s.async=false;s.src='./v148-continuous-day.js?v=1.0.48';document.head.appendChild(s)})();
