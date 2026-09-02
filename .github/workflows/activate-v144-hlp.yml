@@ -1,0 +1,44 @@
+name: Activate Mon SAEIV 1.0.44 HLP
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate HLP runtime
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('v137-driver-hub.js')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace("const VERSION='1.0.43';","const VERSION='1.0.44';",1)
+          s=s.replace("console.info('[Mon SAEIV] 1.0.43 Espace conducteur centralisé actif');","console.info('[Mon SAEIV] 1.0.44 Espace conducteur centralisé actif');",1)
+          s=s.replace('/* Mon SAEIV 1.0.43 — chargement du pilote automatique Ma journée. */','/* Mon SAEIV 1.0.44 — chargement du pilote Ma journée + HLP complet. */')
+          s=s.replace("if(document.getElementById('v143RuntimeDayAutopilot'))return;","if(document.getElementById('v144RuntimeDayAutopilot'))return;")
+          s=s.replace("s.id='v143RuntimeDayAutopilot';","s.id='v144RuntimeDayAutopilot';")
+          s=s.replace("s.src='./v143-day-autopilot.js?v=1.0.43';","s.src='./v144-day-hlp-driver.js?v=1.0.44';")
+          p.write_text(s,encoding='utf-8')
+          PY
+          node --check v137-driver-hub.js
+          node --check v144-day-hlp-driver.js
+          git diff --check
+      - name: Commit runtime and remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/activate-v144-hlp.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add v137-driver-hub.js .github/workflows/activate-v144-hlp.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Mon SAEIV 1.0.44: activate full HLP navigation"
+          git push
