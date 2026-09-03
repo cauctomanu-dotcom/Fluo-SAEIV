@@ -6401,7 +6401,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     q('v316StartDay').disabled=!xs.length||!nextPending(date);q('v316StartDay').textContent=p.activeId?'▶ REPRENDRE MA JOURNÉE':'▶ LANCER MA JOURNÉE';saveProgressSilent();
   }
   function saveProgressSilent(){try{localStorage.setItem(PROGRESS_KEY,JSON.stringify(progress))}catch{}}
-  function setDone(id){const date=today(),p=dayProgress(date);p.done[id]=true;if(p.activeId===id)p.activeId=null;const n=nextPending(date);p.activeId=n?.id||null;saveProgress();return n}
+  function setDone(id){const date=today(),p=dayProgress(date);p.done[id]=true;if(p.activeId===id)p.activeId=null;const n=nextPending(date);p.activeId=n?.id||null;saveProgress();try{window.dispatchEvent(new CustomEvent('mon-saeiv-planning-progress',{detail:{completedId:String(id),nextId:n?.id||null,date}}))}catch{}return n}
   q('v316StartDay')?.addEventListener('click',async()=>{const date=today(),p=dayProgress(date),n=nextPending(date);if(!n)return;p.activeId=n.id;saveProgress();if(n.linked)await prepareLinkedCourse(n);else if(n.type==='hlp')await openHlpPreview(n)});
   q('v316TodayList')?.addEventListener('click',async e=>{const prep=e.target.closest('[data-v316-prepare]'),done=e.target.closest('[data-v316-done]'),hlpNext=e.target.closest('[data-v316-hlp-next]'),hlp=e.target.closest('[data-v316-hlp]');if(done)return void setDone(done.dataset.v316Done);if(prep){const x=plan.items.find(z=>z.id===prep.dataset.v316Prepare);if(x){progress.activeId=x.id;saveProgressSilent();await prepareLinkedCourse(x)}return}if(hlpNext){const xs=itemsFor(today()),i=xs.findIndex(x=>x.id===hlpNext.dataset.v316HlpNext),x=xs[i],next=xs.slice(i+1).find(z=>z.linked);if(x&&next)await prepareHlpToNext(x,next);return}if(hlp){const x=plan.items.find(z=>z.id===hlp.dataset.v316Hlp);if(x)await openHlpPreview(x)}});
 
@@ -6424,7 +6424,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   q('v316HlpClose')?.addEventListener('click',()=>q('v316HlpPreview').classList.add('hidden'));q('v316HlpPreview')?.addEventListener('click',e=>{if(e.target===q('v316HlpPreview'))q('v316HlpPreview').classList.add('hidden')});
 
   // Une course préparée via « Ma journée » est marquée terminée quand le conducteur termine réellement le service.
-  q('finish')?.addEventListener('click',()=>{const id=sessionStorage.getItem('fluo-v316-prepared-item');if(!id)return;sessionStorage.removeItem('fluo-v316-prepared-item');setTimeout(()=>{setDone(id);setDayMode(true)},80)});
+  q('finish')?.addEventListener('click',()=>{const id=sessionStorage.getItem('fluo-v316-prepared-item');if(!id)return;sessionStorage.removeItem('fluo-v316-prepared-item');setDone(id);setDayMode(true)});
 
   function renderAll(){if(!q('v316Planner')?.classList.contains('hidden'))renderPlanner();renderToday()}
 
@@ -6441,7 +6441,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   setTimeout(populateMenu,150);setTimeout(populateMenu,700);
   renderToday();
   document.title='Mon SAEIV · 1.0.32';const eyebrow=document.querySelector('.top .eyebrow');if(eyebrow)eyebrow.textContent='MON SAEIV · 1.0.22';
-  window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse};
+  window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse,markDone:setDone,renderToday,openToday:()=>setDayMode(true)};
 })();
 </script>
 

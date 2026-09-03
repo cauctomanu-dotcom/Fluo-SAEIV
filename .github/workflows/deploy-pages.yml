@@ -1,4 +1,4 @@
-# Déploiement Mon SAEIV 1.0.55 — durées métier + taux de coupure
+# Déploiement Mon SAEIV 1.0.56 — enchaînement complet de Ma journée
 name: Build and deploy Fluo SAEIV
 
 on:
@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Assemble Mon SAEIV 1.0.55
+      - name: Assemble Mon SAEIV 1.0.56
         shell: bash
         run: |
           set -euo pipefail
@@ -55,7 +55,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import json,re
-          VERSION='1.0.55'
+          VERSION='1.0.56'
 
           op=Path('site/v136-driver-operations.js')
           if op.exists():
@@ -143,7 +143,7 @@ jobs:
               gps.write_text(g,encoding='utf-8')
 
           sw=Path('site/sw.js'); s=sw.read_text(encoding='utf-8')
-          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-55';",s,count=1)
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-56';",s,count=1)
           core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','v154-planning-service-times.js','v155-planning-cut-percent.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
           s=re.sub(r"const CORE=\[[^\n]+\];",core,s,count=1)
           s=re.sub(r'1\.0\.\d+',VERSION,s)
@@ -153,7 +153,7 @@ jobs:
 
           mp=Path('site/manifest.webmanifest')
           m=json.loads(mp.read_text(encoding='utf-8'))
-          m['name']='Mon SAEIV 1.0.55';m['start_url']='./?v=1.0.55';m['orientation']='any'
+          m['name']='Mon SAEIV 1.0.56';m['start_url']='./?v=1.0.56';m['orientation']='any'
           m['description']='Mon SAEIV — cockpit conducteur unifié, Ma journée événementielle, planning métier avec coupures pondérées, HLP guidé, TAD, GPS visuel fluide et journaux détaillés.'
           mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 
@@ -164,7 +164,7 @@ jobs:
               bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           PY
 
-      - name: Validate runtime 1.0.55
+      - name: Validate runtime 1.0.56
         shell: bash
         run: |
           set -euo pipefail
@@ -176,7 +176,7 @@ jobs:
             v154-planning-service-times.js v155-planning-cut-percent.js sw.js; do
             node --check "site/$f"
           done
-          grep -q '1.0.53 UX + machine Ma journée active' site/v148-continuous-day.js
+          grep -q '1.0.56 Ma journée dédiée et enchaînement événementiel actifs' site/v148-continuous-day.js
           grep -q 'Prise de service : 10 minutes' site/v154-planning-service-times.js
           grep -q 'Fin de service : 5 minutes' site/v154-planning-service-times.js
           grep -q '0 / 25 / 50 / 75 / 100 %' site/v155-planning-cut-percent.js
@@ -188,7 +188,7 @@ jobs:
           grep -q 'v150RuntimeJournalRegulation' site/index.html
           grep -q 'v154RuntimePlanningServiceTimes' site/index.html
           grep -q 'v155RuntimePlanningCutPercent' site/index.html
-          grep -q 'mon-saeiv-v1-0-55' site/sw.js
+          grep -q 'mon-saeiv-v1-0-56' site/sw.js
           grep -q 'v155-planning-cut-percent.js' site/sw.js
           grep -q 'fluo-numbering-2026.json' site/sw.js
           ! grep -q 'localStorage.clear' site/index.html
@@ -202,7 +202,13 @@ jobs:
           assert "let b=q('v133ProfileBtn')||q('v137ProfileBtn');" in prof
           flow=Path('site/v148-continuous-day.js').read_text(encoding='utf-8')
           assert 'setInterval(async' not in flow
+          assert 'v156ResumeDay' in flow and 'mon-saeiv-planning-progress' in flow
+          assert "q('v316TodayMode')?.click()" not in flow
+          assert "done?.click()" not in flow
           assert 'terminusName' in flow and 'v153-hidden-menu' in flow
+          hlp=Path('site/v144-day-hlp-driver.js').read_text(encoding='utf-8')
+          assert 'FluoPlanningV316?.markDone?.(id)' in hlp
+          assert 'markDone:setDone' in t and 'mon-saeiv-planning-progress' in t
           times=Path('site/v154-planning-service-times.js').read_text(encoding='utf-8')
           assert "start:10,end:5" in times
           cuts=Path('site/v155-planning-cut-percent.js').read_text(encoding='utf-8')
@@ -212,7 +218,7 @@ jobs:
           m=json.load(open('site/fluo-numbering-2026.json',encoding='utf-8'))
           assert m['departments']['54']['54R060']['new']=='455'
           assert m['departments']['68']['R040']['new']=='840'
-          print('Runtime 1.0.55 : durées fixes et coupures pondérées validées.')
+          print('Runtime 1.0.56 : Ma journée continue, durées fixes et coupures pondérées validées.')
           PY
 
       - name: Download and prepare official Fluo GTFS 54 57 67 68
