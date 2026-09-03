@@ -1,4 +1,4 @@
-# Déploiement Mon SAEIV 1.0.54 — durées métier du planning
+# Déploiement Mon SAEIV 1.0.55 — durées métier + taux de coupure
 name: Build and deploy Fluo SAEIV
 
 on:
@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Assemble Mon SAEIV 1.0.54
+      - name: Assemble Mon SAEIV 1.0.55
         shell: bash
         run: |
           set -euo pipefail
@@ -48,14 +48,14 @@ jobs:
             v136-driver-operations.js v137-driver-hub.js v141-static-fluo.js \
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
-            v154-planning-service-times.js; do
+            v154-planning-service-times.js v155-planning-cut-percent.js; do
             [ -f "$f" ] && cp "$f" "site/$f"
           done
 
           python - <<'PY'
           from pathlib import Path
           import json,re
-          VERSION='1.0.54'
+          VERSION='1.0.55'
 
           op=Path('site/v136-driver-operations.js')
           if op.exists():
@@ -76,12 +76,32 @@ jobs:
               frag=t[a:b].replace('<script',"<scr${''}ipt").replace('<\\/script>',"<\\/scr${''}ipt>")
               t=t[:a]+frag+t[b:]
 
+          # Planning : une coupure reste entièrement dans l'amplitude, mais seule sa part
+          # 0/25/50/75/100 % est ajoutée au temps de travail (et correspond à la part payée).
+          old="const xs=itemsFor(date);let work=0,drive=0,euDrive=0,nationalDrive=0,breaks=0,first=Infinity,last=-Infinity;"
+          new="const xs=itemsFor(date);let work=0,drive=0,euDrive=0,nationalDrive=0,breaks=0,paidCut=0,first=Infinity,last=-Infinity;"
+          assert old in t, 'déclaration metrics planning introuvable'
+          t=t.replace(old,new,1)
+          old="if(m.work)work+=d;if(m.break)breaks+=d;if(m.drive){"
+          new="if(m.work)work+=d;if(x.type==='cut'){const cp=[0,25,50,75,100].includes(Number(x.cutPercent))?Number(x.cutPercent):0;const counted=d*cp/100;paidCut+=counted;work+=counted}if(m.break)breaks+=d;if(m.drive){"
+          assert old in t, 'calcul travail planning introuvable'
+          t=t.replace(old,new,1)
+          old="return{items:xs,work,drive,euDrive,nationalDrive,breaks,amplitude:"
+          new="return{items:xs,work,drive,euDrive,nationalDrive,breaks,paidCut,amplitude:"
+          assert old in t, 'retour metrics planning introuvable'
+          t=t.replace(old,new,1)
+          old="const rec={id:editingId||uid(),date:selectedDate,type,label:"
+          new="const rec={id:editingId||uid(),date:selectedDate,type,cutPercent:type==='cut'?Number(q('v155CutPercent')?.value||0):null,label:"
+          assert old in t, 'enregistrement planning introuvable'
+          t=t.replace(old,new,1)
+
           t=re.sub(r'<script[^>]+id=["\']v1(?:39|40)RuntimeStaticFluo["\'][^>]*></script>\s*','',t)
           modules=(
             'v130-session-orientation','v131-speech','v132-journals','v133-profile-journals',
             'v134-journal-front','v135-journal-router','v136-driver-operations','v137-driver-hub',
             'v141-static-fluo','v144-day-hlp-driver','v145-planning-tad','v146-planning-tad-bridge',
-            'v147-flow-journals-fix','v148-continuous-day','v150-journal-regulation','v154-planning-service-times'
+            'v147-flow-journals-fix','v148-continuous-day','v150-journal-regulation','v154-planning-service-times',
+            'v155-planning-cut-percent'
           )
           for mod in modules:
               t=re.sub(rf'\./{re.escape(mod)}\.js\?v=1\.0\.\d+',f'./{mod}.js?v={VERSION}',t)
@@ -100,6 +120,7 @@ jobs:
             ('v148RuntimeContinuousDay','v148-continuous-day.js'),
             ('v150RuntimeJournalRegulation','v150-journal-regulation.js'),
             ('v154RuntimePlanningServiceTimes','v154-planning-service-times.js'),
+            ('v155RuntimePlanningCutPercent','v155-planning-cut-percent.js'),
           ]
           for ident,src in injections:
               if ident not in t:
@@ -122,8 +143,8 @@ jobs:
               gps.write_text(g,encoding='utf-8')
 
           sw=Path('site/sw.js'); s=sw.read_text(encoding='utf-8')
-          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-54';",s,count=1)
-          core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','v154-planning-service-times.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-55';",s,count=1)
+          core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','v154-planning-service-times.js','v155-planning-cut-percent.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
           s=re.sub(r"const CORE=\[[^\n]+\];",core,s,count=1)
           s=re.sub(r'1\.0\.\d+',VERSION,s)
           s=s.replace('v140RuntimeStaticFluo','v141RuntimeStaticFluo').replace('v140-static-fluo.js','v141-static-fluo.js')
@@ -132,8 +153,8 @@ jobs:
 
           mp=Path('site/manifest.webmanifest')
           m=json.loads(mp.read_text(encoding='utf-8'))
-          m['name']='Mon SAEIV 1.0.54';m['start_url']='./?v=1.0.54';m['orientation']='any'
-          m['description']='Mon SAEIV — cockpit conducteur unifié, Ma journée événementielle, planning métier, HLP guidé, TAD, GPS visuel fluide et journaux détaillés.'
+          m['name']='Mon SAEIV 1.0.55';m['start_url']='./?v=1.0.55';m['orientation']='any'
+          m['description']='Mon SAEIV — cockpit conducteur unifié, Ma journée événementielle, planning métier avec coupures pondérées, HLP guidé, TAD, GPS visuel fluide et journaux détaillés.'
           mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 
           bp=Path('site/fluo_build.json')
@@ -143,7 +164,7 @@ jobs:
               bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           PY
 
-      - name: Validate runtime 1.0.54
+      - name: Validate runtime 1.0.55
         shell: bash
         run: |
           set -euo pipefail
@@ -152,19 +173,23 @@ jobs:
             v135-journal-router.js v136-driver-operations.js v137-driver-hub.js v141-static-fluo.js \
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
-            v154-planning-service-times.js sw.js; do
+            v154-planning-service-times.js v155-planning-cut-percent.js sw.js; do
             node --check "site/$f"
           done
           grep -q '1.0.53 UX + machine Ma journée active' site/v148-continuous-day.js
           grep -q 'Prise de service : 10 minutes' site/v154-planning-service-times.js
           grep -q 'Fin de service : 5 minutes' site/v154-planning-service-times.js
+          grep -q '0 / 25 / 50 / 75 / 100 %' site/v155-planning-cut-percent.js
+          grep -q 'paidCut+=counted;work+=counted' site/index.html
+          grep -q "cutPercent:type==='cut'" site/index.html
           grep -q 'visualFps:60,cameraFps:30' site/v128-gps.js
           grep -q 'v144RuntimeDayAutopilotDirect' site/index.html
           grep -q 'v148RuntimeContinuousDay' site/index.html
           grep -q 'v150RuntimeJournalRegulation' site/index.html
           grep -q 'v154RuntimePlanningServiceTimes' site/index.html
-          grep -q 'mon-saeiv-v1-0-54' site/sw.js
-          grep -q 'v154-planning-service-times.js' site/sw.js
+          grep -q 'v155RuntimePlanningCutPercent' site/index.html
+          grep -q 'mon-saeiv-v1-0-55' site/sw.js
+          grep -q 'v155-planning-cut-percent.js' site/sw.js
           grep -q 'fluo-numbering-2026.json' site/sw.js
           ! grep -q 'localStorage.clear' site/index.html
           python - <<'PY'
@@ -180,11 +205,14 @@ jobs:
           assert 'terminusName' in flow and 'v153-hidden-menu' in flow
           times=Path('site/v154-planning-service-times.js').read_text(encoding='utf-8')
           assert "start:10,end:5" in times
-          assert "PLAN_KEY='fluo-saeiv-planning-v316'" in times
+          cuts=Path('site/v155-planning-cut-percent.js').read_text(encoding='utf-8')
+          assert 'ALLOWED=[0,25,50,75,100]' in cuts
+          assert "paidCut+=counted;work+=counted" in t
+          assert "cutPercent:type==='cut'?Number(q('v155CutPercent')?.value||0):null" in t
           m=json.load(open('site/fluo-numbering-2026.json',encoding='utf-8'))
           assert m['departments']['54']['54R060']['new']=='455'
           assert m['departments']['68']['R040']['new']=='840'
-          print('Runtime 1.0.54 et durées métier du planning validés.')
+          print('Runtime 1.0.55 : durées fixes et coupures pondérées validées.')
           PY
 
       - name: Download and prepare official Fluo GTFS 54 57 67 68
