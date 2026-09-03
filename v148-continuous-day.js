@@ -19,6 +19,7 @@
   const dayRunning=()=>sessionStorage.getItem(DAY_KEY)==='1';
   const setDayRunning=v=>v?sessionStorage.setItem(DAY_KEY,'1'):sessionStorage.removeItem(DAY_KEY);
   const visible=e=>!!e&&!e.classList.contains('hidden')&&getComputedStyle(e).display!=='none';
+  const appState=()=>{try{return state}catch{return null}};
   const planItems=()=>{try{return window.FluoPlanningV316?.items?.()||[]}catch{return[]}};
   const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`};
   function progress(){try{const p=JSON.parse(localStorage.getItem(PROGRESS_KEY)||'null');return p&&typeof p==='object'?p:{date:today(),done:{},activeId:null}}catch{return{date:today(),done:{},activeId:null}}}
@@ -27,19 +28,18 @@
   function currentItem(){const p=progress(),xs=sortedToday();if(p.date===today()&&p.activeId){const a=xs.find(x=>String(x.id)===String(p.activeId)&&!p.done?.[x.id]);if(a)return a}return xs.find(x=>!p.done?.[x.id])||null}
   function hasPendingAfter(id){const xs=sortedToday(),i=xs.findIndex(x=>String(x.id)===String(id)),p=progress();return i>=0&&xs.slice(i+1).some(x=>!p.done?.[x.id])}
 
-  // ---------- Destination = véritable terminus ----------
-  function terminusIndex(pattern=globalThis.state?.pattern){
+  function terminusIndex(pattern=appState()?.pattern){
     const stops=pattern?.stops||[];if(!stops.length)return -1;
-    if(globalThis.state?.service?.mode==='tad'&&globalThis.state?.service?.tadStops instanceof Set){
-      const start=Number(q('startStop')?.value||0),ids=[...globalThis.state.service.tadStops].map(Number).filter(i=>Number.isInteger(i)&&i>=start&&i<stops.length).sort((a,b)=>a-b);
+    if(appState()?.service?.mode==='tad'&&appState()?.service?.tadStops instanceof Set){
+      const start=Number(q('startStop')?.value||0),ids=[...appState().service.tadStops].map(Number).filter(i=>Number.isInteger(i)&&i>=start&&i<stops.length).sort((a,b)=>a-b);
       if(ids.length)return ids[ids.length-1];
     }
     return stops.length-1;
   }
-  function terminusName(pattern=globalThis.state?.pattern){const i=terminusIndex(pattern);return i>=0?String(pattern?.stops?.[i]?.name||pattern?.headsign||'').trim():String(pattern?.headsign||'').trim()}
+  function terminusName(pattern=appState()?.pattern){const i=terminusIndex(pattern);return i>=0?String(pattern?.stops?.[i]?.name||pattern?.headsign||'').trim():String(pattern?.headsign||'').trim()}
   function spokenLocal(v){try{return typeof spoken==='function'?spoken(v):String(v||'')}catch{return String(v||'')}}
   function lineCodeLocal(v){try{return typeof spokenLineCode==='function'?spokenLineCode(v):String(v||'')}catch{return String(v||'')}}
-  function newLineIdentity(){return `Ligne ${lineCodeLocal(globalThis.state?.route?.short||'')}, à destination de ${spokenLocal(terminusName())}.`}
+  function newLineIdentity(){return `Ligne ${lineCodeLocal(appState()?.route?.short||'')}, à destination de ${spokenLocal(terminusName())}.`}
   function installTerminusIdentity(){
     try{globalThis.lineIdentity=newLineIdentity}catch{}
     syncTerminusUi();
@@ -49,11 +49,10 @@
     }catch{}
   }
   function clock(v){try{return v?.toLocaleTimeString?.('fr-FR',{hour:'2-digit',minute:'2-digit'})||'—'}catch{return'—'}}
-  function refreshTripOptions(){const sel=q('trip'),xs=globalThis.state?.runOptions||[];if(!sel||!xs.length)return;xs.forEach((r,i)=>{const o=sel.querySelector(`option[value="${i}"]`);if(!o)return;const p=r.pattern,origin=p?.stops?.[0]?.name||'Départ',dest=p?.stops?.at(-1)?.name||p?.headsign||'Terminus';const suffix=(o.textContent.match(/ · \d+ arrêts.*$/)||[''])[0];const next=`${clock(r.originDeparture)} · ${origin} → ${dest}${suffix}`;if(o.textContent!==next)o.textContent=next})}
-  function refreshFormationOptions(){const sel=q('formationPattern'),xs=globalThis.state?.patterns||[];if(!sel||!xs.length)return;xs.forEach((p,i)=>{const o=sel.querySelector(`option[value="${i}"]`);if(!o)return;const origin=p?.stops?.[0]?.name||'Départ',dest=p?.stops?.at(-1)?.name||p?.headsign||'Terminus',dir=p?.direction!==''&&p?.direction!=null?` · sens ${Number(p.direction)+1}`:'';const next=`${origin} → ${dest}${dir} · ${p?.stops?.length||0} arrêts`;if(!o.textContent.startsWith(`${origin} → ${dest}`))o.textContent=next})}
+  function refreshTripOptions(){const sel=q('trip'),xs=appState()?.runOptions||[];if(!sel||!xs.length)return;xs.forEach((r,i)=>{const o=sel.querySelector(`option[value="${i}"]`);if(!o)return;const p=r.pattern,origin=p?.stops?.[0]?.name||'Départ',dest=p?.stops?.at(-1)?.name||p?.headsign||'Terminus';const suffix=(o.textContent.match(/ · \d+ arrêts.*$/)||[''])[0];const next=`${clock(r.originDeparture)} · ${origin} → ${dest}${suffix}`;if(o.textContent!==next)o.textContent=next})}
+  function refreshFormationOptions(){const sel=q('formationPattern'),xs=appState()?.patterns||[];if(!sel||!xs.length)return;xs.forEach((p,i)=>{const o=sel.querySelector(`option[value="${i}"]`);if(!o)return;const origin=p?.stops?.[0]?.name||'Départ',dest=p?.stops?.at(-1)?.name||p?.headsign||'Terminus',dir=p?.direction!==''&&p?.direction!=null?` · sens ${Number(p.direction)+1}`:'';const next=`${origin} → ${dest}${dir} · ${p?.stops?.length||0} arrêts`;if(!o.textContent.startsWith(`${origin} → ${dest}`))o.textContent=next})}
   function syncTerminusUi(){const name=terminusName();if(!name)return;const h=q('headsign');if(h)h.textContent=name}
 
-  // ---------- UX commune ----------
   function ensureUi(){
     if(!q('v148FlowStyle')){const s=document.createElement('style');s.id='v148FlowStyle';s.textContent=`
       #v148Transition{position:fixed;z-index:2147483450;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:#07121b;color:#eef8fd}#v148Transition.hidden{display:none!important}.v148-card{width:min(520px,100%);padding:20px;border:1px solid #355163;border-radius:18px;background:#0b202b;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.55)}.v148-card b{display:block;font-size:1.05rem}.v148-card span{display:block;margin-top:7px;color:#9db2be;font-size:.72rem}.v148-spin{width:34px;height:34px;margin:0 auto 13px;border:4px solid #294554;border-top-color:#ffd000;border-radius:50%;animation:v148spin .8s linear infinite}@keyframes v148spin{to{transform:rotate(360deg)}}body.v148-flowing #v125PassengerEnd{display:none!important}
@@ -76,9 +75,10 @@
 
   function tidyMainMenu(){
     const menu=q('v316MenuItems');if(!menu)return;
-    const keep=new Set(['v137ProfileBtn','v133ProfileBtn','v3125NetworkSheetsBtn','v107RadioMainBtn','v110ChangeNetworkBtn','v29AdminBtn']);
+    const profile=q('v137ProfileBtn')||q('v133ProfileBtn');
+    const keep=new Set([profile?.id,'v3125NetworkSheetsBtn','v107RadioMainBtn','v110ChangeNetworkBtn','v29AdminBtn'].filter(Boolean));
     [...menu.children].forEach(el=>{if(el.tagName==='BUTTON')el.classList.toggle('v153-hidden-menu',!keep.has(el.id))});
-    const desired=['v137ProfileBtn','v133ProfileBtn','v3125NetworkSheetsBtn','v107RadioMainBtn','v110ChangeNetworkBtn','v29AdminBtn'];
+    const desired=[profile?.id,'v3125NetworkSheetsBtn','v107RadioMainBtn','v110ChangeNetworkBtn','v29AdminBtn'].filter(Boolean);
     let after=q('v110NetworkBadge')||null;
     for(const id of desired){const el=q(id);if(!el||el.classList.contains('v153-hidden-menu'))continue;if(after?.parentElement===menu){if(after.nextElementSibling!==el)after.insertAdjacentElement('afterend',el)}else if(menu.firstElementChild!==el)menu.prepend(el);after=el}
   }
@@ -100,7 +100,6 @@
     const badges=document.createElement('div');badges.className='v153-hlp-badges';badges.innerHTML='<span>HLP</span><span>HAUT-LE-PIED</span><span>GPS</span>';h.prepend(badges)
   }
 
-  // ---------- Machine à états Ma journée ----------
   function setPhase(next){phase=next;document.body.dataset.saeivDayPhase=next}
   function disconnectCourseObserver(){courseObserver?.disconnect();courseObserver=null}
   function disconnectFinishObserver(){finishObserver?.disconnect();finishObserver=null}
@@ -108,10 +107,10 @@
     disconnectCourseObserver();setPhase(PHASE.PREFLIGHT);
     const attempt=()=>{
       if(flowToken!==token||!dayRunning()){disconnectCourseObserver();hideTransition();return true}
-      if(globalThis.state?.running){disconnectCourseObserver();lastLaunched=String(item.id);setPhase(PHASE.COURSE);hideTransition();syncTerminusUi();return true}
+      if(appState()?.running){disconnectCourseObserver();lastLaunched=String(item.id);setPhase(PHASE.COURSE);hideTransition();syncTerminusUi();return true}
       if(visible(q('v3120DemandPreflight'))){hideTransition();return false}
       if(visible(q('v136Preflight'))){const go=q('v136PreflightGo');if(go&&!go.disabled){go.click();return false}}
-      const start=q('start');if(start&&!start.disabled&&globalThis.state?.pattern){start.click();return false}
+      const start=q('start');if(start&&!start.disabled&&appState()?.pattern){start.click();return false}
       return false
     };
     if(attempt())return;
