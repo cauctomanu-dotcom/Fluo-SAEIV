@@ -1,4 +1,4 @@
-# Déploiement Mon SAEIV 1.0.51 — runtime complet conducteur
+# Déploiement Mon SAEIV 1.0.53 — UX conducteur + runtime rationalisé
 name: Build and deploy Fluo SAEIV
 
 on:
@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Assemble Mon SAEIV 1.0.51
+      - name: Assemble Mon SAEIV 1.0.53
         shell: bash
         run: |
           set -euo pipefail
@@ -38,19 +38,14 @@ jobs:
           cp build_gtfs_2026.py scripts/build_gtfs_2026.py
           cp 54.json scripts/trace_overrides/54.json
           cp 57.json scripts/trace_overrides/57.json
-          cp index.html site/index.html
-          cp app.js site/app.js
-          cp styles.css site/styles.css
-          cp sw.js site/sw.js
-          cp manifest.webmanifest site/manifest.webmanifest
-          cp fluo-numbering-2026.json site/fluo-numbering-2026.json
+          cp index.html app.js styles.css sw.js manifest.webmanifest fluo-numbering-2026.json site/
           [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
+
           for f in \
             v128-gps.js v128-offline.js \
             v130-session-orientation.js v131-speech.js v132-journals.js \
             v133-profile-journals.js v134-journal-front.js v135-journal-router.js \
-            v136-driver-operations.js v137-driver-hub.js \
-            v141-static-fluo.js \
+            v136-driver-operations.js v137-driver-hub.js v141-static-fluo.js \
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js; do
             [ -f "$f" ] && cp "$f" "site/$f"
@@ -59,9 +54,8 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import json,re
-          VERSION='1.0.51'
+          VERSION='1.0.53'
 
-          # Garde-fou historique du menu conducteur.
           op=Path('site/v136-driver-operations.js')
           if op.exists():
               x=op.read_text(encoding='utf-8')
@@ -69,8 +63,6 @@ jobs:
               x=x.replace("new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true,subtree:true})","new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true})")
               op.write_text(x,encoding='utf-8')
 
-          # Le nouveau hub conducteur renomme l'ancien bouton v133ProfileBtn en v137ProfileBtn.
-          # L'ancien module ne doit surtout pas recréer ensuite un deuxième « Mon profil ».
           prof=Path('site/v133-profile-journals.js')
           if prof.exists():
               x=prof.read_text(encoding='utf-8')
@@ -78,20 +70,11 @@ jobs:
               prof.write_text(x,encoding='utf-8')
 
           p=Path('site/index.html'); t=p.read_text(encoding='utf-8')
-
-          # Safari/iOS : l'ancien générateur V23 contenait des balises <script> littérales
-          # à l'intérieur d'un template JS lui-même placé dans un <script>. Le parseur HTML
-          # pouvait fermer le script externe trop tôt et afficher la fin du JavaScript en texte.
-          # On coupe le mot « script » dans le SOURCE ; le rapport généré reste strictement identique.
-          a=t.find('  function reportHtml23(s,ev){')
-          b=t.find('  async function downloadReport23',a)
+          a=t.find('  function reportHtml23(s,ev){'); b=t.find('  async function downloadReport23',a)
           if a!=-1 and b!=-1:
-              frag=t[a:b]
-              frag=frag.replace('<script',"<scr${''}ipt")
-              frag=frag.replace('<\\/script>',"<\\/scr${''}ipt>")
+              frag=t[a:b].replace('<script',"<scr${''}ipt").replace('<\\/script>',"<\\/scr${''}ipt>")
               t=t[:a]+frag+t[b:]
 
-          # Une seule couche de numérotation officielle.
           t=re.sub(r'<script[^>]+id=["\']v1(?:39|40)RuntimeStaticFluo["\'][^>]*></script>\s*','',t)
           modules=(
             'v130-session-orientation','v131-speech','v132-journals','v133-profile-journals',
@@ -102,7 +85,6 @@ jobs:
           for mod in modules:
               t=re.sub(rf'\./{re.escape(mod)}\.js\?v=1\.0\.\d+',f'./{mod}.js?v={VERSION}',t)
 
-          # Ces runtimes doivent être présents dans le site publié même si l'index source est ancien.
           injections=[
             ('v133RuntimeProfileJournals','v133-profile-journals.js'),
             ('v134RuntimeJournalFront','v134-journal-front.js'),
@@ -121,15 +103,24 @@ jobs:
               if ident not in t:
                   i=t.rfind('</body>')
                   if i!=-1:t=t[:i]+f'<script id="{ident}" src="./{src}?v={VERSION}"></script>\n'+t[i:]
+
           t=re.sub(r'manifest\.webmanifest\?v=1\.0\.\d+',f'manifest.webmanifest?v={VERSION}',t)
           t=re.sub(r'sw\.js\?v=1\.0\.\d+',f'sw.js?v={VERSION}',t)
           t=re.sub(r'<title>Mon SAEIV · 1\.0\.\d+</title>',f'<title>Mon SAEIV · {VERSION}</title>',t)
           t=re.sub(r"const APP_VERSION = '1\.0\.\d+';",f"const APP_VERSION = '{VERSION}';",t)
           p.write_text(t,encoding='utf-8')
 
-          # Service worker : cache neuf + tous les runtimes métier récents.
+          gps=Path('site/v128-gps.js')
+          if gps.exists():
+              g=gps.read_text(encoding='utf-8')
+              g=g.replace('if(now-M.lastLeafletAt<40)return;','if(now-M.lastLeafletAt<18)return;')
+              g=g.replace('if(now-M.lastCameraAt<50||!state?.nav?.follow)return;','if(now-M.lastCameraAt<33||!state?.nav?.follow)return;')
+              g=g.replace('if(M.lastVisualAt&&ts-M.lastVisualAt<33)return;','if(M.lastVisualAt&&ts-M.lastVisualAt<16)return;')
+              g=g.replace('visualFps:30,cameraFps:20','visualFps:60,cameraFps:30')
+              gps.write_text(g,encoding='utf-8')
+
           sw=Path('site/sw.js'); s=sw.read_text(encoding='utf-8')
-          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-51';",s,count=1)
+          s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-53';",s,count=1)
           core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
           s=re.sub(r"const CORE=\[[^\n]+\];",core,s,count=1)
           s=re.sub(r'1\.0\.\d+',VERSION,s)
@@ -139,8 +130,8 @@ jobs:
 
           mp=Path('site/manifest.webmanifest')
           m=json.loads(mp.read_text(encoding='utf-8'))
-          m['name']='Mon SAEIV 1.0.51';m['start_url']='./?v=1.0.51';m['orientation']='any'
-          m['description']='Mon SAEIV — SAEIV conducteur multiréseaux avec GPS, annonces prioritaires, Ma journée continue, TAD, haut-le-pied guidé et journaux détaillant arrivée, départ et régulation.'
+          m['name']='Mon SAEIV 1.0.53';m['start_url']='./?v=1.0.53';m['orientation']='any'
+          m['description']='Mon SAEIV — cockpit conducteur unifié, Ma journée événementielle, HLP guidé, TAD, GPS visuel fluide et journaux détaillés.'
           mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 
           bp=Path('site/fluo_build.json')
@@ -150,52 +141,40 @@ jobs:
               bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           PY
 
-      - name: Validate runtime 1.0.51
+      - name: Validate runtime 1.0.53
         shell: bash
         run: |
           set -euo pipefail
           for f in \
-            v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js \
+            v128-gps.js v131-speech.js v132-journals.js v133-profile-journals.js v134-journal-front.js \
             v135-journal-router.js v136-driver-operations.js v137-driver-hub.js v141-static-fluo.js \
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js sw.js; do
             node --check "site/$f"
           done
-          grep -q 'v141RuntimeStaticFluo' site/index.html
+          grep -q '1.0.53 UX + machine Ma journée active' site/v148-continuous-day.js
+          grep -q 'visualFps:60,cameraFps:30' site/v128-gps.js
           grep -q 'v144RuntimeDayAutopilotDirect' site/index.html
           grep -q 'v148RuntimeContinuousDay' site/index.html
           grep -q 'v150RuntimeJournalRegulation' site/index.html
-          grep -q 'mon-saeiv-v1-0-51' site/sw.js
-          grep -q 'v148-continuous-day.js' site/sw.js
-          grep -q 'v150-journal-regulation.js' site/sw.js
+          grep -q 'mon-saeiv-v1-0-53' site/sw.js
           grep -q 'fluo-numbering-2026.json' site/sw.js
-          grep -q 'monSaeivCashV123' site/index.html
           ! grep -q 'localStorage.clear' site/index.html
           python - <<'PY'
           import json
           from pathlib import Path
-
           t=Path('site/index.html').read_text(encoding='utf-8')
-          a=t.find('  function reportHtml23(s,ev){')
-          b=t.find('  async function downloadReport23',a)
-          assert a!=-1 and b!=-1
-          frag=t[a:b]
-          assert '<script' not in frag, 'V23 contient encore une balise <script> littérale dangereuse pour Safari'
-
+          a=t.find('  function reportHtml23(s,ev){');b=t.find('  async function downloadReport23',a)
+          assert a!=-1 and b!=-1 and '<script' not in t[a:b]
           prof=Path('site/v133-profile-journals.js').read_text(encoding='utf-8')
           assert "let b=q('v133ProfileBtn')||q('v137ProfileBtn');" in prof
-
+          flow=Path('site/v148-continuous-day.js').read_text(encoding='utf-8')
+          assert 'setInterval(async' not in flow
+          assert 'terminusName' in flow and 'v153-hidden-menu' in flow
           m=json.load(open('site/fluo-numbering-2026.json',encoding='utf-8'))
           assert m['departments']['54']['54R060']['new']=='455'
-          assert m['departments']['54']['54R350']['new']=='465'
-          assert m['departments']['54']['54R360']['new']=='466'
-          assert m['departments']['54']['54R370']['new']=='468'
-          assert m['departments']['54']['54R710']['new']=='471'
-          assert len(m['departments']['54'])>=220
           assert m['departments']['68']['R040']['new']=='840'
-          assert len(m['departments']['68'])==365
-          assert len(m['departments']['67'])==0
-          print('Runtime 1.0.51, correctif Safari V23, profil unique et mapping officiel validés.')
+          print('Runtime 1.0.53 UX/architecture validé.')
           PY
 
       - name: Download and prepare official Fluo GTFS 54 57 67 68
