@@ -1,8 +1,8 @@
 'use strict';
-/* Mon SAEIV 1.0.57 — données Fluo préparées côté GitHub + vraie table officielle
-   ancien numéro -> nouveau numéro effective au 01/09/2026. Aucune numérotation n'est déduite. */
+/* Mon SAEIV 1.0.58 — données Fluo préparées côté GitHub + vraie table officielle
+   + recherche rapide dans le sélecteur de ligne. */
 (()=>{
-  const VERSION='1.0.57';
+  const VERSION='1.0.58';
   const CUTOVER='2026-09-01';
   const STATIC_DEPTS=new Set(['54','57','67','68']);
   const JSON_CACHE=new Map();
@@ -110,6 +110,64 @@
   async function remoteCore(dept){return STATIC_DEPTS.has(String(dept))?staticCore(dept):legacy.remoteCore(dept)}
   async function remoteFeed(dept){return STATIC_DEPTS.has(String(dept))?staticFeed(dept):legacy.remoteFeed(dept)}
 
+  function searchKey(value){
+    return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+  }
+  function installRouteSearch(){
+    const select=document.getElementById('route');
+    if(!select||document.getElementById('v158RouteSearch'))return;
+    const style=document.createElement('style');
+    style.id='v158RouteSearchStyle';
+    style.textContent='.v158-route-search{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;margin:6px 0 7px}.v158-route-search input{min-height:42px;padding:8px 10px;border-radius:10px}.v158-route-search small{min-width:58px;text-align:right;color:#91a7b3;font-size:.58rem;font-weight:800}.v158-route-search input:disabled{opacity:.55}.v158-route-search input::-webkit-search-cancel-button{cursor:pointer}';
+    document.head.appendChild(style);
+    const box=document.createElement('div');
+    box.className='v158-route-search';
+    box.innerHTML='<input id="v158RouteSearch" type="search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Rechercher : n° ou ville…" aria-label="Rechercher une ligne"><small id="v158RouteSearchCount"></small>';
+    select.insertAdjacentElement('beforebegin',box);
+    const input=document.getElementById('v158RouteSearch');
+    const count=document.getElementById('v158RouteSearchCount');
+    let master=[];
+    let observer;
+
+    const apply=()=>{
+      const q=searchKey(input.value),compact=q.replace(/\s+/g,'');
+      const before=select.value;
+      const first=master[0]||{value:'',text:'Choisir une ligne…',disabled:false};
+      const matches=master.slice(1).filter(o=>{
+        if(!q)return true;
+        const k=searchKey(o.text),kc=k.replace(/\s+/g,'');
+        return k.includes(q)||kc.includes(compact)||q.split(' ').every(t=>!t||k.includes(t));
+      });
+      observer?.disconnect();
+      select.innerHTML='';
+      for(const o of [first,...matches]){
+        const el=document.createElement('option');el.value=o.value;el.textContent=o.text;el.disabled=o.disabled;select.appendChild(el);
+      }
+      if([...select.options].some(o=>o.value===before))select.value=before;
+      else select.value='';
+      if(observer)observer.observe(select,{childList:true,subtree:false,attributes:true,attributeFilter:['disabled']});
+      count.textContent=q?`${matches.length} résultat${matches.length>1?'s':''}`:'';
+      input.disabled=select.disabled;
+    };
+    const capture=()=>{
+      master=[...select.options].map(o=>({value:o.value,text:o.textContent||'',disabled:o.disabled}));
+      input.disabled=select.disabled;
+      apply();
+    };
+    observer=new MutationObserver(()=>capture());
+    observer.observe(select,{childList:true,subtree:false,attributes:true,attributeFilter:['disabled']});
+    input.addEventListener('input',apply);
+    input.addEventListener('keydown',e=>{
+      if(e.key==='Escape'){input.value='';apply();return}
+      if(e.key!=='Enter')return;
+      const choices=[...select.options].filter(o=>o.value&&!o.disabled);
+      if(choices.length===1){e.preventDefault();select.value=choices[0].value;select.dispatchEvent(new Event('change',{bubbles:true}))}
+    });
+    document.getElementById('dept')?.addEventListener('change',()=>{input.value='';setTimeout(capture,0)});
+    document.getElementById('lineTypeFilter')?.addEventListener('change',()=>{input.value='';setTimeout(capture,0)});
+    capture();
+  }
+
   window.fluoDeptCore=core;
   window.fluoRoutesData=routes;
   window.fluoServicesData=services;
@@ -125,5 +183,6 @@
     numbering,
     clear:()=>{JSON_CACHE.clear();numberingPromise=null;}
   };
-  console.info('[Mon SAEIV] données Fluo statiques 54/57/67/68 + numérotation officielle 1.0.57 actives');
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installRouteSearch,{once:true});else installRouteSearch();
+  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + recherche rapide des lignes 1.0.58 actives');
 })();
