@@ -3,7 +3,8 @@
 
 Les GTFS officiels sont reconstruits à chaque build. Les libellés de lignes simples
 sont en plus recalés sur les terminus réellement desservis lorsque le producteur
-conserve un ancien route_long_name (ex. 57SMH04 : Assenoncourt / Morhange).
+conserve un ancien route_long_name composé de deux communes (ex. 57SMH04 :
+VIC-SUR-SEILLE / MORHANGE -> ASSENONCOURT / MORHANGE).
 """
 import csv
 import io
@@ -11,7 +12,6 @@ import json
 import re
 import unicodedata
 import zipfile
-from pathlib import Path
 
 import build_gtfs as base
 
@@ -52,10 +52,10 @@ def normalized(value):
 
 
 def stop_locality(stop_name):
-    """Retourne la commune quand le nom de poteau suit « COMMUNE - arrêt ».
+    """Extrait la commune des poteaux au format « COMMUNE - arrêt ».
 
-    Le 67 ne fournit pas systématiquement la commune dans stop_name : on n'invente
-    donc aucun libellé à partir des arrêts pour ce département.
+    Quand le producteur n'expose pas ce format, aucune correction de libellé n'est
+    tentée : on garde le route_long_name officiel plutôt que de deviner.
     """
     s = str(stop_name or '').strip()
     if ' - ' not in s:
@@ -63,14 +63,10 @@ def stop_locality(stop_name):
     return s.split(' - ', 1)[0].strip()
 
 
-def endpoint_label_for_payload(dept, payload):
-    """Déduit un libellé seulement si tous les parcours ont les mêmes 2 communes.
-
-    Les lignes à branches / services partiels restent sur le route_long_name officiel.
-    Cela évite de transformer une ligne complexe en un intitulé trop réducteur.
-    """
+def endpoint_pair_for_payload(dept, payload):
+    """Renvoie les deux communes terminales seulement si tous les parcours concordent."""
     if str(dept) not in {'54', '57', '68'}:
-        return ''
+        return None
     pairs = set()
     for pattern in payload.get('patterns') or []:
         stops = pattern.get('stops') or []
@@ -79,27 +75,46 @@ def endpoint_label_for_payload(dept, payload):
         a = stop_locality(stops[0].get('name'))
         b = stop_locality(stops[-1].get('name'))
         if not a or not b or normalized(a) == normalized(b):
-            return ''
+            return None
         pairs.add(tuple(sorted((a, b), key=lambda x: normalized(x))))
     if len(pairs) != 1:
+        return None
+    return next(iter(pairs))
+
+
+def safe_endpoint_refresh(current, endpoint_pair, known_localities):
+    """Corrige seulement un ancien libellé qui est clairement « COMMUNE / COMMUNE ».
+
+    Cette contrainte protège les noms commerciaux et lieux spéciaux (gare TGV,
+    route touristique, etc.) : ils ne sont jamais remplacés automatiquement.
+    """
+    if not endpoint_pair:
         return ''
-    a, b = next(iter(pairs))
-    return f'{a} / {b}'
-
-
-def needs_endpoint_refresh(current, derived):
-    """Ne change le libellé que si au moins un terminus réel en est absent."""
-    if not current or not derived:
-        return bool(derived)
-    cur = normalized(current)
-    parts = [x.strip() for x in derived.split('/') if x.strip()]
-    return any(normalized(x) not in cur for x in parts)
+    a, b = endpoint_pair
+    derived = f'{a} / {b}'
+    cur = str(current or '').strip()
+    cur_norm = normalized(cur)
+    if normalized(a) in cur_norm and normalized(b) in cur_norm:
+        return ''
+    parts = [x.strip() for x in re.split(r'\s+/\s+', cur) if x.strip()]
+    if len(parts) != 2:
+        return ''
+    if not all(normalized(part) in known_localities for part in parts):
+        return ''
+    return derived
 
 
 def enrich_generated(dept, cfg):
     """Ajoute calendriers/TAD et fiabilise les libellés à partir du GTFS courant."""
     blob = base.download(cfg['url'], dept)
     zf = zipfile.ZipFile(io.BytesIO(blob))
+
+    known_localities = {
+        normalized(loc)
+        for s in rows(zf, 'stops.txt')
+        for loc in [stop_locality(s.get('stop_name'))]
+        if loc
+    }
 
     route_services = {}
     for t in rows(zf, 'trips.txt'):
@@ -149,17 +164,21 @@ def enrich_generated(dept, cfg):
 
         route = payload.get('route') or {}
         rid = str(route.get('id') or '')
-        derived = endpoint_label_for_payload(dept, payload)
         current = str(route.get('long') or '').strip()
-        if derived and needs_endpoint_refresh(current, derived):
+        derived = safe_endpoint_refresh(
+            current,
+            endpoint_pair_for_payload(dept, payload),
+            known_localities,
+        )
+        if derived:
             route['official_long'] = current
             route['long'] = derived
-            route['long_source'] = 'unambiguous_service_endpoints'
+            route['long_source'] = 'unambiguous_service_endpoints_from_two_localities'
             listed = idx_by_id.get(rid)
             if listed is not None:
                 listed['official_long'] = current
                 listed['long'] = derived
-                listed['long_source'] = 'unambiguous_service_endpoints'
+                listed['long_source'] = 'unambiguous_service_endpoints_from_two_localities'
             relabelled += 1
             changed = True
 
@@ -176,7 +195,7 @@ def enrich_generated(dept, cfg):
         route['static_gtfs'] = True
         route.pop('remote_gtfs', None)
     idx_path.write_text(json.dumps(idx, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
-    print(f'{dept}: {relabelled} libellé(s) simple(s) recalé(s) sur les terminus réellement desservis')
+    print(f'{dept}: {relabelled} ancien(s) libellé(s) commune/commune recalé(s) sur les terminus réels')
 
 
 def validate_57_smh04():
@@ -200,7 +219,7 @@ def main():
     build['version'] = 'Mon SAEIV 1.0.58 — GTFS Fluo officiels + libellés terminus fiabilisés'
     build['departments'] = ['54', '57', '67', '68']
     build['runtime_gtfs_download'] = {'54': False, '57': False, '67': False, '68': False}
-    build['route_label_policy'] = 'route_long_name officiel, corrigé seulement si tous les parcours ont les mêmes terminus réels et qu’un terminus est absent du libellé'
+    build['route_label_policy'] = 'route_long_name officiel; correction automatique uniquement pour un ancien libellé de deux communes et des terminus réels non ambigus'
     build_path.write_text(json.dumps(build, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
 
     for dept in ('54', '57', '67', '68'):
