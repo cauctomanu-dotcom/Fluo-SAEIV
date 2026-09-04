@@ -1,10 +1,10 @@
 'use strict';
-/* Mon SAEIV 1.0.41 — données Fluo préparées côté GitHub + vraie table officielle
+/* Mon SAEIV 1.0.57 — données Fluo préparées côté GitHub + vraie table officielle
    ancien numéro -> nouveau numéro effective au 01/09/2026. Aucune numérotation n'est déduite. */
 (()=>{
-  const VERSION='1.0.41';
+  const VERSION='1.0.57';
   const CUTOVER='2026-09-01';
-  const STATIC_DEPTS=new Set(['54','67','68']);
+  const STATIC_DEPTS=new Set(['54','57','67','68']);
   const JSON_CACHE=new Map();
   let numberingPromise=null;
 
@@ -28,7 +28,7 @@
   function useStatic(dept,date=selectedIso()){
     const d=String(dept);
     if(d==='67'||d==='68') return true;
-    return d==='54' && String(date)>=CUTOVER;
+    return (d==='54'||d==='57') && String(date)>=CUTOVER;
   }
 
   async function json(path){
@@ -125,5 +125,5 @@
     numbering,
     clear:()=>{JSON_CACHE.clear();numberingPromise=null;}
   };
-  console.info('[Mon SAEIV] numérotation officielle Fluo 1.0.41 active');
+  console.info('[Mon SAEIV] données Fluo statiques 54/57/67/68 + numérotation officielle 1.0.57 actives');
 })();
