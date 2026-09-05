@@ -1,8 +1,8 @@
 'use strict';
-/* Mon SAEIV 1.0.61 — données Fluo préparées côté GitHub + recherche non destructive
+/* Mon SAEIV 1.0.62 — données Fluo préparées côté GitHub + recherche non destructive
    + corrections locales de noms d'arrêts confirmées conducteur. */
 (()=>{
-  const VERSION='1.0.61';
+  const VERSION='1.0.62';
   const CUTOVER='2026-09-01';
   const STATIC_DEPTS=new Set(['54','57','67','68']);
   const JSON_CACHE=new Map();
@@ -24,15 +24,22 @@
   const STOP_NAME_FIXES={
     '54':new Map([
       ['CHAMPENOUX ST BATHELEMY','CHAMPENOUX - Saint-Barthélémy'],
-      ['LEYR GARE','LEYR - À la Vignolle'],
     ]),
   };
-  function fixedStopName(dept,name){
-    return STOP_NAME_FIXES[String(dept)]?.get(stopNameKey(name)) || String(name||'');
+  const STOP_CODE_FIXES={
+    '54':new Map([
+      ['4778854','LEYR - À la Vignolle'],
+    ]),
+  };
+  function fixedStopName(dept,stop){
+    const d=String(dept), name=String(stop?.name||'');
+    const byCode=STOP_CODE_FIXES[d]?.get(String(stop?.code||''));
+    if(byCode)return byCode;
+    return STOP_NAME_FIXES[d]?.get(stopNameKey(name)) || name;
   }
   function fixedStops(dept,stops){
     return (Array.isArray(stops)?stops:[]).map(s=>{
-      const name=fixedStopName(dept,s?.name);
+      const name=fixedStopName(dept,s);
       return name===s?.name?s:{...(s||{}),name};
     });
   }
@@ -233,5 +240,5 @@
     clear:()=>{JSON_CACHE.clear();numberingPromise=null;}
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installRouteSearch,{once:true});else installRouteSearch();
-  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + corrections arrêts 54 + recherche non destructive 1.0.61 active');
+  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + correction différenciée Gare/Vignolle + recherche non destructive 1.0.62 active');
 })();
