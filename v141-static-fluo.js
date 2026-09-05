@@ -1,7 +1,8 @@
 'use strict';
-/* Mon SAEIV 1.0.59 — données Fluo préparées côté GitHub + recherche non destructive. */
+/* Mon SAEIV 1.0.60 — données Fluo préparées côté GitHub + recherche non destructive
+   + corrections locales de noms d'arrêts confirmées conducteur. */
 (()=>{
-  const VERSION='1.0.59';
+  const VERSION='1.0.60';
   const CUTOVER='2026-09-01';
   const STATIC_DEPTS=new Set(['54','57','67','68']);
   const JSON_CACHE=new Map();
@@ -16,6 +17,28 @@
     remoteCore:window.fluoRemoteCore,
     remoteFeed:window.fluoRemoteFeed,
   };
+
+  function stopNameKey(value){
+    return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+  }
+  const STOP_NAME_FIXES={
+    '54':new Map([
+      ['CHAMPENOUX ST BATHELEMY','CHAMPENOUX - Saint-Barthélémy'],
+    ]),
+  };
+  function fixedStopName(dept,name){
+    return STOP_NAME_FIXES[String(dept)]?.get(stopNameKey(name)) || String(name||'');
+  }
+  function fixedStops(dept,stops){
+    return (Array.isArray(stops)?stops:[]).map(s=>{
+      const name=fixedStopName(dept,s?.name);
+      return name===s?.name?s:{...(s||{}),name};
+    });
+  }
+  function fixedRoutePayload(dept,payload){
+    if(!payload||!Array.isArray(payload.patterns))return payload;
+    return {...payload,patterns:payload.patterns.map(p=>({...p,stops:fixedStops(dept,p?.stops)}))};
+  }
 
   function localIsoDate(d=new Date()){
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -75,14 +98,18 @@
     return {...x,routes:x.routes.map(r=>applyOfficialNumber(d,r,map))};
   }
   async function staticServices(dept){return json(`./data/${String(dept)}/services.json`)}
-  async function staticStops(dept){return json(`./data/${String(dept)}/stops.json`)}
+  async function staticStops(dept){
+    const d=String(dept),x=await json(`./data/${d}/stops.json`);
+    return Array.isArray(x?.stops)?{...x,stops:fixedStops(d,x.stops)}:x;
+  }
   async function staticRoute(dept,route){
     const d=String(dept),file=String(route?.file||'');
     if(!file) throw new Error(`Parcours Fluo ${d} sans fichier local`);
-    const [payload,map]=await Promise.all([
+    const [raw,map]=await Promise.all([
       json(`./data/${d}/${file.replace(/^\.\//,'')}`),
       numbering()
     ]);
+    const payload=fixedRoutePayload(d,raw);
     return {...payload,route:applyOfficialNumber(d,payload?.route||route,map)};
   }
   async function staticCore(dept){
@@ -205,5 +232,5 @@
     clear:()=>{JSON_CACHE.clear();numberingPromise=null;}
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installRouteSearch,{once:true});else installRouteSearch();
-  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + recherche non destructive 1.0.59 active');
+  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + corrections arrêts 54 + recherche non destructive 1.0.60 active');
 })();
