@@ -1,8 +1,8 @@
 'use strict';
-/* Mon SAEIV 1.0.60 — données Fluo préparées côté GitHub + recherche non destructive
+/* Mon SAEIV 1.0.61 — données Fluo préparées côté GitHub + recherche non destructive
    + corrections locales de noms d'arrêts confirmées conducteur. */
 (()=>{
-  const VERSION='1.0.60';
+  const VERSION='1.0.61';
   const CUTOVER='2026-09-01';
   const STATIC_DEPTS=new Set(['54','57','67','68']);
   const JSON_CACHE=new Map();
@@ -24,6 +24,7 @@
   const STOP_NAME_FIXES={
     '54':new Map([
       ['CHAMPENOUX ST BATHELEMY','CHAMPENOUX - Saint-Barthélémy'],
+      ['LEYR GARE','LEYR - À la Vignolle'],
     ]),
   };
   function fixedStopName(dept,name){
@@ -232,5 +233,5 @@
     clear:()=>{JSON_CACHE.clear();numberingPromise=null;}
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installRouteSearch,{once:true});else installRouteSearch();
-  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + corrections arrêts 54 + recherche non destructive 1.0.60 active');
+  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + corrections arrêts 54 + recherche non destructive 1.0.61 active');
 })();
