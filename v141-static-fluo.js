@@ -1,8 +1,7 @@
 'use strict';
-/* Mon SAEIV 1.0.58 — données Fluo préparées côté GitHub + vraie table officielle
-   + recherche rapide dans le sélecteur de ligne. */
+/* Mon SAEIV 1.0.59 — données Fluo préparées côté GitHub + recherche non destructive. */
 (()=>{
-  const VERSION='1.0.58';
+  const VERSION='1.0.59';
   const CUTOVER='2026-09-01';
   const STATIC_DEPTS=new Set(['54','57','67','68']);
   const JSON_CACHE=new Map();
@@ -115,57 +114,79 @@
   }
   function installRouteSearch(){
     const select=document.getElementById('route');
-    if(!select||document.getElementById('v158RouteSearch'))return;
-    const style=document.createElement('style');
-    style.id='v158RouteSearchStyle';
-    style.textContent='.v158-route-search{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;margin:6px 0 7px}.v158-route-search input{min-height:42px;padding:8px 10px;border-radius:10px}.v158-route-search small{min-width:58px;text-align:right;color:#91a7b3;font-size:.58rem;font-weight:800}.v158-route-search input:disabled{opacity:.55}.v158-route-search input::-webkit-search-cancel-button{cursor:pointer}';
-    document.head.appendChild(style);
-    const box=document.createElement('div');
-    box.className='v158-route-search';
-    box.innerHTML='<input id="v158RouteSearch" type="search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Rechercher : n° ou ville…" aria-label="Rechercher une ligne"><small id="v158RouteSearchCount"></small>';
-    select.insertAdjacentElement('beforebegin',box);
-    const input=document.getElementById('v158RouteSearch');
-    const count=document.getElementById('v158RouteSearchCount');
-    let master=[];
-    let observer;
+    if(!select||document.getElementById('v159RouteSearch'))return;
 
-    const apply=()=>{
-      const q=searchKey(input.value),compact=q.replace(/\s+/g,'');
-      const before=select.value;
-      const first=master[0]||{value:'',text:'Choisir une ligne…',disabled:false};
-      const matches=master.slice(1).filter(o=>{
-        if(!q)return true;
-        const k=searchKey(o.text),kc=k.replace(/\s+/g,'');
-        return k.includes(q)||kc.includes(compact)||q.split(' ').every(t=>!t||k.includes(t));
-      });
-      observer?.disconnect();
-      select.innerHTML='';
-      for(const o of [first,...matches]){
-        const el=document.createElement('option');el.value=o.value;el.textContent=o.text;el.disabled=o.disabled;select.appendChild(el);
+    const style=document.createElement('style');
+    style.id='v159RouteSearchStyle';
+    style.textContent='.v159-route-search{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;margin:6px 0 7px}.v159-route-search input{min-height:42px;padding:8px 10px;border-radius:10px}.v159-route-search small{min-width:58px;text-align:right;color:#91a7b3;font-size:.58rem;font-weight:800}.v159-route-search input:disabled{opacity:.55}.v159-route-search input::-webkit-calendar-picker-indicator{display:none!important}';
+    document.head.appendChild(style);
+
+    const box=document.createElement('div');
+    box.className='v159-route-search';
+    box.innerHTML='<input id="v159RouteSearch" type="search" list="v159RouteSearchList" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Rechercher : n° ou ville…" aria-label="Rechercher une ligne"><datalist id="v159RouteSearchList"></datalist><small id="v159RouteSearchCount"></small>';
+    select.insertAdjacentElement('beforebegin',box);
+
+    const input=document.getElementById('v159RouteSearch');
+    const list=document.getElementById('v159RouteSearchList');
+    const count=document.getElementById('v159RouteSearchCount');
+    let choices=[];
+
+    const refresh=()=>{
+      choices=[...select.options]
+        .filter(o=>o.value&&!o.disabled)
+        .map(o=>({value:o.value,text:o.textContent||''}));
+      list.innerHTML='';
+      for(const c of choices){
+        const o=document.createElement('option');
+        o.value=c.text;
+        list.appendChild(o);
       }
-      if([...select.options].some(o=>o.value===before))select.value=before;
-      else select.value='';
-      if(observer)observer.observe(select,{childList:true,subtree:false,attributes:true,attributeFilter:['disabled']});
-      count.textContent=q?`${matches.length} résultat${matches.length>1?'s':''}`:'';
       input.disabled=select.disabled;
+      if(input.value)updateCount();
     };
-    const capture=()=>{
-      master=[...select.options].map(o=>({value:o.value,text:o.textContent||'',disabled:o.disabled}));
-      input.disabled=select.disabled;
-      apply();
+
+    const matching=()=>{
+      const q=searchKey(input.value), compact=q.replace(/\s+/g,'');
+      if(!q)return choices;
+      const tokens=q.split(' ').filter(Boolean);
+      return choices.filter(c=>{
+        const k=searchKey(c.text), kc=k.replace(/\s+/g,'');
+        return k.includes(q)||kc.includes(compact)||tokens.every(t=>k.includes(t));
+      });
     };
-    observer=new MutationObserver(()=>capture());
-    observer.observe(select,{childList:true,subtree:false,attributes:true,attributeFilter:['disabled']});
-    input.addEventListener('input',apply);
-    input.addEventListener('keydown',e=>{
-      if(e.key==='Escape'){input.value='';apply();return}
-      if(e.key!=='Enter')return;
-      const choices=[...select.options].filter(o=>o.value&&!o.disabled);
-      if(choices.length===1){e.preventDefault();select.value=choices[0].value;select.dispatchEvent(new Event('change',{bubbles:true}))}
+
+    const updateCount=()=>{
+      const q=searchKey(input.value);
+      const m=matching();
+      count.textContent=q?`${m.length} résultat${m.length>1?'s':''}`:'';
+      return m;
+    };
+
+    const choose=(candidate)=>{
+      if(!candidate)return false;
+      select.value=candidate.value;
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+      input.value=candidate.text;
+      count.textContent='';
+      return true;
+    };
+
+    input.addEventListener('input',()=>{
+      const exact=choices.find(c=>searchKey(c.text)===searchKey(input.value));
+      if(exact&&input.value.trim())choose(exact); else updateCount();
     });
-    document.getElementById('dept')?.addEventListener('change',()=>{input.value='';setTimeout(capture,0)});
-    document.getElementById('lineTypeFilter')?.addEventListener('change',()=>{input.value='';setTimeout(capture,0)});
-    capture();
+    input.addEventListener('keydown',e=>{
+      if(e.key==='Escape'){input.value='';count.textContent='';return}
+      if(e.key!=='Enter')return;
+      const m=updateCount();
+      if(m.length===1){e.preventDefault();choose(m[0])}
+    });
+
+    const observer=new MutationObserver(()=>refresh());
+    observer.observe(select,{childList:true,subtree:false,attributes:true,attributeFilter:['disabled']});
+    document.getElementById('dept')?.addEventListener('change',()=>{input.value='';count.textContent='';setTimeout(refresh,0)});
+    document.getElementById('lineTypeFilter')?.addEventListener('change',()=>{input.value='';count.textContent='';setTimeout(refresh,0)});
+    refresh();
   }
 
   window.fluoDeptCore=core;
@@ -184,5 +205,5 @@
     clear:()=>{JSON_CACHE.clear();numberingPromise=null;}
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installRouteSearch,{once:true});else installRouteSearch();
-  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + recherche rapide des lignes 1.0.58 actives');
+  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + recherche non destructive 1.0.59 active');
 })();
