@@ -1,11 +1,14 @@
 'use strict';
-/* Mon SAEIV 1.0.48 — synthèse vocale à priorité stable, sans répétition ni annonce d'arrêt obsolète. */
+/* Mon SAEIV 1.0.48 — synthèse vocale à priorité stable, sans répétition ni annonce d'arrêt obsolète.
+   L'identité de ligne/destination n'est répétée qu'environ tous les 5 arrêts. */
 (()=>{
   const VERSION='1.0.48';
   const START_RETRY_MS=2200;
   const CANCEL_RESTART_MS=140;
   const RECENT_MS=12000;
+  const IDENTITY_STOP_INTERVAL=5;
   let installed=false, watchdog=null;
+  let identityAnchorStop=null, identityCourseKey=null;
   const recent=new Map();
 
   function getAudioState(){try{return (typeof state!=='undefined'&&state?.audio)?state.audio:null}catch{return null}}
@@ -16,6 +19,25 @@
   function duckStart(kind){try{window.MonSAEIVRadio?.duckStart?.(kind)}catch{}}
   function duckEnd(kind){try{window.MonSAEIVRadio?.duckEnd?.(kind)}catch{}}
   function stateTarget(){try{return Number.isInteger(state?.target)?state.target:null}catch{return null}}
+  function currentStopIndex(){try{return Number.isInteger(state?.current)?state.current:null}catch{return null}}
+  function courseKey(){
+    try{return `${state?.route?.id||state?.route?.short||''}|${state?.pattern?.id||state?.pattern?.headsign||''}|${document.getElementById('startStop')?.value||''}`}
+    catch{return''}
+  }
+  function destinationCadenceAllows(text,kind){
+    const current=currentStopIndex();
+    if(!Number.isInteger(current))return true;
+    const key=courseKey();
+    if(key!==identityCourseKey){identityCourseKey=key;identityAnchorStop=null}
+    const containsDestination=/\bà destination de\b/i.test(rawText(text));
+    if((kind==='departure'||kind==='system')&&containsDestination){identityAnchorStop=current;return true}
+    if(kind!=='identity')return true;
+    if(identityAnchorStop===null){identityAnchorStop=current;return true}
+    if(current<identityAnchorStop){identityAnchorStop=current;return true}
+    if(current-identityAnchorStop<IDENTITY_STOP_INTERVAL)return false;
+    identityAnchorStop=current;
+    return true;
+  }
 
   function semantic(text,opts,kind){
     const t=rawText(text),target=Number.isInteger(opts?.targetIndex)?opts.targetIndex:(kind==='stop'?stateTarget():null);
@@ -80,6 +102,7 @@
     say=function(text,opts={}){
       const audio=getAudioState(),s=synth(),txt=rawText(text);if(!audio||!s||!txt)return;
       const kind=opts.kind||'general';if(audio.passengerEnabled===false&&['departure','identity','stop'].includes(kind))return;
+      if(!destinationCadenceAllows(txt,kind))return;
       const meta=semantic(txt,opts,kind),item={text:txt,priority:Number(opts.priority??50),kind,ephemeral:!!opts.ephemeral,seq:Date.now()+Math.random(),role:meta.role,target:meta.target,key:meta.key,valid:opts.valid||null,cancelled:false};
       purge(audio);if(duplicate(audio,item))return;
       if(item.role==='arrival'&&Number.isInteger(item.target))audio.queue=(audio.queue||[]).filter(x=>!(x.role==='next-stop'&&x.target===item.target));
@@ -95,7 +118,7 @@
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{if(sp.paused)sp.resume()}catch{};setTimeout(()=>pumpSpeech(),120)}});
     window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,restart:()=>{try{sp.resume()}catch{};setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
     window.MonSAEIVSpeechV148=window.MonSAEIVSpeechV131;
-    console.info('[Mon SAEIV] moteur vocal 1.0.48 priorités + déduplication actif');return true;
+    console.info('[Mon SAEIV] moteur vocal 1.0.48 priorités + déduplication + destination tous les 5 arrêts actif');return true;
   }
   function versionLabel(){document.title=`Mon SAEIV · ${VERSION}`;const b=document.getElementById('buildInfo');if(b)b.textContent=`Version ${VERSION}`}
   function boot(){versionLabel();if(!installEngine()){let tries=0;const t=setInterval(()=>{if(installEngine()||++tries>60)clearInterval(t)},125)}setTimeout(versionLabel,6000)}
