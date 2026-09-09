@@ -1,8 +1,8 @@
 'use strict';
-/* Mon SAEIV 1.0.72 — lecture opérationnelle de la grille : service, HLP et coupures économiques. */
+/* Mon SAEIV 1.0.73 — lecture opérationnelle de la grille : service, HLP et coupures économiques. */
 (()=>{
   if(window.MonSAEIVServiceGridV168?.installed)return;
-  const VERSION='1.0.72';
+  const VERSION='1.0.73';
   const board=()=>window.MonSAEIVOperationsBoardV165;
   const validPoint=p=>!!p&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lon));
   const pointName=(p,fallback='')=>String(p?.name||fallback||'').replace(/\s+/g,' ').trim();
@@ -23,5 +23,42 @@
   let scheduled=false;function schedule(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;decorate()})}
   function boot(){installStyle();let tries=0;const t=setInterval(()=>{const grid=document.getElementById('v165Grid');if(grid){clearInterval(t);decorate();new MutationObserver(schedule).observe(grid,{childList:true,subtree:true})}else if(++tries>240)clearInterval(t)},250)}
   window.MonSAEIVServiceGridV168={installed:true,version:VERSION,decorate};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+
+/* Mon SAEIV 1.0.73 — édition directe de la grille Exploitation.
+   - déplacement d'une course, ou d'une sélection, par glisser-déposer vers un autre conducteur ;
+   - sélection multiple conservée par le module performance ;
+   - recalcul immédiat HLP/coupures/RSE après déplacement ;
+   - correction serveur de la règle locale 12 avenue Napoléon Ier ↔ Place du Ruisseau : minimum 5 min. */
+(()=>{
+  if(window.MonSAEIVGridDirectEditV170?.installed)return;
+  const VERSION='1.0.73';
+  const q=id=>document.getElementById(id);
+  const board=()=>window.MonSAEIVOperationsBoardV165;
+  const cloud=()=>window.MonSAEIVCloudV156;
+  const engine=()=>window.MonSAEIVGenerationEngineV167;
+  const S={dragIds:[],dragging:false,busy:false,invokePatched:false,decorating:false};
+  const selectable=x=>!!x?.id&&!String(x.source||'').startsWith('auto_')&&['regular','school','tad'].includes(String(x.type||''));
+  const mm=v=>{const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null};
+  const overlap=(a,b)=>{let as=mm(a.start_time),ae=mm(a.end_time),bs=mm(b.start_time),be=mm(b.end_time);if([as,ae,bs,be].some(v=>v===null))return false;if(ae<as)ae+=1440;if(be<bs)be+=1440;return as<be&&bs<ae};
+  const status=(text,kind='')=>{const el=q('v165Status');if(el){el.textContent=text;el.className=`v165-status ${kind}`}};
+  function addStyle(){if(q('v170GridEditStyle'))return;const s=document.createElement('style');s.id='v170GridEditStyle';s.textContent=`
+    .v165-block[data-v170-draggable="1"]{cursor:grab!important;touch-action:manipulation}.v165-block[data-v170-draggable="1"]:active{cursor:grabbing!important}.v165-block.v170-dragging{opacity:.42!important}.v165-lane.v170-drop{box-shadow:inset 0 0 0 3px #61c9ff!important;background-color:rgba(28,91,120,.35)!important}.v170-grid-help{margin:6px 0 0;color:#8fa6b1;font-size:.55rem;line-height:1.35}.v170-grid-help b{color:#cdeeff}`;document.head.appendChild(s)}
+  function itemsForLane(lane){const b=board(),driverId=String(lane?.dataset?.driverLane||'');return(b?.items||[]).filter(x=>String(x.driver_user_id)===driverId&&x.start_time&&x.end_time)}
+  function itemForBlock(block){const b=board();if(!b||!block)return null;const byId=String(block.dataset.v172ItemId||block.dataset.v170ItemId||'');if(byId){const x=(b.items||[]).find(i=>String(i.id)===byId);if(x)return x}const lane=block.closest?.('[data-driver-lane]');if(!lane)return null;const blocks=[...lane.querySelectorAll(':scope > .v165-block')],items=itemsForLane(lane),idx=blocks.indexOf(block);return idx>=0?items[idx]||null:null}
+  function decorate(){if(S.decorating)return;S.decorating=true;try{addStyle();document.querySelectorAll('[data-driver-lane]').forEach(lane=>{const items=itemsForLane(lane),blocks=[...lane.querySelectorAll(':scope > .v165-block')];blocks.forEach((el,i)=>{const item=itemForBlock(el)||items[i];if(!item)return;el.dataset.v170ItemId=String(item.id||'');if(selectable(item)){el.dataset.v170Draggable='1';el.draggable=true;el.title=`${el.title||el.textContent||'Course'} · glisser vers un autre conducteur pour déplacer${el.dataset.v172Selectable==='1'?' · cliquer pour sélectionner':''}`}else{el.dataset.v170Draggable='0';el.draggable=false}})});const bar=q('v172SelectionBar');if(bar&&!q('v170GridHelp')){const h=document.createElement('div');h.id='v170GridHelp';h.className='v170-grid-help';h.innerHTML='<b>Grille modifiable :</b> clique plusieurs courses pour les sélectionner, puis glisse l’une des courses sélectionnées vers un autre conducteur. La corbeille retire toute la sélection.';bar.insertAdjacentElement('afterend',h)}}finally{S.decorating=false}}
+  function selectedIdsFor(block){const item=itemForBlock(block);if(!selectable(item))return[];const id=String(item.id);const selected=[...document.querySelectorAll('.v165-block[data-v172-selected="1"]')].map(el=>String(el.dataset.v172ItemId||el.dataset.v170ItemId||'')).filter(Boolean);return selected.includes(id)?[...new Set(selected)]:[id]}
+  async function rebuild(driverId,date){const c=cloud()?.client;if(!c)return;const{error}=await c.functions.invoke('rebuild-driver-day',{body:{driverUserId:driverId,serviceDate:date}});if(error)throw error}
+  async function move(ids,targetDriverId){if(S.busy||engine()?.running)return;const b=board(),c=cloud()?.client,p=cloud()?.profile;if(!b||!c||!p)throw new Error('Session Exploitation indisponible.');const rows=(b.items||[]).filter(x=>ids.includes(String(x.id))&&selectable(x));if(!rows.length)return;const movingIds=rows.map(x=>String(x.id));const targets=(b.items||[]).filter(x=>String(x.driver_user_id)===String(targetDriverId)&&!movingIds.includes(String(x.id))&&selectable(x));for(const x of rows)for(const y of targets)if(String(x.service_date)===String(y.service_date)&&overlap(x,y))throw new Error(`Déplacement impossible : chevauchement avec ${y.line||'une course'} ${String(y.start_time||'').slice(0,5)}-${String(y.end_time||'').slice(0,5)}.`);
+    S.busy=true;status(`↔ Déplacement de ${rows.length} segment${rows.length>1?'s':''}…`,'busy');try{const{data,error}=await c.functions.invoke('move-plan-segments',{body:{itemIds:movingIds,targetDriverUserId:String(targetDriverId)}});if(error)throw error;const affected=new Map();for(const x of rows)affected.set(`${x.driver_user_id}|${x.service_date}`,{driverId:String(x.driver_user_id),date:String(x.service_date)});for(const d of data?.affected||[])affected.set(`${d.driverUserId}|${d.serviceDate}`,{driverId:String(d.driverUserId),date:String(d.serviceDate)});for(const a of affected.values())await rebuild(a.driverId,a.date);q('v172Clear')?.click();await b.refresh?.();decorate();status(`✅ ${rows.length} segment${rows.length>1?'s':''} déplacé${rows.length>1?'s':''}. HLP, coupures et RSE recalculés.`,'ok')}finally{S.busy=false}}
+  function dragStart(e){const block=e.target?.closest?.('.v165-block[data-v170-draggable="1"]');if(!block||S.busy||engine()?.running)return;const ids=selectedIdsFor(block);if(!ids.length)return;S.dragIds=ids;S.dragging=true;block.classList.add('v170-dragging');try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('application/x-mon-saeiv-plan-items',JSON.stringify(ids));e.dataTransfer.setData('text/plain',ids.join(','))}catch{}}
+  function dragOver(e){const lane=e.target?.closest?.('[data-driver-lane]');if(!lane||!S.dragging)return;e.preventDefault();try{e.dataTransfer.dropEffect='move'}catch{};document.querySelectorAll('.v165-lane.v170-drop').forEach(x=>x.classList.remove('v170-drop'));lane.classList.add('v170-drop')}
+  function dragLeave(e){const lane=e.target?.closest?.('[data-driver-lane]');if(lane&&!lane.contains(e.relatedTarget))lane.classList.remove('v170-drop')}
+  async function drop(e){const lane=e.target?.closest?.('[data-driver-lane]');if(!lane||!S.dragging)return;e.preventDefault();lane.classList.remove('v170-drop');let ids=S.dragIds;try{const raw=e.dataTransfer.getData('application/x-mon-saeiv-plan-items');if(raw)ids=JSON.parse(raw)}catch{};try{await move([...new Set((ids||[]).map(String))],String(lane.dataset.driverLane||''))}catch(err){status(err?.message||String(err),'err')}finally{endDrag()}}
+  function endDrag(){S.dragging=false;S.dragIds=[];document.querySelectorAll('.v170-dragging').forEach(x=>x.classList.remove('v170-dragging'));document.querySelectorAll('.v165-lane.v170-drop').forEach(x=>x.classList.remove('v170-drop'))}
+  function patchInvoke(){if(S.invokePatched)return true;const c=cloud()?.client,fn=c?.functions;if(!fn||typeof fn.invoke!=='function')return false;const original=fn.invoke.bind(fn);fn.invoke=async(slug,opts)=>{const res=await original(slug,opts);if(slug==='rebuild-driver-day'&&!res?.error){const body=opts?.body||{};if(body.driverUserId&&body.serviceDate){try{const fix=await original('normalize-hlp-minimum',{body:{driverUserId:String(body.driverUserId),serviceDate:String(body.serviceDate)}});if(fix?.error)console.warn('[Mon SAEIV] correction HLP minimum',fix.error);else if(fix?.data?.adjusted)res.data={...(res.data||{}),hlpMinimumAdjusted:fix.data.adjusted}}catch(err){console.warn('[Mon SAEIV] correction HLP minimum',err)}}}return res};S.invokePatched=true;return true}
+  function boot(){addStyle();let tries=0;const t=setInterval(()=>{const grid=q('v165Grid');if(grid&&board()){patchInvoke();decorate();clearInterval(t);grid.addEventListener('dragstart',dragStart,true);grid.addEventListener('dragover',dragOver,true);grid.addEventListener('dragleave',dragLeave,true);grid.addEventListener('drop',drop,true);grid.addEventListener('dragend',endDrag,true);new MutationObserver(()=>requestAnimationFrame(decorate)).observe(grid,{childList:true,subtree:true});setInterval(()=>{patchInvoke();decorate()},1500)}else if(++tries>240)clearInterval(t)},250)}
+  window.MonSAEIVGridDirectEditV170={installed:true,version:VERSION,decorate,move};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
