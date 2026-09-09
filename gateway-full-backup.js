@@ -1,0 +1,32 @@
+'use strict';
+/* Mon SAEIV 1.0.64 — export/import intégral du profil local, journaux compris. */
+(()=>{
+  if(window.MonSAEIVGatewayBackupV164?.installed)return;
+  const VERSION='1.0.64';
+  const BACKUP_FORMAT='mon-saeiv-local-backup';
+  const DB_NAME='fluo-saeiv-journal-v13';
+  const ACCOUNT_KEY='fluoSaeivAccountV13';
+  const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
+  const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
+  const q=id=>document.getElementById(id);
+  function status(text,kind=''){const e=q('gatewayStatus');if(e){e.textContent=text||'';e.className=`status ${kind}`}}
+  function account(){try{return JSON.parse(localStorage.getItem(ACCOUNT_KEY)||'null')}catch{return null}}
+  function isCloudKey(key){return key===PROFILE_CACHE||key===ENTRY_MODE_KEY||/^sb-/i.test(key)||/^supabase/i.test(key)||/^mon-saeiv-cloud-/i.test(key)}
+  function localEntries(){const out={};for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(!key||isCloudKey(key))continue;const v=localStorage.getItem(key);if(v!==null)out[key]=v}return out}
+  function openDb(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(new Error('IndexedDB indisponible'));const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('sessions')){const s=d.createObjectStore('sessions',{keyPath:'id'});s.createIndex('startedAt','startedAt');s.createIndex('matricule','matricule')}if(!d.objectStoreNames.contains('events')){const e=d.createObjectStore('events',{keyPath:'id',autoIncrement:true});e.createIndex('sessionId','sessionId');e.createIndex('ts','ts');e.createIndex('type','type')}};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('Impossible d’ouvrir les journaux'))})}
+  async function readStore(db,name){return new Promise((res,rej)=>{const r=db.transaction(name,'readonly').objectStore(name).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
+  async function readJournals(){const db=await openDb();try{const [sessions,events]=await Promise.all([readStore(db,'sessions'),readStore(db,'events')]);return {sessions,events}}finally{try{db.close()}catch{}}}
+  async function writeJournals(data){const db=await openDb();try{await new Promise((res,rej)=>{const tx=db.transaction(['sessions','events'],'readwrite'),ss=tx.objectStore('sessions'),es=tx.objectStore('events');ss.clear();es.clear();for(const x of data?.sessions||[]){if(x?.id!=null)ss.put(x)}for(const x of data?.events||[]){if(!x)continue;const v={...x};if(v.id==null)delete v.id;es.put(v)}tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error||new Error('Import journaux impossible'));tx.onabort=()=>rej(tx.error||new Error('Import journaux annulé'))})}finally{try{db.close()}catch{}}}
+  function fileName(matricule){const d=new Date(),day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;return `Mon-SAEIV-compte-complet-${String(matricule||'conducteur').replace(/[^a-z0-9_-]+/gi,'-')}-${day}.json`}
+  async function exportFull(e){e?.preventDefault();e?.stopImmediatePropagation();const a=account();if(!a?.matricule)return status('Aucun profil local détecté sur cet appareil.','err');status('Préparation du compte complet : journaux, statistiques et données locales…','busy');try{const journals=await readJournals();const payload={format:BACKUP_FORMAT,formatVersion:2,appVersion:VERSION,exportedAt:new Date().toISOString(),matricule:String(a.matricule),entries:localEntries(),journals};const text=JSON.stringify(payload,null,2),name=fileName(a.matricule),file=new File([text],name,{type:'application/json'});if(navigator.share&&navigator.canShare?.({files:[file]})){try{await navigator.share({files:[file],title:'Compte complet Mon SAEIV'});status(`Compte complet exporté · ${journals.sessions.length} journal${journals.sessions.length>1?'x':''}.`,'ok');return}catch(err){if(err?.name==='AbortError')return}}const url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);status(`Compte complet téléchargé · ${journals.sessions.length} journal${journals.sessions.length>1?'x':''}.`,'ok')}catch(err){status(err?.message||'Export complet impossible.','err')}}
+  async function importFullFile(file,e){e?.preventDefault();e?.stopImmediatePropagation();if(!file)return;status('Import du compte complet…','busy');try{const data=JSON.parse(await file.text());if(data?.format!==BACKUP_FORMAT||![1,2].includes(Number(data?.formatVersion))||!data.entries||typeof data.entries!=='object')throw new Error('Ce fichier n’est pas une sauvegarde Mon SAEIV valide.');if(!Object.prototype.hasOwnProperty.call(data.entries,ACCOUNT_KEY))throw new Error('Le fichier ne contient pas de profil conducteur local.');localStorage.clear();for(const [key,value] of Object.entries(data.entries)){if(!isCloudKey(key)&&typeof value==='string')localStorage.setItem(key,value)}if(Number(data.formatVersion)>=2&&data.journals)await writeJournals(data.journals);const a=account();if(!a?.matricule)throw new Error('Le profil local n’a pas pu être restauré.');const n=Number(data?.journals?.sessions?.length||0);status(`Compte ${a.matricule} importé${Number(data.formatVersion)>=2?` · ${n} journal${n>1?'x':''}`:''}. Rechargement…`,'ok');setTimeout(()=>location.replace(`./?v=${VERSION}&imported=1#driver`),650)}catch(err){status(err?.message||'Import impossible.','err')}finally{if(q('importLocalFile'))q('importLocalFile').value=''}}
+  function install(){
+    const exp=q('exportLocal'),imp=q('importLocal'),input=q('importLocalFile');
+    if(exp)exp.addEventListener('click',exportFull,true);
+    if(imp)imp.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();input?.click()},true);
+    if(input)input.addEventListener('change',e=>importFullFile(e.target.files?.[0],e),true);
+    const text=document.querySelector('.transfer p');if(text)text.textContent='Exporte ou importe le compte complet : profil, réglages, caisse, données locales, journaux et statistiques. Les sessions serveur restent volontairement exclues.';
+  }
+  window.MonSAEIVGatewayBackupV164={installed:true,version:VERSION,readJournals,exportFull,importFullFile};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
