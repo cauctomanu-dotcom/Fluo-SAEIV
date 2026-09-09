@@ -1,13 +1,14 @@
 'use strict';
-/* Mon SAEIV 1.0.60 — démarrage propre après externalisation complète du runtime.
+/* Mon SAEIV 1.0.61 — démarrage propre de l'application après le sas de connexion.
    Ce fichier ne contient aucune logique métier de conduite : il verrouille seulement
-   la version publiée, le démarrage serveur et la reprise propre de la PWA. */
+   la version publiée, la reprise PWA et la santé minimale du runtime. */
 (()=>{
   if(window.MonSAEIVCleanRuntimeV159?.installed)return;
 
-  const VERSION='1.0.60';
+  const VERSION='1.0.61';
   const q=id=>document.getElementById(id);
-  const CLEAN_CACHE='mon-saeiv-clean-1.0.60';
+  const CLEAN_CACHE='mon-saeiv-clean-1.0.61';
+  const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
   let reloading=false;
 
   function stamp(){
@@ -19,11 +20,11 @@
     document.documentElement.dataset.monSaeivVersion=VERSION;
   }
 
-  function forceServerEntry(){
-    // La page de connexion autonome V158 est désormais l'unique porte d'entrée.
-    // Un ancien choix « profil local » ne doit plus remettre l'ancien overlay V13
-    // devant l'écran de rôle lors d'une nouvelle ouverture.
-    try{localStorage.setItem('mon-saeiv-cloud-entry-v156','cloud')}catch{}
+  function applyGatewayEntry(){
+    const entry=new URLSearchParams(location.search).get('entry');
+    if(entry==='local'||entry==='cloud'){
+      try{localStorage.setItem(ENTRY_MODE_KEY,entry)}catch{}
+    }
   }
 
   async function clearOldCaches(){
@@ -40,7 +41,7 @@
     box.id='v159BootFailure';
     box.setAttribute('role','alert');
     box.style.cssText='position:fixed;z-index:2147483646;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));max-width:760px;margin:auto;padding:12px 13px;border:1px solid #8a4446;border-radius:14px;background:#351d20;color:#ffe0dd;font:700 13px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 16px 50px rgba(0,0,0,.5)';
-    box.innerHTML='<b>Mon SAEIV n’a pas terminé son chargement.</b><div id="v159BootFailureText" style="margin-top:4px;font-weight:500"></div><button id="v159BootReload" type="button" style="width:100%;min-height:44px;margin-top:9px;border:0;border-radius:10px;background:#ffd000;color:#151515;font-weight:900">RECHARGER PROPREMENT</button>';
+    box.innerHTML='<b>Mon SAEIV n’a pas terminé son chargement.</b><div id="v159BootFailureText" style="margin-top:4px;font-weight:500"></div><button id="v159BootReload" type="button" style="width:100%;min-height:44px;margin-top:9px;border:0;border-radius:10px;background:#ffd000;color:#151515;font-weight:900">RECHARGER PROPREMENT</button><button id="v159BootGateway" type="button" style="width:100%;min-height:44px;margin-top:7px;border:1px solid #6c8795;border-radius:10px;background:#102b39;color:#fff;font-weight:900">REVENIR À LA CONNEXION</button>';
     document.body.appendChild(box);
     q('v159BootFailureText').textContent=String(message||'Erreur de démarrage.');
     q('v159BootReload')?.addEventListener('click',async()=>{
@@ -49,8 +50,9 @@
         await Promise.allSettled((regs||[]).map(r=>r.unregister()));
         await clearOldCaches();
       }catch{}
-      location.replace(`${location.pathname}?v=${VERSION}&clean=${Date.now()}`);
+      location.replace(`./app.html?v=${VERSION}&clean=${Date.now()}&entry=${encodeURIComponent(new URLSearchParams(location.search).get('entry')||'cloud')}`);
     });
+    q('v159BootGateway')?.addEventListener('click',()=>location.replace(`./?v=${VERSION}`));
   }
 
   async function installWorker(){
@@ -61,7 +63,7 @@
       if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
         if(reloading)return;
-        const key='mon-saeiv-clean-controller-reload-1.0.60';
+        const key='mon-saeiv-clean-controller-reload-1.0.61';
         try{
           if(sessionStorage.getItem(key)==='1')return;
           sessionStorage.setItem(key,'1');
@@ -76,22 +78,20 @@
     const coreOk=typeof window.MonSAEIVAuthV13?.remoteUnlock==='function';
     const setupOk=!!q('setup')&&!!q('driver')&&!!q('start')&&!!q('route');
     const cloudLoaded=!!window.MonSAEIVCloudV156?.installed;
-    const roleLoaded=!!window.MonSAEIVRoleLoginV158?.installed;
-    if(!coreOk||!setupOk||!cloudLoaded||!roleLoaded){
+    const bridgeLoaded=!!window.MonSAEIVEntryBridgeV160?.installed;
+    if(!coreOk||!setupOk||!cloudLoaded||!bridgeLoaded){
       const missing=[];
       if(!setupOk)missing.push('interface conducteur');
       if(!coreOk)missing.push('pont de connexion conducteur');
-      if(!cloudLoaded)missing.push('connexion serveur');
-      if(!roleLoaded)missing.push('sélecteur de rôle');
+      if(!cloudLoaded)missing.push('synchronisation serveur');
+      if(!bridgeLoaded)missing.push('pont du sas de connexion');
       showBootFailure(`Module(s) manquant(s) : ${missing.join(', ')}.`);
     }
   }
 
   function init(){
-    forceServerEntry();
+    applyGatewayEntry();
     stamp();
-    // Le générateur transforme l'ancien écran bloquant en simple encart. On ne
-    // supprime ici qu'une éventuelle vieille modale issue d'un cache très ancien.
     const usage=q('v3127UsageNotice');
     if(usage?.classList.contains('v3127-usage-backdrop'))usage.remove();
     clearOldCaches();
