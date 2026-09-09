@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+  <meta name="theme-color" content="#07121b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="./manifest.webmanifest?v=1.0.61">
+  <title>Mon SAEIV · Connexion 1.0.61</title>
+  <style>
+    :root{color-scheme:dark;--bg:#040b11;--panel:#0d202c;--panel2:#071923;--line:#345568;--text:#f4f8fb;--muted:#a8bbc5;--yellow:#ffd000;--orange:#ffad00;--green:#62dd8a;--red:#ff7770}
+    *{box-sizing:border-box}html{min-height:100%;background:var(--bg)}body{min-height:100vh;margin:0;background:radial-gradient(circle at 82% 0,#17394c 0,#071620 45%,#03090d 100%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+    button,input,select{font:inherit}.gateway{width:min(720px,100%);margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom))}.card{padding:22px;border:1px solid rgba(126,164,185,.35);border-radius:24px;background:linear-gradient(180deg,#102936,#071721);box-shadow:0 28px 85px rgba(0,0,0,.5)}
+    .eyebrow{color:var(--yellow);font-size:.72rem;font-weight:950;letter-spacing:.16em}.card h1{margin:7px 0 6px;font-size:clamp(2rem,8vw,2.7rem);line-height:1}.intro{margin:0;color:var(--muted);font-size:.9rem;line-height:1.5}.version{margin-top:7px;color:#78919e;font-size:.68rem}
+    .roles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:18px 0}.role{display:flex;min-height:78px;align-items:center;justify-content:center;flex-direction:column;padding:10px;border:1px solid var(--line);border-radius:15px;background:#112b39;color:#fff;text-align:center;text-decoration:none;font-weight:900;touch-action:manipulation}.role span{margin-top:4px;color:#9fb4bf;font-size:.66rem;font-weight:750}.role.active{border-color:var(--yellow);background:#403608;color:#fff2a4;box-shadow:inset 0 0 0 1px rgba(255,208,0,.28)}.role.active span{color:#e4d881}
+    .session,.local{display:none;margin:12px 0;padding:12px;border:1px solid #3d6f51;border-radius:14px;background:#0c2b1a;color:#cce9d4;font-size:.78rem;line-height:1.45}.session.show,.local.show{display:block}.session-actions,.local-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+    .panel{display:none;margin-top:12px;padding:16px;border:1px solid #314d5c;border-radius:18px;background:#081923}.panel.show{display:block}.panel h2{margin:0 0 4px;font-size:1.25rem}.panel .help{margin:0 0 13px;color:#99afb9;font-size:.74rem;line-height:1.45}.form{display:grid;gap:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.wide{grid-column:1/-1}label{display:flex;flex-direction:column;gap:6px;color:#bacbd3;font-size:.78rem;font-weight:800}input,select{width:100%;min-height:54px;padding:12px;border:1px solid #3c6072;border-radius:13px;outline:none;background:#05151f;color:#fff}input:focus,select:focus{border-color:var(--yellow);box-shadow:0 0 0 3px rgba(255,208,0,.1)}
+    button{min-height:52px;padding:10px 13px;border:1px solid #3b5969;border-radius:13px;background:#173345;color:#fff;font-weight:900;cursor:pointer;touch-action:manipulation}button.primary{border:0;background:linear-gradient(135deg,var(--yellow),var(--orange));color:#151515}.link{width:100%;margin-top:10px;background:transparent;border-style:dashed}.hidden{display:none!important}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.status{min-height:1.4em;margin-top:13px;color:#a8bbc5;font-size:.76rem}.status.busy{color:#ffe28a}.status.ok{color:#9cf4b7}.status.err{color:#ffaaa5}.note{margin-top:14px;padding:10px;border:1px solid #2d4654;border-radius:12px;background:#06131c;color:#8fa6b1;font-size:.68rem;line-height:1.5}
+    @media(max-width:620px){.gateway{padding-left:0;padding-right:0;padding-bottom:0}.card{min-height:100dvh;border-right:0;border-left:0;border-bottom:0;border-radius:24px 24px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom))}.roles,.grid,.actions,.session-actions,.local-actions{grid-template-columns:1fr}.role{min-height:66px}}
+  </style>
+  <script defer src="./login-gateway.js?v=1.0.61"></script>
+</head>
+<body>
+  <main class="gateway" id="gatewayApp">
+    <section class="card">
+      <div class="eyebrow">MON SAEIV · CONNEXION</div>
+      <h1>Qui se connecte ?</h1>
+      <p class="intro">La connexion est maintenant séparée du moteur conducteur. Le SAEIV complet ne démarre qu’après authentification.</p>
+      <div class="version">Sas de connexion isolé · version 1.0.61</div>
+
+      <div id="sessionBox" class="session"><div id="sessionText"></div><div class="session-actions"><button id="resumeSession" class="primary" type="button">REPRENDRE MA SESSION</button><button id="dropSession" type="button">Changer de compte</button></div></div>
+      <div id="localBox" class="local"><div id="localText"></div><div class="local-actions"><button id="openLocal" type="button">👤 Ouvrir mon profil local</button><button id="linkLocal" type="button">☁ Le lier au serveur</button></div></div>
+
+      <nav class="roles" aria-label="Choisir un rôle">
+        <a class="role active" href="#driver" data-role="driver"><b>🚌 Conducteur</b><span>Matricule + mot de passe</span></a>
+        <a class="role" href="#dispatcher" data-role="dispatcher"><b>🎧 Exploitant</b><span>Conducteurs et plannings</span></a>
+        <a class="role" href="#admin" data-role="admin"><b>⚙ Administrateur</b><span>Comptes, droits et société</span></a>
+      </nav>
+
+      <section id="driverPanel" class="panel show">
+        <h2>Connexion Conducteur</h2>
+        <p class="help">Aucune adresse e-mail n’est demandée. Ton identifiant est ton matricule.</p>
+        <form id="driverLoginForm" class="form">
+          <label>Matricule<input id="driverMatricule" type="text" autocomplete="username" autocapitalize="characters" required></label>
+          <label>Mot de passe<input id="driverPassword" type="password" autocomplete="current-password" minlength="8" required></label>
+          <button class="primary" type="submit">OUVRIR MON SAEIV</button>
+        </form>
+        <button id="showDriverRegister" class="link" type="button">Première connexion conducteur</button>
+
+        <form id="driverRegisterForm" class="form hidden" style="margin-top:12px">
+          <div class="grid">
+            <label>Code société<input id="driverOrg" type="text" value="PILOTE" maxlength="40" required></label>
+            <label>Code d’invitation<input id="driverInvite" type="text" autocomplete="one-time-code" required></label>
+            <label>Matricule<input id="driverRegMatricule" type="text" maxlength="40" autocapitalize="characters" required></label>
+            <label>Nom affiché<input id="driverName" type="text" maxlength="80"></label>
+            <label>Mot de passe<input id="driverRegPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+            <label>Confirmer<input id="driverConfirm" type="password" autocomplete="new-password" minlength="8" required></label>
+            <label class="wide">Réseau<select id="driverNetwork"><option value="fluo">Fluo Grand Est</option><option value="stan">STAN</option><option value="lemet">LE MET’</option><option value="temob">TeMo’b</option><option value="rgtr">RGTR</option><option value="tice">TICE</option></select></label>
+          </div>
+          <div class="actions"><button class="primary" type="submit">CRÉER MON COMPTE</button><button id="hideDriverRegister" type="button">Retour</button></div>
+        </form>
+      </section>
+
+      <section id="managementPanel" class="panel">
+        <h2 id="managementTitle">Connexion Exploitant</h2>
+        <p id="managementHelp" class="help">L’exploitant gère les conducteurs et leurs plannings. Les droits sont vérifiés par le serveur.</p>
+        <form id="managementLoginForm" class="form">
+          <label>Adresse e-mail<input id="managementEmail" type="email" autocomplete="email" required></label>
+          <label>Mot de passe<input id="managementPassword" type="password" autocomplete="current-password" minlength="8" required></label>
+          <button class="primary" type="submit">SE CONNECTER</button>
+        </form>
+        <button id="showManagementRegister" class="link" type="button">Première connexion / invitation</button>
+        <form id="managementRegisterForm" class="form hidden" style="margin-top:12px">
+          <div class="grid">
+            <label class="wide">Adresse e-mail<input id="managementRegEmail" type="email" required></label>
+            <label>Code société<input id="managementOrg" type="text" value="PILOTE" required></label>
+            <label>Code d’invitation<input id="managementInvite" type="text" required></label>
+            <label>Matricule / identifiant<input id="managementMatricule" type="text" required></label>
+            <label>Nom affiché<input id="managementName" type="text"></label>
+            <label>Mot de passe<input id="managementRegPassword" type="password" minlength="8" required></label>
+            <label>Confirmer<input id="managementConfirm" type="password" minlength="8" required></label>
+          </div>
+          <button class="primary" type="submit">CRÉER LE COMPTE DE GESTION</button>
+        </form>
+      </section>
+
+      <div id="gatewayStatus" class="status" aria-live="polite"></div>
+      <div class="note">Le bouton choisi détermine le formulaire affiché, jamais les droits. Un compte Exploitant ne peut pas devenir Administrateur en sélectionnant un autre bouton.</div>
+    </section>
+  </main>
+</body>
+</html>
