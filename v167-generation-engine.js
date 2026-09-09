@@ -1,12 +1,15 @@
 'use strict';
-/* Mon SAEIV 1.0.72 — moteur Exploitation économique.
-   Compatibilité runtime historique : generation_engine_v167 · prise/fin de service · auto_service.
-   Règle économique : une coupure au Stationnement bus = 0 %, ailleurs = 50 % payée.
-   Le moteur compare coût HLP (temps + gasoil) et coût de coupure avant d'affecter une course. */
+/* Mon SAEIV 1.0.72 — génération Exploitation économique + RSE sur toutes les lignes.
+   Règles internes :
+   - toute ligne est traitée comme relevant de la RSE 561/2006, quelle que soit sa distance ;
+   - une coupure hors Stationnement bus est classée 50 % ;
+   - une coupure au Stationnement bus est classée 0 % ;
+   - optimisation financière de référence : gazole 2,10 €/L, 30 L/100 km, coût horaire conducteur de référence 20 €/h.
+   Le coût horaire est un paramètre de comparaison interne et pourra être rendu configurable par société. */
 (()=>{
   if(window.MonSAEIVGenerationEngineV167?.installed)return;
   const VERSION='1.0.72';
-  const ECON={fuelEurPerL:2.10,busLitresPer100Km:30,labourEurPerHour:30,offsiteCutRate:.50,roadFactor:1.22,averageHlpKmh:40};
+  const ECON=Object.freeze({dieselEurPerLiter:2.10,busLitersPer100Km:30,referenceLaborEurPerHour:20,offParkingCutPct:50,parkingCutPct:0,samePlaceMeters:120});
   const q=id=>document.getElementById(id);
   const cloud=()=>window.MonSAEIVCloudV156;
   const client=()=>cloud()?.client||null;
@@ -17,87 +20,128 @@
   const hash=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return(h>>>0).toString(36)};
   const validPoint=p=>!!p&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lon));
   const hav=(a,b)=>{if(!validPoint(a)||!validPoint(b))return null;const R=6371,r=x=>x*Math.PI/180,dLat=r(Number(b.lat)-Number(a.lat)),dLon=r(Number(b.lon)-Number(a.lon)),z=Math.sin(dLat/2)**2+Math.cos(r(Number(a.lat)))*Math.cos(r(Number(b.lat)))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(z))};
-  const roadKm=(a,b)=>{const x=hav(a,b);return x===null?null:(x<.12?0:x*ECON.roadFactor)};
-  const estimateMinutes=km=>km==null?0:Math.max(0,km<.12?0:Math.ceil(km/ECON.averageHlpKmh*60));
-  const travelCost=(km,min)=>km*(ECON.fuelEurPerL*ECON.busLitresPer100Km/100)+(min/60)*ECON.labourEurPerHour;
-  const cutCost=(min,pct)=>Math.max(0,min)/60*ECON.labourEurPerHour*(pct/100);
-  const nearPark=(p,park)=>{const d=hav(p,park);return d!==null&&d<.12};
+  const estimateMinutes=km=>km==null?0:Math.max(0,km<.12?0:Math.ceil((km*1.18)/42*60));
+  const near=(a,b)=>{const km=hav(a,b);return km!==null&&km*1000<ECON.samePlaceMeters};
+  const fuelCost=km=>Math.max(0,Number(km)||0)*(ECON.busLitersPer100Km/100)*ECON.dieselEurPerLiter;
+  const paidCutCost=(minutes,pct)=>Math.max(0,minutes)/60*ECON.referenceLaborEurPerHour*(pct/100);
   const timeDb=v=>/^\d{2}:\d{2}$/.test(String(v||''))?`${v}:00`:null;
   const clientId=seg=>`seg-${hash(seg.id)}`;
   const dateValue=()=>q('v165Date')?.value||new Date().toISOString().slice(0,10);
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'').trim();
-  const sel={ids:new Set(),last:null,deleting:false,queued:false,observer:null};
   let running=false;
 
   function status(text,kind=''){const el=q('v165Status');if(el){el.textContent=text||'';el.className=`v165-status ${kind}`}}
-  function assignmentFor(seg,items){return items.find(x=>['regular','school'].includes(x.type)&&(x.payload?.segment_id===seg.id||(String(x.linked?.tripId||'')===String(seg.tripId||'')&&String(x.linked?.dept||'')===String(seg.dept||''))))||null}
-  function asActivity(x){return{id:x.payload?.segment_id||x.id,line:x.line||'',dept:x.linked?.dept||x.payload?.dept||'',type:x.type,start:String(x.start_time||'').slice(0,5),end:String(x.end_time||'').slice(0,5),origin:x.origin||'',destination:x.destination||'',originCoords:x.origin_coords||null,destinationCoords:x.destination_coords||null,driveMinutes:Number(x.drive_minutes)||duration(x.start_time,x.end_time),regime:x.regime||'national50'}}
-  function workingItems(items,driverId){return items.filter(x=>String(x.driver_user_id)===String(driverId)&&!['auto_hlp','auto_cut','auto_service'].includes(x.source)).map(asActivity).sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999))}
+  function assignmentFor(seg,items){return (items||[]).find(x=>['regular','school'].includes(x.type)&&(x.payload?.segment_id===seg.id||(String(x.linked?.tripId||'')===String(seg.tripId||'')&&String(x.linked?.dept||'')===String(seg.dept||''))))||null}
+  function asActivity(x){return{id:x.payload?.segment_id||x.id,line:x.line||'',dept:x.linked?.dept||x.payload?.dept||'',type:x.type,start:String(x.start_time||'').slice(0,5),end:String(x.end_time||'').slice(0,5),origin:x.origin||'',destination:x.destination||'',originCoords:x.origin_coords||null,destinationCoords:x.destination_coords||null,driveMinutes:Number(x.drive_minutes)||duration(x.start_time,x.end_time),regime:'eu561'}}
+  function workingItems(items,driverId){return (items||[]).filter(x=>String(x.driver_user_id)===String(driverId)&&!['auto_hlp','auto_cut','auto_service'].includes(x.source)).map(asActivity).sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999))}
   function normalizeKnown(xs){const out=[],seen=new Set();for(const x of Array.isArray(xs)?xs:[]){const dept=String(x?.dept||'').replace(/\D/g,'').slice(0,2),line=String(x?.line||x?.code||'').trim().toUpperCase().replace(/\s+/g,'');if(!dept||!line)continue;const k=`${dept}|${norm(line)}`;if(seen.has(k))continue;seen.add(k);out.push({dept,line,key:k})}return out}
   function segmentLineKey(seg){const dept=String(seg?.dept||seg?.linked?.dept||String(seg?.id||'').split('|')[0]||'').replace(/\D/g,'').slice(0,2),line=String(seg?.line||'').trim().toUpperCase().replace(/\s+/g,'');return dept&&line?`${dept}|${norm(line)}`:''}
   function knowsLine(seg,settings){const k=segmentLineKey(seg);return !!k&&normalizeKnown(settings?.known_lines).some(x=>x.key===k)}
 
   function gapEconomy(a,b,park){
-    const ae=mm(a.end),bs0=mm(b.start);if(ae===null||bs0===null)return{ok:true,km:0,minutes:0,cut:0,cutPct:0,cost:0,mode:'none'};let bs=bs0;if(bs<ae)bs+=1440;const gap=bs-ae;
-    const directKm=roadKm(a.destinationCoords,b.originCoords);if(directKm===null)return{ok:false,reason:'coordonnées HLP intermédiaire manquantes'};const directMin=estimateMinutes(directKm);if(gap<directMin)return{ok:false,reason:`HLP impossible entre ${a.line||'course'} et ${b.line||'course'}`};
-    const cut=Math.max(0,gap-directMin),prevPark=nearPark(a.destinationCoords,park),nextPark=nearPark(b.originCoords,park),directPct=(prevPark||nextPark)?0:50;
-    let best={ok:true,km:directKm,minutes:directMin,cut,cutPct:directPct,cost:travelCost(directKm,directMin)+cutCost(cut,directPct),mode:prevPark?'direct_before':nextPark?'direct_after':'direct_offsite'};
-    if(validPoint(park)&&!prevPark&&!nextPark&&cut>=20){
-      const k1=roadKm(a.destinationCoords,park),k2=roadKm(park,b.originCoords);if(k1!==null&&k2!==null){const m1=estimateMinutes(k1),m2=estimateMinutes(k2),viaMin=m1+m2;if(viaMin<=gap){const viaCut=gap-viaMin,viaKm=k1+k2,viaCost=travelCost(viaKm,viaMin);if(viaCost+0.01<best.cost)best={ok:true,km:viaKm,minutes:viaMin,cut:viaCut,cutPct:0,cost:viaCost,mode:'via_parking'}}}
+    const ae=mm(a.end),bs0=mm(b.start);if(ae===null||bs0===null)return{ok:false,reason:'horaire invalide'};
+    let bs=bs0;if(bs<ae)bs+=1440;const gap=bs-ae;
+    const directKm=hav(a.destinationCoords,b.originCoords);if(directKm===null)return{ok:false,reason:'coordonnées HLP intermédiaire manquantes'};
+    const directMin=estimateMinutes(directKm);if(gap<directMin)return{ok:false,reason:`HLP impossible entre ${a.line||'course'} et ${b.line||'course'}`};
+    const directCut=gap-directMin,directPct=near(b.originCoords,park)?0:50;
+    const directCost=fuelCost(directKm*1.18)+paidCutCost(directCut,directPct);
+    let chosen={mode:'direct',hlpKm:directKm*1.18,hlpMinutes:directMin,cutMinutes:directCut,cutPct:directPct,costEur:directCost,paidCutMinutes:directPct===50?directCut:0};
+    const k1=hav(a.destinationCoords,park),k2=hav(park,b.originCoords);
+    if(k1!==null&&k2!==null){
+      const m1=estimateMinutes(k1),m2=estimateMinutes(k2);
+      if(m1+m2<=gap){
+        const cut=Math.max(0,gap-m1-m2),viaKm=(k1+k2)*1.18,viaCost=fuelCost(viaKm);
+        if(viaCost+0.01<chosen.costEur)chosen={mode:'parking',hlpKm:viaKm,hlpMinutes:m1+m2,cutMinutes:cut,cutPct:0,costEur:viaCost,paidCutMinutes:0};
+      }
     }
-    return best;
+    return{ok:true,...chosen};
   }
 
   function scheduleEconomy(all,park){
-    const xs=[...all].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));if(!xs.length)return{ok:true,hlpKm:0,hlpMinutes:0,cutMinutes:0,paidCutMinutes:0,offsiteCutMinutes:0,cutCount:0,maxCut:0,maxOffsiteCut:0,costEur:0,choices:[],amplitude:0,work:0,drive:0,score:0};
-    const first=xs[0],last=xs.at(-1),firstKm=roadKm(park,first.originCoords),lastKm=roadKm(last.destinationCoords,park);if(firstKm===null||lastKm===null)return{ok:false,reason:'coordonnées HLP début/fin manquantes'};
-    let hlpKm=firstKm+lastKm,hlpMinutes=estimateMinutes(firstKm)+estimateMinutes(lastKm),cutMinutes=0,paidCutMinutes=0,offsiteCutMinutes=0,costEur=travelCost(firstKm,estimateMinutes(firstKm))+travelCost(lastKm,estimateMinutes(lastKm));const cuts=[],offsiteCuts=[],choices=[];
-    for(let i=0;i<xs.length-1;i++){const g=gapEconomy(xs[i],xs[i+1],park);if(!g.ok)return g;hlpKm+=g.km;hlpMinutes+=g.minutes;costEur+=g.cost;if(g.cut>0){cuts.push(g.cut);cutMinutes+=g.cut;if(g.cutPct===50){offsiteCuts.push(g.cut);offsiteCutMinutes+=g.cut;paidCutMinutes+=g.cut*.5}choices.push(g)}}
-    const fm=mm(first.start),le0=mm(last.end);let amplitude=0;if(fm!==null&&le0!==null){let le=le0;if(le<fm)le+=1440;amplitude=(le+estimateMinutes(lastKm)+5)-(fm-estimateMinutes(firstKm)-10)}
-    const courseWork=xs.reduce((z,x)=>z+duration(x.start,x.end),0),work=courseWork+hlpMinutes+15,drive=xs.reduce((z,x)=>z+(['regular','school','tad','hlp'].includes(x.type)?(Number(x.driveMinutes)||duration(x.start,x.end)):0),0)+hlpMinutes,maxCut=cuts.length?Math.max(...cuts):0,maxOffsiteCut=offsiteCuts.length?Math.max(...offsiteCuts):0,cutCount=cuts.length;
-    costEur+=15/60*ECON.labourEurPerHour;
-    const score=costEur*100+cutCount*2+amplitude*.01;
-    return{ok:true,hlpKm,hlpMinutes,cutMinutes,paidCutMinutes,offsiteCutMinutes,cutCount,maxCut,maxOffsiteCut,costEur,choices,amplitude,work,drive,score};
+    const xs=[...all].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));
+    if(!xs.length)return{ok:true,hlpKm:0,hlpMinutes:0,cutMinutes:0,paidCutMinutes:0,cutCount:0,maxCut:0,maxPaidCut:0,costEur:0,amplitude:0,work:0,drive:0,score:0};
+    const first=xs[0],last=xs.at(-1),firstKm=hav(park,first.originCoords),lastKm=hav(last.destinationCoords,park);
+    if(firstKm===null||lastKm===null)return{ok:false,reason:'coordonnées HLP début/fin manquantes'};
+    let hlpKm=(firstKm+lastKm)*1.18,hlpMinutes=estimateMinutes(firstKm)+estimateMinutes(lastKm),cutMinutes=0,paidCutMinutes=0,costEur=fuelCost(hlpKm);
+    const cuts=[],paidCuts=[];
+    for(let i=0;i<xs.length-1;i++){
+      const g=gapEconomy(xs[i],xs[i+1],park);if(!g.ok)return g;
+      hlpKm+=g.hlpKm;hlpMinutes+=g.hlpMinutes;cutMinutes+=g.cutMinutes;paidCutMinutes+=g.paidCutMinutes;costEur+=g.costEur;
+      if(g.cutMinutes>0){cuts.push(g.cutMinutes);if(g.cutPct===50)paidCuts.push(g.cutMinutes)}
+    }
+    const fm=mm(first.start),le0=mm(last.end);let amplitude=0;
+    if(fm!==null&&le0!==null){let le=le0;if(le<fm)le+=1440;amplitude=(le+estimateMinutes(lastKm)+5)-(fm-estimateMinutes(firstKm)-10)}
+    const courseWork=xs.reduce((z,x)=>z+duration(x.start,x.end),0),work=courseWork+hlpMinutes+15,drive=xs.reduce((z,x)=>z+(Number(x.driveMinutes)||duration(x.start,x.end)),0)+hlpMinutes;
+    const maxCut=cuts.length?Math.max(...cuts):0,maxPaidCut=paidCuts.length?Math.max(...paidCuts):0,cutCount=cuts.length;
+    let score=costEur*100+cutCount*170+paidCutMinutes*3+amplitude*.05;
+    if(cutCount>2)score+=(cutCount-2)*350;
+    if(maxPaidCut>=120)score+=2500+(maxPaidCut-120)*15;
+    if(maxCut>=240)score+=(maxCut-240)*4;
+    return{ok:true,hlpKm,hlpMinutes,cutMinutes,paidCutMinutes,cutCount,maxCut,maxPaidCut,costEur,amplitude,work,drive,score};
   }
 
-  function scoreCandidate(seg,driver,current,setting){
-    const park=setting?.bus_parking;if(!validPoint(park))return{ok:false,reason:'stationnement bus absent'};if(!normalizeKnown(setting?.known_lines).length)return{ok:false,reason:'lignes connues non renseignées'};if(!knowsLine(seg,setting))return{ok:false,reason:`ligne ${seg.line||''} non déclarée comme connue`};
-    const s=mm(seg.start),e0=mm(seg.end);if(s===null||e0===null)return{ok:false,reason:'horaire invalide'};let e=e0;if(e<s)e+=1440;const xs=[...current].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));for(const x of xs){let a=mm(x.start),bb=mm(x.end);if(a===null||bb===null)continue;if(bb<a)bb+=1440;if(s<bb&&e>a)return{ok:false,reason:'chevauchement'}}
-    const all=[...xs,seg].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999)),eco=scheduleEconomy(all,park);if(!eco.ok)return eco;if(eco.amplitude>780)return{ok:false,reason:'amplitude estimée > 13 h (mode automatique conservateur)'};if(eco.work>600)return{ok:false,reason:'travail estimé > 10 h'};const eu=all.some(x=>x.regime==='eu561');if(eu&&eco.drive>540)return{ok:false,reason:'conduite estimée > 9 h'};
-    return{ok:true,score:eco.score,hlpKm:eco.hlpKm,hlpMinutes:eco.hlpMinutes,cutMinutes:eco.cutMinutes,offsiteCutMinutes:eco.offsiteCutMinutes,costEur:eco.costEur,economy:eco};
+  function scoreCandidate(seg,driver,current,setting,{compactOnly=false}={}){
+    const park=setting?.bus_parking;if(!validPoint(park))return{ok:false,reason:'stationnement bus absent'};
+    const known=normalizeKnown(setting?.known_lines);if(!known.length)return{ok:false,reason:'lignes connues non renseignées'};if(!knowsLine(seg,setting))return{ok:false,reason:`ligne ${seg.line||''} non déclarée comme connue`};
+    const s=mm(seg.start),e0=mm(seg.end);if(s===null||e0===null)return{ok:false,reason:'horaire invalide'};let e=e0;if(e<s)e+=1440;
+    const xs=[...current].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));
+    for(const x of xs){let a=mm(x.start),b=mm(x.end);if(a===null||b===null)continue;if(b<a)b+=1440;if(s<b&&e>a)return{ok:false,reason:'chevauchement'}}
+    const all=[...xs,{...seg,regime:'eu561'}].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999)),eco=scheduleEconomy(all,park);if(!eco.ok)return eco;
+    if(eco.amplitude>780)return{ok:false,reason:'amplitude estimée > 13 h (mode automatique conservateur)'};
+    if(eco.work>600)return{ok:false,reason:'travail estimé > 10 h'};
+    if(eco.drive>540)return{ok:false,reason:'conduite estimée > 9 h'};
+    if(compactOnly&&(eco.maxPaidCut>=120||eco.cutCount>3))return{ok:false,reason:eco.maxPaidCut>=120?'coupure 50 % ≥ 2 h évitée en passe économique':'trop de coupures pour la passe économique'};
+    return{ok:true,score:eco.score,hlpKm:eco.hlpKm,hlpMinutes:eco.hlpMinutes,cutMinutes:eco.cutMinutes,paidCutMinutes:eco.paidCutMinutes,cutCount:eco.cutCount,maxCut:eco.maxCut,maxPaidCut:eco.maxPaidCut,costEur:eco.costEur,economy:eco};
   }
 
-  function rowFor(seg,driverId,userId,orgId,date){return{organization_id:orgId,driver_user_id:driverId,client_id:clientId(seg),service_date:date,sort_index:(mm(seg.start)||0)*10,type:seg.type,label:`${seg.line} · ${seg.destination}`,line:seg.line,start_time:timeDb(seg.start),end_time:timeDb(seg.end),origin:seg.origin,destination:seg.destination,origin_coords:seg.originCoords,destination_coords:seg.destinationCoords,origin_kind:'stop',destination_kind:'stop',regime:seg.regime,line_distance_km:seg.lineDistanceKm,drive_minutes:seg.driveMinutes,notes:null,linked:seg.linked,source:'dispatch',locked_by_exploitation:true,status:'ok',conflict_minutes:0,created_by:userId,updated_by:userId,payload:{segment_id:seg.id,created_from:'generation_engine_v167-financial-v172',rse_regime:seg.regime,dept:seg.dept||seg.linked?.dept||null}}}
+  function rowFor(seg,driverId,userId,orgId,date){return{organization_id:orgId,driver_user_id:driverId,client_id:clientId(seg),service_date:date,sort_index:(mm(seg.start)||0)*10,type:seg.type,label:`${seg.line} · ${seg.destination}`,line:seg.line,start_time:timeDb(seg.start),end_time:timeDb(seg.end),origin:seg.origin,destination:seg.destination,origin_coords:seg.originCoords,destination_coords:seg.destinationCoords,origin_kind:'stop',destination_kind:'stop',regime:'eu561',line_distance_km:seg.lineDistanceKm,drive_minutes:seg.driveMinutes,notes:null,linked:{...(seg.linked||{}),rse_policy:'all_lines_eu561'},source:'dispatch',locked_by_exploitation:true,status:'ok',conflict_minutes:0,created_by:userId,updated_by:userId,payload:{segment_id:seg.id,created_from:'generation_engine_v172_financial',rse_regime:'eu561',rse_policy:'all_lines_eu561',dept:seg.dept||seg.linked?.dept||null}}}
   async function invokeRebuild(driverId,date){const c=client();const{data,error}=await c.functions.invoke('rebuild-driver-day',{body:{driverUserId:driverId,serviceDate:date}});if(error)throw error;return data||{}}
   function rejectReason(check){if(check?.conflicts?.length)return`HLP impossible : ${check.conflicts[0].missingMinutes||'?'} min manquantes`;if(check?.rse?.ok===false)return(check.rse.issues||[]).map(x=>x.message).filter(Boolean).join(' · ')||'contrôle RSE refusé';return null}
   async function fetchState(date){const c=client(),p=profile();const[{data:drivers,error:de},{data:items,error:ie},{data:settings,error:se}]=await Promise.all([c.from('profiles').select('user_id,matricule,display_name,active').eq('organization_id',p.organization_id).eq('role','driver').eq('active',true),c.from('plan_items').select('*').eq('organization_id',p.organization_id).eq('service_date',date).order('start_time',{ascending:true,nullsFirst:false}),c.from('driver_settings').select('user_id,bus_parking,known_lines').eq('organization_id',p.organization_id)]);if(de)throw de;if(ie)throw ie;if(se)throw se;const map=new Map();for(const s of settings||[])map.set(String(s.user_id),s);return{drivers:drivers||[],items:items||[],settings:map}}
 
   async function generate(){
-    if(running)return;const c=client(),p=profile(),b=board();if(!c||!p||!b)return status('Session Exploitation indisponible.','err');const allSegments=b.segments||[];if(!allSegments.length)return status('Charge d’abord les segments du jour.','err');running=true;const button=q('v165Generate');if(button){button.disabled=true;button.textContent='✨ GÉNÉRATION ÉCONOMIQUE…'}const date=dateValue();let placed=0,rejectedByServer=0,lastReject='';const rejectedPairs=new Set();
-    try{await b.refresh?.();let{drivers,items,settings}=await fetchState(date);if(!drivers.length)throw new Error('Aucun conducteur actif dans la société.');const configured=drivers.filter(d=>validPoint(settings.get(String(d.user_id))?.bus_parking)&&normalizeKnown(settings.get(String(d.user_id))?.known_lines).length);if(!configured.length)throw new Error('Aucun conducteur n’a à la fois un Stationnement bus et des lignes connues renseignées.');
-      const{data:{user}}=await c.auth.getUser(),working=new Map(drivers.map(d=>[String(d.user_id),workingItems(items,d.user_id)]));const free=allSegments.filter(s=>!assignmentFor(s,items));if(!free.length){status('Toutes les courses sont déjà placées.','ok');return}
-      const scarcity=s=>configured.reduce((n,d)=>n+(knowsLine(s,settings.get(String(d.user_id)))?1:0),0);free.sort((a,b)=>scarcity(a)-scarcity(b)||(mm(a.start)??9999)-(mm(b.start)??9999)||String(a.line||'').localeCompare(String(b.line||''),'fr',{numeric:true}));
-      for(let i=0;i<free.length;i++){const seg=free[i],ranked=[];for(const d of configured){const pair=`${seg.id}|${d.user_id}`;if(rejectedPairs.has(pair))continue;const r=scoreCandidate(seg,d,working.get(String(d.user_id))||[],settings.get(String(d.user_id)));if(r.ok)ranked.push({d,r})}ranked.sort((a,b)=>a.r.score-b.r.score);for(const cand of ranked){const driverId=String(cand.d.user_id),cid=clientId(seg),pair=`${seg.id}|${driverId}`;status(`💶 ${placed} placé${placed>1?'s':''} · ${seg.line||'course'} ${seg.start} → ${cand.d.display_name||cand.d.matricule} · coût improductif estimé ${cand.r.costEur.toFixed(2).replace('.',',')} € · ${i+1}/${free.length}`,'busy');const{error:ins}=await c.from('plan_items').upsert(rowFor(seg,driverId,user?.id||null,p.organization_id,date),{onConflict:'driver_user_id,client_id'});if(ins){lastReject=ins.message||String(ins);rejectedByServer++;rejectedPairs.add(pair);continue}let check,reason;try{check=await invokeRebuild(driverId,date);reason=rejectReason(check)}catch(err){reason=err?.message||String(err)}if(reason){lastReject=reason;rejectedByServer++;rejectedPairs.add(pair);await c.from('plan_items').delete().eq('driver_user_id',driverId).eq('client_id',cid);try{await invokeRebuild(driverId,date)}catch{}continue}placed++;working.get(driverId).push(seg);working.get(driverId).sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));items.push(rowFor(seg,driverId,user?.id||null,p.organization_id,date));break}if(i%25===0)await new Promise(r=>setTimeout(r,0))}
-      await b.refresh?.();const current=b.items||[],remaining=allSegments.filter(s=>!assignmentFor(s,current)),noQualified=remaining.filter(s=>!configured.some(d=>knowsLine(s,settings.get(String(d.user_id))))).length;if(placed)status(`✅ Génération terminée : ${placed} segment${placed>1?'s':''} placé${placed>1?'s':''}. Priorité financière appliquée : coupure au stationnement 0 %, ailleurs 50 %, gasoil ${ECON.fuelEurPerL.toFixed(2).replace('.',',')} €/L. ${remaining.length} non placé${remaining.length>1?'s':''}${noQualified?`, dont ${noQualified} sans conducteur compétent`:''}.`,'ok');else status(`⚠ 0 segment placé. ${noQualified?`${noQualified} sans conducteur compétent. `:''}${rejectedByServer?`${rejectedByServer} proposition${rejectedByServer>1?'s':''} refusée${rejectedByServer>1?'s':''} par HLP/RSE. `:''}${lastReject?`Dernier motif : ${lastReject}`:'Vérifie les lignes connues, le stationnement bus et les horaires.'}`,'err')
-    }catch(e){status(`Génération interrompue : ${e?.message||e}`,'err')}finally{running=false;if(button){button.disabled=false;button.textContent='✨ GÉNÉRATION INTELLIGENTE'}queueSelection()}
+    if(running)return;const c=client(),p=profile(),b=board();if(!c||!p||!b)return status('Session Exploitation indisponible.','err');
+    const allSegments=b.segments||[];if(!allSegments.length)return status('Charge d’abord les segments du jour.','err');
+    for(const s of allSegments)s.regime='eu561';
+    running=true;const button=q('v165Generate');if(button){button.disabled=true;button.textContent='✨ GÉNÉRATION ÉCONOMIQUE…'}
+    const date=dateValue();let placed=0,rejectedByServer=0,lastReject='';const rejectedPairs=new Set();
+    try{
+      await b.refresh?.();let{drivers,items,settings}=await fetchState(date);if(!drivers.length)throw new Error('Aucun conducteur actif dans la société.');
+      const withParking=drivers.filter(d=>validPoint(settings.get(String(d.user_id))?.bus_parking)),configured=withParking.filter(d=>normalizeKnown(settings.get(String(d.user_id))?.known_lines).length);
+      if(!withParking.length)throw new Error('Aucun conducteur n’a de « Stationnement bus » géolocalisé.');
+      if(!configured.length)throw new Error('Aucun conducteur n’a encore de lignes connues renseignées.');
+      const{data:{user}}=await c.auth.getUser(),working=new Map(drivers.map(d=>[String(d.user_id),workingItems(items,d.user_id)]));
+      const free=allSegments.filter(s=>!assignmentFor(s,items)).slice().sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999)||String(a.line||'').localeCompare(String(b.line||''),'fr',{numeric:true}));
+      if(!free.length){status('Toutes les courses sont déjà placées.','ok');return}
+      const pending=new Map(free.map(s=>[s.id,s]));
+      for(const pass of [{name:'financière',compactOnly:true},{name:'couverture',compactOnly:false}]){
+        if(!pending.size)break;let passIndex=0;
+        status(pass.compactOnly?`💶 Passe financière · gazole ${ECON.dieselEurPerLiter.toFixed(2).replace('.',',')} €/L · coupures hors stationnement = 50 % · ${pending.size} segments…`:`🧩 Passe de couverture · ${pending.size} segments restants…`,'busy');
+        for(const seg of [...pending.values()]){
+          passIndex++;const ranked=[];
+          for(const d of configured){const pair=`${seg.id}|${d.user_id}`;if(rejectedPairs.has(pair))continue;const r=scoreCandidate(seg,d,working.get(String(d.user_id))||[],settings.get(String(d.user_id)),{compactOnly:pass.compactOnly});if(r.ok)ranked.push({d,r})}
+          ranked.sort((a,b)=>a.r.score-b.r.score);if(!ranked.length)continue;
+          for(const cand of ranked){
+            const driverId=String(cand.d.user_id),cid=clientId(seg),pair=`${seg.id}|${driverId}`;
+            status(`✨ ${placed} placé${placed>1?'s':''} · ${pass.name} · ${seg.line||'course'} ${seg.start} → ${cand.d.display_name||cand.d.matricule} · coût estimé ${cand.r.costEur.toFixed(2).replace('.',',')} € · ${passIndex}/${pending.size}`,'busy');
+            const{error:ins}=await c.from('plan_items').upsert(rowFor(seg,driverId,user?.id||null,p.organization_id,date),{onConflict:'driver_user_id,client_id'});
+            if(ins){lastReject=ins.message||String(ins);rejectedByServer++;rejectedPairs.add(pair);continue}
+            let check=null,reason=null;try{check=await invokeRebuild(driverId,date);reason=rejectReason(check)}catch(err){reason=err?.message||String(err)}
+            if(reason){lastReject=reason;rejectedByServer++;rejectedPairs.add(pair);await c.from('plan_items').delete().eq('driver_user_id',driverId).eq('client_id',cid);try{await invokeRebuild(driverId,date)}catch{}continue}
+            placed++;working.get(driverId).push({...seg,regime:'eu561'});working.get(driverId).sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));items.push(rowFor(seg,driverId,user?.id||null,p.organization_id,date));pending.delete(seg.id);break;
+          }
+          if(passIndex%40===0)await new Promise(r=>setTimeout(r,0));
+        }
+      }
+      await b.refresh?.();const current=b.items||[],remaining=allSegments.filter(s=>!assignmentFor(s,current));let noQualified=0;
+      for(const s of remaining)if(!configured.some(d=>knowsLine(s,settings.get(String(d.user_id)))))noQualified++;
+      if(placed)status(`✅ Génération terminée : ${placed} segment${placed>1?'s':''} placé${placed>1?'s':''}. Priorité au coût estimé : coupures 50 % + HLP/gazole ${ECON.dieselEurPerLiter.toFixed(2).replace('.',',')} €/L + nombre de coupures. ${remaining.length} non placé${remaining.length>1?'s':''}${noQualified?`, dont ${noQualified} sans conducteur compétent`:''}.`,'ok');
+      else status(`⚠ 0 segment placé. ${noQualified?`${noQualified} sans conducteur compétent. `:''}${rejectedByServer?`${rejectedByServer} proposition${rejectedByServer>1?'s':''} refusée${rejectedByServer>1?'s':''} par HLP/RSE. `:''}${lastReject?`Dernier motif : ${lastReject}`:'Vérifie les lignes connues, le stationnement bus et les horaires.'}`,'err');
+    }catch(e){status(`Génération interrompue : ${e?.message||e}`,'err')}
+    finally{running=false;if(button){button.disabled=false;button.textContent='✨ GÉNÉRATION INTELLIGENTE'}}
   }
 
-  function selectableItem(x){return !!x?.id&&!['auto_hlp','auto_cut','auto_service'].includes(String(x.source||''))}
-  function installSelectionStyle(){if(q('v172SelectionStyle'))return;const s=document.createElement('style');s.id='v172SelectionStyle';s.textContent=`.v172-selection{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:8px 0;padding:9px 10px;border:1px solid #365464;border-radius:12px;background:#0a1b25;color:#dbe8ee;font-size:.64rem}.v172-selection b{margin-right:auto}.v172-selection button{min-height:34px;padding:5px 9px;font-size:.58rem}.v172-selection .trash{border-color:#a74f52;background:#4b2022;color:#ffd7d4}.v165-block.v172-selectable{cursor:pointer}.v165-block.v172-selected{z-index:12!important;outline:3px solid #ffd000!important;outline-offset:2px;box-shadow:0 0 0 3px rgba(255,208,0,.2)!important}.v172-row{min-height:25px!important;margin-top:6px!important;padding:3px 6px!important;font-size:.5rem!important}.v172-row.active{border-color:#ffd000!important;color:#ffe895!important}`;document.head.appendChild(s)}
-  function installSelectionUi(){const grid=q('v165Grid');if(!grid)return false;installSelectionStyle();if(!q('v172SelectionBar')){const bar=document.createElement('div');bar.id='v172SelectionBar';bar.className='v172-selection';bar.innerHTML='<b id="v172SelectionCount">Sélection : 0</b><button id="v172SelectAll" type="button">☑ Tout sélectionner</button><button id="v172Clear" type="button">Désélectionner</button><button id="v172Trash" class="trash" type="button" disabled>🗑 Supprimer la sélection</button>';grid.insertAdjacentElement('beforebegin',bar)}return true}
-  function decorateSelection(){sel.queued=false;const b=board(),grid=q('v165Grid');if(!b||!grid)return;installSelectionUi();const valid=new Set((b.items||[]).filter(selectableItem).map(x=>String(x.id)));for(const id of [...sel.ids])if(!valid.has(id))sel.ids.delete(id);grid.querySelectorAll('.v165-driver-row').forEach(row=>{const lane=row.querySelector('[data-driver-lane]');if(!lane)return;const driverId=String(lane.dataset.driverLane||''),items=(b.items||[]).filter(x=>String(x.driver_user_id)===driverId&&x.start_time&&x.end_time),blocks=[...lane.querySelectorAll(':scope > .v165-block')];blocks.forEach((el,i)=>{const item=items[i];if(!item)return;el.dataset.v172ItemId=String(item.id);el.dataset.v172DriverId=driverId;el.classList.toggle('v172-selectable',selectableItem(item));el.classList.toggle('v172-selected',selectableItem(item)&&sel.ids.has(String(item.id)))});const meta=row.querySelector('.v165-driver-meta');if(meta&&!meta.querySelector('.v172-row')){const bt=document.createElement('button');bt.type='button';bt.className='v172-row';bt.dataset.v172Driver=driverId;bt.textContent='☐ Sélectionner la journée';meta.appendChild(bt)}});updateSelectionUi()}
-  function queueSelection(){if(sel.queued)return;sel.queued=true;requestAnimationFrame(decorateSelection)}
-  function updateSelectionUi(){const n=sel.ids.size,count=q('v172SelectionCount'),trash=q('v172Trash'),clear=q('v172Clear');if(count)count.textContent=`Sélection : ${n} élément${n>1?'s':''}`;if(trash){trash.disabled=!n||sel.deleting||running;trash.textContent=sel.deleting?'🗑 Suppression…':`🗑 Supprimer ${n||''}`.trim()}if(clear)clear.disabled=!n||sel.deleting;document.querySelectorAll('.v165-block[data-v172-item-id]').forEach(el=>el.classList.toggle('v172-selected',sel.ids.has(el.dataset.v172ItemId)));document.querySelectorAll('.v172-row').forEach(bt=>{const lane=bt.closest('.v165-driver-row')?.querySelector('[data-driver-lane]'),blocks=[...(lane?.querySelectorAll('.v165-block.v172-selectable')||[])],all=blocks.length&&blocks.every(x=>sel.ids.has(x.dataset.v172ItemId));bt.classList.toggle('active',!!all);bt.textContent=all?'☑ Journée sélectionnée':'☐ Sélectionner la journée'})}
-  function toggleBlock(el,shift=false){const id=el?.dataset?.v172ItemId,driverId=el?.dataset?.v172DriverId;if(!id||!el.classList.contains('v172-selectable')||sel.deleting||running)return;if(shift&&sel.last?.driverId===driverId){const blocks=[...el.closest('[data-driver-lane]').querySelectorAll('.v165-block.v172-selectable')],a=blocks.findIndex(x=>x.dataset.v172ItemId===sel.last.id),b=blocks.findIndex(x=>x.dataset.v172ItemId===id);if(a>=0&&b>=0)for(let i=Math.min(a,b);i<=Math.max(a,b);i++)sel.ids.add(blocks[i].dataset.v172ItemId)}else sel.ids.has(id)?sel.ids.delete(id):sel.ids.add(id);sel.last={id,driverId};updateSelectionUi()}
-  function selectDriver(id){const lane=document.querySelector(`[data-driver-lane="${CSS.escape(String(id))}"]`);if(!lane)return;const blocks=[...lane.querySelectorAll('.v165-block.v172-selectable')],all=blocks.length&&blocks.every(x=>sel.ids.has(x.dataset.v172ItemId));for(const b of blocks)all?sel.ids.delete(b.dataset.v172ItemId):sel.ids.add(b.dataset.v172ItemId);updateSelectionUi()}
-  function selectAll(){document.querySelectorAll('.v165-block.v172-selectable[data-v172-item-id]').forEach(x=>sel.ids.add(x.dataset.v172ItemId));updateSelectionUi()}
-  function clearSelection(){sel.ids.clear();sel.last=null;updateSelectionUi()}
-  async function trashSelected(){if(sel.deleting||running)return;const b=board(),c=client(),p=profile();if(!b||!c||!p)return;const rows=(b.items||[]).filter(x=>sel.ids.has(String(x.id))&&selectableItem(x));if(!rows.length)return clearSelection();if(rows.length>1&&!confirm(`Supprimer ${rows.length} éléments placés ? Les courses redeviendront disponibles dans la Toolbox.`))return;sel.deleting=true;updateSelectionUi();status(`🗑 Suppression de ${rows.length} élément${rows.length>1?'s':''}…`,'busy');try{const ids=rows.map(x=>x.id);for(let i=0;i<ids.length;i+=100){const{error}=await c.from('plan_items').delete().eq('organization_id',p.organization_id).in('id',ids.slice(i,i+100));if(error)throw error}const affected=new Map();rows.forEach(x=>affected.set(`${x.driver_user_id}|${x.service_date}`,{driverId:x.driver_user_id,date:x.service_date}));for(const a of affected.values())await invokeRebuild(a.driverId,a.date);clearSelection();await b.refresh?.();queueSelection();status(`✅ ${rows.length} élément${rows.length>1?'s':''} supprimé${rows.length>1?'s':''}. Les courses retirées sont de nouveau disponibles dans la Toolbox.`,'ok')}catch(e){status(e?.message||String(e),'err')}finally{sel.deleting=false;updateSelectionUi()}}
-  function selectionClick(e){const block=e.target?.closest?.('.v165-block.v172-selectable');if(block){e.preventDefault();e.stopImmediatePropagation();toggleBlock(block,!!e.shiftKey);return}const row=e.target?.closest?.('[data-v172-driver]');if(row){e.preventDefault();e.stopImmediatePropagation();selectDriver(row.dataset.v172Driver);return}if(e.target?.closest?.('#v172SelectAll')){e.preventDefault();e.stopImmediatePropagation();selectAll();return}if(e.target?.closest?.('#v172Clear')){e.preventDefault();e.stopImmediatePropagation();clearSelection();return}if(e.target?.closest?.('#v172Trash')){e.preventDefault();e.stopImmediatePropagation();trashSelected()}}
-  function installSelection(){let tries=0;const t=setInterval(()=>{const grid=q('v165Grid');if(grid&&board()){clearInterval(t);installSelectionUi();queueSelection();sel.observer=new MutationObserver(queueSelection);sel.observer.observe(grid,{childList:true,subtree:true})}else if(++tries>240)clearInterval(t)},250)}
-
   function intercept(e){const btn=e.target?.closest?.('#v165Generate');if(!btn)return;e.preventDefault();e.stopImmediatePropagation();generate()}
-  document.addEventListener('click',intercept,true);document.addEventListener('click',selectionClick,true);document.addEventListener('keydown',e=>{if(!sel.ids.size||sel.deleting||running)return;const tag=String(e.target?.tagName||'').toLowerCase();if(['input','textarea','select'].includes(tag)||e.target?.isContentEditable)return;if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();trashSelected()}else if(e.key==='Escape'){e.preventDefault();clearSelection()}},true);
-  installSelection();
-  window.MonSAEIVGenerationEngineV167={installed:true,version:VERSION,generate,scoreCandidate,knowsLine,economyConfig:{...ECON},clearSelection,trashSelected,get selected(){return[...sel.ids]},get running(){return running}};
+  document.addEventListener('click',intercept,true);
+  window.MonSAEIVGenerationEngineV167={installed:true,version:VERSION,generate,scoreCandidate,knowsLine,economics:ECON,get running(){return running}};
 })();
