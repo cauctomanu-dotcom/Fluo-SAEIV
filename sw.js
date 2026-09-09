@@ -1,64 +1,95 @@
-const C='mon-saeiv-v1-0-56-clean-runtime-1';
-const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','v154-planning-service-times.js','v155-planning-cut-percent.js','v156-supabase-sync.js','v157-exploitation.js','v158-role-login.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];
+'use strict';
+
+const CACHE='mon-saeiv-clean-1.0.60';
+const CORE=[
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './fluo_build.json',
+  './fluo-numbering-2026.json',
+  './runtime/runtime-manifest.json',
+  './v128-gps.js',
+  './v128-offline.js',
+  './v130-session-orientation.js',
+  './v131-speech.js',
+  './v132-journals.js',
+  './v133-profile-journals.js',
+  './v134-journal-front.js',
+  './v135-journal-router.js',
+  './v136-driver-operations.js',
+  './v137-driver-hub.js',
+  './v141-static-fluo.js',
+  './v144-day-hlp-driver.js',
+  './v145-planning-tad.js',
+  './v146-planning-tad-bridge.js',
+  './v147-flow-journals-fix.js',
+  './v148-continuous-day.js',
+  './v150-journal-regulation.js',
+  './v154-planning-service-times.js',
+  './v155-planning-cut-percent.js',
+  './v156-supabase-sync.js',
+  './v157-exploitation.js',
+  './v158-role-login.js',
+  './v159-clean-runtime.js',
+  './data/54/routes.json','./data/54/services.json','./data/54/stops.json',
+  './data/57/routes.json','./data/57/services.json','./data/57/stops.json',
+  './data/67/routes.json','./data/67/services.json','./data/67/stops.json',
+  './data/68/routes.json','./data/68/services.json','./data/68/stops.json'
+];
 
 self.addEventListener('install',event=>{
   self.skipWaiting();
   event.waitUntil((async()=>{
-    await caches.delete(C).catch(()=>false);
-    const cache=await caches.open(C);
-    await Promise.allSettled(CORE.map(url=>cache.add(url)));
+    const cache=await caches.open(CACHE);
+    await Promise.allSettled(CORE.map(async url=>{
+      try{
+        const response=await fetch(url,{cache:'no-store'});
+        if(response&&response.ok)await cache.put(url,response.clone());
+      }catch{}
+    }));
   })());
 });
 
 self.addEventListener('activate',event=>{
   event.waitUntil((async()=>{
     const keys=await caches.keys();
-    await Promise.all(keys.filter(key=>key.startsWith('mon-saeiv-v1-')&&key!==C).map(key=>caches.delete(key)));
+    await Promise.allSettled(keys.filter(k=>k!==CACHE&&(/mon-saeiv|fluo-saeiv/i.test(k))).map(k=>caches.delete(k)));
     await self.clients.claim();
-    const tabs=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-    await Promise.allSettled(tabs.map(client=>{
+    // Une seule navigation lors de la prise de contrôle force Safari/PWA à sortir
+    // des anciennes pages 1.0.3x qui pouvaient rester en mémoire plusieurs heures.
+    const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+    await Promise.allSettled(clients.map(client=>{
       try{return client.navigate(client.url)}catch{return Promise.resolve()}
     }));
   })());
 });
 
-async function networkFirstNavigation(request){
-  const cache=await caches.open(C);
+self.addEventListener('message',event=>{
+  if(event.data?.type==='SKIP_WAITING')self.skipWaiting();
+});
+
+async function networkFirst(request,fallbackUrl=null){
+  const cache=await caches.open(CACHE);
   try{
     const response=await fetch(request,{cache:'no-store'});
-    if(response&&response.ok){
-      const copy=response.clone();
-      cache.put('index.html',copy).catch(()=>{});
-    }
+    if(response&&response.ok)cache.put(request,response.clone()).catch(()=>{});
     return response;
-  }catch(error){
+  }catch{
     return (await cache.match(request,{ignoreSearch:true})) ||
-      (await cache.match('index.html')) ||
-      (await cache.match('./')) ||
+      (fallbackUrl?await cache.match(fallbackUrl,{ignoreSearch:true}):null) ||
       new Response('Mon SAEIV indisponible hors connexion.',{status:503,headers:{'Content-Type':'text/plain;charset=utf-8'}});
   }
 }
 
-async function networkFirstAsset(request){
-  const cache=await caches.open(C);
+async function externalNetworkFirst(request){
+  const name=`${CACHE}-external`;
+  const cache=await caches.open(name);
   try{
     const response=await fetch(request,{cache:'no-store'});
     if(response&&response.ok)cache.put(request,response.clone()).catch(()=>{});
     return response;
-  }catch(error){
-    return (await cache.match(request,{ignoreSearch:true})) || Response.error();
-  }
-}
-
-async function cachedExternal(request){
-  const cache=await caches.open(C+'-external');
-  const hit=await cache.match(request);
-  try{
-    const response=await fetch(request);
-    if(response&&response.ok)cache.put(request,response.clone()).catch(()=>{});
-    return response;
-  }catch(error){
-    return hit || Response.error();
+  }catch{
+    return (await cache.match(request)) || Response.error();
   }
 }
 
@@ -68,16 +99,16 @@ self.addEventListener('fetch',event=>{
   const url=new URL(request.url);
 
   if(request.mode==='navigate'){
-    event.respondWith(networkFirstNavigation(request));
+    event.respondWith(networkFirst(request,'./index.html'));
     return;
   }
 
   if(url.origin===self.location.origin){
-    event.respondWith(networkFirstAsset(request));
+    event.respondWith(networkFirst(request));
     return;
   }
 
-  if(url.hostname==='tile.openstreetmap.org'||url.hostname==='unpkg.com'){
-    event.respondWith(cachedExternal(request));
+  if(['unpkg.com','cdn.jsdelivr.net','tile.openstreetmap.org'].includes(url.hostname)){
+    event.respondWith(externalNetworkFirst(request));
   }
 });
