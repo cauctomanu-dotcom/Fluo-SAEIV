@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           python externalize_runtime.py site/index.html
 
-      - name: Split gateway and stamp release 1.0.64
+      - name: Split gateway and stamp release 1.0.65
         shell: bash
         run: |
           set -euo pipefail
@@ -122,13 +122,14 @@ jobs:
                   t=p.read_text(encoding='utf-8')
               except UnicodeDecodeError:
                   continue
-              t=t.replace('1.0.62','1.0.64').replace('1.0.63','1.0.64')
+              for old in ('1.0.62','1.0.63','1.0.64'):
+                  t=t.replace(old,'1.0.65')
               p.write_text(t,encoding='utf-8')
 
           app=Path('site/app.html')
           t=app.read_text(encoding='utf-8')
           for name in ('v161-admin-accounts.js','v162-full-account-sync.js'):
-              tag=f'<script src="./{name}?v=1.0.64"></script>'
+              tag=f'<script src="./{name}?v=1.0.65"></script>'
               if tag not in t:
                   if '</body>' not in t:
                       raise SystemExit('balise </body> absente de app.html')
@@ -136,7 +137,7 @@ jobs:
           app.write_text(t,encoding='utf-8')
           PY
 
-      - name: Validate isolated runtime 1.0.64
+      - name: Validate isolated runtime 1.0.65
         shell: bash
         run: |
           set -euo pipefail
@@ -176,17 +177,17 @@ jobs:
                   continue
               if body.strip():inline.append(body[:80])
           assert not inline, f'JavaScript inline résiduel dans app.html: {inline[:2]}'
-          assert 'runtime/part-001.js?v=1.0.64' in app
-          assert 'v159-clean-runtime.js?v=1.0.64' in app
-          assert 'v160-entry-bridge.js?v=1.0.64' in app
-          assert 'v161-admin-accounts.js?v=1.0.64' in app
-          assert 'v162-full-account-sync.js?v=1.0.64' in app
+          assert 'runtime/part-001.js?v=1.0.65' in app
+          assert 'v159-clean-runtime.js?v=1.0.65' in app
+          assert 'v160-entry-bridge.js?v=1.0.65' in app
+          assert 'v161-admin-accounts.js?v=1.0.65' in app
+          assert 'v162-full-account-sync.js?v=1.0.65' in app
           assert 'v158-role-login.js' not in app
-          assert '<title>Mon SAEIV · 1.0.64</title>' in app
+          assert '<title>Mon SAEIV · 1.0.65</title>' in app
 
           assert 'id="gatewayApp"' in gateway
-          assert 'login-gateway.js?v=1.0.64' in gateway
-          assert 'gateway-full-backup.js?v=1.0.64' in gateway
+          assert 'login-gateway.js?v=1.0.65' in gateway
+          assert 'gateway-full-backup.js?v=1.0.65' in gateway
           assert 'id="exportLocal"' in gateway and 'id="importLocal"' in gateway
           assert 'driverRegPassword' in gateway and 'minlength="6"' in gateway
           assert 'runtime/part-' not in gateway
@@ -199,8 +200,12 @@ jobs:
           full_sync=Path('site/v162-full-account-sync.js').read_text(encoding='utf-8')
           assert 'mon-saeiv-local-backup' in gateway_js
           assert 'password.length<6' in gateway_js
-          assert 'formatVersion:2' in backup_js and "DB_NAME='fluo-saeiv-journal-v13'" in backup_js
+          assert 'formatVersion:3' in backup_js
+          for token in ('fluo-saeiv-journal-v13','fluo-saeiv-fiches-horaires-v24','fluo-saeiv-custom-lines-v25','fluo-saeiv-prepared-tad-v26','fluo-saeiv-prepared-collective-v304'):
+              assert token in backup_js
+              assert token in full_sync
           assert "from('account_state')" in full_sync
+          assert "from('account_stores')" in full_sync
           assert "from('journal_sessions')" in full_sync
           assert "from('journal_events')" in full_sync
           assert 'profileStats' in full_sync
@@ -212,11 +217,11 @@ jobs:
           assert 'pointer-events' in runtime
           assert 'mon-saeiv-planning-changed' in runtime
           assert 'syncFromServer:(items)=>' in runtime
-          print(f'Sas 1.0.64 validé · compte complet + journaux + statistiques · {len(list(Path("site/runtime").glob("part-*.js")))} blocs historiques externalisés')
+          print(f'Sas 1.0.65 validé · compte intégral + tous stockages + journaux + statistiques · {len(list(Path("site/runtime").glob("part-*.js")))} blocs historiques externalisés')
           PY
 
-          grep -q "const CACHE='mon-saeiv-clean-1.0.64'" site/sw.js
-          grep -q '"name": "Mon SAEIV 1.0.64"' site/manifest.webmanifest
+          grep -q "const CACHE='mon-saeiv-clean-1.0.65'" site/sw.js
+          grep -q '"name": "Mon SAEIV 1.0.65"' site/manifest.webmanifest
           grep -q './app.html' site/sw.js
           grep -q './login-gateway.js' site/sw.js
           grep -q '57SMH04' site/data/57/routes.json
