@@ -1,12 +1,17 @@
 'use strict';
-/* Mon SAEIV 1.0.62 — pont entre le sas de connexion et le moteur conducteur.
+/* Mon SAEIV 1.0.72 — pont entre le sas de connexion et le moteur conducteur.
    Ce garde démarre dans <head>, avant le runtime historique. L’écran local V13 est
    soit supprimé du parcours cloud, soit placé au-dessus de toutes les autres couches
-   quand il est réellement utilisé en mode local. */
+   quand il est réellement utilisé en mode local.
+
+   Anti-freeze 1.0.72 : neutralise uniquement l'observer global créé par
+   v164-driver-settings. Cet observer réécrivait le DOM dans son propre callback,
+   se réveillait sur ses propres modifications et pouvait saturer le thread principal
+   après connexion, quel que soit le rôle. */
 (()=>{
   if(window.MonSAEIVEntryBridgeV160?.installed)return;
 
-  const VERSION='1.0.62';
+  const VERSION='1.0.72';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
   const LOCAL_ACCOUNT_KEY='fluoSaeivAccountV13';
   const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
@@ -34,6 +39,35 @@
       html[data-saeiv-entry="cloud"] #v13Auth{display:none!important;pointer-events:none!important}
     `;
     (document.head||document.documentElement).appendChild(st);
+  }
+
+  function installTargetedMutationGuard(){
+    if(window.__monSaeivV164MutationGuard)return;
+    const Native=window.MutationObserver;
+    if(typeof Native!=='function')return;
+
+    function GuardedMutationObserver(callback){
+      let src='';
+      try{src=Function.prototype.toString.call(callback)}catch{}
+      const badV164Observer=src.includes('renameDepotWording')&&(src.includes('installDriverUi')||src.includes('decorateExploitationGrid'));
+      if(!badV164Observer)return new Native(callback);
+
+      const observer=new Native(()=>{});
+      const nativeObserve=observer.observe.bind(observer);
+      observer.observe=(target,options)=>{
+        if(target===document.documentElement&&options?.childList&&options?.subtree){
+          console.info('[Mon SAEIV] boucle MutationObserver v164 neutralisée');
+          return;
+        }
+        return nativeObserve(target,options);
+      };
+      return observer;
+    }
+
+    try{Object.setPrototypeOf(GuardedMutationObserver,Native)}catch{}
+    GuardedMutationObserver.prototype=Native.prototype;
+    window.MutationObserver=GuardedMutationObserver;
+    window.__monSaeivV164MutationGuard={installed:true,Native,version:VERSION};
   }
 
   function markEntry(){
@@ -143,6 +177,7 @@
 
   installEarlyGuard();
   markEntry();
+  installTargetedMutationGuard();
   const earlyObserver=startEarlyObserver();
   interceptClicks();
   protectEntry();
@@ -156,7 +191,7 @@
 
   window.MonSAEIVEntryBridgeV160={
     installed:true,version:VERSION,openGateway:gateway,cachedDriverUnlock,
-    hardenLegacyAuth,earlyObserver
+    hardenLegacyAuth,earlyObserver,mutationGuard:window.__monSaeivV164MutationGuard
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
