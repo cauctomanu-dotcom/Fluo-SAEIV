@@ -1,8 +1,8 @@
 'use strict';
-/* Mon SAEIV 1.0.62 — données Fluo préparées côté GitHub + recherche non destructive
+/* Mon SAEIV 1.0.63 — données Fluo préparées côté GitHub + recherche non destructive
    + corrections locales de noms d'arrêts confirmées conducteur. */
 (()=>{
-  const VERSION='1.0.62';
+  const VERSION='1.0.63';
   const CUTOVER='2026-09-01';
   const STATIC_DEPTS=new Set(['54','57','67','68']);
   const JSON_CACHE=new Map();
@@ -153,74 +153,148 @@
 
     const style=document.createElement('style');
     style.id='v159RouteSearchStyle';
-    style.textContent='.v159-route-search{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;margin:6px 0 7px}.v159-route-search input{min-height:42px;padding:8px 10px;border-radius:10px}.v159-route-search small{min-width:58px;text-align:right;color:#91a7b3;font-size:.58rem;font-weight:800}.v159-route-search input:disabled{opacity:.55}.v159-route-search input::-webkit-calendar-picker-indicator{display:none!important}';
+    style.textContent=`
+      .v159-route-search{display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center;margin:6px 0 7px;position:relative}
+      .v159-route-search input{min-height:42px;padding:8px 10px;border-radius:10px}
+      .v159-route-search small{min-width:58px;text-align:right;color:#91a7b3;font-size:.58rem;font-weight:800}
+      .v159-route-search input:disabled{opacity:.55}
+      .v159-route-results{grid-column:1/-1;display:grid;gap:5px;padding:6px;border:1px solid #3d5b6b;border-radius:12px;background:#0b202b;box-shadow:0 10px 24px rgba(0,0,0,.28);max-height:290px;overflow:auto;-webkit-overflow-scrolling:touch;z-index:30}
+      .v159-route-results[hidden]{display:none!important}
+      .v159-route-result{display:block;width:100%;min-height:44px;padding:9px 11px;border:1px solid #315363;border-radius:10px;background:#102c39;color:inherit;text-align:left;font:inherit;line-height:1.25;cursor:pointer}
+      .v159-route-result:active,.v159-route-result.v159-active{background:#174256;border-color:#6e98aa}
+      .v159-route-more{padding:5px 8px;color:#91a7b3;font-size:.62rem;font-weight:700;text-align:center}
+    `;
     document.head.appendChild(style);
 
     const box=document.createElement('div');
     box.className='v159-route-search';
-    box.innerHTML='<input id="v159RouteSearch" type="search" list="v159RouteSearchList" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Rechercher : n° ou ville…" aria-label="Rechercher une ligne"><datalist id="v159RouteSearchList"></datalist><small id="v159RouteSearchCount"></small>';
+    box.innerHTML='<input id="v159RouteSearch" type="search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Rechercher : n° ou ville…" aria-label="Rechercher une ligne" aria-controls="v159RouteSearchResults" aria-expanded="false"><small id="v159RouteSearchCount"></small><div id="v159RouteSearchResults" class="v159-route-results" role="listbox" hidden></div>';
     select.insertAdjacentElement('beforebegin',box);
 
     const input=document.getElementById('v159RouteSearch');
-    const list=document.getElementById('v159RouteSearchList');
     const count=document.getElementById('v159RouteSearchCount');
-    let choices=[];
-
-    const refresh=()=>{
-      choices=[...select.options]
-        .filter(o=>o.value&&!o.disabled)
-        .map(o=>({value:o.value,text:o.textContent||''}));
-      list.innerHTML='';
-      for(const c of choices){
-        const o=document.createElement('option');
-        o.value=c.text;
-        list.appendChild(o);
-      }
-      input.disabled=select.disabled;
-      if(input.value)updateCount();
-    };
+    const results=document.getElementById('v159RouteSearchResults');
+    let choices=[],visible=[],active=-1;
+    const MAX_VISIBLE=10;
 
     const matching=()=>{
-      const q=searchKey(input.value), compact=q.replace(/\s+/g,'');
-      if(!q)return choices;
+      const q=searchKey(input.value),compact=q.replace(/\s+/g,'');
+      if(!q)return [];
       const tokens=q.split(' ').filter(Boolean);
-      return choices.filter(c=>{
-        const k=searchKey(c.text), kc=k.replace(/\s+/g,'');
-        return k.includes(q)||kc.includes(compact)||tokens.every(t=>k.includes(t));
-      });
+      return choices.map((c,index)=>{
+        const k=searchKey(c.text),kc=k.replace(/\s+/g,'');
+        let score=99;
+        if(kc===compact)score=0;
+        else if(kc.startsWith(compact))score=1;
+        else if(k.startsWith(q))score=2;
+        else if(k.includes(q)||kc.includes(compact))score=3;
+        else if(tokens.every(t=>k.includes(t)))score=4;
+        return {...c,index,score};
+      }).filter(c=>c.score<99).sort((a,b)=>a.score-b.score||a.index-b.index);
     };
 
-    const updateCount=()=>{
-      const q=searchKey(input.value);
-      const m=matching();
-      count.textContent=q?`${m.length} résultat${m.length>1?'s':''}`:'';
-      return m;
+    const hideResults=()=>{
+      results.hidden=true;
+      results.innerHTML='';
+      visible=[];
+      active=-1;
+      input.setAttribute('aria-expanded','false');
+      input.removeAttribute('aria-activedescendant');
     };
 
-    const choose=(candidate)=>{
+    const setActive=index=>{
+      if(!visible.length){active=-1;return}
+      active=Math.max(0,Math.min(index,visible.length-1));
+      [...results.querySelectorAll('.v159-route-result')].forEach((b,i)=>b.classList.toggle('v159-active',i===active));
+      const btn=results.querySelector(`.v159-route-result[data-index="${active}"]`);
+      if(btn){
+        input.setAttribute('aria-activedescendant',btn.id);
+        btn.scrollIntoView?.({block:'nearest'});
+      }
+    };
+
+    const choose=candidate=>{
       if(!candidate)return false;
       select.value=candidate.value;
       select.dispatchEvent(new Event('change',{bubbles:true}));
       input.value=candidate.text;
       count.textContent='';
+      hideResults();
       return true;
     };
 
-    input.addEventListener('input',()=>{
-      const exact=choices.find(c=>searchKey(c.text)===searchKey(input.value));
-      if(exact&&input.value.trim())choose(exact); else updateCount();
-    });
+    const renderResults=()=>{
+      const q=searchKey(input.value);
+      const all=matching();
+      count.textContent=q?`${all.length} résultat${all.length>1?'s':''}`:'';
+      results.innerHTML='';
+      active=-1;
+      if(!q||!all.length){
+        hideResults();
+        return all;
+      }
+      visible=all.slice(0,MAX_VISIBLE);
+      visible.forEach((c,i)=>{
+        const b=document.createElement('button');
+        b.type='button';
+        b.className='v159-route-result';
+        b.id=`v159RouteResult${i}`;
+        b.dataset.index=String(i);
+        b.setAttribute('role','option');
+        b.textContent=c.text;
+        b.addEventListener('pointerdown',e=>{e.preventDefault();choose(c)});
+        b.addEventListener('click',e=>{e.preventDefault();choose(c)});
+        results.appendChild(b);
+      });
+      if(all.length>MAX_VISIBLE){
+        const more=document.createElement('div');
+        more.className='v159-route-more';
+        more.textContent=`+ ${all.length-MAX_VISIBLE} autre${all.length-MAX_VISIBLE>1?'s':''} résultat${all.length-MAX_VISIBLE>1?'s':''} — continue à taper`;
+        results.appendChild(more);
+      }
+      results.hidden=false;
+      input.setAttribute('aria-expanded','true');
+      return all;
+    };
+
+    const refresh=()=>{
+      choices=[...select.options]
+        .filter(o=>o.value&&!o.disabled)
+        .map(o=>({value:o.value,text:(o.textContent||'').trim()}));
+      input.disabled=select.disabled;
+      if(input.value)renderResults();else hideResults();
+    };
+
+    input.addEventListener('input',renderResults);
+    input.addEventListener('focus',()=>{if(input.value.trim())renderResults()});
     input.addEventListener('keydown',e=>{
-      if(e.key==='Escape'){input.value='';count.textContent='';return}
+      if(e.key==='Escape'){
+        e.preventDefault();
+        input.value='';
+        count.textContent='';
+        hideResults();
+        return;
+      }
+      if(e.key==='ArrowDown'){
+        if(results.hidden)renderResults();
+        if(visible.length){e.preventDefault();setActive(active<0?0:active+1)}
+        return;
+      }
+      if(e.key==='ArrowUp'){
+        if(visible.length){e.preventDefault();setActive(active<0?visible.length-1:active-1)}
+        return;
+      }
       if(e.key!=='Enter')return;
-      const m=updateCount();
-      if(m.length===1){e.preventDefault();choose(m[0])}
+      const all=matching();
+      const candidate=active>=0?visible[active]:(all.length?all[0]:null);
+      if(candidate){e.preventDefault();choose(candidate)}
     });
 
     const observer=new MutationObserver(()=>refresh());
     observer.observe(select,{childList:true,subtree:false,attributes:true,attributeFilter:['disabled']});
-    document.getElementById('dept')?.addEventListener('change',()=>{input.value='';count.textContent='';setTimeout(refresh,0)});
-    document.getElementById('lineTypeFilter')?.addEventListener('change',()=>{input.value='';count.textContent='';setTimeout(refresh,0)});
+    document.getElementById('dept')?.addEventListener('change',()=>{input.value='';count.textContent='';hideResults();setTimeout(refresh,0)});
+    document.getElementById('lineTypeFilter')?.addEventListener('change',()=>{input.value='';count.textContent='';hideResults();setTimeout(refresh,0)});
+    document.addEventListener('pointerdown',e=>{if(!box.contains(e.target))hideResults()},{passive:true});
     refresh();
   }
 
@@ -240,5 +314,5 @@
     clear:()=>{JSON_CACHE.clear();numberingPromise=null;}
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installRouteSearch,{once:true});else installRouteSearch();
-  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + correction différenciée Gare/Vignolle + recherche non destructive 1.0.62 active');
+  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + recherche de ligne à suggestions tactiles 1.0.63 active');
 })();
