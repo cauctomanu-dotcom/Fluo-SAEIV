@@ -111,6 +111,7 @@ jobs:
           cp login.html site/index.html
           cp login-gateway.js site/login-gateway.js
           cp gateway-full-backup.js site/gateway-full-backup.js
+          cp gateway-driver-parking.js site/gateway-driver-parking.js
           python - <<'PY'
           from pathlib import Path
 
@@ -146,7 +147,7 @@ jobs:
           find site/runtime -maxdepth 1 -name 'part-*.js' -print0 | xargs -0 -n1 node --check
 
           for f in \
-            login-gateway.js gateway-full-backup.js \
+            login-gateway.js gateway-full-backup.js gateway-driver-parking.js \
             v128-gps.js v128-offline.js \
             v130-session-orientation.js v131-speech.js v132-journals.js \
             v133-profile-journals.js v134-journal-front.js v135-journal-router.js \
@@ -189,6 +190,8 @@ jobs:
           assert 'id="gatewayApp"' in gateway
           assert 'login-gateway.js?v=1.0.66' in gateway
           assert 'gateway-full-backup.js?v=1.0.66' in gateway
+          assert 'gateway-driver-parking.js?v=1.0.66' in gateway
+          assert 'id="driverBusParking"' in gateway
           assert 'id="exportLocal"' in gateway and 'id="importLocal"' in gateway
           assert 'driverRegPassword' in gateway and 'minlength="6"' in gateway
           assert 'runtime/part-' not in gateway
@@ -198,12 +201,14 @@ jobs:
 
           gateway_js=Path('site/login-gateway.js').read_text(encoding='utf-8')
           backup_js=Path('site/gateway-full-backup.js').read_text(encoding='utf-8')
+          parking_js=Path('site/gateway-driver-parking.js').read_text(encoding='utf-8')
           full_sync=Path('site/v162-full-account-sync.js').read_text(encoding='utf-8')
           exploit=Path('site/v163-exploitation-planner.js').read_text(encoding='utf-8')
           settings=Path('site/v164-driver-settings.js').read_text(encoding='utf-8')
           assert 'mon-saeiv-local-backup' in gateway_js
           assert 'password.length<6' in gateway_js
           assert 'formatVersion:3' in backup_js
+          assert 'fluo-saeiv-bus-parking-v164' in parking_js
           for token in ('fluo-saeiv-journal-v13','fluo-saeiv-fiches-horaires-v24','fluo-saeiv-custom-lines-v25','fluo-saeiv-prepared-tad-v26','fluo-saeiv-prepared-collective-v304'):
               assert token in backup_js
               assert token in full_sync
