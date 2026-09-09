@@ -1,9 +1,11 @@
 'use strict';
 /* Mon SAEIV 1.0.61 — pont entre le sas de connexion et le moteur conducteur.
-   La connexion serveur est faite dans index.html. Dans app.html, l'ancien écran
-   local V13 ne doit jamais repasser devant une session cloud déjà authentifiée. */
+   Ce garde démarre dans <head>, avant le runtime historique. L’écran local V13 est
+   soit supprimé du parcours cloud, soit placé au-dessus de toutes les autres couches
+   quand il est réellement utilisé en mode local. */
 (()=>{
   if(window.MonSAEIVEntryBridgeV160?.installed)return;
+
   const VERSION='1.0.61';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
   const LOCAL_ACCOUNT_KEY='fluoSaeivAccountV13';
@@ -23,17 +25,67 @@
 
   function installEarlyGuard(){
     if(q('v160EntryStyle'))return;
-    const st=document.createElement('style');st.id='v160EntryStyle';
-    st.textContent=cloudEntry()
-      ? '#v13Auth,#v156CloudAuth{display:none!important}'
-      : '#v156CloudAuth{display:none!important}';
+    const st=document.createElement('style');
+    st.id='v160EntryStyle';
+    st.textContent=`
+      #v156CloudAuth{display:none!important;pointer-events:none!important}
+      #v13Auth.v13-auth{z-index:2147483647!important;pointer-events:auto!important;isolation:isolate!important}
+      #v13Auth .v13-auth-card,#v13Auth form,#v13Auth label,#v13Auth input,#v13Auth select,#v13Auth button{pointer-events:auto!important}
+      html[data-saeiv-entry="cloud"] #v13Auth{display:none!important;pointer-events:none!important}
+    `;
     (document.head||document.documentElement).appendChild(st);
   }
-  installEarlyGuard();
 
-  function keepLegacyHidden(){
-    q('v156CloudAuth')?.classList.add('hidden');
-    if(cloudEntry())q('v13Auth')?.classList.add('hidden');
+  function markEntry(){
+    document.documentElement.dataset.saeivEntry=cloudEntry()?'cloud':'local';
+  }
+
+  function hardenLegacyAuth(){
+    const cloud=cloudEntry();
+    document.documentElement.dataset.saeivEntry=cloud?'cloud':'local';
+    const oldCloud=q('v156CloudAuth');
+    if(oldCloud){
+      oldCloud.classList.add('hidden');
+      oldCloud.style.setProperty('display','none','important');
+      oldCloud.style.setProperty('pointer-events','none','important');
+    }
+    const root=q('v13Auth');
+    if(!root)return;
+    if(cloud){
+      root.classList.add('hidden');
+      root.setAttribute('aria-hidden','true');
+      root.style.setProperty('display','none','important');
+      root.style.setProperty('pointer-events','none','important');
+      return;
+    }
+    root.classList.remove('hidden');
+    root.removeAttribute('aria-hidden');
+    root.style.removeProperty('display');
+    root.style.setProperty('z-index','2147483647','important');
+    root.style.setProperty('pointer-events','auto','important');
+    root.style.setProperty('isolation','isolate','important');
+    root.querySelectorAll('form,label,input,select,button,.v13-auth-card').forEach(el=>{
+      el.style.setProperty('pointer-events','auto','important');
+    });
+  }
+
+  function startEarlyObserver(){
+    // Uniquement les créations/suppressions de nœuds : aucune observation de class/style,
+    // donc aucun risque de boucle de mutations pendant le chargement du gros runtime.
+    const mo=new MutationObserver(mutations=>{
+      let relevant=false;
+      outer:for(const m of mutations){
+        for(const n of m.addedNodes){
+          if(n.nodeType!==1)continue;
+          if(n.id==='v13Auth'||n.id==='v156CloudAuth'||n.querySelector?.('#v13Auth,#v156CloudAuth')){
+            relevant=true;break outer;
+          }
+        }
+      }
+      if(relevant)hardenLegacyAuth();
+    });
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+    return mo;
   }
 
   function cachedDriverUnlock(){
@@ -44,10 +96,13 @@
     if(typeof unlock!=='function')return false;
     try{
       unlock(p.matricule,p.network||'fluo');
-      q('v13Auth')?.classList.add('hidden');
+      hardenLegacyAuth();
       document.documentElement.dataset.cloudDriverUnlocked='1';
       return true;
-    }catch(e){console.warn('[Mon SAEIV] déverrouillage cloud anticipé',e);return false}
+    }catch(e){
+      console.warn('[Mon SAEIV] déverrouillage cloud anticipé',e);
+      return false;
+    }
   }
 
   function retryCachedUnlock(){
@@ -55,7 +110,7 @@
     let tries=0;
     const run=()=>{
       if(cachedDriverUnlock())return;
-      if(++tries<120)setTimeout(run,50);
+      if(++tries<200)setTimeout(run,50);
     };
     run();
   }
@@ -75,16 +130,11 @@
     },true);
   }
 
-  function observeLegacyAuth(){
-    const mo=new MutationObserver(()=>keepLegacyHidden());
-    mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
-    keepLegacyHidden();
-  }
-
   function protectEntry(){
     if(requested==='local'||requested==='cloud'){
       try{localStorage.setItem(ENTRY_MODE_KEY,requested)}catch{}
     }
+    markEntry();
     setTimeout(()=>{
       if(window.MonSAEIVCloudV156?.user||window.MonSAEIVCloudV156?.profile)return;
       if(cloudEntry()&&cachedDriverUnlock())return;
@@ -93,15 +143,24 @@
     },10000);
   }
 
+  // Tout ce qui protège l’écran V13 démarre immédiatement dans <head>, et non plus
+  // après DOMContentLoaded. C’est essentiel si un module historique ralentit ensuite.
+  installEarlyGuard();
+  markEntry();
+  const earlyObserver=startEarlyObserver();
+  interceptClicks();
+  protectEntry();
+  retryCachedUnlock();
+
   function init(){
-    installEarlyGuard();
-    keepLegacyHidden();
+    markEntry();
+    hardenLegacyAuth();
     retryCachedUnlock();
-    interceptClicks();
-    observeLegacyAuth();
-    protectEntry();
   }
 
-  window.MonSAEIVEntryBridgeV160={installed:true,version:VERSION,openGateway:gateway,cachedDriverUnlock};
+  window.MonSAEIVEntryBridgeV160={
+    installed:true,version:VERSION,openGateway:gateway,cachedDriverUnlock,
+    hardenLegacyAuth,earlyObserver
+  };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
