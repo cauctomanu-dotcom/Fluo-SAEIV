@@ -6,10 +6,11 @@ import shutil
 import sys
 from pathlib import Path
 
-VERSION = "1.0.60"
+VERSION = "1.0.61"
 
-# Chaîne moderne unique. Les anciens tags vXXX éventuellement déjà présents dans
-# le HTML source sont retirés pour éviter tout double chargement.
+# Chaîne moderne unique chargée uniquement dans app.html. Le choix du rôle et
+# l'authentification sont désormais assurés par index.html + login-gateway.js,
+# totalement séparés du moteur conducteur historique.
 MODULES = [
     "v128-gps.js",
     "v128-offline.js",
@@ -32,8 +33,8 @@ MODULES = [
     "v155-planning-cut-percent.js",
     "v156-supabase-sync.js",
     "v157-exploitation.js",
-    "v158-role-login.js",
     "v159-clean-runtime.js",
+    "v160-entry-bridge.js",
 ]
 
 SCRIPT_RE = re.compile(r"<script\b(?P<attrs>[^>]*)>(?P<body>.*?)</script\s*>", re.I | re.S)
@@ -98,11 +99,11 @@ def normalize_legacy_part(body: str) -> str:
 
 def main() -> None:
     if len(sys.argv) != 2:
-        raise SystemExit("usage: externalize_runtime.py SITE_INDEX_HTML")
+        raise SystemExit("usage: externalize_runtime.py SITE_APP_HTML")
 
     page = Path(sys.argv[1])
     if not page.exists():
-        raise SystemExit(f"index introuvable: {page}")
+        raise SystemExit(f"application introuvable: {page}")
 
     html = page.read_text(encoding="utf-8")
     runtime_dir = page.parent / "runtime"
@@ -131,8 +132,9 @@ def main() -> None:
     if not parts:
         raise SystemExit("aucun JavaScript inline trouvé à externaliser")
 
-    # Les CDN (Leaflet / MapLibre) ne correspondent pas à ce motif et restent à
-    # leur place. Les modules Mon SAEIV sont ensuite chargés une seule fois.
+    # Les CDN Leaflet/MapLibre restent à leur place. Les modules Mon SAEIV sont
+    # ensuite chargés une seule fois dans app.html. Le sélecteur de rôle V158 est
+    # volontairement absent : il a été remplacé par le sas indépendant.
     html = MODULE_SRC_RE.sub("\n", html)
     module_tags = "\n".join(
         f'<script src="./{name}?v={VERSION}"></script>' for name in MODULES
@@ -152,20 +154,21 @@ def main() -> None:
         "generated": True,
         "parts": [f"runtime/{name}" for name in part_names],
         "modules": MODULES,
+        "entry": "index.html",
+        "application": "app.html",
     }
     (runtime_dir / "runtime-manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
-    # Contrat de la réécriture : aucun JavaScript exécutable ne reste incorporé
-    # dans index.html. Une chaîne contenant </script> ne peut donc plus casser le
-    # document et afficher le code source comme du texte dans Safari/Chrome.
+    # Aucun JavaScript exécutable ne reste incorporé dans app.html. Une chaîne
+    # contenant </script> ne peut donc plus casser le document dans Safari.
     for m in SCRIPT_RE.finditer(html):
         if executable_inline(m.group("attrs") or ""):
             raise SystemExit("JavaScript inline résiduel après externalisation")
 
     page.write_text(html, encoding="utf-8")
-    print(f"Runtime externalisé : {len(parts)} scripts -> {runtime_dir}")
+    print(f"Runtime application externalisé : {len(parts)} scripts -> {runtime_dir}")
 
 
 if __name__ == "__main__":
