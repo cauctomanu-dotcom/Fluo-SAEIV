@@ -52,7 +52,7 @@ jobs:
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
             v154-planning-service-times.js v155-planning-cut-percent.js \
             v156-supabase-sync.js v157-exploitation.js \
-            v159-clean-runtime.js v160-entry-bridge.js; do
+            v159-clean-runtime.js v160-entry-bridge.js v161-admin-accounts.js; do
             test -f "$f"
             cp "$f" "site/$f"
           done
@@ -102,15 +102,39 @@ jobs:
           set -euo pipefail
           python externalize_runtime.py site/index.html
 
-      - name: Split isolated gateway from application runtime
+      - name: Split gateway and stamp release 1.0.63
         shell: bash
         run: |
           set -euo pipefail
           mv site/index.html site/app.html
           cp login.html site/index.html
           cp login-gateway.js site/login-gateway.js
+          python - <<'PY'
+          from pathlib import Path
 
-      - name: Validate isolated runtime 1.0.62
+          # Le moteur historique source est encore estampillé 1.0.62. La publication
+          # 1.0.63 force un nouveau cache PWA sans modifier ses contrats internes.
+          for p in Path('site').rglob('*'):
+              if not p.is_file() or p.suffix.lower() not in {'.html','.js','.json','.webmanifest'}:
+                  continue
+              try:
+                  t=p.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              if '1.0.62' in t:
+                  p.write_text(t.replace('1.0.62','1.0.63'),encoding='utf-8')
+
+          app=Path('site/app.html')
+          t=app.read_text(encoding='utf-8')
+          tag='<script src="./v161-admin-accounts.js?v=1.0.63"></script>'
+          if tag not in t:
+              if '</body>' not in t:
+                  raise SystemExit('balise </body> absente de app.html')
+              t=t.replace('</body>',tag+'\n</body>',1)
+          app.write_text(t,encoding='utf-8')
+          PY
+
+      - name: Validate isolated runtime 1.0.63
         shell: bash
         run: |
           set -euo pipefail
@@ -129,7 +153,7 @@ jobs:
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
             v154-planning-service-times.js v155-planning-cut-percent.js \
             v156-supabase-sync.js v157-exploitation.js \
-            v159-clean-runtime.js v160-entry-bridge.js sw.js; do
+            v159-clean-runtime.js v160-entry-bridge.js v161-admin-accounts.js sw.js; do
             node --check "site/$f"
           done
 
@@ -149,17 +173,25 @@ jobs:
                   continue
               if body.strip():inline.append(body[:80])
           assert not inline, f'JavaScript inline résiduel dans app.html: {inline[:2]}'
-          assert 'runtime/part-001.js?v=1.0.62' in app
-          assert 'v159-clean-runtime.js?v=1.0.62' in app
-          assert 'v160-entry-bridge.js?v=1.0.62' in app
+          assert 'runtime/part-001.js?v=1.0.63' in app
+          assert 'v159-clean-runtime.js?v=1.0.63' in app
+          assert 'v160-entry-bridge.js?v=1.0.63' in app
+          assert 'v161-admin-accounts.js?v=1.0.63' in app
           assert 'v158-role-login.js' not in app
-          assert '<title>Mon SAEIV · 1.0.62</title>' in app
+          assert '<title>Mon SAEIV · 1.0.63</title>' in app
 
           assert 'id="gatewayApp"' in gateway
+          assert 'login-gateway.js?v=1.0.63' in gateway
+          assert 'id="exportLocal"' in gateway and 'id="importLocal"' in gateway
+          assert 'driverRegPassword' in gateway and 'minlength="6"' in gateway
           assert 'runtime/part-' not in gateway
           assert 'v156-supabase-sync.js' not in gateway
           assert 'maplibre' not in gateway.lower()
           assert 'leaflet' not in gateway.lower()
+
+          gateway_js=Path('site/login-gateway.js').read_text(encoding='utf-8')
+          assert 'mon-saeiv-local-backup' in gateway_js
+          assert 'password.length<6' in gateway_js
 
           runtime='\n'.join(x.read_text(encoding='utf-8') for x in sorted(Path('site/runtime').glob('part-*.js')))
           assert 'remoteUnlock:(matricule,networkKey)=>setUnlocked(matricule,networkKey)' in runtime
@@ -168,9 +200,11 @@ jobs:
           assert 'pointer-events' in runtime
           assert 'mon-saeiv-planning-changed' in runtime
           assert 'syncFromServer:(items)=>' in runtime
-          print(f'Sas isolé validé · app={len(scripts)} scripts externes · {len(list(Path("site/runtime").glob("part-*.js")))} blocs historiques externalisés')
+          print(f'Sas 1.0.63 validé · {len(list(Path("site/runtime").glob("part-*.js")))} blocs historiques externalisés')
           PY
 
+          grep -q "const CACHE='mon-saeiv-clean-1.0.63'" site/sw.js
+          grep -q '"name": "Mon SAEIV 1.0.63"' site/manifest.webmanifest
           grep -q './app.html' site/sw.js
           grep -q './login-gateway.js' site/sw.js
           grep -q '57SMH04' site/data/57/routes.json
