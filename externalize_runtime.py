@@ -6,12 +6,12 @@ import shutil
 import sys
 from pathlib import Path
 
-VERSION = "1.0.61"
+VERSION = "1.0.62"
 EARLY_BRIDGE = "v160-entry-bridge.js"
 
 # Modules chargés en fin d'application. Le pont d'entrée V160 est volontairement
 # absent de cette liste : il est chargé dans <head> avant le runtime historique afin
-# de masquer l'ancien écran local avant même qu'il soit créé.
+# de protéger l'entrée conducteur avant même la création des anciens overlays.
 MODULES = [
     "v128-gps.js",
     "v128-offline.js",
@@ -56,6 +56,47 @@ def executable_inline(attrs: str) -> bool:
 
 def normalize_legacy_part(body: str) -> str:
     """Conserve les données/fonctions existantes mais fixe leurs contrats modernes."""
+
+    # L'écran V13 « Réseau / matricule / mot de passe » est un ancien overlay local.
+    # Deux garanties sont appliquées directement dans SON propre fichier :
+    # - en entrée cloud, il est physiquement masqué dès sa création ;
+    # - en entrée locale, il passe au-dessus de tous les autres overlays et récupère
+    #   explicitement les événements souris/tactiles. Cela ne dépend donc plus d'un
+    #   module chargé plus tard ni de DOMContentLoaded.
+    if "Mon SAEIV V13 — identification conducteur + journal de service local" in body:
+        body = body.replace(
+            ".v13-auth{position:fixed;z-index:12000;",
+            ".v13-auth{position:fixed;z-index:2147483647;pointer-events:auto;isolation:isolate;",
+            1,
+        )
+        auth_marker = """  const auth = {
+    root:$v13('v13Auth'), title:$v13('v13AuthTitle'), intro:$v13('v13AuthIntro'), form:$v13('v13AuthForm'), network:$v13('v13Network'), matricule:$v13('v13Matricule'), password:$v13('v13Password'), confirmWrap:$v13('v13ConfirmWrap'), confirm:$v13('v13Confirm'), submit:$v13('v13AuthSubmit'), msg:$v13('v13AuthMsg')
+  };
+"""
+        guard = auth_marker + """
+  const V13_CLOUD_ENTRY=(()=>{try{return new URLSearchParams(location.search).get('entry')==='cloud'||localStorage.getItem('mon-saeiv-cloud-entry-v156')==='cloud'}catch{return false}})();
+  function protectV13AuthLayer(){
+    if(!auth.root)return;
+    if(V13_CLOUD_ENTRY){
+      auth.root.classList.add('hidden');
+      auth.root.setAttribute('aria-hidden','true');
+      auth.root.style.setProperty('display','none','important');
+      auth.root.style.setProperty('pointer-events','none','important');
+      return;
+    }
+    auth.root.classList.remove('hidden');
+    auth.root.removeAttribute('aria-hidden');
+    auth.root.style.removeProperty('display');
+    auth.root.style.setProperty('z-index','2147483647','important');
+    auth.root.style.setProperty('pointer-events','auto','important');
+    auth.root.style.setProperty('isolation','isolate','important');
+    auth.root.querySelectorAll('form,label,input,select,button,.v13-auth-card').forEach(el=>el.style.setProperty('pointer-events','auto','important'));
+  }
+  protectV13AuthLayer();
+"""
+        if auth_marker in body and "V13_CLOUD_ENTRY" not in body:
+            body = body.replace(auth_marker, guard, 1)
+
     replacements = [
         (
             "window.MonSAEIVAuthV13={logout,show:()=>logout(),networks:DRIVER_NETWORKS,get unlocked(){return V13.unlocked}};",
@@ -151,9 +192,6 @@ def main() -> None:
     if not parts:
         raise SystemExit("aucun JavaScript inline trouvé à externaliser")
 
-    # Retire tous les anciens tags de modules Mon SAEIV, puis charge le pont V160
-    # très tôt dans <head>. Il pose immédiatement le garde CSS qui empêche l'écran
-    # V13 visible sur la capture de bloquer l'iPhone après une authentification cloud.
     html = MODULE_SRC_RE.sub("\n", html)
     early_tag = f'<script src="./{EARLY_BRIDGE}?v={VERSION}"></script>\n'
     if "</head>" not in html:
@@ -191,6 +229,10 @@ def main() -> None:
 
     if html.count(f'./{EARLY_BRIDGE}?v={VERSION}') != 1:
         raise SystemExit("le pont V160 doit être chargé exactement une fois")
+
+    runtime_text="\n".join(parts)
+    if "V13_CLOUD_ENTRY" not in runtime_text or "2147483647" not in runtime_text:
+        raise SystemExit("protection tactile V13 absente du runtime généré")
 
     page.write_text(html, encoding="utf-8")
     print(f"Runtime application externalisé : {len(parts)} scripts -> {runtime_dir}")
