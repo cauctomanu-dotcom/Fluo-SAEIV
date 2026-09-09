@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE='mon-saeiv-clean-1.0.61';
+const CACHE='mon-saeiv-clean-1.0.62';
 const CORE=[
   './',
   './index.html',
