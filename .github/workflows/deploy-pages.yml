@@ -49,7 +49,7 @@ jobs:
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
             v154-planning-service-times.js v155-planning-cut-percent.js \
-            v156-supabase-sync.js v157-exploitation.js; do
+            v156-supabase-sync.js v157-exploitation.js v158-role-login.js; do
             [ -f "$f" ] && cp "$f" "site/$f"
           done
 
@@ -122,7 +122,7 @@ jobs:
             'v134-journal-front','v135-journal-router','v136-driver-operations','v137-driver-hub',
             'v141-static-fluo','v144-day-hlp-driver','v145-planning-tad','v146-planning-tad-bridge',
             'v147-flow-journals-fix','v148-continuous-day','v150-journal-regulation','v154-planning-service-times',
-            'v155-planning-cut-percent','v156-supabase-sync','v157-exploitation'
+            'v155-planning-cut-percent','v156-supabase-sync','v157-exploitation','v158-role-login'
           )
           for mod in modules:
               t=re.sub(rf'\./{re.escape(mod)}\.js\?v=1\.0\.\d+',f'./{mod}.js?v={VERSION}',t)
@@ -144,6 +144,7 @@ jobs:
             ('v155RuntimePlanningCutPercent','v155-planning-cut-percent.js'),
             ('v156RuntimeCloudSync','v156-supabase-sync.js'),
             ('v157RuntimeExploitation','v157-exploitation.js'),
+            ('v158RuntimeRoleLogin','v158-role-login.js'),
           ]
           for ident,src in injections:
               if ident not in t:
@@ -169,7 +170,7 @@ jobs:
           sw=Path('site/sw.js')
           s=sw.read_text(encoding='utf-8')
           s=re.sub(r"const C='mon-saeiv-v1-0-\d+';","const C='mon-saeiv-v1-0-56';",s,count=1)
-          core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','v154-planning-service-times.js','v155-planning-cut-percent.js','v156-supabase-sync.js','v157-exploitation.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
+          core="const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','v154-planning-service-times.js','v155-planning-cut-percent.js','v156-supabase-sync.js','v157-exploitation.js','v158-role-login.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];"
           s=re.sub(r"const CORE=\[[^\n]+\];",core,s,count=1)
           s=re.sub(r'1\.0\.\d+',VERSION,s)
           s=s.replace('v140RuntimeStaticFluo','v141RuntimeStaticFluo').replace('v140-static-fluo.js','v141-static-fluo.js')
@@ -188,7 +189,7 @@ jobs:
           if bp.exists():
               d=json.loads(bp.read_text(encoding='utf-8'))
               d['version']=VERSION
-              d['cloud_backend']={'provider':'Supabase','accounts':True,'multi_device':True,'dispatch_planning':True,'automatic_hlp':True,'hlp_margin_minutes':0}
+              d['cloud_backend']={'provider':'Supabase','accounts':True,'multi_device':True,'dispatch_planning':True,'automatic_hlp':True,'hlp_margin_minutes':0,'role_selector':True,'driver_login':'matricule_password'}
               d['numbering_switch']={'effective_date':'2026-09-01','status':'ACTIVE — table officielle Fluo, sans déduction','source':'fluo-numbering-2026.json','runtime':'v141-static-fluo.js','cash_storage':'monSaeivCashV123 inchangé'}
               bp.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           PY
@@ -203,7 +204,7 @@ jobs:
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
             v154-planning-service-times.js v155-planning-cut-percent.js \
-            v156-supabase-sync.js v157-exploitation.js sw.js; do
+            v156-supabase-sync.js v157-exploitation.js v158-role-login.js sw.js; do
             node --check "site/$f"
           done
           grep -q '1.0.56 Ma journée dédiée et enchaînement événementiel actifs' site/v148-continuous-day.js
@@ -215,12 +216,14 @@ jobs:
           grep -q 'visualFps:60,cameraFps:30' site/v128-gps.js
           grep -q 'v156RuntimeCloudSync' site/index.html
           grep -q 'v157RuntimeExploitation' site/index.html
+          grep -q 'v158RuntimeRoleLogin' site/index.html
           grep -q 'remoteUnlock:' site/index.html
           grep -q 'syncFromServer:' site/index.html
           grep -q 'mon-saeiv-planning-changed' site/index.html
           grep -q 'mon-saeiv-v1-0-56' site/sw.js
           grep -q 'v156-supabase-sync.js' site/sw.js
           grep -q 'v157-exploitation.js' site/sw.js
+          grep -q 'v158-role-login.js' site/sw.js
           grep -q 'fluo-numbering-2026.json' site/sw.js
           ! grep -q 'localStorage.clear' site/index.html
           python - <<'PY'
@@ -232,7 +235,7 @@ jobs:
           assert 'remoteUnlock:(matricule,networkKey)=>setUnlocked(matricule,networkKey)' in t
           assert 'syncFromServer:(items)=>' in t
           assert "CustomEvent('mon-saeiv-planning-changed'" in t
-          assert 'v156RuntimeCloudSync' in t and 'v157RuntimeExploitation' in t
+          assert 'v156RuntimeCloudSync' in t and 'v157RuntimeExploitation' in t and 'v158RuntimeRoleLogin' in t
           prof=Path('site/v133-profile-journals.js').read_text(encoding='utf-8')
           assert "let b=q('v133ProfileBtn')||q('v137ProfileBtn');" in prof
           flow=Path('site/v148-continuous-day.js').read_text(encoding='utf-8')
@@ -249,12 +252,15 @@ jobs:
           assert 'ALLOWED=[0,25,50,75,100]' in cuts
           cloud=Path('site/v156-supabase-sync.js').read_text(encoding='utf-8')
           dispatch=Path('site/v157-exploitation.js').read_text(encoding='utf-8')
+          rolelogin=Path('site/v158-role-login.js').read_text(encoding='utf-8')
           assert 'register-member' in cloud and 'plan_items' in cloud and 'Supabase' in cloud
           assert 'rebuild-driver-day' in dispatch and "eq('role','driver')" in dispatch
+          assert 'data-v158-role="driver"' in rolelogin and 'data-v158-role="dispatcher"' in rolelogin and 'data-v158-role="admin"' in rolelogin
+          assert 'login-driver' in rolelogin and 'Connexion serveur / changer de rôle' in rolelogin
           m=json.load(open('site/fluo-numbering-2026.json',encoding='utf-8'))
           assert m['departments']['54']['54R060']['new']=='455'
           assert m['departments']['68']['R040']['new']=='840'
-          print('Runtime 1.0.56 : conducteur + cloud + exploitation validés.')
+          print('Runtime 1.0.56 : conducteur + cloud + exploitation + choix de rôle validés.')
           PY
 
       - name: Download and prepare official Fluo GTFS 54 57 67 68
