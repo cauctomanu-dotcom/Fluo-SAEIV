@@ -1,9 +1,11 @@
 'use strict';
 
-const CACHE='mon-saeiv-clean-1.0.60';
+const CACHE='mon-saeiv-clean-1.0.61';
 const CORE=[
   './',
   './index.html',
+  './login-gateway.js',
+  './app.html',
   './manifest.webmanifest',
   './fluo_build.json',
   './fluo-numbering-2026.json',
@@ -29,8 +31,8 @@ const CORE=[
   './v155-planning-cut-percent.js',
   './v156-supabase-sync.js',
   './v157-exploitation.js',
-  './v158-role-login.js',
   './v159-clean-runtime.js',
+  './v160-entry-bridge.js',
   './data/54/routes.json','./data/54/services.json','./data/54/stops.json',
   './data/57/routes.json','./data/57/services.json','./data/57/stops.json',
   './data/67/routes.json','./data/67/services.json','./data/67/stops.json',
@@ -55,12 +57,6 @@ self.addEventListener('activate',event=>{
     const keys=await caches.keys();
     await Promise.allSettled(keys.filter(k=>k!==CACHE&&(/mon-saeiv|fluo-saeiv/i.test(k))).map(k=>caches.delete(k)));
     await self.clients.claim();
-    // Une seule navigation lors de la prise de contrôle force Safari/PWA à sortir
-    // des anciennes pages 1.0.3x qui pouvaient rester en mémoire plusieurs heures.
-    const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-    await Promise.allSettled(clients.map(client=>{
-      try{return client.navigate(client.url)}catch{return Promise.resolve()}
-    }));
   })());
 });
 
@@ -99,7 +95,8 @@ self.addEventListener('fetch',event=>{
   const url=new URL(request.url);
 
   if(request.mode==='navigate'){
-    event.respondWith(networkFirst(request,'./index.html'));
+    const fallback=url.pathname.endsWith('/app.html')?'./app.html':'./index.html';
+    event.respondWith(networkFirst(request,fallback));
     return;
   }
 
