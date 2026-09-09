@@ -8,8 +8,8 @@ from pathlib import Path
 
 VERSION = "1.0.60"
 
-# Les modules modernes sont chargés explicitement et une seule fois, dans un ordre
-# déterministe. Les anciens tags vXXX présents dans l'HTML source sont supprimés.
+# Chaîne moderne unique. Les anciens tags vXXX éventuellement déjà présents dans
+# le HTML source sont retirés pour éviter tout double chargement.
 MODULES = [
     "v128-gps.js",
     "v128-offline.js",
@@ -30,11 +30,10 @@ MODULES = [
     "v150-journal-regulation.js",
     "v154-planning-service-times.js",
     "v155-planning-cut-percent.js",
-    # Le pont propre doit exister avant l'authentification Supabase.
-    "v159-clean-runtime.js",
     "v156-supabase-sync.js",
     "v157-exploitation.js",
     "v158-role-login.js",
+    "v159-clean-runtime.js",
 ]
 
 SCRIPT_RE = re.compile(r"<script\b(?P<attrs>[^>]*)>(?P<body>.*?)</script\s*>", re.I | re.S)
@@ -52,6 +51,49 @@ def executable_inline(attrs: str) -> bool:
         return True
     typ = m.group(2).strip().lower()
     return typ in {"", "text/javascript", "application/javascript", "module"}
+
+
+def normalize_legacy_part(body: str) -> str:
+    """Conserve les données/fonctions existantes mais fixe leurs contrats modernes.
+
+    Ces transformations étaient auparavant dispersées dans le workflow Pages. Elles
+    sont désormais centralisées ici, avant publication, puis le JavaScript est sorti
+    physiquement du HTML.
+    """
+    replacements = [
+        (
+            "window.MonSAEIVAuthV13={logout,show:()=>logout(),networks:DRIVER_NETWORKS,get unlocked(){return V13.unlocked}};",
+            "window.MonSAEIVAuthV13={logout,show:()=>logout(),remoteUnlock:(matricule,networkKey)=>setUnlocked(matricule,networkKey),networks:DRIVER_NETWORKS,get unlocked(){return V13.unlocked}};",
+        ),
+        (
+            "const xs=itemsFor(date);let work=0,drive=0,euDrive=0,nationalDrive=0,breaks=0,first=Infinity,last=-Infinity;",
+            "const xs=itemsFor(date);let work=0,drive=0,euDrive=0,nationalDrive=0,breaks=0,paidCut=0,first=Infinity,last=-Infinity;",
+        ),
+        (
+            "if(m.work)work+=d;if(m.break)breaks+=d;if(m.drive){",
+            "if(m.work)work+=d;if(x.type==='cut'){const cp=[0,25,50,75,100].includes(Number(x.cutPercent))?Number(x.cutPercent):0;const counted=d*cp/100;paidCut+=counted;work+=counted}if(m.break)breaks+=d;if(m.drive){",
+        ),
+        (
+            "return{items:xs,work,drive,euDrive,nationalDrive,breaks,amplitude:",
+            "return{items:xs,work,drive,euDrive,nationalDrive,breaks,paidCut,amplitude:",
+        ),
+        (
+            "const rec={id:editingId||uid(),date:selectedDate,type,label:",
+            "const rec={id:editingId||uid(),date:selectedDate,type,cutPercent:type==='cut'?Number(q('v155CutPercent')?.value||0):null,label:",
+        ),
+        (
+            "function savePlan(){localStorage.setItem(PLAN_KEY,JSON.stringify(plan));renderAll()}",
+            "function savePlan(){localStorage.setItem(PLAN_KEY,JSON.stringify(plan));renderAll();try{window.dispatchEvent(new CustomEvent('mon-saeiv-planning-changed',{detail:{items:plan.items.slice()}}))}catch{}}",
+        ),
+        (
+            "window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),metrics,complianceForWeek,prepareLinkedCourse,markDone:setDone,renderToday,openToday:()=>setDayMode(true)};",
+            "window.FluoPlanningV316={open:openPlanner,items:()=>plan.items.slice(),syncFromServer:(items)=>{plan.items=Array.isArray(items)?items.slice():[];localStorage.setItem(PLAN_KEY,JSON.stringify(plan));renderAll();return plan.items.length},metrics,complianceForWeek,prepareLinkedCourse,markDone:setDone,renderToday,openToday:()=>setDayMode(true)};",
+        ),
+    ]
+    for old, new in replacements:
+        if old in body and new not in body:
+            body = body.replace(old, new, 1)
+    return body
 
 
 def main() -> None:
@@ -78,6 +120,7 @@ def main() -> None:
             return match.group(0)
         if not body.strip():
             return ""
+        body = normalize_legacy_part(body)
         idx = len(parts) + 1
         name = f"part-{idx:03d}.js"
         parts.append(body.rstrip() + "\n")
@@ -88,11 +131,9 @@ def main() -> None:
     if not parts:
         raise SystemExit("aucun JavaScript inline trouvé à externaliser")
 
-    # Retire les anciens chargements de modules versionnés, puis réinstalle une
-    # chaîne unique. Les CDN (Leaflet / MapLibre) ne correspondent pas à ce motif
-    # et restent exactement à leur place.
+    # Les CDN (Leaflet / MapLibre) ne correspondent pas à ce motif et restent à
+    # leur place. Les modules Mon SAEIV sont ensuite chargés une seule fois.
     html = MODULE_SRC_RE.sub("\n", html)
-
     module_tags = "\n".join(
         f'<script src="./{name}?v={VERSION}"></script>' for name in MODULES
     )
@@ -100,7 +141,6 @@ def main() -> None:
         raise SystemExit("balise </body> absente")
     html = html.replace("</body>", module_tags + "\n</body>", 1)
 
-    # Numéro de version uniquement dans les références de ressources et le titre.
     html = re.sub(r"manifest\.webmanifest\?v=1\.0\.\d+", f"manifest.webmanifest?v={VERSION}", html)
     html = re.sub(r"<title>Mon SAEIV · 1\.0\.\d+</title>", f"<title>Mon SAEIV · {VERSION}</title>", html)
 
@@ -117,9 +157,9 @@ def main() -> None:
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
-    # Contrat principal de la réécriture : le document HTML publié ne contient
-    # plus aucun JavaScript exécutable inline. Il ne peut donc plus afficher la
-    # suite du code comme du texte à cause d'une fermeture </script> dans une chaîne.
+    # Contrat de la réécriture : aucun JavaScript exécutable ne reste incorporé
+    # dans index.html. Une chaîne contenant </script> ne peut donc plus casser le
+    # document et afficher le code source comme du texte dans Safari/Chrome.
     for m in SCRIPT_RE.finditer(html):
         if executable_inline(m.group("attrs") or ""):
             raise SystemExit("JavaScript inline résiduel après externalisation")
