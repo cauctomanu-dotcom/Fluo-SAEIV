@@ -1,8 +1,8 @@
 'use strict';
-/* Mon SAEIV 1.0.61 — sas de connexion isolé.
+/* Mon SAEIV 1.0.62 — sas de connexion isolé.
    Cette page ne charge aucun moteur conducteur historique. */
 (()=>{
-  const VERSION='1.0.61';
+  const VERSION='1.0.62';
   const SUPABASE_URL='https://xpmrnwipnoekiycghwli.supabase.co';
   const SUPABASE_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
