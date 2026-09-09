@@ -101,7 +101,6 @@
     }catch(err){setCloudStatus(err.message||'Création impossible.','err')}
   }
   async function logoutCloud(){try{await S.client?.auth.signOut()}catch{};try{S.channel&&await S.client?.removeChannel(S.channel)}catch{};S.user=null;S.profile=null;S.channel=null;localStorage.removeItem(PROFILE_CACHE);q('v156AccountSheet')?.classList.add('hidden');q('v156CloudAuth')?.classList.remove('hidden');q('v13Auth')?.classList.add('hidden');setCloudStatus('Déconnecté du serveur.');switchMode('login')}
-
   function stripPrivate(item){const out={};for(const [k,v] of Object.entries(item||{})){if(!k.startsWith('_server')&&k!=='_lockedByExploitation')out[k]=v}return out}
   function localToRow(item,index){
     const p=S.profile,u=S.user;if(!p||!u)return null;const type=allowedTypes.has(item.type)?item.type:'other';
@@ -125,7 +124,17 @@
     if(!S.client||!S.user||S.profile?.role!=='driver'||!window.FluoPlanningV316?.syncFromServer)return;
     try{const {data,error}=await S.client.from('plan_items').select('*').eq('driver_user_id',S.user.id).order('service_date',{ascending:true}).order('start_time',{ascending:true,nullsFirst:false}).order('sort_index',{ascending:true});if(error)throw error;S.suppressPush=true;try{window.FluoPlanningV316.syncFromServer((data||[]).map(rowToLocal))}finally{S.suppressPush=false}S.lastSync=Date.now();setCloudStatus('Planning à jour.','ok');window.dispatchEvent(new CustomEvent('mon-saeiv-cloud-planning-synced',{detail:{count:data?.length||0}}))}catch(e){console.warn('[Mon SAEIV] pull planning',e);setCloudStatus('Mode hors ligne : planning local conservé.','err')}
   }
-  async function initialPlanningSync(){if(S.profile?.role!=='driver')return;await pushPlanning();await pullPlanning();subscribePlanning()}
+  async function initialPlanningSync(){
+    if(S.profile?.role!=='driver'||!S.client||!S.user)return;
+    try{
+      const {data,error}=await S.client.from('plan_items').select('id').eq('driver_user_id',S.user.id).limit(1);if(error)throw error;
+      const local=window.FluoPlanningV316?.items?.()||[];
+      if((data||[]).length){await pullPlanning()}
+      else if(local.length){await pushPlanning();await pullPlanning()}
+      else{await pullPlanning()}
+    }catch(e){console.warn('[Mon SAEIV] synchro initiale',e);await pullPlanning()}
+    subscribePlanning()
+  }
   function schedulePush(){if(S.suppressPush||S.profile?.role!=='driver')return;clearTimeout(S.pushTimer);S.pushTimer=setTimeout(pushPlanning,650)}
   function schedulePull(){if(S.profile?.role!=='driver')return;clearTimeout(S.pullTimer);S.pullTimer=setTimeout(pullPlanning,450)}
   function subscribePlanning(){if(!S.client||!S.user)return;try{S.channel&&S.client.removeChannel(S.channel)}catch{};S.channel=S.client.channel(`planning-${S.user.id}`).on('postgres_changes',{event:'*',schema:'public',table:'plan_items',filter:`driver_user_id=eq.${S.user.id}`},schedulePull).subscribe()}
