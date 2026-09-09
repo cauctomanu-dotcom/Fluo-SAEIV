@@ -12,6 +12,7 @@ import json
 import re
 import unicodedata
 import zipfile
+from pathlib import Path
 
 import build_gtfs as base
 
@@ -208,6 +209,102 @@ def validate_57_smh04():
         raise SystemExit(f"57SMH04: libellé courant incohérent après préparation: {route.get('long')!r}")
 
 
+def rewrite_startup_usage_notice():
+    """Réécrit l'information d'utilisation en encart non bloquant.
+
+    L'ancien écran était une modale plein écran. Ce finaliseur la retire du HTML
+    publié et insère un encart normal dans l'écran de prise de service. Ainsi,
+    même si tout JavaScript ultérieur échoue, l'application reste cliquable.
+    """
+    page = Path('site/index.html')
+    if not page.exists():
+        raise SystemExit('site/index.html absent pendant la réécriture de l’information d’utilisation')
+    html = page.read_text(encoding='utf-8')
+
+    # Supprime le style de modale plein écran de la source historique.
+    style_start = html.find('<style id="v3127UsageNoticeStyle">')
+    if style_start != -1:
+        style_end = html.find('</style>', style_start)
+        if style_end == -1:
+            raise SystemExit('style v3127UsageNoticeStyle incomplet')
+        html = html[:style_start] + html[style_end + len('</style>'):]
+
+    # Supprime physiquement la modale située avant .app. On ne tente plus de la
+    # masquer après chargement : elle n'existe simplement plus dans le site publié.
+    modal_start = html.find('<div id="v3127UsageNotice"')
+    app_start = html.find('<div class="app">', modal_start if modal_start != -1 else 0)
+    if modal_start == -1 or app_start == -1 or app_start <= modal_start:
+        raise SystemExit('ancienne modale d’utilisation introuvable ou structure inattendue')
+    html = html[:modal_start] + html[app_start:]
+
+    inline_style = '''
+<style id="v3127UsageNoticeStyle">
+  .v3127-usage-inline{margin:0 0 14px;padding:14px;border:1px solid #3b5969;border-radius:16px;background:linear-gradient(135deg,#0d2633,#081923);box-shadow:0 10px 28px rgba(0,0,0,.16)}
+  .v3127-usage-inline .eyebrow{margin-bottom:4px}.v3127-usage-inline h2{margin:0 0 8px;font-size:1.05rem}.v3127-usage-inline p{margin:7px 0;color:#bfd0d8;font-size:.72rem;line-height:1.48}.v3127-usage-inline strong{color:#fff}.v3127-usage-inline .v3127-usage-note{padding:8px 9px;border:1px solid #324f60;border-radius:10px;background:#071721}.v3127-usage-inline button{width:100%;margin-top:8px;min-height:44px}
+</style>
+'''
+    if 'id="v3127UsageNoticeStyle"' not in html:
+        head_end = html.find('</head>')
+        if head_end == -1:
+            raise SystemExit('balise </head> introuvable')
+        html = html[:head_end] + inline_style + html[head_end:]
+
+    setup_marker = '<section id="setup" class="panel">'
+    if setup_marker not in html:
+        raise SystemExit('écran setup introuvable pour l’encart d’utilisation')
+    inline_notice = '''
+    <aside id="v3127UsageNotice" class="v3127-usage-inline" aria-labelledby="v3127UsageTitle">
+      <div class="eyebrow">INFORMATION D’UTILISATION</div>
+      <h2 id="v3127UsageTitle">Mon SAEIV</h2>
+      <p>Cette application est un <strong>outil d’aide au conducteur</strong>. Elle ne remplace pas les applications, procédures, documents ou consignes fournis par votre entreprise, l’exploitant ou l’autorité organisatrice.</p>
+      <p class="v3127-usage-note">Malgré le soin apporté aux données et aux fonctionnalités, des erreurs, omissions ou décalages peuvent subsister. En cas de divergence, les outils, documents et consignes de référence de l’entreprise prévalent.</p>
+      <p>Les informations, historiques et journaux constituent une aide de suivi et <strong>n’ont, à ce jour, pas valeur de justificatif officiel ou opposable</strong>.</p>
+      <button id="v3127UsageContinue" type="button" class="primary" onclick="try{localStorage.setItem('monSaeivUsageAcceptedV3127','1')}catch(e){};var n=document.getElementById('v3127UsageNotice');if(n)n.remove();">J’ai compris</button>
+    </aside>
+    <script id="v3127InlineUsageState">(()=>{try{if(localStorage.getItem('monSaeivUsageAcceptedV3127')==='1')document.getElementById('v3127UsageNotice')?.remove()}catch(e){}})();</script>
+'''
+    html = html.replace(setup_marker, setup_marker + inline_notice, 1)
+
+    # L'ancien listener peut rester : s'il trouve le nouvel encart il le masque,
+    # sinon il ne fait rien. Il ne crée plus aucune couche bloquante.
+    page.write_text(html, encoding='utf-8')
+
+    # Retire du runtime publié le précédent bouton de déblocage temporaire.
+    offline = Path('site/v128-offline.js')
+    if offline.exists():
+        js = offline.read_text(encoding='utf-8')
+        marker = '\n/* Correctif de secours 2026-09-09 — empêche un écran de connexion superposé de bloquer l\'iPhone/PWA. */'
+        if marker in js:
+            js = js.split(marker, 1)[0].rstrip() + '\n'
+            offline.write_text(js, encoding='utf-8')
+
+    # Supprime également le garde-fou temporaire injecté par le service worker et
+    # force un nouveau cache afin que Safari/PWA récupère cette réécriture.
+    worker = Path('site/sw.js')
+    if worker.exists():
+        sw = worker.read_text(encoding='utf-8')
+        sw_lines = []
+        for line in sw.splitlines():
+            if 'const usageGuard=' in line:
+                continue
+            if "v3127UsageEmergencyGuard" in line:
+                continue
+            if "t=t.replace(/<button id=\"v3127UsageContinue\"" in line:
+                continue
+            sw_lines.append(line)
+        sw = '\n'.join(sw_lines) + '\n'
+        sw = re.sub(r"const C='[^']+';", "const C='mon-saeiv-v1-0-56-inline-notice-1';", sw, count=1)
+        worker.write_text(sw, encoding='utf-8')
+
+    # Assertions de sécurité : aucune modale plein écran ne doit survivre.
+    final = page.read_text(encoding='utf-8')
+    if 'v3127-usage-backdrop' in final or 'aria-modal="true" aria-labelledby="v3127UsageTitle"' in final:
+        raise SystemExit('la modale bloquante d’utilisation subsiste après réécriture')
+    if 'class="v3127-usage-inline"' not in final:
+        raise SystemExit('encart d’utilisation non bloquant absent après réécriture')
+    print('Information d’utilisation réécrite : encart non bloquant, aucune modale au démarrage.')
+
+
 def main():
     base.FEEDS = FEEDS
     base.main()
@@ -233,6 +330,7 @@ def main():
 
     validate_57_smh04()
     print('57SMH04 validée : ASSENONCOURT / MORHANGE')
+    rewrite_startup_usage_notice()
 
 
 if __name__ == '__main__':
