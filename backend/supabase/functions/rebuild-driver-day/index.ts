@@ -1,209 +1,101 @@
-// Mon SAEIV — Supabase Edge Function
-// Reconstruit les HLP automatiques d'un conducteur pour une journée.
-// AUCUNE marge n'est ajoutée au temps routier.
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-type Point = { lat:number; lon:number; name?:string };
-
-type PlanItem = {
-  id:string;
-  organization_id:string;
-  driver_user_id:string;
-  service_date:string;
-  sort_index:number;
-  type:string;
-  start_time:string|null;
-  end_time:string|null;
-  origin:string|null;
-  destination:string|null;
-  origin_coords:Point|null;
-  destination_coords:Point|null;
+type Point={lat:number;lon:number;name?:string};
+type PlanItem={
+  id:string;organization_id:string;driver_user_id:string;service_date:string;sort_index:number;
+  type:string;start_time:string|null;end_time:string|null;origin:string|null;destination:string|null;
+  origin_coords:Point|null;destination_coords:Point|null;regime:string|null;drive_minutes:number|null;
+  line_distance_km:number|null;source:string|null;linked:any;payload:any;
 };
+type Route={minutes:number;meters:number};
 
-const cors = {
-  'Access-Control-Allow-Origin':'*',
-  'Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods':'POST, OPTIONS'
-};
+const ECON={fuelEurPerL:2.10,busLitresPer100Km:30,labourEurPerHour:30,offsiteCutPercentage:50};
+const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
+const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json; charset=utf-8'}});
+const dateRe=/^\d{4}-\d{2}-\d{2}$/;
+const tm=(v:string|null|undefined)=>{if(!v)return null;const m=String(v).match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null};
+const ts=(n:number)=>{const x=((Math.round(n)%1440)+1440)%1440;return `${String(Math.floor(x/60)).padStart(2,'0')}:${String(x%60).padStart(2,'0')}:00`};
+const dur=(a:string|null,b:string|null)=>{let x=tm(a),y=tm(b);if(x===null||y===null)return 0;if(y<x)y+=1440;return Math.max(0,y-x)};
+const validPoint=(p:any):p is Point=>!!p&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lon));
+const haversine=(a:Point,b:Point)=>{const R=6371000,r=(x:number)=>x*Math.PI/180,dLat=r(b.lat-a.lat),dLon=r(b.lon-a.lon),q=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(q))};
+const samePlace=(a:Point|null|undefined,b:Point|null|undefined)=>!!a&&!!b&&validPoint(a)&&validPoint(b)&&haversine(a,b)<120;
+const dayAdd=(iso:string,delta:number)=>{const d=new Date(`${iso}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10)};
+const monday=(iso:string)=>{const d=new Date(`${iso}T12:00:00Z`),day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day);return d.toISOString().slice(0,10)};
+const absMinute=(date:string,time:string|null)=>{const m=tm(time);if(m===null)return null;return Math.floor(new Date(`${date}T00:00:00Z`).getTime()/60000)+m};
+const drivingItem=(x:PlanItem)=>['regular','school','tad','hlp'].includes(x.type);
+const workItem=(x:PlanItem)=>!['cut','pause'].includes(x.type);
+const drivingMinutes=(x:PlanItem)=>{if(!drivingItem(x))return 0;const n=Number(x.drive_minutes);return Number.isFinite(n)&&n>=0?n:dur(x.start_time,x.end_time)};
+const travelCost=(r:Route)=>r.meters/1000*(ECON.fuelEurPerL*ECON.busLitresPer100Km/100)+(r.minutes/60)*ECON.labourEurPerHour;
+const cutCost=(minutes:number,percentage:number)=>Math.max(0,minutes)/60*ECON.labourEurPerHour*(percentage/100);
 
-const json = (body:unknown, status=200) => new Response(JSON.stringify(body), {
-  status,
-  headers:{...cors,'Content-Type':'application/json; charset=utf-8'}
-});
-
-function timeToMinutes(value:string|null|undefined){
-  if(!value)return null;
-  const m=String(value).match(/^(\d{1,2}):(\d{2})/);
-  if(!m)return null;
-  return Number(m[1])*60+Number(m[2]);
-}
-
-function minutesToTime(total:number){
-  const n=((Math.round(total)%1440)+1440)%1440;
-  return `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}:00`;
-}
-
-function validPoint(p:unknown):p is Point{
-  const x=p as Point;
-  return !!x && Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lon));
-}
-
-function haversine(a:Point,b:Point){
-  const R=6371000, r=(x:number)=>x*Math.PI/180;
-  const dLat=r(b.lat-a.lat),dLon=r(b.lon-a.lon);
-  const q=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLon/2)**2;
-  return 2*R*Math.asin(Math.sqrt(q));
-}
-
-async function routeEstimate(a:Point,b:Point){
+async function routeEstimate(a:Point,b:Point):Promise<Route>{
+  if(haversine(a,b)<120)return{minutes:0,meters:0};
   const base=Deno.env.get('ROUTING_BASE_URL')||'https://router.project-osrm.org';
   const url=`${base.replace(/\/$/,'')}/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false&steps=false&alternatives=false`;
-  const r=await fetch(url,{headers:{Accept:'application/json'}});
-  if(!r.ok)throw new Error(`Routage HTTP ${r.status}`);
-  const data=await r.json();
-  const route=data?.routes?.[0];
-  if(!route||!Number.isFinite(Number(route.duration)))throw new Error('Aucun itinéraire routier trouvé');
-  return {seconds:Number(route.duration),meters:Number(route.distance)||0};
+  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),9000);
+  try{const r=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal});if(!r.ok)throw new Error(`Routage HTTP ${r.status}`);const d=await r.json(),rt=d?.routes?.[0];if(!rt||!Number.isFinite(Number(rt.duration)))throw new Error('Aucun itinéraire routier trouvé');return{minutes:Math.max(1,Math.round(Number(rt.duration)/60)),meters:Number(rt.distance)||0}}finally{clearTimeout(timer)}
+}
+
+async function compliance(admin:any,driverUserId:string,serviceDate:string,current:PlanItem[]){
+  const issues:any[]=[],warnings:any[]=[];
+  const sorted=[...current].filter(x=>x.start_time||x.end_time).sort((a,b)=>(tm(a.start_time)||0)-(tm(b.start_time)||0));
+  if(!sorted.length)return{ok:true,issues,warnings,metrics:{amplitudeMinutes:0,workMinutes:0,drivingMinutes:0,continuousDrivingMax:0,regime:'none',cutCount:0,maxCutMinutes:0}};
+  const first=sorted[0],last=sorted.at(-1)!;const firstM=tm(first.start_time),lastM=tm(last.end_time);let amplitude=0;if(firstM!==null&&lastM!==null){let e=lastM;if(e<firstM)e+=1440;amplitude=e-firstM}
+  const eu=sorted.some(x=>x.regime==='eu561'||Number(x.line_distance_km)>50||x.payload?.rse_regime==='eu561');const regime=eu?'eu561':'national50';
+  const work=sorted.reduce((s,x)=>s+(workItem(x)?dur(x.start_time,x.end_time):0),0),drive=sorted.reduce((s,x)=>s+drivingMinutes(x),0);
+  const cuts=sorted.filter(x=>['cut','pause'].includes(x.type)).map(x=>dur(x.start_time,x.end_time)).filter(n=>n>0).sort((a,b)=>b-a),maxCut=cuts[0]||0;
+  if(amplitude>14*60)issues.push({code:'AMPLITUDE_14H',message:`Amplitude ${Math.floor(amplitude/60)} h ${amplitude%60} > 14 h : interdite en simple équipage.`});
+  else if(amplitude>13*60){const has3h=cuts.some(n=>n>=180),two2h=cuts.filter(n=>n>=120).length>=2;if(!has3h&&!two2h)issues.push({code:'AMPLITUDE_EXTENDED_BREAK',message:'Amplitude > 13 h : il faut au moins une interruption continue de 3 h ou deux interruptions continues de 2 h, avec libre disposition du temps.'});if(work>9*60)issues.push({code:'AMPLITUDE_EXTENDED_WORK_9H',message:`Amplitude > 13 h : travail effectif ${Math.floor(work/60)} h ${work%60}, alors que l’extension visée impose au plus 9 h de travail quotidien.`});issues.push({code:'AMPLITUDE_EXTENSION_AUTH',message:'Amplitude > 13 h : le mode automatique conservateur la refuse tant que les conditions d’extension ne sont pas explicitement validées par l’entreprise.'})}
+  if(work>10*60)issues.push({code:'WORK_10H',message:`Travail effectif ${Math.floor(work/60)} h ${work%60} > 10 h.`});
+  if(eu&&drive>9*60)issues.push({code:'DRIVE_9H',message:`Conduite ${Math.floor(drive/60)} h ${drive%60} > 9 h (mode conservateur : extension à 10 h non utilisée automatiquement).`});
+  let continuous=0,maxContinuous=0,prevEnd:number|null=null,split15=false;const applyBreak=(minutes:number)=>{if(minutes>=45){continuous=0;split15=false;return}if(split15&&minutes>=30){continuous=0;split15=false;return}if(!split15&&minutes>=15)split15=true};
+  for(const x of sorted){const s0=tm(x.start_time),e0=tm(x.end_time);if(s0===null||e0===null)continue;let ss=s0,ee=e0;if(prevEnd!==null&&ss<prevEnd-720)ss+=1440;if(ee<ss)ee+=1440;const gap=prevEnd===null?0:Math.max(0,ss-prevEnd);if(gap>0)applyBreak(gap);if(['cut','pause'].includes(x.type)){applyBreak(dur(x.start_time,x.end_time));prevEnd=ee;continue}if(drivingItem(x)){continuous+=drivingMinutes(x);maxContinuous=Math.max(maxContinuous,continuous);if(eu&&continuous>270){issues.push({code:'CONTINUOUS_4H30',message:'Une séquence dépasse 4 h 30 de conduite sans pause conforme : 45 min continues ou fractionnement 15 min puis 30 min.'});break}}prevEnd=ee}
+  const prevDate=dayAdd(serviceDate,-1),nextDate=dayAdd(serviceDate,1);const {data:near}=await admin.from('plan_items').select('service_date,start_time,end_time,type,source').eq('driver_user_id',driverUserId).in('service_date',[prevDate,nextDate]).order('service_date',{ascending:true}).order('start_time',{ascending:true,nullsFirst:false});const prev=(near||[]).filter((x:any)=>x.service_date===prevDate&&x.end_time).sort((a:any,b:any)=>(tm(a.end_time)||0)-(tm(b.end_time)||0)).at(-1),next=(near||[]).filter((x:any)=>x.service_date===nextDate&&x.start_time).sort((a:any,b:any)=>(tm(a.start_time)||0)-(tm(b.start_time)||0))[0];const firstAbs=absMinute(serviceDate,first.start_time),lastAbs=absMinute(serviceDate,last.end_time);
+  if(prev&&firstAbs!==null){const p=absMinute(prevDate,prev.end_time);if(p!==null){const rest=firstAbs-p,min=eu?660:600;if(rest<min)issues.push({code:'REST_BEFORE',message:`Repos avant service ${Math.floor(rest/60)} h ${rest%60}, minimum automatique ${min/60} h.`})}}
+  if(next&&lastAbs!==null){const n=absMinute(nextDate,next.start_time);if(n!==null){const rest=n-lastAbs,min=eu?660:600;if(rest<min)issues.push({code:'REST_AFTER',message:`Repos avant le service suivant ${Math.floor(rest/60)} h ${rest%60}, minimum automatique ${min/60} h.`})}}
+  if(eu){const weekStart=monday(serviceDate),prevWeekStart=dayAdd(weekStart,-7),weekEnd=dayAdd(weekStart,6);const {data:hist}=await admin.from('plan_items').select('service_date,type,start_time,end_time,drive_minutes,regime,line_distance_km,source').eq('driver_user_id',driverUserId).gte('service_date',prevWeekStart).lte('service_date',weekEnd);const sums=new Map<string,number>();for(const x of hist||[]){if(!['regular','school','tad','hlp'].includes(x.type))continue;const n=Number(x.drive_minutes),dm=Number.isFinite(n)&&n>=0?n:dur(x.start_time,x.end_time);sums.set(x.service_date,(sums.get(x.service_date)||0)+dm)}const sumRange=(a:string,b:string)=>{let s=0,d=a;while(d<=b){s+=sums.get(d)||0;d=dayAdd(d,1)}return s};const cur=sumRange(weekStart,weekEnd),prevSum=sumRange(prevWeekStart,dayAdd(weekStart,-1));if(cur>56*60)issues.push({code:'WEEK_56H',message:`Conduite semaine ${Math.floor(cur/60)} h ${cur%60} > 56 h.`});if(cur+prevSum>90*60)issues.push({code:'TWO_WEEKS_90H',message:`Conduite sur deux semaines ${Math.floor((cur+prevSum)/60)} h ${(cur+prevSum)%60} > 90 h.`})}
+  warnings.push({code:'CONSERVATIVE_MODE',message:'Mode RSE conservateur : aucune dérogation, extension exceptionnelle ni réduction de repos n’est utilisée automatiquement.'});
+  return{ok:issues.length===0,issues,warnings,metrics:{amplitudeMinutes:amplitude,workMinutes:work,drivingMinutes:drive,continuousDrivingMax:maxContinuous,regime,cutCount:cuts.length,maxCutMinutes:maxCut}};
 }
 
 Deno.serve(async req=>{
-  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
-  if(req.method!=='POST')return json({error:'Méthode non autorisée'},405);
-
+  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});if(req.method!=='POST')return json({error:'Méthode non autorisée'},405);let phase='initialisation';
   try{
-    const url=Deno.env.get('SUPABASE_URL');
-    const anon=Deno.env.get('SUPABASE_ANON_KEY');
-    const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    if(!url||!anon||!service)return json({error:'Configuration Supabase incomplète'},500);
+    const url=Deno.env.get('SUPABASE_URL'),anon=Deno.env.get('SUPABASE_ANON_KEY'),service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');if(!url||!anon||!service)return json({error:'Configuration Supabase incomplète'},500);
+    const auth=req.headers.get('Authorization')||'';if(!auth.startsWith('Bearer '))return json({error:'Authentification requise'},401);
+    const caller=createClient(url,anon,{global:{headers:{Authorization:auth}}}),admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});const {data:{user},error:ue}=await caller.auth.getUser();if(ue||!user)return json({error:'Session invalide'},401);
+    const body=await req.json().catch(()=>({}));const driverUserId=String(body.driverUserId||''),serviceDate=String(body.serviceDate||'');if(!driverUserId||!dateRe.test(serviceDate))return json({error:'driverUserId et serviceDate requis'},400);
+    phase='contrôle des droits';const {data:cp,error:cpe}=await caller.from('profiles').select('organization_id,role,active').eq('user_id',user.id).maybeSingle();if(cpe)throw cpe;if(!cp?.active||!['dispatcher','admin'].includes(cp.role))return json({error:'Accès exploitation requis'},403);const {data:dp,error:dpe}=await caller.from('profiles').select('organization_id,active,display_name,matricule').eq('user_id',driverUserId).maybeSingle();if(dpe)throw dpe;if(!dp?.active||dp.organization_id!==cp.organization_id)return json({error:'Conducteur hors de votre société'},403);
+    phase='nettoyage des éléments automatiques précédents';const {error:de}=await admin.from('plan_items').delete().eq('driver_user_id',driverUserId).eq('service_date',serviceDate).in('source',['auto_hlp','auto_cut','auto_service']);if(de)throw de;
+    phase='lecture du planning';const {data:items,error:ie}=await admin.from('plan_items').select('id,organization_id,driver_user_id,service_date,sort_index,type,start_time,end_time,origin,destination,origin_coords,destination_coords,regime,drive_minutes,line_distance_km,source,linked,payload').eq('driver_user_id',driverUserId).eq('service_date',serviceDate).not('source','in','(auto_hlp,auto_cut,auto_service)').order('start_time',{ascending:true,nullsFirst:false}).order('sort_index',{ascending:true});if(ie)throw ie;const xs=(items||[]) as PlanItem[];
+    phase='lecture du stationnement bus';const {data:settings,error:se}=await admin.from('driver_settings').select('bus_parking').eq('user_id',driverUserId).maybeSingle();if(se)throw se;const parking=settings?.bus_parking,park=validPoint(parking)?{lat:Number(parking.lat),lon:Number(parking.lon),name:String(parking.address||parking.label||'Stationnement bus')}:null;
+    const generated:any[]=[],warnings:any[]=[],conflicts:any[]=[],economy:any[]=[];
+    const pushHlp=(prev:PlanItem|null,next:PlanItem|null,a:Point,b:Point,rt:Route,start:number,end:number,sortIndex:number,regime:string,placement:string,mode:string)=>{generated.push({organization_id:cp.organization_id,driver_user_id:driverUserId,service_date:serviceDate,sort_index:Math.trunc(sortIndex),type:'hlp',label:rt.minutes===0?`HLP automatique · même point (${a.name||b.name||'arrêt'})`:`HLP automatique · ${a.name||'Départ'} → ${b.name||'Destination'}`,line:'HLP',start_time:ts(start),end_time:ts(end),origin:a.name||null,destination:b.name||null,origin_coords:a,destination_coords:b,origin_kind:'auto',destination_kind:'auto',line_distance_km:Number((rt.meters/1000).toFixed(2)),drive_minutes:rt.minutes,regime,notes:rt.minutes===0?'Aucun déplacement nécessaire : même point.':'HLP routier automatique, sans marge ajoutée.',linked:{auto:true,routing:'road',margin_minutes:0,placement,economic_mode:mode},source:'auto_hlp',locked_by_exploitation:true,status:'ok',conflict_minutes:0,generated_from_prev:prev?.id||null,generated_from_next:next?.id||null,created_by:user.id,updated_by:user.id,payload:{auto_kind:'hlp',placement,economic_mode:mode,fuel_eur_l:ECON.fuelEurPerL}})};
+    const pushCut=(prev:PlanItem,next:PlanItem,start:number,end:number,point:Point|null,percentage:number,mode:string,cost:number)=>{if(end<=start)return;const name=point?.name||next.origin||prev.destination||'Lieu de coupure';generated.push({organization_id:cp.organization_id,driver_user_id:driverUserId,service_date:serviceDate,sort_index:Math.trunc(Number(prev.sort_index||0)+2),type:'cut',label:`Coupure ${percentage} % · ${name}`,line:`Coupure ${percentage} %`,start_time:ts(start),end_time:ts(end),origin:name,destination:name,origin_coords:point,destination_coords:point,origin_kind:'auto',destination_kind:'auto',drive_minutes:0,regime:'none',notes:percentage===0?'Coupure au Stationnement bus : 0 % selon la règle économique configurée.':'Coupure hors Stationnement bus : 50 % payée selon la règle économique configurée.',linked:{auto:true,cut_percentage:percentage,free_disposal:true,economic_mode:mode},source:'auto_cut',locked_by_exploitation:true,status:'ok',conflict_minutes:0,generated_from_prev:prev.id,generated_from_next:next.id,created_by:user.id,updated_by:user.id,payload:{auto_kind:'cut',cut_percentage:percentage,classification:percentage===0?'parking_0':'away_50',free_disposal:true,economic_mode:mode,economic_cost_eur:Number(cost.toFixed(2)),fuel_eur_l:ECON.fuelEurPerL}})};
 
-    const authHeader=req.headers.get('Authorization')||'';
-    if(!authHeader.startsWith('Bearer '))return json({error:'Authentification requise'},401);
+    if(xs.length){const first=xs[0],last=xs.at(-1)!,firstStart=tm(first.start_time),lastEnd=tm(last.end_time);let firstHlpStart=firstStart,lastHlpEnd=lastEnd;
+      if(park&&validPoint(first.origin_coords)&&firstStart!==null){try{const rt=await routeEstimate(park,first.origin_coords);firstHlpStart=firstStart-rt.minutes;pushHlp(null,first,park,first.origin_coords,rt,firstHlpStart,firstStart,Number(first.sort_index||0)-10,first.regime==='eu561'?'eu561':'national50','before','service_start')}catch(e){warnings.push({code:'ROUTING_START',message:String((e as Error)?.message||e)})}}else if(!park)warnings.push({code:'NO_PARKING',message:'Stationnement bus non renseigné : HLP début/fin non calculables.'});
+      if(firstHlpStart!==null)generated.push({organization_id:cp.organization_id,driver_user_id:driverUserId,service_date:serviceDate,sort_index:Math.trunc(Number(first.sort_index||0)-20),type:'start',label:'Prise de service',line:'Prise de service',start_time:ts(firstHlpStart-10),end_time:ts(firstHlpStart),origin:park?.name||first.origin||null,destination:park?.name||first.origin||null,origin_coords:park||first.origin_coords,destination_coords:park||first.origin_coords,origin_kind:'auto',destination_kind:'auto',line_distance_km:null,drive_minutes:0,regime:'none',notes:'Prise de service automatique : 10 minutes avant le premier HLP.',linked:{auto:true,duration_minutes:10},source:'auto_service',locked_by_exploitation:true,status:'ok',conflict_minutes:0,generated_from_prev:null,generated_from_next:first.id,created_by:user.id,updated_by:user.id,payload:{auto_kind:'service_start',duration_minutes:10}});
 
-    const caller=createClient(url,anon,{global:{headers:{Authorization:authHeader}}});
-    const admin=createClient(url,service,{auth:{persistSession:false}});
-
-    const {data:{user},error:userError}=await caller.auth.getUser();
-    if(userError||!user)return json({error:'Session invalide'},401);
-
-    const body=await req.json().catch(()=>({}));
-    const driverUserId=String(body.driverUserId||'');
-    const serviceDate=String(body.serviceDate||'');
-    if(!driverUserId||!/^\d{4}-\d{2}-\d{2}$/.test(serviceDate))return json({error:'driverUserId et serviceDate requis'},400);
-
-    const {data:callerProfile}=await caller.from('profiles').select('organization_id,role,active').eq('user_id',user.id).maybeSingle();
-    if(!callerProfile?.active||!['dispatcher','admin'].includes(callerProfile.role))return json({error:'Accès exploitation requis'},403);
-
-    const {data:driverProfile}=await caller.from('profiles').select('organization_id,active,display_name,matricule').eq('user_id',driverUserId).maybeSingle();
-    if(!driverProfile?.active||driverProfile.organization_id!==callerProfile.organization_id)return json({error:'Conducteur hors de votre société'},403);
-
-    // Supprime uniquement les HLP précédemment générés automatiquement.
-    const {error:deleteError}=await admin.from('plan_items')
-      .delete()
-      .eq('driver_user_id',driverUserId)
-      .eq('service_date',serviceDate)
-      .eq('source','auto_hlp');
-    if(deleteError)throw deleteError;
-
-    const {data:items,error:itemsError}=await admin.from('plan_items')
-      .select('id,organization_id,driver_user_id,service_date,sort_index,type,start_time,end_time,origin,destination,origin_coords,destination_coords')
-      .eq('driver_user_id',driverUserId)
-      .eq('service_date',serviceDate)
-      .neq('source','auto_hlp')
-      .order('start_time',{ascending:true,nullsFirst:false})
-      .order('sort_index',{ascending:true});
-    if(itemsError)throw itemsError;
-
-    const xs=(items||[]) as PlanItem[];
-    const generated:any[]=[];
-    const warnings:any[]=[];
-
-    for(let i=0;i<xs.length-1;i++){
-      const prev=xs[i],next=xs[i+1];
-      if(!validPoint(prev.destination_coords)||!validPoint(next.origin_coords))continue;
-
-      // Même lieu (moins de 120 m) : pas de HLP à créer.
-      if(haversine(prev.destination_coords,next.origin_coords)<120)continue;
-
-      let route;
-      try{ route=await routeEstimate(prev.destination_coords,next.origin_coords); }
-      catch(e){
-        warnings.push({previousId:prev.id,nextId:next.id,error:String(e?.message||e)});
-        continue;
+      for(let i=0;i<xs.length-1;i++){
+        const prev=xs[i],next=xs[i+1],pEnd=tm(prev.end_time),nRaw=tm(next.start_time);if(pEnd===null||nRaw===null||!validPoint(prev.destination_coords)||!validPoint(next.origin_coords)){if(!validPoint(prev.destination_coords)||!validPoint(next.origin_coords))warnings.push({code:'MISSING_COORDS',message:'Coordonnées manquantes entre deux courses : HLP non calculable.',prevId:prev.id,nextId:next.id});continue}let nStart=nRaw;if(nStart<pEnd)nStart+=1440;const gap=nStart-pEnd,regime=(prev.regime==='eu561'||next.regime==='eu561')?'eu561':'national50';
+        let direct:Route;try{direct=await routeEstimate(prev.destination_coords,next.origin_coords)}catch(e){warnings.push({code:'ROUTING',message:String((e as Error)?.message||e),prevId:prev.id,nextId:next.id});continue}if(direct.minutes>gap){const missing=direct.minutes-gap;conflicts.push({from:prev.destination||'',to:next.origin||'',missingMinutes:missing,prevId:prev.id,nextId:next.id});continue}
+        const prevAtPark=!!park&&samePlace(prev.destination_coords,park),nextAtPark=!!park&&samePlace(next.origin_coords,park),directCut=gap-direct.minutes;
+        const options:any[]=[{kind:prevAtPark?'direct_before':'direct_after',pct:prevAtPark||nextAtPark?0:50,cut:directCut,cost:travelCost(direct)+cutCost(directCut,prevAtPark||nextAtPark?0:50),km:direct.meters/1000,minutes:direct.minutes,direct}];
+        if(nextAtPark&&!prevAtPark)options[0].kind='direct_after';
+        if(park&&!prevAtPark&&!nextAtPark&&directCut>=20){const rough=(haversine(prev.destination_coords,park)+haversine(park,next.origin_coords))/1000;if(rough/32*60<=gap+15){try{const [r1,r2]=await Promise.all([routeEstimate(prev.destination_coords,park),routeEstimate(park,next.origin_coords)]);if(r1.minutes+r2.minutes<=gap){const cut=gap-r1.minutes-r2.minutes;options.push({kind:'via_parking',pct:0,cut,cost:travelCost(r1)+travelCost(r2),km:(r1.meters+r2.meters)/1000,minutes:r1.minutes+r2.minutes,r1,r2})}}catch(e){warnings.push({code:'ROUTING_PARKING',message:String((e as Error)?.message||e),prevId:prev.id,nextId:next.id})}}}
+        options.sort((a,b)=>a.cost-b.cost||a.km-b.km);const best=options[0];economy.push({prevId:prev.id,nextId:next.id,mode:best.kind,cutPercentage:best.pct,cutMinutes:best.cut,costEur:Number(best.cost.toFixed(2)),fuelEurPerL:ECON.fuelEurPerL});
+        if(best.kind==='via_parking'){const h1End=pEnd+best.r1.minutes,h2Start=nStart-best.r2.minutes;pushHlp(prev,next,prev.destination_coords,park!,best.r1,pEnd,h1End,Number(prev.sort_index||0)+1,regime,'after','via_parking');pushCut(prev,next,h1End,h2Start,park,0,'via_parking',0);pushHlp(prev,next,park!,next.origin_coords,best.r2,h2Start,nStart,Number(prev.sort_index||0)+3,regime,'before','via_parking')}
+        else if(best.kind==='direct_before'){const hStart=nStart-direct.minutes;pushCut(prev,next,pEnd,hStart,prev.destination_coords,best.pct,'direct_before',cutCost(best.cut,best.pct));pushHlp(prev,next,prev.destination_coords,next.origin_coords,direct,hStart,nStart,Number(prev.sort_index||0)+3,regime,'before','direct_before')}
+        else{const hEnd=pEnd+direct.minutes;pushHlp(prev,next,prev.destination_coords,next.origin_coords,direct,pEnd,hEnd,Number(prev.sort_index||0)+1,regime,'after',best.pct===0?'direct_to_parking':'direct_offsite');pushCut(prev,next,hEnd,nStart,next.origin_coords,best.pct,best.pct===0?'direct_to_parking':'direct_offsite',cutCost(best.cut,best.pct))}
       }
 
-      const durationMinutes=Math.max(1,Math.round(route.seconds/60)); // aucune marge
-      const km=route.meters/1000;
-      let prevEnd=timeToMinutes(prev.end_time);
-      let nextStart=timeToMinutes(next.start_time);
-      if(prevEnd===null&&nextStart===null)continue;
-
-      // Les services peuvent dépasser minuit : on remet les heures dans un même axe temporel.
-      if(prevEnd!==null&&nextStart!==null&&nextStart<prevEnd)nextStart+=1440;
-
-      let hlpStart:number,hlpEnd:number;
-      if(nextStart!==null){
-        hlpEnd=nextStart;
-        hlpStart=hlpEnd-durationMinutes;
-      }else{
-        hlpStart=prevEnd!;
-        hlpEnd=hlpStart+durationMinutes;
-      }
-
-      const conflictMinutes=prevEnd!==null?Math.max(0,prevEnd-hlpStart):0;
-      const status=conflictMinutes>0?'conflict':'ok';
-      const origin=prev.destination||prev.destination_coords.name||'Fin activité précédente';
-      const destination=next.origin||next.origin_coords.name||'Départ activité suivante';
-
-      generated.push({
-        organization_id:callerProfile.organization_id,
-        driver_user_id:driverUserId,
-        service_date:serviceDate,
-        sort_index:Number(prev.sort_index||0)+1,
-        type:'hlp',
-        label:`HLP automatique · ${origin} → ${destination}`,
-        start_time:minutesToTime(hlpStart),
-        end_time:minutesToTime(hlpEnd),
-        origin,
-        destination,
-        origin_coords:prev.destination_coords,
-        destination_coords:next.origin_coords,
-        origin_kind:'auto',
-        destination_kind:'auto',
-        line_distance_km:Number(km.toFixed(2)),
-        drive_minutes:durationMinutes,
-        notes:conflictMinutes>0
-          ? `Conflit planning : ${conflictMinutes} min manquantes pour effectuer ce HLP.`
-          : 'HLP calculé automatiquement entre deux activités. Aucune marge ajoutée.',
-        linked:{auto:true,routing:'road',margin_minutes:0},
-        source:'auto_hlp',
-        locked_by_exploitation:true,
-        status,
-        conflict_minutes:conflictMinutes,
-        generated_from_prev:prev.id,
-        generated_from_next:next.id,
-        created_by:user.id,
-        updated_by:user.id
-      });
+      if(park&&validPoint(last.destination_coords)&&lastEnd!==null){try{const rt=await routeEstimate(last.destination_coords,park);lastHlpEnd=lastEnd+rt.minutes;pushHlp(last,null,last.destination_coords,park,rt,lastEnd,lastHlpEnd,Number(last.sort_index||0)+10,last.regime==='eu561'?'eu561':'national50','after','service_end')}catch(e){warnings.push({code:'ROUTING_END',message:String((e as Error)?.message||e)})}}
+      if(lastHlpEnd!==null)generated.push({organization_id:cp.organization_id,driver_user_id:driverUserId,service_date:serviceDate,sort_index:Math.trunc(Number(last.sort_index||0)+20),type:'end',label:'Fin de service',line:'Fin de service',start_time:ts(lastHlpEnd),end_time:ts(lastHlpEnd+5),origin:park?.name||last.destination||null,destination:park?.name||last.destination||null,origin_coords:park||last.destination_coords,destination_coords:park||last.destination_coords,origin_kind:'auto',destination_kind:'auto',line_distance_km:null,drive_minutes:0,regime:'none',notes:'Fin de service automatique : 5 minutes après le dernier HLP.',linked:{auto:true,duration_minutes:5},source:'auto_service',locked_by_exploitation:true,status:'ok',conflict_minutes:0,generated_from_prev:last.id,generated_from_next:null,created_by:user.id,updated_by:user.id,payload:{auto_kind:'service_end',duration_minutes:5}})
     }
 
-    if(generated.length){
-      const {error:insertError}=await admin.from('plan_items').insert(generated);
-      if(insertError)throw insertError;
-    }
-
-    return json({
-      ok:true,
-      driver:{userId:driverUserId,matricule:driverProfile.matricule,displayName:driverProfile.display_name},
-      serviceDate,
-      generated:generated.length,
-      conflicts:generated.filter(x=>x.status==='conflict').map(x=>({
-        from:x.origin,to:x.destination,missingMinutes:x.conflict_minutes,start:x.start_time,end:x.end_time
-      })),
-      warnings
-    });
-  }catch(e){
-    console.error(e);
-    return json({error:String(e?.message||e)},500);
-  }
+    phase='enregistrement des HLP, coupures et temps de service';if(generated.length){const {error:ins}=await admin.from('plan_items').insert(generated);if(ins)throw ins}
+    phase='contrôle RSE';const {data:final,error:fe}=await admin.from('plan_items').select('id,organization_id,driver_user_id,service_date,sort_index,type,start_time,end_time,origin,destination,origin_coords,destination_coords,regime,drive_minutes,line_distance_km,source,linked,payload').eq('driver_user_id',driverUserId).eq('service_date',serviceDate).order('start_time',{ascending:true,nullsFirst:false}).order('sort_index',{ascending:true});if(fe)throw fe;const rse=await compliance(admin,driverUserId,serviceDate,(final||[]) as PlanItem[]);
+    return json({ok:true,driver:{userId:driverUserId,matricule:dp.matricule,displayName:dp.display_name},serviceDate,parking:park,generatedHlp:generated.filter(x=>x.source==='auto_hlp').length,generatedCuts:generated.filter(x=>x.source==='auto_cut').length,generatedService:generated.filter(x=>x.source==='auto_service').length,conflicts,warnings,economy:{config:ECON,decisions:economy,totalEstimatedCostEur:Number(economy.reduce((s,x)=>s+Number(x.costEur||0),0).toFixed(2))},rse});
+  }catch(e:any){console.error('rebuild-driver-day',phase,e);return json({error:String(e?.message||e),phase,code:e?.code||null,details:e?.details||null,hint:e?.hint||null},500)}
 });
