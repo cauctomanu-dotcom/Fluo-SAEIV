@@ -210,18 +210,12 @@ def validate_57_smh04():
 
 
 def rewrite_startup_usage_notice():
-    """Réécrit l'information d'utilisation en encart non bloquant.
-
-    L'ancien écran était une modale plein écran. Ce finaliseur la retire du HTML
-    publié et insère un encart normal dans l'écran de prise de service. Ainsi,
-    même si tout JavaScript ultérieur échoue, l'application reste cliquable.
-    """
+    """Réécrit l'information d'utilisation en encart non bloquant."""
     page = Path('site/index.html')
     if not page.exists():
         raise SystemExit('site/index.html absent pendant la réécriture de l’information d’utilisation')
     html = page.read_text(encoding='utf-8')
 
-    # Supprime le style de modale plein écran de la source historique.
     style_start = html.find('<style id="v3127UsageNoticeStyle">')
     if style_start != -1:
         style_end = html.find('</style>', style_start)
@@ -229,8 +223,6 @@ def rewrite_startup_usage_notice():
             raise SystemExit('style v3127UsageNoticeStyle incomplet')
         html = html[:style_start] + html[style_end + len('</style>'):]
 
-    # Supprime physiquement la modale située avant .app. On ne tente plus de la
-    # masquer après chargement : elle n'existe simplement plus dans le site publié.
     modal_start = html.find('<div id="v3127UsageNotice"')
     app_start = html.find('<div class="app">', modal_start if modal_start != -1 else 0)
     if modal_start == -1 or app_start == -1 or app_start <= modal_start:
@@ -264,22 +256,16 @@ def rewrite_startup_usage_notice():
     <script id="v3127InlineUsageState">(()=>{try{if(localStorage.getItem('monSaeivUsageAcceptedV3127')==='1')document.getElementById('v3127UsageNotice')?.remove()}catch(e){}})();</script>
 '''
     html = html.replace(setup_marker, setup_marker + inline_notice, 1)
-
-    # L'ancien listener peut rester : s'il trouve le nouvel encart il le masque,
-    # sinon il ne fait rien. Il ne crée plus aucune couche bloquante.
     page.write_text(html, encoding='utf-8')
 
-    # Retire du runtime publié le précédent bouton de déblocage temporaire.
     offline = Path('site/v128-offline.js')
     if offline.exists():
         js = offline.read_text(encoding='utf-8')
-        marker = '\n/* Correctif de secours 2026-09-09 — empêche un écran de connexion superposé de bloquer l\'iPhone/PWA. */'
+        marker = "\n/* Correctif de secours 2026-09-09 — empêche un écran de connexion superposé de bloquer l'iPhone/PWA. */"
         if marker in js:
             js = js.split(marker, 1)[0].rstrip() + '\n'
             offline.write_text(js, encoding='utf-8')
 
-    # Supprime également le garde-fou temporaire injecté par le service worker et
-    # force un nouveau cache afin que Safari/PWA récupère cette réécriture.
     worker = Path('site/sw.js')
     if worker.exists():
         sw = worker.read_text(encoding='utf-8')
@@ -287,22 +273,60 @@ def rewrite_startup_usage_notice():
         for line in sw.splitlines():
             if 'const usageGuard=' in line:
                 continue
-            if "v3127UsageEmergencyGuard" in line:
+            if 'v3127UsageEmergencyGuard' in line:
                 continue
-            if "t=t.replace(/<button id=\"v3127UsageContinue\"" in line:
+            if 't=t.replace(/<button id="v3127UsageContinue"' in line:
                 continue
             sw_lines.append(line)
         sw = '\n'.join(sw_lines) + '\n'
-        sw = re.sub(r"const C='[^']+';", "const C='mon-saeiv-v1-0-56-inline-notice-1';", sw, count=1)
+        sw = re.sub(r"const C='[^']+';", "const C='mon-saeiv-v1-0-56-clean-runtime-3';", sw, count=1)
         worker.write_text(sw, encoding='utf-8')
 
-    # Assertions de sécurité : aucune modale plein écran ne doit survivre.
     final = page.read_text(encoding='utf-8')
     if 'v3127-usage-backdrop' in final or 'aria-modal="true" aria-labelledby="v3127UsageTitle"' in final:
         raise SystemExit('la modale bloquante d’utilisation subsiste après réécriture')
     if 'class="v3127-usage-inline"' not in final:
         raise SystemExit('encart d’utilisation non bloquant absent après réécriture')
     print('Information d’utilisation réécrite : encart non bloquant, aucune modale au démarrage.')
+
+
+def rewrite_journal_report():
+    """Remplace l'ancien rapport journal contenant des scripts imbriqués.
+
+    WebKit/Safari peut interpréter une séquence de fermeture de script présente dans
+    un template JavaScript comme la fin du script principal. Le rapport exporté est
+    donc désormais entièrement statique : aucune balise script n'est construite.
+    """
+    page = Path('site/index.html')
+    if not page.exists():
+        raise SystemExit('site/index.html absent pendant la réécriture du rapport journal')
+    html = page.read_text(encoding='utf-8')
+    start = html.find('  function reportHtml23(s,ev){')
+    end = html.find('  async function downloadReport23', start)
+    if start == -1 or end == -1 or end <= start:
+        raise SystemExit('bloc reportHtml23 introuvable ou incomplet')
+
+    safe_function = r'''  function reportHtml23(s,ev){
+    const km26=Number(s?.distanceKm||0),gpsMax26=Math.max(0,...ev.map(x=>Number(x?.meta?.speedKmh||0)).filter(Number.isFinite)),limitMax26=Math.max(0,...ev.map(x=>Number(x?.meta?.speedLimitKmh||0)).filter(Number.isFinite));
+    const gps26=ev.filter(x=>Number.isFinite(x?.lat)&&Number.isFinite(x?.lon));
+    const firstGps26=gps26[0]||null,lastGps26=gps26[gps26.length-1]||null;
+    const rows26=(s.stops||[]).map((x,i)=>{const a=ev.find(e=>e.type==='arrival'&&e.stopIndex===i),d=ev.find(e=>e.type==='depart'&&e.stopIndex===i);return `<tr><td>${i+1}</td><td>${esc(x.name||'')}</td><td>${a?fmtTime23(a.at):'—'}</td><td>${d?fmtTime23(d.at):'—'}</td></tr>`}).join('');
+    const gpsSummary26=gps26.length?`${gps26.length} points GPS enregistrés${firstGps26?` · départ ${Number(firstGps26.lat).toFixed(5)}, ${Number(firstGps26.lon).toFixed(5)}`:''}${lastGps26?` · arrivée ${Number(lastGps26.lat).toFixed(5)}, ${Number(lastGps26.lon).toFixed(5)}`:''}`:'Aucun point GPS enregistré pour cette course.';
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal ${esc(s.route||'')}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111;background:#fff}h1{margin-bottom:4px}.muted{color:#555}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}.card{padding:12px;border:1px solid #ccd3d8;border-radius:10px}.card b{display:block;margin-top:4px;font-size:1.1rem}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}th{background:#f3f5f6}.gps{margin-top:18px;padding:12px;border:1px solid #ccd3d8;border-radius:10px;background:#f8fafb}@media(max-width:700px){.cards{grid-template-columns:1fr}}</style></head><body><h1>Journal ${esc(s.route||'')}</h1><div class="muted">${esc(s.headsign||'')} · ${esc(s.status||'')}</div><div class="cards"><div class="card">Début<b>${fmtDate23(s.startedAt)}</b></div><div class="card">Fin<b>${s.endedAt?fmtDate23(s.endedAt):'—'}</b></div><div class="card">Arrêts effectués<b>${Number(s.completedStops||0)} / ${(s.stops||[]).length}</b></div><div class="card">Distance<b>${km26>0?km26.toFixed(1)+' km':'—'}</b></div><div class="card">Vitesse GPS max<b>${gpsMax26>0?Math.round(gpsMax26)+' km/h':'—'}</b></div><div class="card">Limitation max connue<b>${limitMax26>0?Math.round(limitMax26)+' km/h':'—'}</b></div></div><h2>Arrêts</h2><table><thead><tr><th>#</th><th>Arrêt</th><th>Arrivée</th><th>Départ</th></tr></thead><tbody>${rows26}</tbody></table><div class="gps"><b>Tracé GPS</b><div class="muted" style="margin-top:6px">${esc(gpsSummary26)}</div></div><p class="muted" style="margin-top:22px">Rapport généré par Mon SAEIV. Ce document constitue une aide de suivi et n'a pas valeur de justificatif officiel ou opposable.</p></body></html>`;
+  }
+'''
+    html = html[:start] + safe_function + html[end:]
+    page.write_text(html, encoding='utf-8')
+
+    final = page.read_text(encoding='utf-8')
+    a = final.find('  function reportHtml23(s,ev){')
+    b = final.find('  async function downloadReport23', a)
+    fragment = final[a:b]
+    if '<script' in fragment.lower() or '</script' in fragment.lower() or '<scr${' in fragment.lower():
+        raise SystemExit('rapport journal encore dangereux : balise script imbriquée détectée')
+    if 'Tracé GPS' not in fragment or 'rows26' not in fragment:
+        raise SystemExit('rapport journal statique incomplet après réécriture')
+    print('Rapport journal réécrit : export statique, aucune balise script imbriquée.')
 
 
 def main():
@@ -331,6 +355,7 @@ def main():
     validate_57_smh04()
     print('57SMH04 validée : ASSENONCOURT / MORHANGE')
     rewrite_startup_usage_notice()
+    rewrite_journal_report()
 
 
 if __name__ == '__main__':
