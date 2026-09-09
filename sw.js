@@ -1,8 +1,11 @@
-const C='mon-saeiv-v1-0-48';
+const C='mon-saeiv-v1-0-56-usage-hotfix-1';
 const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v144-day-hlp-driver.js','v147-flow-journals-fix.js','v148-continuous-day.js'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(C).catch(()=>{})))});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('mon-saeiv-v1-')&&k!==C).map(k=>caches.delete(k)));await self.clients.claim()})()));
 function patchIndex(t){
+  const usageGuard=`<script id="v3127UsageEmergencyGuard">(()=>{const close=()=>{const e=document.getElementById('v3127UsageNotice');if(e){e.classList.add('hidden');e.style.display='none'}try{localStorage.setItem('monSaeivUsageAcceptedV3127','1')}catch{}};document.addEventListener('click',ev=>{if(ev.target&&ev.target.closest&&ev.target.closest('#v3127UsageContinue')){ev.preventDefault();close()}},true);document.addEventListener('touchend',ev=>{if(ev.target&&ev.target.closest&&ev.target.closest('#v3127UsageContinue')){ev.preventDefault();close()}},{capture:true,passive:false});addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('v3127UsageContinue');if(b){b.onclick=close;b.style.pointerEvents='auto';b.style.touchAction='manipulation'}if(localStorage.getItem('monSaeivUsageAcceptedV3127')==='1')close();else setTimeout(close,12000)},{once:true})})();<\/script>`;
+  if(!t.includes('v3127UsageEmergencyGuard'))t=t.replace('<body>','<body>'+usageGuard);
+  t=t.replace(/<button id="v3127UsageContinue"[^>]*>J’ai compris<\/button>/,`<button id="v3127UsageContinue" type="button" class="primary" style="pointer-events:auto;touch-action:manipulation" onclick="var e=document.getElementById('v3127UsageNotice');if(e){e.classList.add('hidden');e.style.display='none'}try{localStorage.setItem('monSaeivUsageAcceptedV3127','1')}catch(x){}return false;">J’ai compris<\/button>`);
   t=t.replace(/<script id="v307GpsFluidVisuals">[\s\S]*?<\/script>/,'<script src="./v128-gps.js?v=1.0.40"><\/script>');
   t=t.replace("const APP_VERSION = '1.0.40';","const APP_VERSION = '1.0.40';");
   t=t.replace("const APP_VERSION = '1.0.40';","const APP_VERSION = '1.0.40';");
