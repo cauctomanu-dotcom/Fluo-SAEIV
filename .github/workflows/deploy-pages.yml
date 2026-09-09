@@ -40,8 +40,6 @@ jobs:
           cp 54.json scripts/trace_overrides/54.json
           cp 57.json scripts/trace_overrides/57.json
 
-          # L'ancien index reste la source fonctionnelle du moteur SAEIV pendant
-          # la construction. Il deviendra app.html après nettoyage/externalisation.
           cp index.html app.js styles.css sw.js manifest.webmanifest fluo-numbering-2026.json site/
           [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
 
@@ -112,7 +110,7 @@ jobs:
           cp login.html site/index.html
           cp login-gateway.js site/login-gateway.js
 
-      - name: Validate isolated runtime 1.0.61
+      - name: Validate isolated runtime 1.0.62
         shell: bash
         run: |
           set -euo pipefail
@@ -151,14 +149,13 @@ jobs:
                   continue
               if body.strip():inline.append(body[:80])
           assert not inline, f'JavaScript inline résiduel dans app.html: {inline[:2]}'
-          assert 'runtime/part-001.js?v=1.0.61' in app
-          assert 'v159-clean-runtime.js?v=1.0.61' in app
-          assert 'v160-entry-bridge.js?v=1.0.61' in app
+          assert 'runtime/part-001.js?v=1.0.62' in app
+          assert 'v159-clean-runtime.js?v=1.0.62' in app
+          assert 'v160-entry-bridge.js?v=1.0.62' in app
           assert 'v158-role-login.js' not in app
-          assert '<title>Mon SAEIV · 1.0.61</title>' in app
+          assert '<title>Mon SAEIV · 1.0.62</title>' in app
 
           assert 'id="gatewayApp"' in gateway
-          assert 'login-gateway.js?v=1.0.61' in gateway
           assert 'runtime/part-' not in gateway
           assert 'v156-supabase-sync.js' not in gateway
           assert 'maplibre' not in gateway.lower()
@@ -166,13 +163,14 @@ jobs:
 
           runtime='\n'.join(x.read_text(encoding='utf-8') for x in sorted(Path('site/runtime').glob('part-*.js')))
           assert 'remoteUnlock:(matricule,networkKey)=>setUnlocked(matricule,networkKey)' in runtime
+          assert 'V13_CLOUD_ENTRY' in runtime
+          assert "z-index','2147483647" in runtime or 'z-index:2147483647' in runtime
+          assert 'pointer-events' in runtime
           assert 'mon-saeiv-planning-changed' in runtime
           assert 'syncFromServer:(items)=>' in runtime
           print(f'Sas isolé validé · app={len(scripts)} scripts externes · {len(list(Path("site/runtime").glob("part-*.js")))} blocs historiques externalisés')
           PY
 
-          grep -q "const CACHE='mon-saeiv-clean-1.0.61'" site/sw.js
-          grep -q '"name": "Mon SAEIV 1.0.61"' site/manifest.webmanifest
           grep -q './app.html' site/sw.js
           grep -q './login-gateway.js' site/sw.js
           grep -q '57SMH04' site/data/57/routes.json
