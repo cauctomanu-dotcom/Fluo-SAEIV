@@ -1,12 +1,12 @@
 'use strict';
-/* Mon SAEIV 1.0.61 — pont entre le sas de connexion et le moteur conducteur.
+/* Mon SAEIV 1.0.62 — pont entre le sas de connexion et le moteur conducteur.
    Ce garde démarre dans <head>, avant le runtime historique. L’écran local V13 est
    soit supprimé du parcours cloud, soit placé au-dessus de toutes les autres couches
    quand il est réellement utilisé en mode local. */
 (()=>{
   if(window.MonSAEIVEntryBridgeV160?.installed)return;
 
-  const VERSION='1.0.61';
+  const VERSION='1.0.62';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
   const LOCAL_ACCOUNT_KEY='fluoSaeivAccountV13';
   const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
@@ -70,8 +70,6 @@
   }
 
   function startEarlyObserver(){
-    // Uniquement les créations/suppressions de nœuds : aucune observation de class/style,
-    // donc aucun risque de boucle de mutations pendant le chargement du gros runtime.
     const mo=new MutationObserver(mutations=>{
       let relevant=false;
       outer:for(const m of mutations){
@@ -143,8 +141,6 @@
     },10000);
   }
 
-  // Tout ce qui protège l’écran V13 démarre immédiatement dans <head>, et non plus
-  // après DOMContentLoaded. C’est essentiel si un module historique ralentit ensuite.
   installEarlyGuard();
   markEntry();
   const earlyObserver=startEarlyObserver();
