@@ -27,13 +27,21 @@ const workItem=(x:PlanItem)=>!['cut','pause'].includes(x.type);
 const drivingMinutes=(x:PlanItem)=>{if(!drivingItem(x))return 0;const n=Number(x.drive_minutes);return Number.isFinite(n)&&n>=0?n:dur(x.start_time,x.end_time)};
 const travelCost=(r:Route)=>r.meters/1000*(ECON.fuelEurPerL*ECON.busLitresPer100Km/100)+(r.minutes/60)*ECON.labourEurPerHour;
 const cutCost=(minutes:number,percentage:number)=>Math.max(0,minutes)/60*ECON.labourEurPerHour*(percentage/100);
+const placeNorm=(v:string|undefined)=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+const napoleonRuisseauMinimum=(a:Point,b:Point)=>{
+  const x=placeNorm(a?.name),y=placeNorm(b?.name);
+  const napoleon=s=>s.includes('12 AVENUE NAPOLEON')||s.includes('AVENUE NAPOLEON IER');
+  const ruisseau=s=>s.includes('PLACE DU RUISSEAU');
+  return (napoleon(x)&&ruisseau(y))||(napoleon(y)&&ruisseau(x))?5:0;
+};
 
 async function routeEstimate(a:Point,b:Point):Promise<Route>{
-  if(haversine(a,b)<120)return{minutes:0,meters:0};
+  const floor=napoleonRuisseauMinimum(a,b);
+  if(haversine(a,b)<120&&!floor)return{minutes:0,meters:0};
   const base=Deno.env.get('ROUTING_BASE_URL')||'https://router.project-osrm.org';
   const url=`${base.replace(/\/$/,'')}/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false&steps=false&alternatives=false`;
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),9000);
-  try{const r=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal});if(!r.ok)throw new Error(`Routage HTTP ${r.status}`);const d=await r.json(),rt=d?.routes?.[0];if(!rt||!Number.isFinite(Number(rt.duration)))throw new Error('Aucun itinéraire routier trouvé');return{minutes:Math.max(1,Math.round(Number(rt.duration)/60)),meters:Number(rt.distance)||0}}finally{clearTimeout(timer)}
+  try{const r=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal});if(!r.ok)throw new Error(`Routage HTTP ${r.status}`);const d=await r.json(),rt=d?.routes?.[0];if(!rt||!Number.isFinite(Number(rt.duration)))throw new Error('Aucun itinéraire routier trouvé');return{minutes:Math.max(floor,1,Math.round(Number(rt.duration)/60)),meters:Number(rt.distance)||0}}finally{clearTimeout(timer)}
 }
 
 async function compliance(admin:any,driverUserId:string,serviceDate:string,current:PlanItem[]){
