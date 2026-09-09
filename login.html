@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="./manifest.webmanifest?v=1.0.65">
-  <title>Mon SAEIV · Connexion 1.0.65</title>
+  <link rel="manifest" href="./manifest.webmanifest?v=1.0.66">
+  <title>Mon SAEIV · Connexion 1.0.66</title>
   <style>
     :root{color-scheme:dark;--bg:#040b11;--panel:#0d202c;--line:#345568;--text:#f4f8fb;--muted:#a8bbc5;--yellow:#ffd000;--orange:#ffad00}
     *{box-sizing:border-box}html{min-height:100%;background:var(--bg)}body{min-height:100vh;margin:0;background:radial-gradient(circle at 82% 0,#17394c 0,#071620 45%,#03090d 100%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
@@ -18,10 +18,12 @@
     .transfer{margin:12px 0;padding:12px;border:1px solid #46677a;border-radius:14px;background:#091b26}.transfer b{display:block}.transfer p{margin:5px 0 0;color:#9fb5c0;font-size:.7rem;line-height:1.45}.transfer button:disabled{opacity:.4;cursor:not-allowed}
     .panel{display:none;margin-top:12px;padding:16px;border:1px solid #314d5c;border-radius:18px;background:#081923}.panel.show{display:block}.panel h2{margin:0 0 4px;font-size:1.25rem}.panel .help{margin:0 0 13px;color:#99afb9;font-size:.74rem;line-height:1.45}.form{display:grid;gap:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.wide{grid-column:1/-1}label{display:flex;flex-direction:column;gap:6px;color:#bacbd3;font-size:.78rem;font-weight:800}input,select{width:100%;min-height:54px;padding:12px;border:1px solid #3c6072;border-radius:13px;outline:none;background:#05151f;color:#fff}input:focus,select:focus{border-color:var(--yellow);box-shadow:0 0 0 3px rgba(255,208,0,.1)}
     button{min-height:52px;padding:10px 13px;border:1px solid #3b5969;border-radius:13px;background:#173345;color:#fff;font-weight:900;cursor:pointer;touch-action:manipulation}button.primary{border:0;background:linear-gradient(135deg,var(--yellow),var(--orange));color:#151515}.link{width:100%;margin-top:10px;background:transparent;border-style:dashed}.hidden{display:none!important}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.status{min-height:1.4em;margin-top:13px;color:#a8bbc5;font-size:.76rem}.status.busy{color:#ffe28a}.status.ok{color:#9cf4b7}.status.err{color:#ffaaa5}.note{margin-top:14px;padding:10px;border:1px solid #2d4654;border-radius:12px;background:#06131c;color:#8fa6b1;font-size:.68rem;line-height:1.5}
+    .parking-help{margin-top:4px;color:#8098a5;font-size:.64rem;font-weight:500;line-height:1.4}
     @media(max-width:620px){.gateway{padding-left:0;padding-right:0;padding-bottom:0}.card{min-height:100dvh;border-right:0;border-left:0;border-bottom:0;border-radius:24px 24px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom))}.roles,.grid,.actions,.session-actions,.local-actions,.transfer-actions{grid-template-columns:1fr}.role{min-height:66px}}
   </style>
-  <script defer src="./login-gateway.js?v=1.0.65"></script>
-  <script defer src="./gateway-full-backup.js?v=1.0.65"></script>
+  <script defer src="./login-gateway.js?v=1.0.66"></script>
+  <script defer src="./gateway-full-backup.js?v=1.0.66"></script>
+  <script defer src="./gateway-driver-parking.js?v=1.0.66"></script>
 </head>
 <body>
   <main class="gateway" id="gatewayApp">
@@ -29,7 +31,7 @@
       <div class="eyebrow">MON SAEIV · CONNEXION</div>
       <h1>Qui se connecte ?</h1>
       <p class="intro">La connexion serveur est séparée du moteur conducteur. Ton ancien profil local reste utilisable, peut être transféré intégralement et, une fois lié, synchronisé sur tous tes appareils.</p>
-      <div class="version">Sas de connexion isolé · version 1.0.65</div>
+      <div class="version">Sas de connexion isolé · version 1.0.66</div>
 
       <div id="sessionBox" class="session"><div id="sessionText"></div><div class="session-actions"><button id="resumeSession" class="primary" type="button">REPRENDRE MA SESSION</button><button id="dropSession" type="button">Changer de compte</button></div></div>
       <div id="localBox" class="local"><div id="localText"></div><div class="local-actions"><button id="openLocal" type="button">👤 Ouvrir mon profil local</button><button id="linkLocal" type="button">☁ Le lier au serveur</button></div></div>
@@ -66,6 +68,7 @@
             <label>Mot de passe · 6 caractères min.<input id="driverRegPassword" type="password" autocomplete="new-password" minlength="6" required></label>
             <label>Confirmer<input id="driverConfirm" type="password" autocomplete="new-password" minlength="6" required></label>
             <label class="wide">Réseau<select id="driverNetwork"><option value="fluo">Fluo Grand Est</option><option value="stan">STAN</option><option value="lemet">LE MET’</option><option value="temob">TeMo’b</option><option value="rgtr">RGTR</option><option value="tice">TICE</option></select></label>
+            <label class="wide">Stationnement bus<input id="driverBusParking" type="text" autocomplete="street-address" placeholder="Adresse où le bus est réellement stationné" required><span class="parking-help">Ce champ ne désigne pas le dépôt de la société. Il sert à préparer les prises de service, fins de service et hauts-le-pied.</span></label>
           </div>
           <div class="actions"><button class="primary" type="submit">CRÉER / LIER LE COMPTE</button><button id="hideDriverRegister" type="button">Retour</button></div>
         </form>
