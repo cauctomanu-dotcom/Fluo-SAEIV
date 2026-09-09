@@ -90,10 +90,10 @@
   function init(){
     forceServerEntry();
     stamp();
-    // L'ancien avis plein écran ne doit jamais survivre au nouveau runtime. Le
-    // générateur le remplace déjà par un encart, ceci couvre uniquement un DOM
-    // repris depuis un très vieux cache pendant la bascule.
-    q('v3127UsageNotice')?.remove();
+    // Le générateur transforme l'ancien écran bloquant en simple encart. On ne
+    // supprime ici qu'une éventuelle vieille modale issue d'un cache très ancien.
+    const usage=q('v3127UsageNotice');
+    if(usage?.classList.contains('v3127-usage-backdrop'))usage.remove();
     clearOldCaches();
     installWorker();
     [0,250,900,2500].forEach(ms=>setTimeout(stamp,ms));
