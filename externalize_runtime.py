@@ -7,10 +7,11 @@ import sys
 from pathlib import Path
 
 VERSION = "1.0.61"
+EARLY_BRIDGE = "v160-entry-bridge.js"
 
-# Chaîne moderne unique chargée uniquement dans app.html. Le choix du rôle et
-# l'authentification sont désormais assurés par index.html + login-gateway.js,
-# totalement séparés du moteur conducteur historique.
+# Modules chargés en fin d'application. Le pont d'entrée V160 est volontairement
+# absent de cette liste : il est chargé dans <head> avant le runtime historique afin
+# de masquer l'ancien écran local avant même qu'il soit créé.
 MODULES = [
     "v128-gps.js",
     "v128-offline.js",
@@ -34,7 +35,6 @@ MODULES = [
     "v156-supabase-sync.js",
     "v157-exploitation.js",
     "v159-clean-runtime.js",
-    "v160-entry-bridge.js",
 ]
 
 SCRIPT_RE = re.compile(r"<script\b(?P<attrs>[^>]*)>(?P<body>.*?)</script\s*>", re.I | re.S)
@@ -93,14 +93,7 @@ def normalize_legacy_part(body: str) -> str:
 
 
 def normalize_gateway_login() -> None:
-    """Ne bloque jamais une connexion existante sur une règle de création récente.
-
-    Les anciens profils SAEIV acceptaient des mots de passe à partir de 6 caractères.
-    Le sas 1.0.61 avait mis minlength=8 sur les champs de *connexion* : Safari pouvait
-    donc recevoir le clic, refuser silencieusement le submit natif et ne rien ouvrir.
-    La longueur minimale reste appliquée à la création d'un nouveau mot de passe,
-    jamais à la connexion à un compte existant.
-    """
+    """Ne bloque jamais une connexion existante sur une règle de création récente."""
     gateway = Path("login.html")
     if not gateway.exists():
         return
@@ -158,10 +151,15 @@ def main() -> None:
     if not parts:
         raise SystemExit("aucun JavaScript inline trouvé à externaliser")
 
-    # Les CDN Leaflet/MapLibre restent à leur place. Les modules Mon SAEIV sont
-    # ensuite chargés une seule fois dans app.html. Le sélecteur de rôle V158 est
-    # volontairement absent : il a été remplacé par le sas indépendant.
+    # Retire tous les anciens tags de modules Mon SAEIV, puis charge le pont V160
+    # très tôt dans <head>. Il pose immédiatement le garde CSS qui empêche l'écran
+    # V13 visible sur la capture de bloquer l'iPhone après une authentification cloud.
     html = MODULE_SRC_RE.sub("\n", html)
+    early_tag = f'<script src="./{EARLY_BRIDGE}?v={VERSION}"></script>\n'
+    if "</head>" not in html:
+        raise SystemExit("balise </head> absente")
+    html = html.replace("</head>", early_tag + "</head>", 1)
+
     module_tags = "\n".join(
         f'<script src="./{name}?v={VERSION}"></script>' for name in MODULES
     )
@@ -179,7 +177,7 @@ def main() -> None:
         "version": VERSION,
         "generated": True,
         "parts": [f"runtime/{name}" for name in part_names],
-        "modules": MODULES,
+        "modules": [EARLY_BRIDGE, *MODULES],
         "entry": "index.html",
         "application": "app.html",
     }
@@ -190,6 +188,9 @@ def main() -> None:
     for m in SCRIPT_RE.finditer(html):
         if executable_inline(m.group("attrs") or ""):
             raise SystemExit("JavaScript inline résiduel après externalisation")
+
+    if html.count(f'./{EARLY_BRIDGE}?v={VERSION}') != 1:
+        raise SystemExit("le pont V160 doit être chargé exactement une fois")
 
     page.write_text(html, encoding="utf-8")
     print(f"Runtime application externalisé : {len(parts)} scripts -> {runtime_dir}")
