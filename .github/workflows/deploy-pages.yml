@@ -1,4 +1,4 @@
-name: Build and deploy Mon SAEIV clean runtime
+name: Build and deploy Mon SAEIV isolated gateway
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Assemble clean source tree
+      - name: Assemble application source tree
         shell: bash
         run: |
           set -euo pipefail
@@ -40,6 +40,8 @@ jobs:
           cp 54.json scripts/trace_overrides/54.json
           cp 57.json scripts/trace_overrides/57.json
 
+          # L'ancien index reste la source fonctionnelle du moteur SAEIV pendant
+          # la construction. Il deviendra app.html après nettoyage/externalisation.
           cp index.html app.js styles.css sw.js manifest.webmanifest fluo-numbering-2026.json site/
           [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
 
@@ -51,8 +53,8 @@ jobs:
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
             v154-planning-service-times.js v155-planning-cut-percent.js \
-            v156-supabase-sync.js v157-exploitation.js v158-role-login.js \
-            v159-clean-runtime.js; do
+            v156-supabase-sync.js v157-exploitation.js \
+            v159-clean-runtime.js v160-entry-bridge.js; do
             test -f "$f"
             cp "$f" "site/$f"
           done
@@ -90,29 +92,37 @@ jobs:
           p.write_text(t,encoding='utf-8')
           PY
 
-      - name: Build official Fluo data and sanitize legacy source
+      - name: Build official Fluo data and sanitize legacy application
         shell: bash
         run: |
           set -euo pipefail
           python scripts/build_gtfs_2026.py
 
-      - name: Externalize every executable inline script
+      - name: Externalize every executable application script
         shell: bash
         run: |
           set -euo pipefail
           python externalize_runtime.py site/index.html
 
-      - name: Validate clean runtime 1.0.60
+      - name: Split isolated gateway from application runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv site/index.html site/app.html
+          cp login.html site/index.html
+          cp login-gateway.js site/login-gateway.js
+
+      - name: Validate isolated runtime 1.0.61
         shell: bash
         run: |
           set -euo pipefail
 
-          # Chaque ancien bloc JavaScript est désormais un vrai fichier .js.
           count="$(find site/runtime -maxdepth 1 -name 'part-*.js' | wc -l | tr -d ' ')"
           test "$count" -gt 10
           find site/runtime -maxdepth 1 -name 'part-*.js' -print0 | xargs -0 -n1 node --check
 
           for f in \
+            login-gateway.js \
             v128-gps.js v128-offline.js \
             v130-session-orientation.js v131-speech.js v132-journals.js \
             v133-profile-journals.js v134-journal-front.js v135-journal-router.js \
@@ -120,8 +130,8 @@ jobs:
             v144-day-hlp-driver.js v145-planning-tad.js v146-planning-tad-bridge.js \
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
             v154-planning-service-times.js v155-planning-cut-percent.js \
-            v156-supabase-sync.js v157-exploitation.js v158-role-login.js \
-            v159-clean-runtime.js sw.js; do
+            v156-supabase-sync.js v157-exploitation.js \
+            v159-clean-runtime.js v160-entry-bridge.js sw.js; do
             node --check "site/$f"
           done
 
@@ -129,9 +139,9 @@ jobs:
           import re
           from pathlib import Path
 
-          p=Path('site/index.html')
-          h=p.read_text(encoding='utf-8')
-          scripts=re.findall(r'<script\b([^>]*)>(.*?)</script\s*>',h,re.I|re.S)
+          app=Path('site/app.html').read_text(encoding='utf-8')
+          gateway=Path('site/index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script\b([^>]*)>(.*?)</script\s*>',app,re.I|re.S)
           inline=[]
           for attrs,body in scripts:
               if re.search(r'\bsrc\s*=',attrs,re.I):
@@ -140,20 +150,31 @@ jobs:
               if typ and typ.group(2).strip().lower() not in ('','text/javascript','application/javascript','module'):
                   continue
               if body.strip():inline.append(body[:80])
-          assert not inline, f'JavaScript inline résiduel: {inline[:2]}'
-          assert 'runtime/part-001.js?v=1.0.60' in h
-          assert 'v159-clean-runtime.js?v=1.0.60' in h
-          assert '<title>Mon SAEIV · 1.0.60</title>' in h
+          assert not inline, f'JavaScript inline résiduel dans app.html: {inline[:2]}'
+          assert 'runtime/part-001.js?v=1.0.61' in app
+          assert 'v159-clean-runtime.js?v=1.0.61' in app
+          assert 'v160-entry-bridge.js?v=1.0.61' in app
+          assert 'v158-role-login.js' not in app
+          assert '<title>Mon SAEIV · 1.0.61</title>' in app
+
+          assert 'id="gatewayApp"' in gateway
+          assert 'login-gateway.js?v=1.0.61' in gateway
+          assert 'runtime/part-' not in gateway
+          assert 'v156-supabase-sync.js' not in gateway
+          assert 'maplibre' not in gateway.lower()
+          assert 'leaflet' not in gateway.lower()
 
           runtime='\n'.join(x.read_text(encoding='utf-8') for x in sorted(Path('site/runtime').glob('part-*.js')))
           assert 'remoteUnlock:(matricule,networkKey)=>setUnlocked(matricule,networkKey)' in runtime
           assert 'mon-saeiv-planning-changed' in runtime
           assert 'syncFromServer:(items)=>' in runtime
-          print(f'HTML propre validé · {len(scripts)} balises script externes · aucun JS inline')
+          print(f'Sas isolé validé · app={len(scripts)} scripts externes · {len(list(Path("site/runtime").glob("part-*.js")))} blocs historiques externalisés')
           PY
 
-          grep -q "const CACHE='mon-saeiv-clean-1.0.60'" site/sw.js
-          grep -q '"name": "Mon SAEIV 1.0.60"' site/manifest.webmanifest
+          grep -q "const CACHE='mon-saeiv-clean-1.0.61'" site/sw.js
+          grep -q '"name": "Mon SAEIV 1.0.61"' site/manifest.webmanifest
+          grep -q './app.html' site/sw.js
+          grep -q './login-gateway.js' site/sw.js
           grep -q '57SMH04' site/data/57/routes.json
 
       - name: Configure GitHub Pages
