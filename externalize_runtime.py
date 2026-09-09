@@ -55,12 +55,7 @@ def executable_inline(attrs: str) -> bool:
 
 
 def normalize_legacy_part(body: str) -> str:
-    """Conserve les données/fonctions existantes mais fixe leurs contrats modernes.
-
-    Ces transformations étaient auparavant dispersées dans le workflow Pages. Elles
-    sont désormais centralisées ici, avant publication, puis le JavaScript est sorti
-    physiquement du HTML.
-    """
+    """Conserve les données/fonctions existantes mais fixe leurs contrats modernes."""
     replacements = [
         (
             "window.MonSAEIVAuthV13={logout,show:()=>logout(),networks:DRIVER_NETWORKS,get unlocked(){return V13.unlocked}};",
@@ -97,9 +92,40 @@ def normalize_legacy_part(body: str) -> str:
     return body
 
 
+def normalize_gateway_login() -> None:
+    """Ne bloque jamais une connexion existante sur une règle de création récente.
+
+    Les anciens profils SAEIV acceptaient des mots de passe à partir de 6 caractères.
+    Le sas 1.0.61 avait mis minlength=8 sur les champs de *connexion* : Safari pouvait
+    donc recevoir le clic, refuser silencieusement le submit natif et ne rien ouvrir.
+    La longueur minimale reste appliquée à la création d'un nouveau mot de passe,
+    jamais à la connexion à un compte existant.
+    """
+    gateway = Path("login.html")
+    if not gateway.exists():
+        return
+    html = gateway.read_text(encoding="utf-8")
+    html = html.replace(
+        'id="driverPassword" type="password" autocomplete="current-password" minlength="8" required',
+        'id="driverPassword" type="password" autocomplete="current-password" required',
+    )
+    html = html.replace(
+        'id="managementPassword" type="password" autocomplete="current-password" minlength="8" required',
+        'id="managementPassword" type="password" autocomplete="current-password" required',
+    )
+    if 'id="driverPassword" type="password" autocomplete="current-password" minlength=' in html:
+        raise SystemExit("le sas conducteur impose encore une longueur minimale à la connexion")
+    if 'id="managementPassword" type="password" autocomplete="current-password" minlength=' in html:
+        raise SystemExit("le sas gestion impose encore une longueur minimale à la connexion")
+    gateway.write_text(html, encoding="utf-8")
+    print("Sas connexion corrigé : aucune longueur minimale imposée aux comptes existants.")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: externalize_runtime.py SITE_APP_HTML")
+
+    normalize_gateway_login()
 
     page = Path(sys.argv[1])
     if not page.exists():
@@ -161,8 +187,6 @@ def main() -> None:
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
-    # Aucun JavaScript exécutable ne reste incorporé dans app.html. Une chaîne
-    # contenant </script> ne peut donc plus casser le document dans Safari.
     for m in SCRIPT_RE.finditer(html):
         if executable_inline(m.group("attrs") or ""):
             raise SystemExit("JavaScript inline résiduel après externalisation")
