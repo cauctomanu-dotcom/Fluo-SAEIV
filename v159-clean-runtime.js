@@ -1,13 +1,13 @@
 'use strict';
-/* Mon SAEIV 1.0.61 — démarrage propre de l'application après le sas de connexion.
+/* Mon SAEIV 1.0.62 — démarrage propre de l'application après le sas de connexion.
    Ce fichier ne contient aucune logique métier de conduite : il verrouille seulement
    la version publiée, la reprise PWA et la santé minimale du runtime. */
 (()=>{
   if(window.MonSAEIVCleanRuntimeV159?.installed)return;
 
-  const VERSION='1.0.61';
+  const VERSION='1.0.62';
   const q=id=>document.getElementById(id);
-  const CLEAN_CACHE='mon-saeiv-clean-1.0.61';
+  const CLEAN_CACHE='mon-saeiv-clean-1.0.62';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
   let reloading=false;
 
@@ -63,7 +63,7 @@
       if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
         if(reloading)return;
-        const key='mon-saeiv-clean-controller-reload-1.0.61';
+        const key='mon-saeiv-clean-controller-reload-1.0.62';
         try{
           if(sessionStorage.getItem(key)==='1')return;
           sessionStorage.setItem(key,'1');
