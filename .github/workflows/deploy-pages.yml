@@ -52,7 +52,8 @@ jobs:
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
             v154-planning-service-times.js v155-planning-cut-percent.js \
             v156-supabase-sync.js v157-exploitation.js \
-            v159-clean-runtime.js v160-entry-bridge.js v161-admin-accounts.js; do
+            v159-clean-runtime.js v160-entry-bridge.js v161-admin-accounts.js \
+            v162-full-account-sync.js; do
             test -f "$f"
             cp "$f" "site/$f"
           done
@@ -102,18 +103,18 @@ jobs:
           set -euo pipefail
           python externalize_runtime.py site/index.html
 
-      - name: Split gateway and stamp release 1.0.63
+      - name: Split gateway and stamp release 1.0.64
         shell: bash
         run: |
           set -euo pipefail
           mv site/index.html site/app.html
           cp login.html site/index.html
           cp login-gateway.js site/login-gateway.js
+          cp gateway-full-backup.js site/gateway-full-backup.js
           python - <<'PY'
           from pathlib import Path
 
-          # Le moteur historique source est encore estampillé 1.0.62. La publication
-          # 1.0.63 force un nouveau cache PWA sans modifier ses contrats internes.
+          # Force un nouveau cache PWA pour la synchronisation intégrale du compte.
           for p in Path('site').rglob('*'):
               if not p.is_file() or p.suffix.lower() not in {'.html','.js','.json','.webmanifest'}:
                   continue
@@ -121,20 +122,21 @@ jobs:
                   t=p.read_text(encoding='utf-8')
               except UnicodeDecodeError:
                   continue
-              if '1.0.62' in t:
-                  p.write_text(t.replace('1.0.62','1.0.63'),encoding='utf-8')
+              t=t.replace('1.0.62','1.0.64').replace('1.0.63','1.0.64')
+              p.write_text(t,encoding='utf-8')
 
           app=Path('site/app.html')
           t=app.read_text(encoding='utf-8')
-          tag='<script src="./v161-admin-accounts.js?v=1.0.63"></script>'
-          if tag not in t:
-              if '</body>' not in t:
-                  raise SystemExit('balise </body> absente de app.html')
-              t=t.replace('</body>',tag+'\n</body>',1)
+          for name in ('v161-admin-accounts.js','v162-full-account-sync.js'):
+              tag=f'<script src="./{name}?v=1.0.64"></script>'
+              if tag not in t:
+                  if '</body>' not in t:
+                      raise SystemExit('balise </body> absente de app.html')
+                  t=t.replace('</body>',tag+'\n</body>',1)
           app.write_text(t,encoding='utf-8')
           PY
 
-      - name: Validate isolated runtime 1.0.63
+      - name: Validate isolated runtime 1.0.64
         shell: bash
         run: |
           set -euo pipefail
@@ -144,7 +146,7 @@ jobs:
           find site/runtime -maxdepth 1 -name 'part-*.js' -print0 | xargs -0 -n1 node --check
 
           for f in \
-            login-gateway.js \
+            login-gateway.js gateway-full-backup.js \
             v128-gps.js v128-offline.js \
             v130-session-orientation.js v131-speech.js v132-journals.js \
             v133-profile-journals.js v134-journal-front.js v135-journal-router.js \
@@ -153,7 +155,8 @@ jobs:
             v147-flow-journals-fix.js v148-continuous-day.js v150-journal-regulation.js \
             v154-planning-service-times.js v155-planning-cut-percent.js \
             v156-supabase-sync.js v157-exploitation.js \
-            v159-clean-runtime.js v160-entry-bridge.js v161-admin-accounts.js sw.js; do
+            v159-clean-runtime.js v160-entry-bridge.js v161-admin-accounts.js \
+            v162-full-account-sync.js sw.js; do
             node --check "site/$f"
           done
 
@@ -173,15 +176,17 @@ jobs:
                   continue
               if body.strip():inline.append(body[:80])
           assert not inline, f'JavaScript inline résiduel dans app.html: {inline[:2]}'
-          assert 'runtime/part-001.js?v=1.0.63' in app
-          assert 'v159-clean-runtime.js?v=1.0.63' in app
-          assert 'v160-entry-bridge.js?v=1.0.63' in app
-          assert 'v161-admin-accounts.js?v=1.0.63' in app
+          assert 'runtime/part-001.js?v=1.0.64' in app
+          assert 'v159-clean-runtime.js?v=1.0.64' in app
+          assert 'v160-entry-bridge.js?v=1.0.64' in app
+          assert 'v161-admin-accounts.js?v=1.0.64' in app
+          assert 'v162-full-account-sync.js?v=1.0.64' in app
           assert 'v158-role-login.js' not in app
-          assert '<title>Mon SAEIV · 1.0.63</title>' in app
+          assert '<title>Mon SAEIV · 1.0.64</title>' in app
 
           assert 'id="gatewayApp"' in gateway
-          assert 'login-gateway.js?v=1.0.63' in gateway
+          assert 'login-gateway.js?v=1.0.64' in gateway
+          assert 'gateway-full-backup.js?v=1.0.64' in gateway
           assert 'id="exportLocal"' in gateway and 'id="importLocal"' in gateway
           assert 'driverRegPassword' in gateway and 'minlength="6"' in gateway
           assert 'runtime/part-' not in gateway
@@ -190,8 +195,15 @@ jobs:
           assert 'leaflet' not in gateway.lower()
 
           gateway_js=Path('site/login-gateway.js').read_text(encoding='utf-8')
+          backup_js=Path('site/gateway-full-backup.js').read_text(encoding='utf-8')
+          full_sync=Path('site/v162-full-account-sync.js').read_text(encoding='utf-8')
           assert 'mon-saeiv-local-backup' in gateway_js
           assert 'password.length<6' in gateway_js
+          assert 'formatVersion:2' in backup_js and "DB_NAME='fluo-saeiv-journal-v13'" in backup_js
+          assert "from('account_state')" in full_sync
+          assert "from('journal_sessions')" in full_sync
+          assert "from('journal_events')" in full_sync
+          assert 'profileStats' in full_sync
 
           runtime='\n'.join(x.read_text(encoding='utf-8') for x in sorted(Path('site/runtime').glob('part-*.js')))
           assert 'remoteUnlock:(matricule,networkKey)=>setUnlocked(matricule,networkKey)' in runtime
@@ -200,11 +212,11 @@ jobs:
           assert 'pointer-events' in runtime
           assert 'mon-saeiv-planning-changed' in runtime
           assert 'syncFromServer:(items)=>' in runtime
-          print(f'Sas 1.0.63 validé · {len(list(Path("site/runtime").glob("part-*.js")))} blocs historiques externalisés')
+          print(f'Sas 1.0.64 validé · compte complet + journaux + statistiques · {len(list(Path("site/runtime").glob("part-*.js")))} blocs historiques externalisés')
           PY
 
-          grep -q "const CACHE='mon-saeiv-clean-1.0.63'" site/sw.js
-          grep -q '"name": "Mon SAEIV 1.0.63"' site/manifest.webmanifest
+          grep -q "const CACHE='mon-saeiv-clean-1.0.64'" site/sw.js
+          grep -q '"name": "Mon SAEIV 1.0.64"' site/manifest.webmanifest
           grep -q './app.html' site/sw.js
           grep -q './login-gateway.js' site/sw.js
           grep -q '57SMH04' site/data/57/routes.json
