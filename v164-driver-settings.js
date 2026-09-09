@@ -10,13 +10,12 @@
   const S={parking:null,installed:false,prompted:false};
   const cloud=()=>window.MonSAEIVCloudV156;
   const ready=()=>cloud()?.client&&cloud()?.user&&cloud()?.profile?.role==='driver'?cloud():null;
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   function local(){try{return JSON.parse(localStorage.getItem(LOCAL_KEY)||'null')}catch{return null}}
   function saveLocal(p){try{localStorage.setItem(LOCAL_KEY,JSON.stringify(p||{}))}catch{}S.parking=p||null;syncSavedAddress(p)}
   function syncSavedAddress(p){
     try{
       let xs=JSON.parse(localStorage.getItem(SAVED_ADDRESSES)||'[]');if(!Array.isArray(xs))xs=[];xs=xs.filter(a=>String(a?.id)!=='bus-parking-v164');
-      if(p?.address)xs.push({id:'bus-parking-v164',label:'Stationnement bus',address:p.address,name:p.address,lat:Number(p.lat),lon:Number(p.lon),updatedAt:new Date().toISOString()});
+      if(p?.address&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lon)))xs.push({id:'bus-parking-v164',label:'Stationnement bus',address:p.address,name:p.address,lat:Number(p.lat),lon:Number(p.lon),updatedAt:new Date().toISOString()});
       localStorage.setItem(SAVED_ADDRESSES,JSON.stringify(xs));
     }catch{}
   }
@@ -36,20 +35,25 @@
     if(actions)actions.insertAdjacentHTML('beforebegin',html);else card.insertAdjacentHTML('beforeend',html);
     q('v164ParkingSave')?.addEventListener('click',save);
     q('v164ParkingCheck')?.addEventListener('click',check);
-    const p=S.parking||local();if(p?.address){q('v164ParkingAddress').value=p.address;status('Stationnement bus enregistré.','ok')}
+    const p=S.parking||local();if(p?.address){q('v164ParkingAddress').value=p.address;status(p.pending?'Stationnement à valider…':'Stationnement bus enregistré.',p.pending?'busy':'ok')}
     return true;
+  }
+  async function normalized(p){
+    if(!p?.address)return null;
+    if(Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lon))&&!p.pending)return {label:'Stationnement bus',address:p.address,lat:Number(p.lat),lon:Number(p.lon),updatedAt:p.updatedAt||new Date().toISOString()};
+    const g=await geocode(p.address);return {label:'Stationnement bus',address:g.address||p.address,lat:Number(g.lat),lon:Number(g.lon),updatedAt:new Date().toISOString()};
   }
   async function load(){
     const C=ready();if(!C)return null;
     try{
       const {data,error}=await C.client.from('driver_settings').select('bus_parking').eq('user_id',C.user.id).maybeSingle();if(error)throw error;
       const remote=data?.bus_parking&&Object.keys(data.bus_parking).length?data.bus_parking:null,loc=local();
-      if(remote){saveLocal(remote);return remote}
-      if(loc?.address){await persist(loc);return loc}
+      if(remote?.address){const p=await normalized(remote);if(remote.pending||!Number.isFinite(Number(remote.lat))||!Number.isFinite(Number(remote.lon)))await persist(p);else saveLocal(p);return p}
+      if(loc?.address){const p=await normalized(loc);await persist(p);return p}
       S.parking=null;return null;
     }catch(e){console.warn('[Mon SAEIV] stationnement bus',e);S.parking=local();return S.parking}
   }
-  async function persist(p){const C=ready();if(!C)throw new Error('Compte conducteur serveur non connecté.');const {error}=await C.client.from('driver_settings').upsert({user_id:C.user.id,organization_id:C.profile.organization_id,bus_parking:p,updated_at:new Date().toISOString()},{onConflict:'user_id'});if(error)throw error;saveLocal(p);return p}
+  async function persist(p){const C=ready();if(!C)throw new Error('Compte conducteur serveur non connecté.');const clean={label:'Stationnement bus',address:String(p?.address||'').trim(),lat:Number(p?.lat),lon:Number(p?.lon),updatedAt:p?.updatedAt||new Date().toISOString()};const {error}=await C.client.from('driver_settings').upsert({user_id:C.user.id,organization_id:C.profile.organization_id,bus_parking:clean,updated_at:new Date().toISOString()},{onConflict:'user_id'});if(error)throw error;saveLocal(clean);return clean}
   async function check(){const input=q('v164ParkingAddress'),raw=input?.value.trim();status('Vérification de l’adresse…','busy');try{const p=await geocode(raw);input.value=p.address;S.parking={label:'Stationnement bus',...p};status(`Adresse trouvée : ${p.address}`,'ok')}catch(e){status(e.message||String(e),'err')}}
   async function save(){
     const input=q('v164ParkingAddress'),raw=input?.value.trim();if(!raw)return status('Renseigne le lieu où le bus est stationné.','err');status('Enregistrement…','busy');
@@ -71,7 +75,7 @@
   }
   async function boot(){
     renameDepotWording();const mo=new MutationObserver(()=>{renameDepotWording();if(ready())installUi()});mo.observe(document.documentElement,{childList:true,subtree:true});
-    let tries=0;const t=setInterval(async()=>{if(ready()){clearInterval(t);installUi();await load();const p=S.parking||local();if(p?.address&&q('v164ParkingAddress')){q('v164ParkingAddress').value=p.address;status('Stationnement bus synchronisé.','ok')}remindIfMissing()}else if(++tries>240)clearInterval(t)},250);
+    let tries=0;const t=setInterval(async()=>{if(ready()){clearInterval(t);installUi();await load();const p=S.parking||local();if(p?.address&&q('v164ParkingAddress')){q('v164ParkingAddress').value=p.address;status(p.pending?'Stationnement bus à valider.':'Stationnement bus synchronisé.',p.pending?'busy':'ok')}remindIfMissing()}else if(++tries>240)clearInterval(t)},250);
   }
   window.MonSAEIVDriverSettingsV164={installed:true,version:VERSION,load,save,persist,getBusParking:()=>S.parking||local()};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
