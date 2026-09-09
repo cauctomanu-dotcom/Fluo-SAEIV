@@ -1,38 +1,78 @@
-const C='mon-saeiv-v1-0-56-usage-hotfix-1';
-const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v144-day-hlp-driver.js','v147-flow-journals-fix.js','v148-continuous-day.js'];
-self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(C).catch(()=>{})))});
-self.addEventListener('activate',e=>e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('mon-saeiv-v1-')&&k!==C).map(k=>caches.delete(k)));await self.clients.claim()})()));
-function patchIndex(t){
-  const usageGuard=`<script id="v3127UsageEmergencyGuard">(()=>{const close=()=>{const e=document.getElementById('v3127UsageNotice');if(e){e.classList.add('hidden');e.style.display='none'}try{localStorage.setItem('monSaeivUsageAcceptedV3127','1')}catch{}};document.addEventListener('click',ev=>{if(ev.target&&ev.target.closest&&ev.target.closest('#v3127UsageContinue')){ev.preventDefault();close()}},true);document.addEventListener('touchend',ev=>{if(ev.target&&ev.target.closest&&ev.target.closest('#v3127UsageContinue')){ev.preventDefault();close()}},{capture:true,passive:false});addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('v3127UsageContinue');if(b){b.onclick=close;b.style.pointerEvents='auto';b.style.touchAction='manipulation'}if(localStorage.getItem('monSaeivUsageAcceptedV3127')==='1')close();else setTimeout(close,12000)},{once:true})})();<\/script>`;
-  if(!t.includes('v3127UsageEmergencyGuard'))t=t.replace('<body>','<body>'+usageGuard);
-  t=t.replace(/<button id="v3127UsageContinue"[^>]*>J’ai compris<\/button>/,`<button id="v3127UsageContinue" type="button" class="primary" style="pointer-events:auto;touch-action:manipulation" onclick="var e=document.getElementById('v3127UsageNotice');if(e){e.classList.add('hidden');e.style.display='none'}try{localStorage.setItem('monSaeivUsageAcceptedV3127','1')}catch(x){}return false;">J’ai compris<\/button>`);
-  t=t.replace(/<script id="v307GpsFluidVisuals">[\s\S]*?<\/script>/,'<script src="./v128-gps.js?v=1.0.40"><\/script>');
-  t=t.replace("const APP_VERSION = '1.0.40';","const APP_VERSION = '1.0.40';");
-  t=t.replace("const APP_VERSION = '1.0.40';","const APP_VERSION = '1.0.40';");
-  t=t.replace(/manifest\.webmanifest\?v=1\.0\.(?:26|29)/g,'manifest.webmanifest?v=1.0.40');
-  t=t.replace(/fluo_build\.json\?v=1\.0\.(?:26|29)/g,'fluo_build.json?v=1.0.40');
-  t=t.replace(/sw\.js\?v=1\.0\.(?:26|29)/g,'sw.js?v=1.0.40');
-  t=t.replace(/Mon SAEIV · 1\.0\.29/g,'Mon SAEIV · 1.0.40');
-  t=t.replace(/MON SAEIV · 1\.0\.(?:22|29)/g,'MON SAEIV · 1.0.40');
-  t=t.replace(/Version 1\.0\.29/g,'Version 1.0.40');
-  t=t.replace("const R={audio:new Audio(),volume:Math.max(0,Math.min(1,Number(pref.volume)||.68)),station:pref.last||null,restoreTimer:null,ramp:0,tab:'main',results:[],loading:false,stallTimer:null,recovering:false,tried:new Set(),stallCount:0,stallWindow:0,duckMuted:false,preDuckMuted:false};","const R={audio:new Audio(),volume:Math.max(0,Math.min(1,Number(pref.volume)||.68)),station:pref.last||null,restoreTimer:null,ramp:0,tab:'main',results:[],loading:false,stallTimer:null,recovering:false,tried:new Set(),stallCount:0,stallWindow:0,duckMuted:false,preDuckMuted:false,lastRecoveryAt:0,waitingSince:0};");
-  t=t.replace("R.audio.preload='none';R.audio.volume=R.volume;R.audio.playsInline=true;","R.audio.preload='auto';R.audio.volume=R.volume;R.audio.playsInline=true;R.audio.setAttribute('playsinline','');");
-  t=t.replace("if(br===0)sc+=3;else if(br>=48&&br<=128)sc+=58;else if(br<=160)sc+=38;else if(br<=192)sc+=12;else if(br<=256)sc-=25;else sc-=70;if(st?.hls||/\\.m3u8(?:\\?|$)/i.test(u))sc-=28;","if(br===0)sc+=5;else if(br>=48&&br<=96)sc+=105;else if(br<=128)sc+=72;else if(br<=160)sc+=18;else if(br<=192)sc-=28;else if(br<=256)sc-=72;else sc-=140;if(st?.hls||/\\.m3u8(?:\\?|$)/i.test(u))sc-=55;");
-  t=t.replace(/async function startStream\(st,\{fallback=false\}=\{\}\)\{[\s\S]*?\}\n  async function playStation/,`async function startStream(st,{fallback=false}={}){st=cleanStation(st);if(!st?.url)throw new Error('flux audio inexploitable');clearStallTimer();R.waitingSince=0;R.station=st;R.tried.add(st.url);savePref();const same=R.audio.src===st.url||R.audio.currentSrc===st.url;if(!same){R.audio.pause();R.audio.src=st.url;R.audio.volume=R.volume;try{R.audio.load()}catch{}}setStatus((fallback?'Bascule vers un flux plus léger':'Connexion à')+' '+st.name+'…','busy');renderCurrent();syncMediaSession();await R.audio.play();renderCurrent()}\n  async function playStation`);
-  t=t.replace(/async function recoverStream\(force=false\)\{[\s\S]*?\}\n  function scheduleRecovery/,`async function recoverStream(force=false){if(R.recovering||!R.station||R.audio.paused)return;const now=Date.now();if(!force&&R.lastRecoveryAt&&now-R.lastRecoveryAt<18000)return;R.recovering=true;R.lastRecoveryAt=now;const current=R.station;try{const raw=await api('/json/stations/search?countrycode=FR&name='+encodeURIComponent(current.name)+'&hidebroken=true&limit=60'),alts=rankedStations(raw,current.name).filter(x=>norm(x.name)===norm(current.name)&&!R.tried.has(x.url));if(alts.length){await startStream(alts[0],{fallback:true});setStatus('En écoute : '+alts[0].name+' · flux de secours','ok')}else setStatus('Le flux radio reste instable. Mon SAEIV conserve le lecteur sans le relancer en boucle.','err')}catch{setStatus('Le flux radio répond mal et aucun flux de secours plus léger n’a pu être chargé.','err')}finally{R.recovering=false}}\n  function scheduleRecovery`);
-  t=t.replace(/function scheduleRecovery\(label\)\{[\s\S]*?\}\n  function stopRadio/,`function scheduleRecovery(label,delay=14000){setStatus(label,'busy');if(R.audio.paused)return;clearStallTimer();if(!R.waitingSince)R.waitingSince=Date.now();R.stallTimer=setTimeout(()=>{if(R.audio.paused||R.audio.readyState>=3){R.waitingSince=0;return}recoverStream(false)},delay)}\n  function stopRadio`);
-  t=t.replace("function stopRadio(){clearStallTimer();R.audio.pause();","function stopRadio(){clearStallTimer();R.waitingSince=0;R.audio.pause();");
-  t=t.replace("R.audio.addEventListener('playing',()=>{clearStallTimer();setStatus(R.station?`En écoute : ${R.station.name}`:'Radio en lecture','ok');renderCurrent()});","R.audio.addEventListener('playing',()=>{clearStallTimer();R.waitingSince=0;setStatus(R.station?`En écoute : ${R.station.name}${R.station.bitrate?` · ${R.station.bitrate} kb/s`:''}`:'Radio en lecture','ok');renderCurrent()});R.audio.addEventListener('canplay',()=>{clearStallTimer();R.waitingSince=0});");
-  if(!t.includes('v128-offline.js'))t=t.replace('</body>',`<script src="./v128-offline.js?v=1.0.40"><\/script><script>window.MonSAEIVBuildPatch='1.0.40-radio-gps-offline-continuity';(()=>{const a=()=>{document.title='Mon SAEIV · 1.0.40';const e=document.querySelector('.top .eyebrow');if(e)e.textContent='MON SAEIV · 1.0.40';const b=document.getElementById('buildInfo');if(b)b.textContent='Version 1.0.40'};a();setTimeout(a,5000)})();<\/script></body>`);
-  if(!t.includes('id=\"v130RuntimeOrientation\"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id=\"v130RuntimeOrientation\" src=\"./v130-session-orientation.js?v=1.0.40\"><\/script><\/body><\/html>`);
-  if(!t.includes('id=\"v131RuntimeSpeech\"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id=\"v131RuntimeSpeech\" src=\"./v131-speech.js?v=1.0.40\"><\/script><\/body><\/html>`);
-  if(!t.includes('id=\"v132RuntimeJournals\"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id=\"v132RuntimeJournals\" src=\"./v132-journals.js?v=1.0.40\"><\/script><\/body><\/html>`);
-  if(!t.includes('id="v133RuntimeProfileJournals"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id="v133RuntimeProfileJournals" src="./v133-profile-journals.js?v=1.0.40"><\/script><\/body><\/html>`);
-  if(!t.includes('id="v137RuntimeDriverHub"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id="v137RuntimeDriverHub" src="./v137-driver-hub.js?v=1.0.40"><\/script><\/body><\/html>`);
-  if(!t.includes('id="v144RuntimeDayAutopilotDirect"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id="v144RuntimeDayAutopilotDirect" src="./v144-day-hlp-driver.js?v=1.0.48"><\/script><\/body><\/html>`);
-  if(!t.includes('id="v148RuntimeContinuousDay"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id="v148RuntimeContinuousDay" src="./v148-continuous-day.js?v=1.0.48"><\/script><\/body><\/html>`);
-  if(!t.includes('id="v152AdminScheduleInline"'))t=t.replace(/<\/body>\s*<\/html>\s*$/i,`<script id="v152AdminScheduleInline">(()=>{const q=id=>document.getElementById(id);const style=()=>{if(q('v152AdminScheduleStyle'))return;const s=document.createElement('style');s.id='v152AdminScheduleStyle';s.textContent='#v16CalcOpen{display:none!important}.v152-admin-tool{margin:0 0 14px;padding:13px;border:1px solid #3d5b6b;border-radius:14px;background:linear-gradient(135deg,#102b39,#0a1d27)}.v152-admin-tool h3{margin:0 0 5px}.v152-admin-tool p{margin:0 0 10px;color:#9fb4bf;font-size:.68rem;line-height:1.45}.v152-admin-tool button{width:100%}';document.head.appendChild(s)};const open=()=>{q('v29Admin')?.classList.add('hidden');const b=q('v16CalcOpen');if(b)b.click();else alert('Le module de création de fiche horaire est indisponible.')};const ensure=()=>{style();const body=q('v29AdminBody');if(body&&!q('v152AdminScheduleTool')){const x=document.createElement('section');x.id='v152AdminScheduleTool';x.className='v152-admin-tool';x.innerHTML='<h3>📄 Fiches horaires</h3><p>Création et génération d’une nouvelle fiche horaire. Cette fonction est réservée au mode administrateur.</p><button id="v152CreateScheduleSheet" class="primary" type="button">CRÉER UNE FICHE HORAIRE</button>';body.insertAdjacentElement('afterbegin',x);q('v152CreateScheduleSheet')?.addEventListener('click',open)}q('v16CalcOpen')?.style.setProperty('display','none','important')};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ensure,{once:true});else ensure();new MutationObserver(ensure).observe(document.documentElement,{childList:true,subtree:true});[300,1000,3000].forEach(ms=>setTimeout(ensure,ms))})();<\/script><\/body><\/html>`);
-  return t;
+const C='mon-saeiv-v1-0-56-clean-runtime-1';
+const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-numbering-2026.json','v128-gps.js','v128-offline.js','v130-session-orientation.js','v131-speech.js','v132-journals.js','v133-profile-journals.js','v134-journal-front.js','v135-journal-router.js','v136-driver-operations.js','v137-driver-hub.js','v141-static-fluo.js','v144-day-hlp-driver.js','v145-planning-tad.js','v146-planning-tad-bridge.js','v147-flow-journals-fix.js','v148-continuous-day.js','v150-journal-regulation.js','v154-planning-service-times.js','v155-planning-cut-percent.js','v156-supabase-sync.js','v157-exploitation.js','v158-role-login.js','data/54/routes.json','data/54/services.json','data/54/stops.json','data/67/routes.json','data/67/services.json','data/67/stops.json','data/68/routes.json','data/68/services.json','data/68/stops.json'];
+
+self.addEventListener('install',event=>{
+  self.skipWaiting();
+  event.waitUntil((async()=>{
+    const cache=await caches.open(C);
+    await Promise.allSettled(CORE.map(url=>cache.add(url)));
+  })());
+});
+
+self.addEventListener('activate',event=>{
+  event.waitUntil((async()=>{
+    const keys=await caches.keys();
+    await Promise.all(keys.filter(key=>key.startsWith('mon-saeiv-v1-')&&key!==C).map(key=>caches.delete(key)));
+    await self.clients.claim();
+  })());
+});
+
+async function networkFirstNavigation(request){
+  const cache=await caches.open(C);
+  try{
+    const response=await fetch(request,{cache:'no-store'});
+    if(response&&response.ok){
+      const copy=response.clone();
+      cache.put('index.html',copy).catch(()=>{});
+    }
+    return response;
+  }catch(error){
+    return (await cache.match(request,{ignoreSearch:true})) ||
+      (await cache.match('index.html')) ||
+      (await cache.match('./')) ||
+      new Response('Mon SAEIV indisponible hors connexion.',{status:503,headers:{'Content-Type':'text/plain;charset=utf-8'}});
+  }
 }
-async function appResponse(req){const cache=await caches.open(C);let r;try{r=await fetch(req,{cache:'no-store'});if(r.ok)cache.put(req,r.clone()).catch(()=>{})}catch{}if(!r)r=await cache.match(req)||await cache.match('index.html');if(!r)return new Response('Mon SAEIV indisponible',{status:503});const text=patchIndex(await r.text());return new Response(text,{status:r.status,headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-cache'}})}
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;const u=new URL(e.request.url);if(e.request.mode==='navigate'||(u.origin===self.location.origin&&(u.pathname.endsWith('/')||u.pathname.endsWith('/index.html')))){e.respondWith(appResponse(e.request));return}if(u.origin!==self.location.origin){if(u.hostname==='tile.openstreetmap.org'||u.hostname==='unpkg.com'){e.respondWith(caches.open(C+'-ext').then(async c=>{const hit=await c.match(e.request);try{const r=await fetch(e.request);if(r.ok)c.put(e.request,r.clone()).catch(()=>{});return r}catch{return hit||Response.error()}}));}return}e.respondWith(caches.open(C).then(async c=>{const hit=await c.match(e.request);try{const r=await fetch(e.request,{cache:'no-store'});if(r.ok)c.put(e.request,r.clone()).catch(()=>{});return r}catch{return hit||Response.error()}}))});
+
+async function networkFirstAsset(request){
+  const cache=await caches.open(C);
+  try{
+    const response=await fetch(request,{cache:'no-store'});
+    if(response&&response.ok)cache.put(request,response.clone()).catch(()=>{});
+    return response;
+  }catch(error){
+    return (await cache.match(request,{ignoreSearch:true})) || Response.error();
+  }
+}
+
+async function cachedExternal(request){
+  const cache=await caches.open(C+'-external');
+  const hit=await cache.match(request);
+  try{
+    const response=await fetch(request);
+    if(response&&response.ok)cache.put(request,response.clone()).catch(()=>{});
+    return response;
+  }catch(error){
+    return hit || Response.error();
+  }
+}
+
+self.addEventListener('fetch',event=>{
+  const request=event.request;
+  if(request.method!=='GET')return;
+  const url=new URL(request.url);
+
+  if(request.mode==='navigate'){
+    event.respondWith(networkFirstNavigation(request));
+    return;
+  }
+
+  if(url.origin===self.location.origin){
+    event.respondWith(networkFirstAsset(request));
+    return;
+  }
+
+  if(url.hostname==='tile.openstreetmap.org'||url.hostname==='unpkg.com'){
+    event.respondWith(cachedExternal(request));
+  }
+});
