@@ -30,3 +30,29 @@
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&state?.running){saveCourse();saveProgress(true)}},{passive:true});addEventListener('pagehide',()=>{if(state?.running){saveCourse();saveProgress(true)}},{passive:true});const boot=()=>{setInterval(()=>maybeOfferRecovery().catch(()=>{}),900);setTimeout(()=>maybeOfferRecovery().catch(()=>{}),700)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
   window.MonSAEIVOfflineContinuity={save:()=>{saveCourse();saveProgress(true)},clear:clearActiveCourse,diagnostics:()=>({online:navigator.onLine,running:!!state?.running,mode:state?.mode||null,lastCheckpoint:lastProgressWrite})};
 })();
+
+/* Correctif de secours 2026-09-09 — empêche un écran de connexion superposé de bloquer l'iPhone/PWA. */
+(()=>{
+  if(window.MonSAEIVEmergencyUnlockV159?.installed)return;
+  const q=id=>document.getElementById(id);
+  const localAccount=()=>{try{return JSON.parse(localStorage.getItem('fluoSaeivAccountV13')||'null')}catch{return null}};
+  const visible=el=>!!el&&!el.classList.contains('hidden')&&getComputedStyle(el).display!=='none';
+  function hide(id){q(id)?.classList.add('hidden')}
+  function ensure(){
+    if(!q('v159EmergencyStyle')){const s=document.createElement('style');s.id='v159EmergencyStyle';s.textContent=`.v158-root{z-index:61000!important}.v159-emergency{position:fixed;z-index:70000;right:max(10px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));min-height:42px;padding:8px 11px;border:1px solid #ffcf31;border-radius:12px;background:#3c3208;color:#fff3ae;font-weight:950;box-shadow:0 8px 26px rgba(0,0,0,.45)}.v159-emergency.hidden{display:none!important}`;document.head.appendChild(s)}
+    let b=q('v159EmergencyUnlock');if(!b){b=document.createElement('button');b.id='v159EmergencyUnlock';b.type='button';b.className='v159-emergency hidden';b.textContent='↻ Débloquer l’écran';b.addEventListener('click',()=>{
+      hide('v3127UsageNotice');hide('v156CloudAuth');hide('v158RoleAuth');hide('v157Dispatch');
+      const local=localAccount();
+      if(local){try{window.MonSAEIVCloudV156?.showLocalAccount?.(true)}catch{};q('v13Auth')?.classList.remove('hidden')}
+      else{q('v158RoleAuth')?.classList.remove('hidden')}
+      setTimeout(update,50);
+    });document.body.appendChild(b)}
+    const c=q('v3127UsageContinue');if(c&&!c.dataset.v159Bound){c.dataset.v159Bound='1';c.addEventListener('click',()=>hide('v3127UsageNotice'),true)}
+    const auth=q('v13Auth');if(auth&&!q('v159ServerEntry')){const x=document.createElement('button');x.id='v159ServerEntry';x.type='button';x.className='full';x.style.marginTop='8px';x.textContent='☁ Connexion serveur / changer de rôle';x.addEventListener('click',()=>{try{window.MonSAEIVCloudV156?.showCloudLogin?.()}catch{};q('v158RoleAuth')?.classList.remove('hidden')});(auth.querySelector('form')?.parentElement||auth).appendChild(x)}
+    update();
+  }
+  function update(){const b=q('v159EmergencyUnlock');if(!b)return;const blocked=['v3127UsageNotice','v156CloudAuth','v158RoleAuth'].some(id=>visible(q(id)));b.classList.toggle('hidden',!blocked)}
+  const boot=()=>{ensure();setInterval(()=>{try{ensure()}catch{}},1200)};
+  window.MonSAEIVEmergencyUnlockV159={installed:true,repair:()=>q('v159EmergencyUnlock')?.click()};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
