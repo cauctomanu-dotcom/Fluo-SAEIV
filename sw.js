@@ -4,6 +4,7 @@ const CORE=['./','index.html','manifest.webmanifest','fluo_build.json','fluo-num
 self.addEventListener('install',event=>{
   self.skipWaiting();
   event.waitUntil((async()=>{
+    await caches.delete(C).catch(()=>false);
     const cache=await caches.open(C);
     await Promise.allSettled(CORE.map(url=>cache.add(url)));
   })());
@@ -14,6 +15,10 @@ self.addEventListener('activate',event=>{
     const keys=await caches.keys();
     await Promise.all(keys.filter(key=>key.startsWith('mon-saeiv-v1-')&&key!==C).map(key=>caches.delete(key)));
     await self.clients.claim();
+    const tabs=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+    await Promise.allSettled(tabs.map(client=>{
+      try{return client.navigate(client.url)}catch{return Promise.resolve()}
+    }));
   })());
 });
 
