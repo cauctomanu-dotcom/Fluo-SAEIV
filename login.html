@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#07121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="./manifest.webmanifest?v=1.0.61">
-  <title>Mon SAEIV · Connexion 1.0.61</title>
+  <link rel="manifest" href="./manifest.webmanifest?v=1.0.62">
+  <title>Mon SAEIV · Connexion 1.0.62</title>
   <style>
     :root{color-scheme:dark;--bg:#040b11;--panel:#0d202c;--panel2:#071923;--line:#345568;--text:#f4f8fb;--muted:#a8bbc5;--yellow:#ffd000;--orange:#ffad00;--green:#62dd8a;--red:#ff7770}
     *{box-sizing:border-box}html{min-height:100%;background:var(--bg)}body{min-height:100vh;margin:0;background:radial-gradient(circle at 82% 0,#17394c 0,#071620 45%,#03090d 100%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
@@ -19,7 +19,7 @@
     button{min-height:52px;padding:10px 13px;border:1px solid #3b5969;border-radius:13px;background:#173345;color:#fff;font-weight:900;cursor:pointer;touch-action:manipulation}button.primary{border:0;background:linear-gradient(135deg,var(--yellow),var(--orange));color:#151515}.link{width:100%;margin-top:10px;background:transparent;border-style:dashed}.hidden{display:none!important}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.status{min-height:1.4em;margin-top:13px;color:#a8bbc5;font-size:.76rem}.status.busy{color:#ffe28a}.status.ok{color:#9cf4b7}.status.err{color:#ffaaa5}.note{margin-top:14px;padding:10px;border:1px solid #2d4654;border-radius:12px;background:#06131c;color:#8fa6b1;font-size:.68rem;line-height:1.5}
     @media(max-width:620px){.gateway{padding-left:0;padding-right:0;padding-bottom:0}.card{min-height:100dvh;border-right:0;border-left:0;border-bottom:0;border-radius:24px 24px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom))}.roles,.grid,.actions,.session-actions,.local-actions{grid-template-columns:1fr}.role{min-height:66px}}
   </style>
-  <script defer src="./login-gateway.js?v=1.0.61"></script>
+  <script defer src="./login-gateway.js?v=1.0.62"></script>
 </head>
 <body>
   <main class="gateway" id="gatewayApp">
@@ -27,7 +27,7 @@
       <div class="eyebrow">MON SAEIV · CONNEXION</div>
       <h1>Qui se connecte ?</h1>
       <p class="intro">La connexion est maintenant séparée du moteur conducteur. Le SAEIV complet ne démarre qu’après authentification.</p>
-      <div class="version">Sas de connexion isolé · version 1.0.61</div>
+      <div class="version">Sas de connexion isolé · version 1.0.62</div>
 
       <div id="sessionBox" class="session"><div id="sessionText"></div><div class="session-actions"><button id="resumeSession" class="primary" type="button">REPRENDRE MA SESSION</button><button id="dropSession" type="button">Changer de compte</button></div></div>
       <div id="localBox" class="local"><div id="localText"></div><div class="local-actions"><button id="openLocal" type="button">👤 Ouvrir mon profil local</button><button id="linkLocal" type="button">☁ Le lier au serveur</button></div></div>
@@ -43,7 +43,7 @@
         <p class="help">Aucune adresse e-mail n’est demandée. Ton identifiant est ton matricule.</p>
         <form id="driverLoginForm" class="form">
           <label>Matricule<input id="driverMatricule" type="text" autocomplete="username" autocapitalize="characters" required></label>
-          <label>Mot de passe<input id="driverPassword" type="password" autocomplete="current-password" minlength="8" required></label>
+          <label>Mot de passe<input id="driverPassword" type="password" autocomplete="current-password" required></label>
           <button class="primary" type="submit">OUVRIR MON SAEIV</button>
         </form>
         <button id="showDriverRegister" class="link" type="button">Première connexion conducteur</button>
@@ -67,7 +67,7 @@
         <p id="managementHelp" class="help">L’exploitant gère les conducteurs et leurs plannings. Les droits sont vérifiés par le serveur.</p>
         <form id="managementLoginForm" class="form">
           <label>Adresse e-mail<input id="managementEmail" type="email" autocomplete="email" required></label>
-          <label>Mot de passe<input id="managementPassword" type="password" autocomplete="current-password" minlength="8" required></label>
+          <label>Mot de passe<input id="managementPassword" type="password" autocomplete="current-password" required></label>
           <button class="primary" type="submit">SE CONNECTER</button>
         </form>
         <button id="showManagementRegister" class="link" type="button">Première connexion / invitation</button>
