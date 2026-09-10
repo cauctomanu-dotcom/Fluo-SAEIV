@@ -1,9 +1,10 @@
 'use strict';
-/* Mon SAEIV 1.0.65 — synchronisation intégrale du compte conducteur.
-   LocalStorage + tous les stockages IndexedDB métier + journaux + statistiques sont répliqués sur Supabase. */
+/* Mon SAEIV 1.0.75 — synchronisation intégrale du compte conducteur.
+   LocalStorage + tous les stockages IndexedDB métier + journaux + statistiques sont répliqués sur Supabase.
+   Les journaux sont fusionnés sans effacement local et une fin de course est protégée contre un pull concurrent. */
 (()=>{
   if(window.MonSAEIVFullSyncV162?.installed)return;
-  const VERSION='1.0.65';
+  const VERSION='1.0.75';
   const JOURNAL_DB='fluo-saeiv-journal-v13';
   const ACCOUNT_KEY='fluoSaeivAccountV13';
   const META_KEY='mon-saeiv-full-sync-meta-v162';
@@ -15,7 +16,7 @@
     {db:'fluo-saeiv-prepared-tad-v26',store:'tads',create(d){if(!d.objectStoreNames.contains('tads')){const s=d.createObjectStore('tads',{keyPath:'id'});s.createIndex('date','serviceDate');s.createIndex('matricule','matricule')}}},
     {db:'fluo-saeiv-prepared-collective-v304',store:'collectives',create(d){if(!d.objectStoreNames.contains('collectives')){const s=d.createObjectStore('collectives',{keyPath:'id'});s.createIndex('date','serviceDate');s.createIndex('matricule','matricule')}}}
   ];
-  const S={busy:false,initialized:false,channel:null,timer:null,pullTimer:null,lastFullSync:0,pendingPull:false};
+  const S={busy:false,initialized:false,channel:null,timer:null,pullTimer:null,lastFullSync:0,pendingPull:false,finishGuardUntil:0};
   const q=id=>document.getElementById(id);
 
   function cloud(){return window.MonSAEIVCloudV156}
@@ -62,10 +63,24 @@
   }
   async function readStore(db,name){return new Promise((res,rej)=>{const r=db.transaction(name,'readonly').objectStore(name).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
   async function readJournals(){const db=await openJournalDb();try{const [sessions,events]=await Promise.all([readStore(db,'sessions'),readStore(db,'events')]);return {sessions,events}}finally{try{db.close()}catch{}}}
-  async function replaceJournals(sessions,events){
+  function eventSignature(e){return `${String(e?.sessionId||'global')}|${String(e?.ts||'')}|${String(e?.type||'')}|${String(e?.stopIndex??'')}|${String(e?.control||e?.reason||'')}`}
+  function sessionFreshness(s){const v=s?.endedAt||s?.lastCheckpointAt||s?.updatedAt||s?.startedAt||'';const n=Date.parse(v);return Number.isFinite(n)?n:0}
+  async function mergeJournals(remoteSessions,remoteEvents){
     const db=await openJournalDb();
-    try{await new Promise((res,rej)=>{const tx=db.transaction(['sessions','events'],'readwrite'),ss=tx.objectStore('sessions'),es=tx.objectStore('events');ss.clear();es.clear();for(const x of sessions||[]){if(x&&x.id!=null)ss.put(x)}for(const x of events||[]){if(!x)continue;const v={...x};if(v.id==null)delete v.id;es.put(v)}tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error||new Error('Restauration journaux impossible'));tx.onabort=()=>rej(tx.error||new Error('Restauration journaux annulée'))})}
-    finally{try{db.close()}catch{}}
+    try{
+      const localSessions=await readStore(db,'sessions'),localEvents=await readStore(db,'events');
+      const byId=new Map();
+      for(const x of remoteSessions||[]){if(x?.id!=null)byId.set(String(x.id),x)}
+      for(const x of localSessions||[]){if(x?.id==null)continue;const k=String(x.id),old=byId.get(k);if(!old||sessionFreshness(x)>=sessionFreshness(old))byId.set(k,x)}
+      const signatures=new Set(localEvents.map(eventSignature));
+      await new Promise((res,rej)=>{
+        const tx=db.transaction(['sessions','events'],'readwrite'),ss=tx.objectStore('sessions'),es=tx.objectStore('events');
+        for(const x of byId.values())ss.put(x);
+        for(const x of remoteEvents||[]){if(!x)continue;const sig=eventSignature(x);if(signatures.has(sig))continue;signatures.add(sig);const v={...x};delete v.id;es.add(v)}
+        tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error||new Error('Fusion journaux impossible'));tx.onabort=()=>rej(tx.error||new Error('Fusion journaux annulée'));
+      });
+      return {sessions:byId.size,events:signatures.size};
+    }finally{try{db.close()}catch{}}
   }
   async function readExtraStores(){
     const out={};
@@ -112,7 +127,10 @@
   }
   function applyState(remote){const before=localState(),next=remote&&typeof remote==='object'?remote:{};for(const key of Object.keys(before)){if(!(key in next))localStorage.removeItem(key)}for(const [key,value] of Object.entries(next)){if(isCloudKey(key)||typeof value!=='string')continue;localStorage.setItem(key,value)}return stableString(before)!==stableString(localState())}
   async function pullAll({silent=false,allowReload=true}={}){
-    const C=ready();if(!C||S.busy)return false;if(window.state?.running){S.pendingPull=true;return false}S.busy=true;
+    const C=ready();if(!C||S.busy)return false;
+    if(window.state?.running){S.pendingPull=true;return false}
+    if(Date.now()<S.finishGuardUntil){S.pendingPull=true;clearTimeout(S.pullTimer);S.pullTimer=setTimeout(()=>pullAll({silent:true,allowReload:false}),Math.max(250,S.finishGuardUntil-Date.now()+250));return false}
+    S.busy=true;
     try{
       const {data:accountRow,error:ae}=await C.client.from('account_state').select('state,stats,updated_at').eq('user_id',C.user.id).maybeSingle();if(ae)throw ae;if(!accountRow){S.busy=false;return await pushAll({silent})}
       const [sessionRows,eventRows,storeRows]=await Promise.all([
@@ -121,10 +139,10 @@
         pagedSelect((from,to)=>C.client.from('account_stores').select('store_key,payload,updated_at').eq('user_id',C.user.id).range(from,to))
       ]);
       const sessions=sessionRows.map(r=>r.payload).filter(Boolean),events=eventRows.map(r=>r.payload).filter(Boolean),remoteStores=Object.fromEntries(storeRows.map(r=>[r.store_key,Array.isArray(r.payload)?r.payload:[]]));
-      const stateChanged=applyState(accountRow.state||{});await replaceJournals(sessions,events);const extraCount=storeRows.length?await replaceExtraStores(remoteStores):0;
-      S.lastFullSync=Date.now();S.pendingPull=false;saveMeta({lastPullAt:S.lastFullSync,lastServerAt:accountRow.updated_at,sessionCount:sessions.length,eventCount:events.length,extraCount});
-      if(!silent)setStatus(`Compte restauré depuis le serveur · ${sessions.length} journal${sessions.length>1?'x':''} · statistiques et données métier synchronisées.`,'ok');
-      window.dispatchEvent(new CustomEvent('mon-saeiv-full-account-synced',{detail:{direction:'pull',sessions:sessions.length,events:events.length,extraCount,stats:accountRow.stats||{}}}));
+      const stateChanged=applyState(accountRow.state||{}),journalMerge=await mergeJournals(sessions,events);const extraCount=storeRows.length?await replaceExtraStores(remoteStores):0;
+      S.lastFullSync=Date.now();S.pendingPull=false;saveMeta({lastPullAt:S.lastFullSync,lastServerAt:accountRow.updated_at,sessionCount:journalMerge.sessions,eventCount:journalMerge.events,extraCount});
+      if(!silent)setStatus(`Compte restauré depuis le serveur · ${journalMerge.sessions} journal${journalMerge.sessions>1?'x':''} conservé${journalMerge.sessions>1?'s':''} · statistiques et données métier synchronisées.`,'ok');
+      window.dispatchEvent(new CustomEvent('mon-saeiv-full-account-synced',{detail:{direction:'pull',sessions:journalMerge.sessions,events:journalMerge.events,extraCount,stats:accountRow.stats||{}}}));
       const guard='mon-saeiv-full-sync-reloaded-v162';if(stateChanged&&allowReload&&sessionStorage.getItem(guard)!=='1'){sessionStorage.setItem(guard,'1');setTimeout(()=>location.reload(),180);return true}return true;
     }catch(e){console.warn('[Mon SAEIV] pull compte complet',e);if(!silent)setStatus('Restauration serveur différée : '+(e.message||e),'err');return false}
     finally{S.busy=false}
@@ -137,7 +155,8 @@
   async function syncNow(){const ok=await pushAll({silent:false});if(ok)await pullAll({silent:true,allowReload:false});return ok}
   function installHooks(){
     const bindButton=()=>{const b=q('v156SyncNow');if(!b||b.dataset.v162Bound)return;b.dataset.v162Bound='1';b.textContent='↻ Synchroniser tout le compte';b.addEventListener('click',()=>setTimeout(syncNow,0))};bindButton();const mo=new MutationObserver(bindButton);mo.observe(document.documentElement,{childList:true,subtree:true});
-    document.addEventListener('click',e=>{if(e.target.closest?.('#finish'))setTimeout(()=>syncNow(),1800);else scheduleFull(4500)},true);window.addEventListener('mon-saeiv-planning-changed',()=>scheduleFull(3000));window.addEventListener('online',()=>setTimeout(syncNow,400));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&!window.state?.running)pushAll({silent:true});else if(document.visibilityState==='visible'&&S.pendingPull)schedulePull(500)});setInterval(()=>{if(ready()&&!window.state?.running)pushAll({silent:true})},60000);
+    document.addEventListener('click',e=>{if(e.target.closest?.('#finish')){S.finishGuardUntil=Date.now()+5000;clearTimeout(S.pullTimer);S.pendingPull=true;setTimeout(async()=>{S.finishGuardUntil=0;await syncNow();if(S.pendingPull)schedulePull(500)},1800)}else scheduleFull(4500)},true);
+    window.addEventListener('mon-saeiv-planning-changed',()=>scheduleFull(3000));window.addEventListener('online',()=>setTimeout(syncNow,400));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&!window.state?.running)pushAll({silent:true});else if(document.visibilityState==='visible'&&S.pendingPull)schedulePull(500)});setInterval(()=>{if(ready()&&!window.state?.running)pushAll({silent:true})},60000);
   }
   function boot(){installHooks();let tries=0;const t=setInterval(()=>{if(ready()){clearInterval(t);initialSync()}else if(++tries>240)clearInterval(t)},250)}
   window.MonSAEIVFullSyncV162={installed:true,version:VERSION,sync:syncNow,push:pushAll,pull:pullAll,readJournals,readExtraStores,localState,get lastSync(){return S.lastFullSync}};
