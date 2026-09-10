@@ -1,5 +1,5 @@
 'use strict';
-/* Mon SAEIV 1.0.72 — pont entre le sas de connexion et le moteur conducteur.
+/* Mon SAEIV 1.0.75 — pont entre le sas de connexion et le moteur conducteur.
    Ce garde démarre dans <head>, avant le runtime historique. L’écran local V13 est
    soit supprimé du parcours cloud, soit placé au-dessus de toutes les autres couches
    quand il est réellement utilisé en mode local.
@@ -7,11 +7,17 @@
    Anti-freeze 1.0.72 : neutralise uniquement l'observer global créé par
    v164-driver-settings. Cet observer réécrivait le DOM dans son propre callback,
    se réveillait sur ses propres modifications et pouvait saturer le thread principal
-   après connexion, quel que soit le rôle. */
+   après connexion, quel que soit le rôle.
+
+   Correctif journaux 1.0.75 : une session Conducteur ouverte depuis le sas cloud doit
+   aussi déverrouiller le moteur historique V13, car c'est lui qui crée la session de
+   journal IndexedDB. Certaines anciennes builds n'exposaient pas remoteUnlock sur
+   MonSAEIVAuthV13 ; on réutilise alors la fonction globale setUnlocked, puis on la
+   publie sur l'API pour les appels suivants. */
 (()=>{
   if(window.MonSAEIVEntryBridgeV160?.installed)return;
 
-  const VERSION='1.0.72';
+  const VERSION='1.0.75';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
   const LOCAL_ACCOUNT_KEY='fluoSaeivAccountV13';
   const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
@@ -124,10 +130,13 @@
     if(!cloudEntry())return false;
     const p=cachedProfile();
     if(!p||p.role!=='driver'||!p.matricule)return false;
-    const unlock=window.MonSAEIVAuthV13?.remoteUnlock;
+    const api=window.MonSAEIVAuthV13;
+    const unlock=api?.remoteUnlock||window.setUnlocked;
     if(typeof unlock!=='function')return false;
     try{
+      if(api&&typeof api.remoteUnlock!=='function')api.remoteUnlock=unlock;
       unlock(p.matricule,p.network||'fluo');
+      if(window.MonSAEIVAuthV13?.unlocked!==true)return false;
       hardenLegacyAuth();
       document.documentElement.dataset.cloudDriverUnlocked='1';
       return true;
