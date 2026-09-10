@@ -77,6 +77,32 @@ jobs:
               "new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true,subtree:true})",
               "new MutationObserver(()=>ensureMenu()).observe(menu,{childList:true})"
           )
+          old_preflight="async function preflightChecks(mode){const st=globalThis.state,gps=mode==='gps',veh=readVehicle(),bat=await batteryInfo(),perm=await permissionGeo();let storage=null;try{storage=await navigator.storage?.estimate?.()}catch{}let sw=false;try{sw=!!navigator.serviceWorker?.controller}catch{}let cache=false;try{cache=typeof caches!=='undefined'&&(await caches.keys()).some(k=>k.startsWith('mon-saeiv-v1-'))}catch{}const course=!!st?.pattern?.stops?.length&&!!st?.pattern?.shape?.length,tts='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;return ["
+          new_preflight="""async function preflightChecks(mode){
+            let st=globalThis.state,gps=mode==='gps',veh=readVehicle(),bat=await batteryInfo(),perm=await permissionGeo();
+            let storage=null;try{storage=await navigator.storage?.estimate?.()}catch{}
+            let sw=false;try{sw=!!navigator.serviceWorker?.controller}catch{}
+            let cache=false;try{cache=typeof caches!=='undefined'&&(await caches.keys()).some(k=>k.startsWith('mon-saeiv-v1-')||k.startsWith('mon-saeiv-clean-'))}catch{}
+            const hasGeometry=()=>!!globalThis.state?.pattern?.stops?.length&&Array.isArray(globalThis.state?.pattern?.shape)&&globalThis.state.pattern.shape.length>=2;
+            let course=hasGeometry();
+            if(!course){
+              try{
+                const preparedId=sessionStorage.getItem('fluo-v316-prepared-item');
+                if(!globalThis.state?.pattern&&preparedId&&window.FluoPlanningV316?.prepareLinkedCourse){
+                  const item=window.FluoPlanningV316.items?.().find(x=>String(x.id)===String(preparedId));
+                  if(item)await window.FluoPlanningV316.prepareLinkedCourse(item);
+                }
+                if(globalThis.state?.pattern?.stops?.length&&!hasGeometry()&&typeof ensureExactPatternGeometry==='function'){
+                  await ensureExactPatternGeometry(globalThis.state.pattern);
+                }
+              }catch(e){console.warn('[Mon SAEIV] pré-vol : récupération géométrie impossible',e)}
+              course=hasGeometry();st=globalThis.state;
+            }
+            const tts='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+            return ["""
+          if old_preflight not in t:
+              raise SystemExit('pré-vol historique introuvable dans v136-driver-operations.js')
+          t=t.replace(old_preflight,new_preflight,1)
           p.write_text(t,encoding='utf-8')
 
           p=Path('site/v133-profile-journals.js')
@@ -110,7 +136,7 @@ jobs:
           set -euo pipefail
           python externalize_runtime.py site/index.html
 
-      - name: Split gateway and stamp release 1.0.74
+      - name: Split gateway and stamp release 1.0.75
         shell: bash
         run: |
           set -euo pipefail
@@ -122,7 +148,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          old_versions=[f'1.0.{n}' for n in range(22,74)]
+          old_versions=[f'1.0.{n}' for n in range(22,75)]
           for p in Path('site').rglob('*'):
               if not p.is_file() or p.suffix.lower() not in {'.html','.js','.json','.webmanifest'}:
                   continue
@@ -131,7 +157,7 @@ jobs:
               except UnicodeDecodeError:
                   continue
               for old in old_versions:
-                  t=t.replace(old,'1.0.74')
+                  t=t.replace(old,'1.0.75')
               p.write_text(t,encoding='utf-8')
 
           app=Path('site/app.html')
@@ -142,7 +168,7 @@ jobs:
             'v168-service-grid.js','v167-exploitation-performance.js','v174-grid-editor.js'
           )
           for name in modules:
-              tag=f'<script src="./{name}?v=1.0.74"></script>'
+              tag=f'<script src="./{name}?v=1.0.75"></script>'
               if tag not in t:
                   if '</body>' not in t:
                       raise SystemExit('balise </body> absente de app.html')
@@ -150,7 +176,7 @@ jobs:
           app.write_text(t,encoding='utf-8')
           PY
 
-      - name: Validate isolated runtime 1.0.74
+      - name: Validate isolated runtime 1.0.75
         shell: bash
         run: |
           set -euo pipefail
@@ -188,17 +214,22 @@ jobs:
               if body.strip(): inline.append(body[:80])
           assert not inline, f'JavaScript inline résiduel: {inline[:2]}'
           for name in ('v165-exploitation-board.js','v167-generation-engine.js','v168-service-grid.js','v167-exploitation-performance.js','v174-grid-editor.js'):
-              assert f'{name}?v=1.0.74' in app
-          assert '<title>Mon SAEIV · 1.0.74</title>' in app
-          assert 'login-gateway.js?v=1.0.74' in gateway
+              assert f'{name}?v=1.0.75' in app
+          assert '<title>Mon SAEIV · 1.0.75</title>' in app
+          assert 'login-gateway.js?v=1.0.75' in gateway
           editor=Path('site/v174-grid-editor.js').read_text(encoding='utf-8')
           for token in ('v174SelectionBar','contextmenu','cut_overrides','delete_test_driver','25 %','Retirer de la grille'):
               assert token in editor
-          print('Mon SAEIV 1.0.74 validé · sélection multiple + édition grille + conducteurs test')
+          ops=Path('site/v136-driver-operations.js').read_text(encoding='utf-8')
+          assert "k.startsWith('mon-saeiv-clean-')" in ops
+          assert "FluoPlanningV316?.prepareLinkedCourse" in ops
+          assert "ensureExactPatternGeometry(globalThis.state.pattern)" in ops
+          assert "hasGeometry" in ops
+          print('Mon SAEIV 1.0.75 validé · pré-vol conducteur : géométrie récupérable + cache PWA reconnu')
           PY
 
-          grep -q "const CACHE='mon-saeiv-clean-1.0.74'" site/sw.js
-          grep -q '"name": "Mon SAEIV 1.0.74"' site/manifest.webmanifest
+          grep -q "const CACHE='mon-saeiv-clean-1.0.75'" site/sw.js
+          grep -q '"name": "Mon SAEIV 1.0.75"' site/manifest.webmanifest
           grep -q './app.html' site/sw.js
           grep -q './login-gateway.js' site/sw.js
           grep -q '57SMH04' site/data/57/routes.json
