@@ -13,7 +13,11 @@
    aussi déverrouiller le moteur historique V13, car c'est lui qui crée la session de
    journal IndexedDB. Certaines anciennes builds n'exposaient pas remoteUnlock sur
    MonSAEIVAuthV13 ; on réutilise alors la fonction globale setUnlocked, puis on la
-   publie sur l'API pour les appels suivants. */
+   publie sur l'API pour les appels suivants.
+
+   Correctif mobile : suppression du redirect fixe à 10 s qui pouvait renvoyer vers le
+   sas pendant que Supabase restaurait encore la session. La vérification est désormais
+   progressive et un seul redirect peut être lancé par instance. */
 (()=>{
   if(window.MonSAEIVEntryBridgeV160?.installed)return;
 
@@ -23,12 +27,32 @@
   const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
   const q=id=>document.getElementById(id);
   const requested=new URLSearchParams(location.search).get('entry');
+  let redirecting=false;
 
   function localAccount(){try{return JSON.parse(localStorage.getItem(LOCAL_ACCOUNT_KEY)||'null')}catch{return null}}
   function cachedProfile(){try{return JSON.parse(localStorage.getItem(PROFILE_CACHE)||'null')}catch{return null}}
   function mode(){try{return localStorage.getItem(ENTRY_MODE_KEY)||''}catch{return ''}}
   function cloudEntry(){return requested==='cloud'||mode()==='cloud'}
+  function hasPersistedCloudSession(){
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const key=localStorage.key(i);
+        if(!key||!/^sb-.*-auth-token$/i.test(key))continue;
+        const raw=localStorage.getItem(key);
+        if(!raw)continue;
+        try{
+          const value=JSON.parse(raw);
+          if(value?.access_token||value?.refresh_token||value?.currentSession?.access_token||value?.session?.access_token)return true;
+        }catch{
+          if(raw.length>40)return true;
+        }
+      }
+    }catch{}
+    return false;
+  }
   function gateway(role='driver'){
+    if(redirecting)return;
+    redirecting=true;
     const r=['driver','dispatcher','admin'].includes(role)?role:'driver';
     location.replace(`./?v=${VERSION}&role=${r}`);
   }
@@ -176,12 +200,25 @@
       try{localStorage.setItem(ENTRY_MODE_KEY,requested)}catch{}
     }
     markEntry();
-    setTimeout(()=>{
+    const started=Date.now();
+    const check=()=>{
+      if(redirecting)return;
       if(window.MonSAEIVCloudV156?.user||window.MonSAEIVCloudV156?.profile)return;
       if(cloudEntry()&&cachedDriverUnlock())return;
       if(mode()==='local'&&localAccount())return;
+
+      const elapsed=Date.now()-started;
+      const cloud=cloudEntry();
+      const hasCloudHint=!!cachedProfile()||hasPersistedCloudSession();
+
+      // Sur mobile la restauration du module Supabase / session peut dépasser 10 s.
+      // Tant qu'une session ou un profil persistant existe, ne jamais casser ce démarrage.
+      if(cloud&&hasCloudHint&&elapsed<60000){setTimeout(check,500);return}
+      // Sans trace de session, laisse quand même le runtime et le storage finir leur amorçage.
+      if(elapsed<2500){setTimeout(check,250);return}
       gateway(profileRole());
-    },10000);
+    };
+    setTimeout(check,300);
   }
 
   installEarlyGuard();
@@ -199,7 +236,7 @@
   }
 
   window.MonSAEIVEntryBridgeV160={
-    installed:true,version:VERSION,openGateway:gateway,cachedDriverUnlock,
+    installed:true,version:VERSION,openGateway:gateway,cachedDriverUnlock,hasPersistedCloudSession,
     hardenLegacyAuth,earlyObserver,mutationGuard:window.__monSaeivV164MutationGuard
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
