@@ -1,6 +1,8 @@
 'use strict';
 /* Mon SAEIV 1.0.48 — synthèse vocale à priorité stable, sans répétition ni annonce d'arrêt obsolète.
-   L'identité de ligne/destination n'est répétée qu'environ tous les 5 arrêts. */
+   L'identité de ligne/destination n'est répétée qu'environ tous les 5 arrêts.
+   Correctif mobile : sélection homme/femme robuste avec repli de hauteur de voix quand Android
+   n'expose qu'une voix française générique sans information de genre. */
 (()=>{
   const VERSION='1.0.48';
   const START_RETRY_MS=2200;
@@ -15,7 +17,27 @@
   function synth(){return ('speechSynthesis'in window)?window.speechSynthesis:null}
   function rawText(v){return String(v??'').replace(/\s+/g,' ').trim()}
   function safePronunciation(text){const raw=rawText(text);if(!raw)return'';try{let t=raw;t=t.replace(/\b(Place\s+du\s+)Marche\b/gi,(_,p)=>`${p}Marché`);t=t.replace(/\bArs(?=[\s-]+Laquenexy\b)/gi,'Arse');t=t.replace(/\bcimeti(?:e|è|é)re\b/gi,'cime-tière');return rawText(t)||raw}catch{return raw}}
-  function frenchVoice(){const s=synth();if(!s)return null;const vs=s.getVoices?.().filter(v=>/^fr([_-]|$)/i.test(v.lang||''))||[];if(!vs.length)return null;const pref=localStorage.getItem('fluoPassengerVoice')||'female',female=/(audrey|aur[eé]lie|am[eé]lie|marie|virginie|hortense|c[eé]line|samantha|victoria|ava|zo[eé]|female|femme)/i;return pref==='male'?(vs.find(v=>!female.test(v.name||''))||vs[0]):(vs.find(v=>female.test(v.name||''))||vs[0])}
+
+  function passengerVoicePreference(){
+    try{return localStorage.getItem('fluoPassengerVoice')==='male'?'male':'female'}catch{return'female'}
+  }
+  function voiceText(v){return `${v?.name||''} ${v?.voiceURI||''} ${v?.lang||''}`}
+  function voiceProfile(){
+    const s=synth(),pref=passengerVoicePreference();
+    if(!s)return{voice:null,pref,pitch:pref==='male'?.72:1.04,matched:false};
+    const vs=(s.getVoices?.()||[]).filter(v=>/^fr([_-]|$)/i.test(v.lang||''));
+    if(!vs.length)return{voice:null,pref,pitch:pref==='male'?.72:1.04,matched:false};
+    const female=/(audrey|aur[eé]lie|am[eé]lie|marie|virginie|hortense|c[eé]line|samantha|victoria|ava|zo[eé]|female|femme|feminin|féminin)/i;
+    const male=/(thomas|daniel|nicolas|henri|paul|jacques|olivier|alain|gerard|g[eé]rard|jean|louis|male|homme|masculin)/i;
+    const exact=pref==='male'?vs.find(v=>male.test(voiceText(v))):vs.find(v=>female.test(voiceText(v)));
+    if(exact)return{voice:exact,pref,pitch:1,matched:true};
+    const opposite=pref==='male'?female:male;
+    const neutral=vs.find(v=>!opposite.test(voiceText(v)));
+    if(neutral)return{voice:neutral,pref,pitch:pref==='male'?.72:1.04,matched:false};
+    return{voice:vs[0],pref,pitch:pref==='male'?.72:1.04,matched:false};
+  }
+  function frenchVoice(){return voiceProfile().voice}
+
   function duckStart(kind){try{window.MonSAEIVRadio?.duckStart?.(kind)}catch{}}
   function duckEnd(kind){try{window.MonSAEIVRadio?.duckEnd?.(kind)}catch{}}
   function stateTarget(){try{return Number.isInteger(state?.target)?state.target:null}catch{return null}}
@@ -86,7 +108,9 @@
       const launch=(text,usePreferred=true,retry=0)=>{
         if(obsolete(item))return setTimeout(()=>pumpSpeech(),20);
         let finished=false,started=false,startWatch=null,endWatch=null;
-        const u=new SpeechSynthesisUtterance(rawText(text)||original);u.lang='fr-FR';u.rate=item.kind==='navigation'?.98:.92;u.volume=1;if(usePreferred){const v=frenchVoice();if(v)u.voice=v}
+        const u=new SpeechSynthesisUtterance(rawText(text)||original);
+        u.lang='fr-FR';u.rate=item.kind==='navigation'?.98:.92;u.volume=1;
+        if(usePreferred){const profile=voiceProfile();if(profile.voice)u.voice=profile.voice;u.pitch=profile.pitch}
         audio.current={priority:Number(item.priority??50),kind:item.kind||'general',token,item};
         const cleanup=()=>{clearTimeout(startWatch);clearTimeout(endWatch)};
         const complete=()=>{if(finished)return;finished=true;cleanup();duckEnd(item.kind);if(audio.current?.token===token)audio.current=null;setTimeout(()=>pumpSpeech(),30)};
@@ -116,9 +140,9 @@
     document.addEventListener('click',()=>{try{if(sp.paused)sp.resume()}catch{}},{capture:true,passive:true});
     window.addEventListener('pageshow',()=>{try{if(sp.paused)sp.resume()}catch{};setTimeout(()=>pumpSpeech(),120)});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{if(sp.paused)sp.resume()}catch{};setTimeout(()=>pumpSpeech(),120)}});
-    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,restart:()=>{try{sp.resume()}catch{};setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
+    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,frenchVoice,voiceProfile,restart:()=>{try{sp.resume()}catch{};setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
     window.MonSAEIVSpeechV148=window.MonSAEIVSpeechV131;
-    console.info('[Mon SAEIV] moteur vocal 1.0.48 priorités + déduplication + destination tous les 5 arrêts actif');return true;
+    console.info('[Mon SAEIV] moteur vocal 1.0.48 priorités + déduplication + voix mobile homme/femme actif');return true;
   }
   function versionLabel(){document.title=`Mon SAEIV · ${VERSION}`;const b=document.getElementById('buildInfo');if(b)b.textContent=`Version ${VERSION}`}
   function boot(){versionLabel();if(!installEngine()){let tries=0;const t=setInterval(()=>{if(installEngine()||++tries>60)clearInterval(t)},125)}setTimeout(versionLabel,6000)}
