@@ -1,8 +1,13 @@
 {
+  "id": "./",
   "name": "Mon SAEIV 1.0.62",
   "short_name": "Mon SAEIV",
   "start_url": "./?v=1.0.62",
+  "scope": "./",
   "display": "standalone",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "orientation": "any",
   "background_color": "#07121b",
   "theme_color": "#07121b",
