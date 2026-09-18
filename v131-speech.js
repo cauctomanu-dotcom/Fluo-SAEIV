@@ -82,7 +82,7 @@
     return false;
   }
   function cleanRecent(){const now=Date.now();for(const[k,v]of recent)if(now-v>RECENT_MS)recent.delete(k)}
-  function duplicate(audio,item){cleanRecent();if(!item.key)return false;if(recent.has(item.key))return true;if(audio?.current?.item?.key===item.key&&!item.cancelled)return true;return (audio?.queue||[]).some(x=>x?.key===item.key&&!x.cancelled)}
+  function duplicate(audio,item){cleanRecent();if(!item.key)return false;if(recent.has(item.key))return true;if(audio?.current?.item?.key===item.key&&!audio.current.item.cancelled)return true;return (audio?.queue||[]).some(x=>x?.key===item.key&&!x.cancelled)}
   function purge(audio){if(!audio)return;audio.queue=(audio.queue||[]).filter(x=>!obsolete(x));}
 
   function installEngine(){
