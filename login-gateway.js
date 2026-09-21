@@ -154,8 +154,23 @@
   }
   async function driverLogin(e){
     e.preventDefault();setStatus('Connexion conducteur…','busy');
-    try{await loginDriver(q('driverMatricule').value,q('driverPassword').value);setStatus('Connexion réussie.','ok');goApp('cloud')}
-    catch(err){setStatus(err?.message||'Connexion impossible.','err')}
+    try{
+      await loginDriver(q('driverMatricule').value,q('driverPassword').value);
+      setStatus('Connexion réussie.','ok');
+      goApp('cloud');
+    }catch(err){
+      const message=err?.message||'Connexion impossible.';
+      const local=localAccount();
+      const entered=String(q('driverMatricule')?.value||'').trim().toUpperCase();
+      const localMatricule=String(local?.matricule||'').trim().toUpperCase();
+      const cloudUnavailable=/connexion impossible pour le moment|failed to fetch|load failed|networkerror|network request failed|fetch/i.test(message);
+      if(cloudUnavailable&&local?.matricule&&(!entered||entered===localMatricule)){
+        setStatus('Serveur temporairement indisponible. Ouverture du profil local…','busy');
+        setTimeout(()=>goApp('local'),250);
+        return;
+      }
+      setStatus(message,'err');
+    }
   }
   async function driverRegister(e){
     e.preventDefault();
