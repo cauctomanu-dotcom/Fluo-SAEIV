@@ -1,15 +1,18 @@
 'use strict';
-/* Mon SAEIV 1.0.62 — démarrage propre de l'application après le sas de connexion.
+/* Mon SAEIV 1.0.76 — démarrage propre de l'application après le sas de connexion.
    Ce fichier ne contient aucune logique métier de conduite : il verrouille seulement
-   la version publiée, la reprise PWA et la santé minimale du runtime. */
+   la version publiée, la reprise PWA et la santé minimale du runtime.
+
+   Correctif 1.0.76 : un changement de contrôleur Service Worker ne recharge plus la
+   page automatiquement. Le nouveau worker prend la main sans interrompre la sélection
+   réseau/département en cours. Cela supprime le double démarrage observé sur PWA. */
 (()=>{
   if(window.MonSAEIVCleanRuntimeV159?.installed)return;
 
-  const VERSION='1.0.62';
+  const VERSION='1.0.76';
   const q=id=>document.getElementById(id);
-  const CLEAN_CACHE='mon-saeiv-clean-1.0.62';
+  const CLEAN_CACHE='mon-saeiv-clean-1.0.76';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
-  let reloading=false;
 
   function stamp(){
     document.title=`Mon SAEIV · ${VERSION}`;
@@ -61,15 +64,14 @@
       const reg=await navigator.serviceWorker.register(`./sw.js?v=${VERSION}`,{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});
+
+      // IMPORTANT : ne jamais location.reload() sur controllerchange.
+      // Le worker nouvellement actif contrôlera naturellement les requêtes suivantes.
+      // Recharger ici interrompait le choix réseau/département et donnait l'impression
+      // que Mon SAEIV démarrait deux fois.
       navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        if(reloading)return;
-        const key='mon-saeiv-clean-controller-reload-1.0.62';
-        try{
-          if(sessionStorage.getItem(key)==='1')return;
-          sessionStorage.setItem(key,'1');
-        }catch{}
-        reloading=true;
-        location.reload();
+        document.documentElement.dataset.monSaeivWorkerUpdated='1';
+        console.info('[Mon SAEIV] Service Worker mis à jour sans rechargement de la page');
       });
     }catch(e){console.warn('[Mon SAEIV] service worker propre',e)}
   }
