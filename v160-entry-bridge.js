@@ -4,7 +4,7 @@
    soit supprimé du parcours cloud, soit placé au-dessus de toutes les autres couches
    quand il est réellement utilisé en mode local.
 
-   Anti-freeze 1.0.72 : neutralise uniquement l'observer global créé par
+   Anti-freeze 1.0.75 : neutralise uniquement l'observer global créé par
    v164-driver-settings. Cet observer réécrivait le DOM dans son propre callback,
    se réveillait sur ses propres modifications et pouvait saturer le thread principal
    après connexion, quel que soit le rôle.
@@ -20,6 +20,10 @@
    progressive et un seul redirect peut être lancé par instance. */
 (()=>{
   if(window.MonSAEIVEntryBridgeV160?.installed)return;
+
+  // Démarrage à passage unique : v162 peut restaurer l'état serveur, mais ne doit
+  // jamais recharger la page pendant que le conducteur choisit réseau/département.
+  try{sessionStorage.setItem('mon-saeiv-full-sync-reloaded-v162','1')}catch{}
 
   const VERSION='1.0.75';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
