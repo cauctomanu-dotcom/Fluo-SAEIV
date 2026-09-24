@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Mon SAEIV 1.0.62",
+  "name": "Mon SAEIV 1.0.76",
   "short_name": "Mon SAEIV",
-  "start_url": "./?v=1.0.62",
+  "start_url": "./?v=1.0.76",
   "scope": "./",
   "display": "standalone",
   "launch_handler": {
