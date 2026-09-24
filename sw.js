@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE='mon-saeiv-clean-1.0.70';
+const CACHE='mon-saeiv-clean-1.0.76';
 const CORE=[
   './',
   './index.html',
@@ -41,6 +41,12 @@ const CORE=[
   './v167-generation-engine.js',
   './v168-service-grid.js',
   './v167-exploitation-performance.js',
+  './v169-location-chain.js',
+  './v174-grid-editor.js',
+  './v176-driver-absences.js',
+  './v177-smart-rest-unavailability.js',
+  './v178-sick-reassignment.js',
+  './v179-minimal-repair.js',
   './data/54/routes.json','./data/54/services.json','./data/54/stops.json',
   './data/57/routes.json','./data/57/services.json','./data/57/stops.json',
   './data/67/routes.json','./data/67/services.json','./data/67/stops.json',
