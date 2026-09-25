@@ -1,107 +1,48 @@
 'use strict';
-/* Mon SAEIV 1.0.76 — démarrage propre de l'application après le sas de connexion.
-   Ce fichier ne contient aucune logique métier de conduite : il verrouille seulement
-   la version publiée, la reprise PWA et la santé minimale du runtime.
-
-   Correctif 1.0.76 : un changement de contrôleur Service Worker ne recharge plus la
-   page automatiquement. Le nouveau worker prend la main sans interrompre la sélection
-   réseau/département en cours. Cela supprime le double démarrage observé sur PWA. */
+/* Mon SAEIV 1.0.76 — démarrage propre + outils exploitation complémentaires. */
 (()=>{
   if(window.MonSAEIVCleanRuntimeV159?.installed)return;
+  const VERSION='1.0.76',q=id=>document.getElementById(id),CLEAN_CACHE='mon-saeiv-clean-1.0.76',ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
+  function stamp(){document.title=`Mon SAEIV · ${VERSION}`;const e=document.querySelector('.top .eyebrow');if(e)e.textContent=`MON SAEIV · ${VERSION}`;const b=q('buildInfo');if(b){b.textContent=`Version ${VERSION}`;b.hidden=true;b.setAttribute('aria-hidden','true')}document.documentElement.dataset.monSaeivVersion=VERSION}
+  function applyGatewayEntry(){const entry=new URLSearchParams(location.search).get('entry');if(entry==='local'||entry==='cloud')try{localStorage.setItem(ENTRY_MODE_KEY,entry)}catch{}}
+  async function clearOldCaches(){if(!('caches' in window))return;try{const keys=await caches.keys();await Promise.allSettled(keys.filter(k=>(/mon-saeiv|fluo-saeiv/i.test(k)&&k!==CLEAN_CACHE)).map(k=>caches.delete(k)))}catch{}}
+  function showBootFailure(message){if(q('v159BootFailure'))return;const box=document.createElement('div');box.id='v159BootFailure';box.setAttribute('role','alert');box.style.cssText='position:fixed;z-index:2147483646;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));max-width:760px;margin:auto;padding:12px 13px;border:1px solid #8a4446;border-radius:14px;background:#351d20;color:#ffe0dd;font:700 13px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 16px 50px rgba(0,0,0,.5)';box.innerHTML='<b>Mon SAEIV n’a pas terminé son chargement.</b><div id="v159BootFailureText" style="margin-top:4px;font-weight:500"></div><button id="v159BootReload" type="button" style="width:100%;min-height:44px;margin-top:9px;border:0;border-radius:10px;background:#ffd000;color:#151515;font-weight:900">RECHARGER PROPREMENT</button><button id="v159BootGateway" type="button" style="width:100%;min-height:44px;margin-top:7px;border:1px solid #6c8795;border-radius:10px;background:#102b39;color:#fff;font-weight:900">REVENIR À LA CONNEXION</button>';document.body.appendChild(box);q('v159BootFailureText').textContent=String(message||'Erreur de démarrage.');q('v159BootReload')?.addEventListener('click',async()=>{try{const regs=await navigator.serviceWorker?.getRegistrations?.();await Promise.allSettled((regs||[]).map(r=>r.unregister()));await clearOldCaches()}catch{}location.replace(`./app.html?v=${VERSION}&clean=${Date.now()}&entry=${encodeURIComponent(new URLSearchParams(location.search).get('entry')||'cloud')}`)});q('v159BootGateway')?.addEventListener('click',()=>location.replace(`./?v=${VERSION}`))}
+  async function installWorker(){if(!('serviceWorker' in navigator)||!location.protocol.startsWith('http'))return;try{const reg=await navigator.serviceWorker.register(`./sw.js?v=${VERSION}`,{updateViaCache:'none'});await reg.update().catch(()=>{});if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});navigator.serviceWorker.addEventListener('controllerchange',()=>{document.documentElement.dataset.monSaeivWorkerUpdated='1';console.info('[Mon SAEIV] Service Worker mis à jour sans rechargement de la page')})}catch(e){console.warn('[Mon SAEIV] service worker propre',e)}}
+  function healthCheck(){const coreOk=typeof window.MonSAEIVAuthV13?.remoteUnlock==='function',setupOk=!!q('setup')&&!!q('driver')&&!!q('start')&&!!q('route'),cloudLoaded=!!window.MonSAEIVCloudV156?.installed,bridgeLoaded=!!window.MonSAEIVEntryBridgeV160?.installed;if(!coreOk||!setupOk||!cloudLoaded||!bridgeLoaded){const missing=[];if(!setupOk)missing.push('interface conducteur');if(!coreOk)missing.push('pont de connexion conducteur');if(!cloudLoaded)missing.push('synchronisation serveur');if(!bridgeLoaded)missing.push('pont du sas de connexion');showBootFailure(`Module(s) manquant(s) : ${missing.join(', ')}.`)}}
+  function init(){applyGatewayEntry();stamp();const usage=q('v3127UsageNotice');if(usage?.classList.contains('v3127-usage-backdrop'))usage.remove();clearOldCaches();installWorker();[0,250,900,2500].forEach(ms=>setTimeout(stamp,ms));setTimeout(healthCheck,4500)}
+  window.MonSAEIVCleanRuntimeV159={installed:true,version:VERSION,stamp,clearOldCaches,healthCheck};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
 
-  const VERSION='1.0.76';
-  const q=id=>document.getElementById(id);
-  const CLEAN_CACHE='mon-saeiv-clean-1.0.76';
-  const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
-
-  function stamp(){
-    document.title=`Mon SAEIV · ${VERSION}`;
-    const e=document.querySelector('.top .eyebrow');
-    if(e)e.textContent=`MON SAEIV · ${VERSION}`;
-    const b=q('buildInfo');
-    if(b){b.textContent=`Version ${VERSION}`;b.hidden=true;b.setAttribute('aria-hidden','true')}
-    document.documentElement.dataset.monSaeivVersion=VERSION;
-  }
-
-  function applyGatewayEntry(){
-    const entry=new URLSearchParams(location.search).get('entry');
-    if(entry==='local'||entry==='cloud'){
-      try{localStorage.setItem(ENTRY_MODE_KEY,entry)}catch{}
-    }
-  }
-
-  async function clearOldCaches(){
-    if(!('caches' in window))return;
-    try{
-      const keys=await caches.keys();
-      await Promise.allSettled(keys.filter(k=>(/mon-saeiv|fluo-saeiv/i.test(k)&&k!==CLEAN_CACHE)).map(k=>caches.delete(k)));
-    }catch{}
-  }
-
-  function showBootFailure(message){
-    if(q('v159BootFailure'))return;
-    const box=document.createElement('div');
-    box.id='v159BootFailure';
-    box.setAttribute('role','alert');
-    box.style.cssText='position:fixed;z-index:2147483646;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));max-width:760px;margin:auto;padding:12px 13px;border:1px solid #8a4446;border-radius:14px;background:#351d20;color:#ffe0dd;font:700 13px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 16px 50px rgba(0,0,0,.5)';
-    box.innerHTML='<b>Mon SAEIV n’a pas terminé son chargement.</b><div id="v159BootFailureText" style="margin-top:4px;font-weight:500"></div><button id="v159BootReload" type="button" style="width:100%;min-height:44px;margin-top:9px;border:0;border-radius:10px;background:#ffd000;color:#151515;font-weight:900">RECHARGER PROPREMENT</button><button id="v159BootGateway" type="button" style="width:100%;min-height:44px;margin-top:7px;border:1px solid #6c8795;border-radius:10px;background:#102b39;color:#fff;font-weight:900">REVENIR À LA CONNEXION</button>';
-    document.body.appendChild(box);
-    q('v159BootFailureText').textContent=String(message||'Erreur de démarrage.');
-    q('v159BootReload')?.addEventListener('click',async()=>{
-      try{
-        const regs=await navigator.serviceWorker?.getRegistrations?.();
-        await Promise.allSettled((regs||[]).map(r=>r.unregister()));
-        await clearOldCaches();
-      }catch{}
-      location.replace(`./app.html?v=${VERSION}&clean=${Date.now()}&entry=${encodeURIComponent(new URLSearchParams(location.search).get('entry')||'cloud')}`);
-    });
-    q('v159BootGateway')?.addEventListener('click',()=>location.replace(`./?v=${VERSION}`));
-  }
-
-  async function installWorker(){
-    if(!('serviceWorker' in navigator)||!location.protocol.startsWith('http'))return;
-    try{
-      const reg=await navigator.serviceWorker.register(`./sw.js?v=${VERSION}`,{updateViaCache:'none'});
-      await reg.update().catch(()=>{});
-      if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});
-
-      // IMPORTANT : ne jamais location.reload() sur controllerchange.
-      // Le worker nouvellement actif contrôlera naturellement les requêtes suivantes.
-      // Recharger ici interrompait le choix réseau/département et donnait l'impression
-      // que Mon SAEIV démarrait deux fois.
-      navigator.serviceWorker.addEventListener('controllerchange',()=>{
-        document.documentElement.dataset.monSaeivWorkerUpdated='1';
-        console.info('[Mon SAEIV] Service Worker mis à jour sans rechargement de la page');
-      });
-    }catch(e){console.warn('[Mon SAEIV] service worker propre',e)}
-  }
-
-  function healthCheck(){
-    const coreOk=typeof window.MonSAEIVAuthV13?.remoteUnlock==='function';
-    const setupOk=!!q('setup')&&!!q('driver')&&!!q('start')&&!!q('route');
-    const cloudLoaded=!!window.MonSAEIVCloudV156?.installed;
-    const bridgeLoaded=!!window.MonSAEIVEntryBridgeV160?.installed;
-    if(!coreOk||!setupOk||!cloudLoaded||!bridgeLoaded){
-      const missing=[];
-      if(!setupOk)missing.push('interface conducteur');
-      if(!coreOk)missing.push('pont de connexion conducteur');
-      if(!cloudLoaded)missing.push('synchronisation serveur');
-      if(!bridgeLoaded)missing.push('pont du sas de connexion');
-      showBootFailure(`Module(s) manquant(s) : ${missing.join(', ')}.`);
-    }
-  }
-
-  function init(){
-    applyGatewayEntry();
-    stamp();
-    const usage=q('v3127UsageNotice');
-    if(usage?.classList.contains('v3127-usage-backdrop'))usage.remove();
-    clearOldCaches();
-    installWorker();
-    [0,250,900,2500].forEach(ms=>setTimeout(stamp,ms));
-    setTimeout(healthCheck,4500);
-  }
-
-  window.MonSAEIVCleanRuntimeV159={installed:true,version:VERSION,stamp,clearOldCaches,healthCheck};
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+/* Suivi des arrêts maladie, rollback et domicile utilisé pour les coupures. */
+(()=>{
+  if(window.MonSAEIVSickHomeToolsV181?.installed)return;
+  const q=id=>document.getElementById(id),cloud=()=>window.MonSAEIVCloudV156||null,client=()=>cloud()?.client||null,profile=()=>cloud()?.profile||null,role=()=>profile()?.role||'',board=()=>window.MonSAEIVOperationsBoardV165||null,sick=()=>window.MonSAEIVSickReassignmentV178||null;
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),hm=v=>String(v||'').slice(0,5);
+  const S={groups:[],profiles:new Map(),selected:null,busy:false,home:null};
+  function addStyle(){if(q('v181Style'))return;const s=document.createElement('style');s.id='v181Style';s.textContent='.v178-sick-band{pointer-events:auto!important;cursor:pointer!important}.v181-track{border-color:#9b4561!important;background:#2b1720!important;color:#ffd8df!important}.v181-back{position:fixed;z-index:2147483640;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.78);backdrop-filter:blur(6px)}.v181-back.hidden{display:none!important}.v181-card{width:min(900px,97vw);max-height:92dvh;overflow:auto;padding:16px;border:1px solid #52697a;border-radius:20px;background:#0b202c;color:#fff;box-shadow:0 30px 90px rgba(0,0,0,.7)}.v181-head{display:flex;gap:10px;align-items:flex-start}.v181-head h3{margin:0}.v181-head p{margin:4px 0 0;color:#9eb3be;font-size:.66rem}.v181-head button{margin-left:auto}.v181-grid{display:grid;grid-template-columns:280px 1fr;gap:10px;margin-top:12px}.v181-list,.v181-detail{padding:10px;border:1px solid #35505f;border-radius:13px;background:#071721}.v181-leave{width:100%;margin-bottom:6px;padding:9px;text-align:left;border:1px solid #3d5866;border-radius:10px;background:#0d202c}.v181-leave.active{border-color:#ffd000;background:#382f0b}.v181-leave b,.v181-leave span{display:block}.v181-leave span{margin-top:3px;color:#a7bbc5;font-size:.59rem}.v181-course{margin-top:7px;padding:9px;border:1px solid #365464;border-radius:10px;background:#0d202c;font-size:.64rem;line-height:1.45}.v181-course.ok{border-color:#387455}.v181-course.wait{border-color:#8b7226}.v181-course.cancel{opacity:.55}.v181-danger{width:100%;margin-top:12px;border-color:#a7484f!important;background:#4a1c22!important;color:#ffe0de!important}.v181-status{min-height:1.2em;margin-top:8px;color:#a7bbc5;font-size:.63rem}.v181-status.err{color:#ffaaa5}.v181-status.ok{color:#9cf4b7}.v181-home{margin:12px 0;padding:12px;border:1px solid #496878;border-radius:13px;background:#081923}.v181-home h4{margin:0}.v181-home p{margin:5px 0 9px;color:#9fb4bf;font-size:.65rem;line-height:1.45}.v181-home-grid{display:grid;grid-template-columns:1fr 130px;gap:7px}.v181-home-actions{display:flex;gap:7px;margin-top:8px}.v181-demo-badge{display:inline-block!important;margin-top:4px!important;padding:2px 6px;border-radius:999px;background:#4a2c72;color:#f2ddff!important;font-size:.48rem!important;font-weight:900}.v181-demo-del{width:100%;min-height:28px!important;margin-top:5px!important;padding:4px 6px!important;border-color:#99494e!important;background:#441c20!important;color:#ffd8d5!important;font-size:.5rem!important}@media(max-width:720px){.v181-grid{grid-template-columns:1fr}.v181-back{padding:0;align-items:flex-end}.v181-card{width:100%;max-height:94dvh;border-radius:20px 20px 0 0}.v181-home-grid{grid-template-columns:1fr}}';document.head.appendChild(s)}
+  function addUi(){addStyle();if(!q('v181SickModal'))document.body.insertAdjacentHTML('beforeend','<div id="v181SickModal" class="v181-back hidden"><section class="v181-card"><header class="v181-head"><div><h3>🤒 Suivi des arrêts maladie</h3><p>Courses libérées, replacement et annulation avec restauration du planning d’origine.</p></div><button id="v181Close" type="button">✕</button></header><div class="v181-grid"><div class="v181-list"><b>Arrêts enregistrés</b><div id="v181Leaves" style="margin-top:8px"></div></div><div class="v181-detail"><div id="v181Detail">Choisis un arrêt maladie.</div><div id="v181Status" class="v181-status"></div></div></div></section></div>');q('v181Close')?.addEventListener('click',closeSick);q('v181SickModal')?.addEventListener('click',e=>{if(e.target===q('v181SickModal'))closeSick()});q('v181Leaves')?.addEventListener('click',e=>{const b=e.target.closest?.('[data-v181-group]');if(b)selectGroup(b.dataset.v181Group)});q('v181Detail')?.addEventListener('click',e=>{if(e.target.closest?.('#v181CancelSick'))cancelSelected()})}
+  function st(t,k=''){const e=q('v181Status');if(e){e.textContent=t||'';e.className=`v181-status ${k}`}}
+  function driverName(id){const d=S.profiles.get(String(id))||(board()?.drivers||[]).find(x=>String(x.user_id)===String(id));return d?.display_name||d?.matricule||'Conducteur'}
+  function groupKey(x){return x.sick_leave_group_id?`g:${x.sick_leave_group_id}`:`legacy:${x.driver_user_id}|${x.created_at}`}
+  function groupRows(rows){const m=new Map();for(const r of rows||[]){const k=groupKey(r);if(!m.has(k))m.set(k,{key:k,id:r.id,groupId:r.sick_leave_group_id||null,driverId:r.driver_user_id,createdAt:r.created_at,reason:r.reason||'Arrêt maladie',dates:[],rows:[]});const g=m.get(k);g.rows.push(r);g.dates.push(String(r.service_date))}return[...m.values()].map(g=>({...g,from:g.dates.slice().sort()[0],to:g.dates.slice().sort().at(-1)})).sort((a,b)=>String(b.to).localeCompare(String(a.to))||String(b.createdAt).localeCompare(String(a.createdAt)))}
+  async function loadGroups(){const c=client(),p=profile();if(!c||!p||!['dispatcher','admin'].includes(p.role))return[];const[{data:rows,error},{data:ps}]=await Promise.all([c.from('driver_unavailability').select('id,driver_user_id,service_date,reason,created_at,sick_leave_group_id').eq('organization_id',p.organization_id).eq('kind','sick').order('service_date',{ascending:false}).limit(1000),c.from('profiles').select('user_id,matricule,display_name').eq('organization_id',p.organization_id).eq('role','driver')]);if(error)throw error;S.profiles=new Map((ps||[]).map(x=>[String(x.user_id),x]));S.groups=groupRows(rows||[]);return S.groups}
+  function renderGroups(){const box=q('v181Leaves');if(!box)return;box.innerHTML=S.groups.map(g=>`<button class="v181-leave ${S.selected?.key===g.key?'active':''}" data-v181-group="${esc(g.key)}"><b>${esc(driverName(g.driverId))}</b><span>${esc(g.from)}${g.to!==g.from?` → ${esc(g.to)}`:''}</span><span>${esc(g.reason)}</span></button>`).join('')||'<div class="v181-status">Aucun arrêt maladie enregistré.</div>'}
+  async function queueFor(g){let req=client().from('planning_reassignment_queue').select('id,service_date,original_driver_user_id,segment_id,line,start_time,end_time,status,assigned_driver_user_id,result_reason,sick_leave_group_id').eq('organization_id',profile().organization_id).eq('original_driver_user_id',g.driverId).order('service_date').order('start_time');if(g.groupId)req=req.eq('sick_leave_group_id',g.groupId);else req=req.is('sick_leave_group_id',null).gte('service_date',g.from).lte('service_date',g.to);const{data,error}=await req;if(error)throw error;return data||[]}
+  async function selectGroup(key){const g=S.groups.find(x=>x.key===key);if(!g)return;S.selected=g;renderGroups();const box=q('v181Detail');box.innerHTML='<div class="v181-status">Chargement du replacement…</div>';try{const rows=await queueFor(g),ids=[...new Set(rows.map(x=>x.assigned_driver_user_id).filter(Boolean))];if(ids.length){const{data}=await client().from('profiles').select('user_id,matricule,display_name').in('user_id',ids);for(const x of data||[])S.profiles.set(String(x.user_id),x)}const courses=rows.map(r=>{let cls='wait',result='À replacer';if(r.status==='placed'){cls='ok';result=`Replacée chez ${driverName(r.assigned_driver_user_id)}`}else if(r.status==='unplaced')result='Non replacée';else if(r.status==='cancelled'){cls='cancel';result='Annulée / restaurée'}return`<div class="v181-course ${cls}"><b>${esc(r.line||'Course')} · ${hm(r.start_time)}–${hm(r.end_time)}</b><br>${esc(r.service_date)}<br>→ <b>${esc(result)}</b>${r.result_reason?`<br><span style="color:#9fb4bf">${esc(r.result_reason)}</span>`:''}</div>`}).join('')||'<div class="v181-course">Aucune course n’avait été libérée sur cet arrêt.</div>';box.innerHTML=`<b>${esc(driverName(g.driverId))}</b><div class="v181-status">${esc(g.from)}${g.to!==g.from?` → ${esc(g.to)}`:''} · ${esc(g.reason)}</div>${courses}<button id="v181CancelSick" class="v181-danger" type="button">🗑 ANNULER CET ARRÊT ET RESTAURER LE PLANNING</button>`}catch(e){box.innerHTML=`<div class="v181-status err">${esc(e?.message||e)}</div>`}}
+  async function rebuildPair(driverUserId,serviceDate){try{const{error}=await client().functions.invoke('rebuild-driver-day',{body:{driverUserId,serviceDate}});if(error)throw error}catch(e){console.warn('[Mon SAEIV] recalcul après annulation arrêt maladie',e)}}
+  async function cancelSelected(){if(S.busy||!S.selected)return;if(!confirm(`Annuler l’arrêt maladie de ${driverName(S.selected.driverId)} et restaurer son planning d’origine ?`))return;S.busy=true;st('Restauration du planning…');try{const{data,error}=await client().rpc('cancel_sick_leave',{p_unavailability_id:S.selected.id});if(error)throw error;const pairs=new Map();for(const x of data?.affected||[])if(x?.driverUserId&&x?.serviceDate)pairs.set(`${x.driverUserId}|${x.serviceDate}`,x);for(const x of pairs.values())await rebuildPair(x.driverUserId,x.serviceDate);await board()?.refresh?.();await sick()?.decorate?.();S.selected=null;await loadGroups();renderGroups();q('v181Detail').innerHTML=`<div class="v181-course ok"><b>✅ Arrêt annulé.</b><br>${Number(data?.restoredCourses||0)} course(s) restaurée(s) · ${Number(data?.removedReassignedCourses||0)} affectation(s) de remplacement retirée(s).</div>`;st('Planning recalculé.','ok')}catch(e){st(e?.message||String(e),'err')}finally{S.busy=false}}
+  async function openSick(preselect=null){addUi();q('v181SickModal').classList.remove('hidden');st('Chargement…');try{await loadGroups();renderGroups();st('');if(preselect){const g=S.groups.find(x=>x.driverId===preselect&&x.dates.includes(String(q('v165Date')?.value||'')))||S.groups.find(x=>x.driverId===preselect);if(g)selectGroup(g.key)}}catch(e){st(e?.message||String(e),'err')}}
+  function closeSick(){if(!S.busy)q('v181SickModal')?.classList.add('hidden')}
+  function addTrackButton(){if(!['dispatcher','admin'].includes(role())||q('v181Track'))return;const toolbar=q('v165Board')?.querySelector('.v165-toolbar');if(!toolbar)return;const b=document.createElement('button');b.id='v181Track';b.type='button';b.className='v181-track';b.textContent='📋 SUIVI ARRÊTS';b.onclick=()=>openSick();toolbar.insertBefore(b,q('v165Status')||null)}
+  function hookBands(){document.querySelectorAll('.v178-sick-band').forEach(b=>{if(b.dataset.v181Hooked)return;b.dataset.v181Hooked='1';b.title=`${b.title||'Arrêt maladie'} · cliquer pour voir le replacement`;b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const lane=b.closest('[data-driver-lane]');if(lane)openSick(lane.dataset.driverLane)})})}
+  async function geocode(text){const s=String(text||'').trim();if(!s)throw new Error('Saisis une adresse de domicile.');try{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=fr&accept-language=fr&q=${encodeURIComponent(s)}`,{headers:{Accept:'application/json'}});if(r.ok){const x=(await r.json())?.[0];if(x)return{lat:Number(x.lat),lon:Number(x.lon),address:x.display_name||s}}}catch{}const r=await fetch(`https://photon.komoot.io/api/?limit=1&lang=fr&q=${encodeURIComponent(s)}`);if(!r.ok)throw new Error('Recherche d’adresse indisponible.');const f=(await r.json())?.features?.[0];if(!f)throw new Error('Adresse introuvable.');return{lat:Number(f.geometry.coordinates[1]),lon:Number(f.geometry.coordinates[0]),address:[f.properties?.name,f.properties?.street,f.properties?.postcode,f.properties?.city].filter(Boolean).join(', ')||s}}
+  function homeStatus(t,k=''){const e=q('v181HomeStatus');if(e){e.textContent=t||'';e.className=`v181-status ${k}`}}
+  function addHomeUi(){if(role()!=='driver'||q('v181HomeBox'))return;const anchor=q('v171KnownLinesBox')||q('v164ParkingBox');if(!anchor)return;anchor.insertAdjacentHTML('afterend','<section id="v181HomeBox" class="v181-home"><h4>🏠 Domicile pour les coupures</h4><p>Utilisé pour vérifier qu’une coupure permet réellement l’aller, un temps utile au domicile et le retour. Les trajets restent du temps de travail.</p><div class="v181-home-grid"><label>Adresse du domicile<input id="v181HomeAddress" type="text" autocomplete="street-address" placeholder="Numéro, rue, commune…"></label><label>Temps minimum chez soi<input id="v181HomeStay" type="number" min="0" max="240" step="5" value="30"></label></div><div class="v181-home-actions"><button id="v181HomeCheck" type="button">🔎 Vérifier</button><button id="v181HomeSave" class="primary" type="button">ENREGISTRER</button></div><div id="v181HomeStatus" class="v181-status"></div></section>');q('v181HomeCheck').onclick=checkHome;q('v181HomeSave').onclick=saveHome;loadHome()}
+  async function loadHome(){const c=client(),u=cloud()?.user;if(!c||!u?.id)return;try{const{data,error}=await c.from('driver_settings').select('home_location,home_minimum_stay_minutes').eq('user_id',u.id).maybeSingle();if(error)throw error;S.home=data?.home_location||null;if(q('v181HomeAddress'))q('v181HomeAddress').value=S.home?.address||'';if(q('v181HomeStay'))q('v181HomeStay').value=String(Number(data?.home_minimum_stay_minutes??30))}catch(e){homeStatus(e?.message||String(e),'err')}}
+  async function checkHome(){homeStatus('Vérification…');try{S.home=await geocode(q('v181HomeAddress')?.value);q('v181HomeAddress').value=S.home.address;homeStatus(`Adresse trouvée : ${S.home.address}`,'ok')}catch(e){homeStatus(e?.message||String(e),'err')}}
+  async function saveHome(){const c=client(),p=profile(),u=cloud()?.user;if(!c||!p||!u?.id)return;const raw=q('v181HomeAddress')?.value.trim(),stay=Math.max(0,Math.min(240,Number(q('v181HomeStay')?.value||30)));if(!raw)return homeStatus('Renseigne le domicile.','err');homeStatus('Enregistrement…');try{if(!S.home||S.home.address!==raw||!Number.isFinite(Number(S.home.lat)))S.home=await geocode(raw);const clean={label:'Domicile',address:S.home.address,lat:Number(S.home.lat),lon:Number(S.home.lon),updatedAt:new Date().toISOString()};const{error}=await c.from('driver_settings').upsert({user_id:u.id,organization_id:p.organization_id,home_location:clean,home_minimum_stay_minutes:stay,updated_at:new Date().toISOString()},{onConflict:'user_id'});if(error)throw error;q('v181HomeAddress').value=clean.address;homeStatus('✅ Domicile enregistré pour les calculs de coupure.','ok')}catch(e){homeStatus(e?.message||String(e),'err')}}
+  function decorateTests(){if(!['dispatcher','admin'].includes(role()))return;document.querySelectorAll('[data-driver-lane]').forEach(lane=>{const id=lane.dataset.driverLane,d=(board()?.drivers||[]).find(x=>String(x.user_id)===String(id));if(!d||!/^TEST\d{2,3}$/i.test(String(d.matricule||'')))return;const meta=lane.closest('.v165-driver-row')?.querySelector('.v165-driver-meta');if(!meta)return;if(!meta.querySelector('.v174-test-badge,.v181-demo-badge'))meta.insertAdjacentHTML('beforeend','<span class="v181-demo-badge">🧪 Conducteur fictif</span>');if(!meta.querySelector('[data-v174-delete-test],[data-v181-delete-test]')){const b=document.createElement('button');b.type='button';b.className='v181-demo-del';b.dataset.v181DeleteTest=id;b.textContent='🗑 Supprimer ce conducteur test';meta.appendChild(b)}})}
+  async function deleteTest(id){if(!confirm('Supprimer définitivement ce conducteur fictif et ses données de démonstration ?'))return;try{const{error}=await client().rpc('delete_test_driver',{p_user_id:id});if(error)throw error;await board()?.refresh?.();decorateTests()}catch(e){alert(e?.message||String(e))}}
+  function boot(){addStyle();document.addEventListener('click',e=>{const b=e.target.closest?.('[data-v181-delete-test]');if(b)deleteTest(b.dataset.v181DeleteTest)},true);let n=0;const t=setInterval(()=>{addTrackButton();hookBands();addHomeUi();decorateTests();if(++n>720)clearInterval(t)},1000)}
+  window.MonSAEIVSickHomeToolsV181={installed:true,openSick,loadGroups,version:'1.0.80-hotfix'};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
