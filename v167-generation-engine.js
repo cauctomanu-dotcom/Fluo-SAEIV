@@ -1,15 +1,16 @@
 'use strict';
-/* Mon SAEIV 1.0.72 — génération Exploitation économique + RSE sur toutes les lignes.
-   Compatibilité validation : generation_engine_v167 · auto_service · prise/fin de service.
-   Règles internes :
-   - toute ligne est traitée comme relevant de la RSE 561/2006, quelle que soit sa distance ;
-   - une coupure hors Stationnement bus est classée 50 % ;
-   - une coupure au Stationnement bus est classée 0 % ;
-   - optimisation financière de référence : gazole 2,10 €/L, 30 L/100 km, coût horaire conducteur de référence 30 €/h. */
+/* Mon SAEIV 1.0.80 — génération Exploitation orientée couverture + journées compactes.
+   Priorités :
+   1) placer le maximum de segments compatibles ;
+   2) compléter les journées déjà ouvertes avant d'ouvrir un nouveau conducteur ;
+   3) respecter HLP et RSE ;
+   4) départager ensuite par coût, HLP et qualité des coupures.
+   Toutes les lignes sont contrôlées en mode RSE 561/2006 conservateur. */
 (()=>{
   if(window.MonSAEIVGenerationEngineV167?.installed)return;
-  const VERSION='1.0.72';
+  const VERSION='1.0.80';
   const ECON=Object.freeze({dieselEurPerLiter:2.10,busLitersPer100Km:30,referenceLaborEurPerHour:30,offParkingCutPct:50,parkingCutPct:0,samePlaceMeters:120});
+  const PLAN=Object.freeze({targetWorkMinutes:360,targetAmplitudeMinutes:480,softMaxWorkMinutes:540,softMaxAmplitudeMinutes:720});
   const q=id=>document.getElementById(id);
   const cloud=()=>window.MonSAEIVCloudV156;
   const client=()=>cloud()?.client||null;
@@ -31,7 +32,7 @@
   let running=false;
 
   function status(text,kind=''){const el=q('v165Status');if(el){el.textContent=text||'';el.className=`v165-status ${kind}`}}
-  function assignmentFor(seg,items){return (items||[]).find(x=>['regular','school'].includes(x.type)&&(x.payload?.segment_id===seg.id||(String(x.linked?.tripId||'')===String(seg.tripId||'')&&String(x.linked?.dept||'')===String(seg.dept||''))))||null}
+  function assignmentFor(seg,items){return (items||[]).find(x=>['regular','school','tad'].includes(x.type)&&(x.payload?.segment_id===seg.id||(String(x.linked?.tripId||'')===String(seg.tripId||'')&&String(x.linked?.dept||'')===String(seg.dept||''))))||null}
   function asActivity(x){return{id:x.payload?.segment_id||x.id,line:x.line||'',dept:x.linked?.dept||x.payload?.dept||'',type:x.type,start:String(x.start_time||'').slice(0,5),end:String(x.end_time||'').slice(0,5),origin:x.origin||'',destination:x.destination||'',originCoords:x.origin_coords||null,destinationCoords:x.destination_coords||null,driveMinutes:Number(x.drive_minutes)||duration(x.start_time,x.end_time),regime:'eu561'}}
   function workingItems(items,driverId){return (items||[]).filter(x=>String(x.driver_user_id)===String(driverId)&&!['auto_hlp','auto_cut','auto_service'].includes(x.source)).map(asActivity).sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999))}
   function normalizeKnown(xs){const out=[],seen=new Set();for(const x of Array.isArray(xs)?xs:[]){const dept=String(x?.dept||'').replace(/\D/g,'').slice(0,2),line=String(x?.line||x?.code||'').trim().toUpperCase().replace(/\s+/g,'');if(!dept||!line)continue;const k=`${dept}|${norm(line)}`;if(seen.has(k))continue;seen.add(k);out.push({dept,line,key:k})}return out}
@@ -64,20 +65,59 @@
     const all=[...xs,{...seg,regime:'eu561'}].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999)),eco=scheduleEconomy(all,park);if(!eco.ok)return eco;if(eco.amplitude>780)return{ok:false,reason:'amplitude estimée > 13 h (mode automatique conservateur)'};if(eco.work>600)return{ok:false,reason:'travail estimé > 10 h'};if(eco.drive>540)return{ok:false,reason:'conduite estimée > 9 h'};if(compactOnly&&(eco.maxPaidCut>=120||eco.cutCount>3))return{ok:false,reason:eco.maxPaidCut>=120?'coupure 50 % ≥ 2 h évitée en passe économique':'trop de coupures pour la passe économique'};return{ok:true,score:eco.score,hlpKm:eco.hlpKm,hlpMinutes:eco.hlpMinutes,cutMinutes:eco.cutMinutes,paidCutMinutes:eco.paidCutMinutes,cutCount:eco.cutCount,maxCut:eco.maxCut,maxPaidCut:eco.maxPaidCut,costEur:eco.costEur,economy:eco};
   }
 
-  function rowFor(seg,driverId,userId,orgId,date){return{organization_id:orgId,driver_user_id:driverId,client_id:clientId(seg),service_date:date,sort_index:(mm(seg.start)||0)*10,type:seg.type,label:`${seg.line} · ${seg.destination}`,line:seg.line,start_time:timeDb(seg.start),end_time:timeDb(seg.end),origin:seg.origin,destination:seg.destination,origin_coords:seg.originCoords,destination_coords:seg.destinationCoords,origin_kind:'stop',destination_kind:'stop',regime:'eu561',line_distance_km:seg.lineDistanceKm,drive_minutes:seg.driveMinutes,notes:null,linked:{...(seg.linked||{}),rse_policy:'all_lines_eu561'},source:'dispatch',locked_by_exploitation:true,status:'ok',conflict_minutes:0,created_by:userId,updated_by:userId,payload:{segment_id:seg.id,created_from:'generation_engine_v172_financial',rse_regime:'eu561',rse_policy:'all_lines_eu561',dept:seg.dept||seg.linked?.dept||null}}}
-  async function invokeRebuild(driverId,date){const c=client();const{data,error}=await c.functions.invoke('rebuild-driver-day',{body:{driverUserId:driverId,serviceDate:date}});if(error)throw error;return data||{}}
+  function planningRank(current,setting,result){
+    const xs=[...(current||[])].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999)),active=xs.length>0,park=setting?.bus_parking;
+    const before=active&&validPoint(park)?scheduleEconomy(xs,park):null,after=result.economy||{};
+    const incremental=Math.max(0,Number(after.score||0)-Number(before?.ok?before.score:0));
+    const shortWork=Math.max(0,PLAN.targetWorkMinutes-Number(after.work||0));
+    const shortAmplitude=Math.max(0,PLAN.targetAmplitudeMinutes-Number(after.amplitude||0));
+    const nearWorkLimit=Math.max(0,Number(after.work||0)-PLAN.softMaxWorkMinutes);
+    const nearAmplitudeLimit=Math.max(0,Number(after.amplitude||0)-PLAN.softMaxAmplitudeMinutes);
+    return{dayTier:active?0:1,compactPenalty:shortWork*120+shortAmplitude*25+nearWorkLimit*80+nearAmplitudeLimit*30,incremental,afterWork:Number(after.work||0),afterAmplitude:Number(after.amplitude||0)};
+  }
+
+  function rowFor(seg,driverId,userId,orgId,date){return{organization_id:orgId,driver_user_id:driverId,client_id:clientId(seg),service_date:date,sort_index:(mm(seg.start)||0)*10,type:seg.type,label:`${seg.line} · ${seg.destination}`,line:seg.line,start_time:timeDb(seg.start),end_time:timeDb(seg.end),origin:seg.origin,destination:seg.destination,origin_coords:seg.originCoords,destination_coords:seg.destinationCoords,origin_kind:'stop',destination_kind:'stop',regime:'eu561',line_distance_km:seg.lineDistanceKm,drive_minutes:seg.driveMinutes,notes:null,linked:{...(seg.linked||{}),rse_policy:'all_lines_eu561'},source:'dispatch',locked_by_exploitation:true,status:'ok',conflict_minutes:0,created_by:userId,updated_by:userId,payload:{segment_id:seg.id,created_from:'generation_engine_v180_compact',rse_regime:'eu561',rse_policy:'all_lines_eu561',dept:seg.dept||seg.linked?.dept||null}}}
+  async function invokeRebuild(driverId,date){const c=client();let data,error;({data,error}=await c.functions.invoke('rebuild-driver-day-home',{body:{driverUserId:driverId,serviceDate:date}}));if(error){console.warn('[Mon SAEIV] moteur domicile indisponible, repli sur recalcul principal',error);({data,error}=await c.functions.invoke('rebuild-driver-day',{body:{driverUserId:driverId,serviceDate:date}}))}if(error)throw error;return data||{}}
   function rejectReason(check){if(check?.conflicts?.length)return`HLP impossible : ${check.conflicts[0].missingMinutes||'?'} min manquantes`;if(check?.rse?.ok===false)return(check.rse.issues||[]).map(x=>x.message).filter(Boolean).join(' · ')||'contrôle RSE refusé';return null}
   async function fetchState(date){const c=client(),p=profile();const[{data:drivers,error:de},{data:items,error:ie},{data:settings,error:se}]=await Promise.all([c.from('profiles').select('user_id,matricule,display_name,active').eq('organization_id',p.organization_id).eq('role','driver').eq('active',true),c.from('plan_items').select('*').eq('organization_id',p.organization_id).eq('service_date',date).order('start_time',{ascending:true,nullsFirst:false}),c.from('driver_settings').select('user_id,bus_parking,known_lines').eq('organization_id',p.organization_id)]);if(de)throw de;if(ie)throw ie;if(se)throw se;const map=new Map();for(const s of settings||[])map.set(String(s.user_id),s);return{drivers:drivers||[],items:items||[],settings:map}}
 
   async function generate(){
-    if(running)return;const c=client(),p=profile(),b=board();if(!c||!p||!b)return status('Session Exploitation indisponible.','err');const allSegments=b.segments||[];if(!allSegments.length)return status('Charge d’abord les segments du jour.','err');for(const s of allSegments)s.regime='eu561';running=true;const button=q('v165Generate');if(button){button.disabled=true;button.textContent='✨ GÉNÉRATION ÉCONOMIQUE…'}const date=dateValue();let placed=0,rejectedByServer=0,lastReject='';const rejectedPairs=new Set();
-    try{await b.refresh?.();let{drivers,items,settings}=await fetchState(date);if(!drivers.length)throw new Error('Aucun conducteur actif dans la société.');const withParking=drivers.filter(d=>validPoint(settings.get(String(d.user_id))?.bus_parking)),configured=withParking.filter(d=>normalizeKnown(settings.get(String(d.user_id))?.known_lines).length);if(!withParking.length)throw new Error('Aucun conducteur n’a de « Stationnement bus » géolocalisé.');if(!configured.length)throw new Error('Aucun conducteur n’a encore de lignes connues renseignées.');const{data:{user}}=await c.auth.getUser(),working=new Map(drivers.map(d=>[String(d.user_id),workingItems(items,d.user_id)]));const free=allSegments.filter(s=>!assignmentFor(s,items)).slice().sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999)||String(a.line||'').localeCompare(String(b.line||''),'fr',{numeric:true}));if(!free.length){status('Toutes les courses sont déjà placées.','ok');return}const pending=new Map(free.map(s=>[s.id,s]));
-      for(const pass of [{name:'financière',compactOnly:true},{name:'couverture',compactOnly:false}]){if(!pending.size)break;let passIndex=0;status(pass.compactOnly?`💶 Passe financière · gazole ${ECON.dieselEurPerLiter.toFixed(2).replace('.',',')} €/L · coupures hors stationnement = 50 % · ${pending.size} segments…`:`🧩 Passe de couverture · ${pending.size} segments restants…`,'busy');for(const seg of [...pending.values()]){passIndex++;const ranked=[];for(const d of configured){const pair=`${seg.id}|${d.user_id}`;if(rejectedPairs.has(pair))continue;const r=scoreCandidate(seg,d,working.get(String(d.user_id))||[],settings.get(String(d.user_id)),{compactOnly:pass.compactOnly});if(r.ok)ranked.push({d,r})}ranked.sort((a,b)=>a.r.score-b.r.score);if(!ranked.length)continue;for(const cand of ranked){const driverId=String(cand.d.user_id),cid=clientId(seg),pair=`${seg.id}|${driverId}`;status(`✨ ${placed} placé${placed>1?'s':''} · ${pass.name} · ${seg.line||'course'} ${seg.start} → ${cand.d.display_name||cand.d.matricule} · coût estimé ${cand.r.costEur.toFixed(2).replace('.',',')} € · ${passIndex}/${pending.size}`,'busy');const{error:ins}=await c.from('plan_items').upsert(rowFor(seg,driverId,user?.id||null,p.organization_id,date),{onConflict:'driver_user_id,client_id'});if(ins){lastReject=ins.message||String(ins);rejectedByServer++;rejectedPairs.add(pair);continue}let check=null,reason=null;try{check=await invokeRebuild(driverId,date);reason=rejectReason(check)}catch(err){reason=err?.message||String(err)}if(reason){lastReject=reason;rejectedByServer++;rejectedPairs.add(pair);await c.from('plan_items').delete().eq('driver_user_id',driverId).eq('client_id',cid);try{await invokeRebuild(driverId,date)}catch{}continue}placed++;working.get(driverId).push({...seg,regime:'eu561'});working.get(driverId).sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));items.push(rowFor(seg,driverId,user?.id||null,p.organization_id,date));pending.delete(seg.id);break}if(passIndex%40===0)await new Promise(r=>setTimeout(r,0))}}
-      await b.refresh?.();const current=b.items||[],remaining=allSegments.filter(s=>!assignmentFor(s,current));let noQualified=0;for(const s of remaining)if(!configured.some(d=>knowsLine(s,settings.get(String(d.user_id)))))noQualified++;if(placed)status(`✅ Génération terminée : ${placed} segment${placed>1?'s':''} placé${placed>1?'s':''}. Priorité au coût estimé : coupures 50 % + HLP/gazole ${ECON.dieselEurPerLiter.toFixed(2).replace('.',',')} €/L + nombre de coupures. ${remaining.length} non placé${remaining.length>1?'s':''}${noQualified?`, dont ${noQualified} sans conducteur compétent`:''}.`,'ok');else status(`⚠ 0 segment placé. ${noQualified?`${noQualified} sans conducteur compétent. `:''}${rejectedByServer?`${rejectedByServer} proposition${rejectedByServer>1?'s':''} refusée${rejectedByServer>1?'s':''} par HLP/RSE. `:''}${lastReject?`Dernier motif : ${lastReject}`:'Vérifie les lignes connues, le stationnement bus et les horaires.'}`,'err')
+    if(running)return;const c=client(),p=profile(),b=board();if(!c||!p||!b)return status('Session Exploitation indisponible.','err');const allSegments=b.segments||[];if(!allSegments.length)return status('Charge d’abord les segments du jour.','err');for(const s of allSegments)s.regime='eu561';running=true;const button=q('v165Generate');if(button){button.disabled=true;button.textContent='✨ GÉNÉRATION COMPACTE…'}const date=dateValue();let placed=0,rejectedByServer=0,lastReject='',openedDays=0;const rejectedPairs=new Set();
+    try{
+      await b.refresh?.();let{drivers,items,settings}=await fetchState(date);if(!drivers.length)throw new Error('Aucun conducteur actif dans la société.');const withParking=drivers.filter(d=>validPoint(settings.get(String(d.user_id))?.bus_parking)),configured=withParking.filter(d=>normalizeKnown(settings.get(String(d.user_id))?.known_lines).length);if(!withParking.length)throw new Error('Aucun conducteur n’a de « Stationnement bus » géolocalisé.');if(!configured.length)throw new Error('Aucun conducteur n’a encore de lignes connues renseignées.');
+      const{data:{user}}=await c.auth.getUser(),working=new Map(drivers.map(d=>[String(d.user_id),workingItems(items,d.user_id)]));
+      const qualifiedCount=seg=>configured.reduce((n,d)=>n+(knowsLine(seg,settings.get(String(d.user_id)))?1:0),0);
+      const free=allSegments.filter(s=>!assignmentFor(s,items)).slice().sort((a,b)=>qualifiedCount(a)-qualifiedCount(b)||(mm(a.start)??9999)-(mm(b.start)??9999)||String(a.line||'').localeCompare(String(b.line||''),'fr',{numeric:true}));
+      if(!free.length){status('Toutes les courses sont déjà placées.','ok');return}
+      const pending=new Map(free.map(s=>[s.id,s]));
+      status(`🧩 Couverture compacte · ${pending.size} segments à placer · journées déjà ouvertes prioritaires…`,'busy');
+      let passIndex=0;
+      for(const seg of [...pending.values()]){
+        passIndex++;const ranked=[];
+        for(const d of configured){
+          const driverId=String(d.user_id),pair=`${seg.id}|${driverId}`;if(rejectedPairs.has(pair))continue;const current=working.get(driverId)||[],r=scoreCandidate(seg,d,current,settings.get(driverId),{compactOnly:false});if(!r.ok)continue;ranked.push({d,r,rank:planningRank(current,settings.get(driverId),r),wasActive:current.length>0});
+        }
+        ranked.sort((a,b)=>a.rank.dayTier-b.rank.dayTier||a.rank.compactPenalty-b.rank.compactPenalty||a.rank.incremental-b.rank.incremental||a.r.score-b.r.score);
+        if(!ranked.length)continue;
+        for(const cand of ranked){
+          const driverId=String(cand.d.user_id),cid=clientId(seg),pair=`${seg.id}|${driverId}`;
+          status(`✨ ${placed} placé${placed>1?'s':''} · ${cand.wasActive?'complète une journée':'ouvre une journée'} · ${seg.line||'course'} ${seg.start} → ${cand.d.display_name||cand.d.matricule} · travail estimé ${Math.round(cand.rank.afterWork/60*10)/10} h · ${passIndex}/${pending.size}`,'busy');
+          const{error:ins}=await c.from('plan_items').upsert(rowFor(seg,driverId,user?.id||null,p.organization_id,date),{onConflict:'driver_user_id,client_id'});if(ins){lastReject=ins.message||String(ins);rejectedByServer++;rejectedPairs.add(pair);continue}
+          let check=null,reason=null;try{check=await invokeRebuild(driverId,date);reason=rejectReason(check)}catch(err){reason=err?.message||String(err)}
+          if(reason){lastReject=reason;rejectedByServer++;rejectedPairs.add(pair);await c.from('plan_items').delete().eq('driver_user_id',driverId).eq('client_id',cid);try{await invokeRebuild(driverId,date)}catch{}continue}
+          if(!cand.wasActive)openedDays++;
+          placed++;working.get(driverId).push({...seg,regime:'eu561'});working.get(driverId).sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));items.push(rowFor(seg,driverId,user?.id||null,p.organization_id,date));pending.delete(seg.id);break;
+        }
+        if(passIndex%30===0)await new Promise(r=>setTimeout(r,0));
+      }
+      await b.refresh?.();const current=b.items||[],remaining=allSegments.filter(s=>!assignmentFor(s,current));let noQualified=0;for(const s of remaining)if(!configured.some(d=>knowsLine(s,settings.get(String(d.user_id)))))noQualified++;
+      const activeDays=[...working.values()].filter(x=>x.length).length,shortDays=[...working.entries()].filter(([,xs])=>{if(!xs.length)return false;const first=xs[0],last=xs.at(-1),a=mm(first.start),z=mm(last.end);if(a===null||z===null)return false;let end=z;if(end<a)end+=1440;return end-a<240}).length;
+      if(placed)status(`✅ Génération compacte terminée : ${placed} segment${placed>1?'s':''} placé${placed>1?'s':''}. ${activeDays} journée${activeDays>1?'s':''} conducteur active${activeDays>1?'s':''}, ${openedDays} nouvelle${openedDays>1?'s':''} ouverte${openedDays>1?'s':''}. ${remaining.length} non placé${remaining.length>1?'s':''}${noQualified?`, dont ${noQualified} sans conducteur compétent`:''}${shortDays&&remaining.length?` · ${shortDays} journée${shortDays>1?'s':''} courte${shortDays>1?'s':''} restante${shortDays>1?'s':''} : aucun segment restant compatible n’a pu y être ajouté sans conflit/RSE.`:''}.`,'ok');
+      else status(`⚠ 0 segment placé. ${noQualified?`${noQualified} sans conducteur compétent. `:''}${rejectedByServer?`${rejectedByServer} proposition${rejectedByServer>1?'s':''} refusée${rejectedByServer>1?'s':''} par HLP/RSE. `:''}${lastReject?`Dernier motif : ${lastReject}`:'Vérifie les lignes connues, le stationnement bus et les horaires.'}`,'err');
     }catch(e){status(`Génération interrompue : ${e?.message||e}`,'err')}finally{running=false;if(button){button.disabled=false;button.textContent='✨ GÉNÉRATION INTELLIGENTE'}}
   }
 
   function intercept(e){const btn=e.target?.closest?.('#v165Generate');if(!btn)return;e.preventDefault();e.stopImmediatePropagation();generate()}
   document.addEventListener('click',intercept,true);
-  window.MonSAEIVGenerationEngineV167={installed:true,version:VERSION,generate,scoreCandidate,knowsLine,economics:ECON,get running(){return running}};
+  window.MonSAEIVGenerationEngineV167={installed:true,version:VERSION,generate,scoreCandidate,knowsLine,economics:ECON,planningPolicy:PLAN,get running(){return running}};
 })();
