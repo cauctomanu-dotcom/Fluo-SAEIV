@@ -47,6 +47,7 @@ const CORE=[
   './v177-smart-rest-unavailability.js',
   './v178-sick-reassignment.js',
   './v179-minimal-repair.js',
+  './v180-dispatch-messages.js',
   './data/54/routes.json','./data/54/services.json','./data/54/stops.json',
   './data/57/routes.json','./data/57/services.json','./data/57/stops.json',
   './data/67/routes.json','./data/67/services.json','./data/67/stops.json',
