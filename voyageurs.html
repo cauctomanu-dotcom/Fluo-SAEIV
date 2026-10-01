@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#102a38"><title>Où est mon bus ? · Mon SAEIV</title>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#102a38"><title>Où est mon bus ? · Information voyageurs</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="./voyageurs.css">
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script defer src="./tracking-core.js"></script><script defer src="./voyageurs.js"></script></head>
-<body><header><a href="./voyageurs.html" class="brand">MON SAEIV <span>VOYAGEURS</span></a><a href="./index.html">Espace conducteur ↗</a></header>
+<body><header><div class="brand">MON BUS <span>INFORMATION VOYAGEURS</span></div><span aria-hidden="true">🚌</span></header>
 <main><section class="intro"><span class="eyebrow">VOTRE TRAJET, EN DIRECT</span><h1>Où est mon bus ?</h1><p>Choisissez votre arrêt et votre horaire pour suivre le véhicule et son passage estimé.</p></section>
 <section class="layout"><form id="journey" class="panel" aria-label="Choisir mon trajet">
 <h2>Mon trajet</h2><label>Département<select id="department"><option value="57">Moselle · 57</option><option value="54">Meurthe-et-Moselle · 54</option><option value="67">Bas-Rhin · 67</option><option value="68">Haut-Rhin · 68</option></select></label>
@@ -16,5 +16,5 @@
 <button id="track" type="submit" disabled>Suivre ce bus →</button><p id="formStatus" role="status"></p></form>
 <div class="results"><section class="panel live"><span class="eyebrow">MON BUS</span><h2 id="tripTitle">Votre trajet commence ici.</h2><p id="summary" role="status" aria-live="polite">Sélectionnez une ligne, un arrêt et un horaire.</p><div id="vehicles"></div></section>
 <div id="map" aria-label="Carte du bus et de votre arrêt"><p class="map-placeholder">La carte s’affichera après le choix du trajet.</p></div>
-<p class="note">Les positions sont transmises par les véhicules utilisant Mon SAEIV. En l’absence de suivi, l’horaire affiché reste théorique. Les estimations peuvent évoluer.</p></div></section></main>
-<footer>Mon SAEIV · Information voyageurs · <span>Horaires en heure de Paris</span></footer></body></html>
+<p class="note">Les positions sont transmises en temps réel par les véhicules équipés. En l’absence de suivi, l’horaire affiché reste théorique. Les estimations peuvent évoluer.</p></div></section></main>
+<footer>Information voyageurs · <span>Horaires en heure de Paris</span></footer></body></html>
