@@ -1,8 +1,8 @@
 'use strict';
 
-const CACHE='mon-saeiv-clean-1.0.81';
+const CACHE='mon-saeiv-clean-1.0.83';
 const CORE=[
-  './voyageurs.html','./voyageurs.css','./voyageurs.js','./tracking-core.js','./v182-live-tracking.js',
+  './voyageurs.html','./voyageurs.css','./voyageurs.js','./tracking-core.js','./v182-live-tracking.js','./v183-live-supervision.js','./v184-navigation-resume.js',
   './',
   './index.html',
   './login-gateway.js',
@@ -60,10 +60,7 @@ self.addEventListener('install',event=>{
   event.waitUntil((async()=>{
     const cache=await caches.open(CACHE);
     await Promise.allSettled(CORE.map(async url=>{
-      try{
-        const response=await fetch(url,{cache:'no-store'});
-        if(response&&response.ok)await cache.put(url,response.clone());
-      }catch{}
+      try{const response=await fetch(url,{cache:'no-store'});if(response&&response.ok)await cache.put(url,response.clone())}catch{}
     }));
   })());
 });
@@ -76,52 +73,24 @@ self.addEventListener('activate',event=>{
   })());
 });
 
-self.addEventListener('message',event=>{
-  if(event.data?.type==='SKIP_WAITING')self.skipWaiting();
-});
+self.addEventListener('message',event=>{if(event.data?.type==='SKIP_WAITING')self.skipWaiting()});
 
 async function networkFirst(request,fallbackUrl=null){
   const cache=await caches.open(CACHE);
-  try{
-    const response=await fetch(request,{cache:'no-store'});
-    if(response&&response.ok)cache.put(request,response.clone()).catch(()=>{});
-    return response;
-  }catch{
-    return (await cache.match(request,{ignoreSearch:true})) ||
-      (fallbackUrl?await cache.match(fallbackUrl,{ignoreSearch:true}):null) ||
-      new Response('Mon SAEIV indisponible hors connexion.',{status:503,headers:{'Content-Type':'text/plain;charset=utf-8'}});
-  }
+  try{const response=await fetch(request,{cache:'no-store'});if(response&&response.ok)cache.put(request,response.clone()).catch(()=>{});return response}
+  catch{return(await cache.match(request,{ignoreSearch:true}))||(fallbackUrl?await cache.match(fallbackUrl,{ignoreSearch:true}):null)||new Response('Mon SAEIV indisponible hors connexion.',{status:503,headers:{'Content-Type':'text/plain;charset=utf-8'}})}
 }
-
 async function externalNetworkFirst(request){
-  const name=`${CACHE}-external`;
-  const cache=await caches.open(name);
-  try{
-    const response=await fetch(request,{cache:'no-store'});
-    if(response&&response.ok)cache.put(request,response.clone()).catch(()=>{});
-    return response;
-  }catch{
-    return (await cache.match(request)) || Response.error();
-  }
+  const name=`${CACHE}-external`,cache=await caches.open(name);
+  try{const response=await fetch(request,{cache:'no-store'});if(response&&response.ok)cache.put(request,response.clone()).catch(()=>{});return response}catch{return(await cache.match(request))||Response.error()}
 }
-
 self.addEventListener('fetch',event=>{
-  const request=event.request;
-  if(request.method!=='GET')return;
-  const url=new URL(request.url);
-
+  const request=event.request;if(request.method!=='GET')return;const url=new URL(request.url);
   if(request.mode==='navigate'){
-    const fallback=url.pathname.endsWith('/voyageurs.html')?'./voyageurs.html':url.pathname.endsWith('/app.html')?'./app.html':'./index.html';
-    event.respondWith(networkFirst(request,fallback));
-    return;
+    const passenger=/\/voyageurs(?:\/|\/index\.html|\.html)$/.test(url.pathname);
+    const fallback=passenger?(url.pathname.endsWith('/voyageurs.html')?'./voyageurs.html':'./voyageurs/index.html'):url.pathname.endsWith('/app.html')?'./app.html':'./index.html';
+    event.respondWith(networkFirst(request,fallback));return;
   }
-
-  if(url.origin===self.location.origin){
-    event.respondWith(networkFirst(request));
-    return;
-  }
-
-  if(['unpkg.com','cdn.jsdelivr.net','tile.openstreetmap.org'].includes(url.hostname)){
-    event.respondWith(externalNetworkFirst(request));
-  }
+  if(url.origin===self.location.origin){event.respondWith(networkFirst(request));return}
+  if(['unpkg.com','cdn.jsdelivr.net','tile.openstreetmap.org'].includes(url.hostname))event.respondWith(externalNetworkFirst(request));
 });
