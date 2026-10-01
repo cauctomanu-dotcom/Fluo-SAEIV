@@ -1,7 +1,8 @@
 'use strict';
 
-const CACHE='mon-saeiv-clean-1.0.76';
+const CACHE='mon-saeiv-clean-1.0.81';
 const CORE=[
+  './voyageurs.html','./voyageurs.css','./voyageurs.js','./tracking-core.js','./v182-live-tracking.js',
   './',
   './index.html',
   './login-gateway.js',
@@ -110,7 +111,7 @@ self.addEventListener('fetch',event=>{
   const url=new URL(request.url);
 
   if(request.mode==='navigate'){
-    const fallback=url.pathname.endsWith('/app.html')?'./app.html':'./index.html';
+    const fallback=url.pathname.endsWith('/voyageurs.html')?'./voyageurs.html':url.pathname.endsWith('/app.html')?'./app.html':'./index.html';
     event.respondWith(networkFirst(request,fallback));
     return;
   }

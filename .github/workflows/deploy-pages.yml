@@ -40,7 +40,7 @@ jobs:
           cp 54.json scripts/trace_overrides/54.json
           cp 57.json scripts/trace_overrides/57.json
 
-          cp index.html app.js styles.css sw.js manifest.webmanifest fluo-numbering-2026.json site/
+          cp index.html app.js styles.css sw.js manifest.webmanifest fluo-numbering-2026.json voyageurs.html voyageurs.css voyageurs.js tracking-core.js v182-live-tracking.js site/
           [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
 
           for f in \
@@ -138,7 +138,7 @@ jobs:
           set -euo pipefail
           python externalize_runtime.py site/index.html
 
-      - name: Split gateway and stamp release 1.0.80
+      - name: Split gateway and stamp release 1.0.81
         shell: bash
         run: |
           set -euo pipefail
@@ -150,7 +150,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          old_versions=[f'1.0.{n}' for n in range(22,80)]
+          old_versions=[f'1.0.{n}' for n in range(22,81)]
           for p in Path('site').rglob('*'):
               if not p.is_file() or p.suffix.lower() not in {'.html','.js','.json','.webmanifest'}:
                   continue
@@ -159,7 +159,7 @@ jobs:
               except UnicodeDecodeError:
                   continue
               for old in old_versions:
-                  t=t.replace(old,'1.0.80')
+                  t=t.replace(old,'1.0.81')
               p.write_text(t,encoding='utf-8')
 
           app=Path('site/app.html')
@@ -169,10 +169,10 @@ jobs:
             'v164-driver-settings.js','v165-exploitation-board.js','v167-generation-engine.js',
             'v168-service-grid.js','v167-exploitation-performance.js','v174-grid-editor.js',
             'v176-driver-absences.js','v177-smart-rest-unavailability.js','v178-sick-reassignment.js',
-            'v179-minimal-repair.js','v180-dispatch-messages.js'
+            'v179-minimal-repair.js','v180-dispatch-messages.js','tracking-core.js','v182-live-tracking.js'
           )
           for name in modules:
-              tag=f'<script src="./{name}?v=1.0.80"></script>'
+              tag=f'<script src="./{name}?v=1.0.81"></script>'
               if tag not in t:
                   if '</body>' not in t:
                       raise SystemExit('balise </body> absente de app.html')
@@ -180,7 +180,7 @@ jobs:
           app.write_text(t,encoding='utf-8')
           PY
 
-      - name: Validate isolated runtime 1.0.80
+      - name: Validate isolated runtime 1.0.81
         shell: bash
         run: |
           set -euo pipefail
@@ -200,7 +200,7 @@ jobs:
             v164-driver-settings.js v165-exploitation-board.js v167-generation-engine.js \
             v168-service-grid.js v167-exploitation-performance.js v174-grid-editor.js \
             v176-driver-absences.js v177-smart-rest-unavailability.js v178-sick-reassignment.js \
-            v179-minimal-repair.js v180-dispatch-messages.js sw.js; do
+            v179-minimal-repair.js v180-dispatch-messages.js tracking-core.js v182-live-tracking.js voyageurs.js sw.js; do
             node --check "site/$f"
           done
 
@@ -219,10 +219,10 @@ jobs:
                   continue
               if body.strip(): inline.append(body[:80])
           assert not inline, f'JavaScript inline résiduel: {inline[:2]}'
-          for name in ('v165-exploitation-board.js','v167-generation-engine.js','v168-service-grid.js','v167-exploitation-performance.js','v174-grid-editor.js','v176-driver-absences.js','v177-smart-rest-unavailability.js','v178-sick-reassignment.js','v179-minimal-repair.js','v180-dispatch-messages.js'):
-              assert f'{name}?v=1.0.80' in app
-          assert '<title>Mon SAEIV · 1.0.80</title>' in app
-          assert 'login-gateway.js?v=1.0.80' in gateway
+          for name in ('v165-exploitation-board.js','v167-generation-engine.js','v168-service-grid.js','v167-exploitation-performance.js','v174-grid-editor.js','v176-driver-absences.js','v177-smart-rest-unavailability.js','v178-sick-reassignment.js','v179-minimal-repair.js','v180-dispatch-messages.js','tracking-core.js','v182-live-tracking.js'):
+              assert f'{name}?v=1.0.81' in app
+          assert '<title>Mon SAEIV · 1.0.81</title>' in app
+          assert 'login-gateway.js?v=1.0.81' in gateway
           editor=Path('site/v174-grid-editor.js').read_text(encoding='utf-8')
           for token in ('v174SelectionBar','contextmenu','cut_overrides','delete_test_driver','25 %','Retirer de la grille'):
               assert token in editor
@@ -246,11 +246,11 @@ jobs:
           assert "FluoPlanningV316?.prepareLinkedCourse" in ops
           assert "ensureExactPatternGeometry(globalThis.state.pattern)" in ops
           assert "hasGeometry" in ops
-          print('Mon SAEIV 1.0.80 validé · messages exploitation et correspondances')
+          print('Mon SAEIV 1.0.81 validé · messages exploitation et correspondances')
           PY
 
-          grep -q "const CACHE='mon-saeiv-clean-1.0.80'" site/sw.js
-          grep -q '"name": "Mon SAEIV 1.0.80"' site/manifest.webmanifest
+          grep -q "const CACHE='mon-saeiv-clean-1.0.81'" site/sw.js
+          grep -q '"name": "Mon SAEIV 1.0.81"' site/manifest.webmanifest
           grep -q './app.html' site/sw.js
           grep -q './login-gateway.js' site/sw.js
           grep -q '57SMH04' site/data/57/routes.json

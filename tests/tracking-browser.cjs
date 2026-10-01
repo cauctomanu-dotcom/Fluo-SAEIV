@@ -1,0 +1,34 @@
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path');
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||undefined});const page=await browser.newPage({viewport:{width:390,height:844}});let rows=[];const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const fixture={route:{id:'R',short:'57R001',long:'Gare — Centre',file:'routes/test.json'},pattern:{headsign:'Centre',stops:[{id:'a',name:'Gare',lat:49.11,lon:6.17},{id:'b',name:'Centre',lat:49.12,lon:6.18}],shape:[[49.11,6.17],[49.12,6.18]],trips:[{id:'T',service:'S',times:[['08:00:00','08:00:00'],['08:15:00','08:15:00']]}]}};
+ await page.route('**/data/57/routes.json',r=>r.fulfill({json:{routes:[fixture.route]}}));
+ await page.route('**/data/57/services.json',r=>r.fulfill({json:{services:{S:{start:'20260101',end:'20261231',days:[1,1,1,1,1,1,1]}}}}));
+ await page.route('**/data/57/routes/test.json',r=>r.fulfill({json:{patterns:[fixture.pattern]}}));
+ await page.route('**/saeiv_live_courses?*',r=>r.fulfill({json:rows}));
+ await page.goto('http://127.0.0.1:8765/voyageurs.html');await page.selectOption('#line','R');await page.selectOption('#direction','0');await page.selectOption('#stop','0');await page.selectOption('#departure','0');
+ rows=[{public_id:'p',observed_at:new Date().toISOString(),stage:'hlp',delay_seconds:-180,latitude:49.1,longitude:6.16,start_index:0,stop_index:0,line:'57R001',destination:'Centre'}];
+ await page.click('#track');await page.waitForFunction(()=>document.querySelector('.vehicle strong')?.textContent==='Passage estimé à 08:00');
+ assert.match(await page.locator('#vehicles').innerText(),/À l’heure/);
+ await page.screenshot({path:'/tmp/saeiv-voyageurs-mobile.png',fullPage:true});
+ rows[0].delay_seconds=180;await page.click('#track');await page.waitForFunction(()=>document.querySelector('.vehicle strong')?.textContent==='Passage estimé à 08:03');
+ rows[0].observed_at=new Date(Date.now()-120000).toISOString();await page.click('#track');await page.waitForFunction(()=>document.querySelector('.vehicle strong')?.textContent==='Suivi momentanément indisponible');assert.equal(await page.locator('.leaflet-marker-icon').count(),0);
+ rows=[];await page.click('#track');await page.waitForFunction(()=>document.querySelector('#summary').textContent.includes('ne signifie pas'));
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.setViewportSize({width:1366,height:900});await page.screenshot({path:'/tmp/saeiv-voyageurs-desktop.png',fullPage:true});
+ assert.deepEqual(errors,[]);
+ const driver=await browser.newPage();
+ await driver.goto('http://127.0.0.1:8765/voyageurs.html');await driver.setContent('<div id="v13Userbar"></div><select id="startStop"><option value="0">0</option></select>');
+ await driver.evaluate(()=>{
+  window.baseCalls=0;window.routeOrigins=[];window.state={running:false,mode:null,pos:null,service:{mode:'regular'},dept:'57',route:{id:'R',short:'57R001'},pattern:{headsign:'Centre',stops:[{lat:49.12,lon:6.18,name:'Gare'}]},run:{trip:{id:'T',times:[['08:00','08:00']]},serviceDate:new Date('2026-10-01T00:00:00+02:00')}};
+  window.startGps=()=>{baseCalls++;state.running=true;state.mode='gps'};window.dist=()=>5000;window.say=()=>{};
+  Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(resolve){resolve({timestamp:Date.now(),coords:{latitude:49.1,longitude:6.15,accuracy:10}})},watchPosition(cb){window.gpsCallback=cb;return 1},clearWatch(){}}});
+  window.FluoOpsV29={routeWithAvoids:async(a,b)=>{routeOrigins.push(a);return{shape:[[a.lat,a.lon],[b.lat,b.lon]],distance:5000,duration:600,legs:[]}}};
+ });
+ for(const f of ['tracking-core.js','v144-day-hlp-driver.js','v182-live-tracking.js'])await driver.addScriptTag({path:path.resolve(f)});
+ await driver.evaluate(()=>startGps());await driver.waitForFunction(()=>window.MonSAEIVDayAutopilotV144.snapshot?.running);
+ assert.equal(await driver.evaluate(()=>baseCalls),0);assert.equal(await driver.evaluate(()=>routeOrigins[0].lat),49.1);
+ await driver.evaluate(()=>gpsCallback({timestamp:Date.now(),coords:{latitude:49.12,longitude:6.18,accuracy:10}}));
+ assert.equal(await driver.evaluate(()=>baseCalls),1);assert.equal(await driver.evaluate(()=>window.MonSAEIVDayAutopilotV144.snapshot),null);
+ console.log('PASS: passenger early/delay/stale/no-data/mobile; real GPS HLP origin and arrival transition');await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

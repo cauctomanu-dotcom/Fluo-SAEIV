@@ -1,0 +1,6 @@
+{
+  "name": "saeiv-tracking-tests",
+  "private": true,
+  "scripts": {"test": "node --test tracking.test.cjs && cd .. && node tests/tracking-dom.cjs", "test:browser": "cd .. && node tests/tracking-browser.cjs"},
+  "devDependencies": {"jsdom": "26.1.0", "playwright": "1.51.1"}
+}

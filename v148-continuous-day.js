@@ -114,6 +114,7 @@
     const attempt=()=>{
       if(flowToken!==token||!dayRunning()){disconnectCourseObserver();hideTransition();return true}
       if(appState()?.running){disconnectCourseObserver();lastLaunched=String(item.id);setPhase(PHASE.COURSE);hideTransition();syncTerminusUi();return true}
+      if(window.MonSAEIVDayAutopilotV144?.snapshot){if(phase!==PHASE.HLP){setPhase(PHASE.HLP);hideTransition()}return false}
       if(appState()?.pattern&&typeof globalThis.startGps==='function'){globalThis.startGps();return false}
       return false
     };

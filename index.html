@@ -1601,7 +1601,7 @@ ui.serviceDate.addEventListener('change',async()=>{
 ui.trip.addEventListener('change',()=>{ if(ui.trip.value==='') selectRun(null); else selectRun(Number(ui.trip.value)); });
 ui.startStop.addEventListener('change',()=>{ updateDepartureDisplay(); if(state.service.mode==='tad') renderTadStopList(false); refreshStartAvailability(); labels(); });
 ui.gpsTest.addEventListener('click',testGps);
-ui.start.addEventListener('click',startGps);
+ui.start.addEventListener('click',()=>startGps());
 ui.simulate.addEventListener('click',startSimulation);
 ui.finish.addEventListener('click',()=>finish());
 ui.speak.addEventListener('click',()=>announce(true));
