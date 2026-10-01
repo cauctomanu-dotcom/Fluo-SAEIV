@@ -134,7 +134,7 @@
   }
   let navSayBase=null;
   function speakManeuver(bucket,item,pos,prefix){
-    if(!item?.maneuver||localStorage.getItem('fluoNavVoice')==='off'||typeof navSayBase!=='function')return;const d=item.distance,sp=Math.max(0,Number(pos.speed||0)),far=clamp(130,380,90+sp*10),near=clamp(38,120,22+sp*3.6),m=item.maneuver,key=`${prefix}-${Math.round(m.along)}-${m.step?.maneuver?.type||''}-${m.step?.maneuver?.modifier||''}`;
+    if(!item?.maneuver||localStorage.getItem('fluoNavVoiceV184')==='off'||typeof navSayBase!=='function')return;const d=item.distance,sp=Math.max(0,Number(pos.speed||0)),far=clamp(130,380,90+sp*10),near=clamp(38,120,22+sp*3.6),m=item.maneuver,key=`${prefix}-${Math.round(m.along)}-${m.step?.maneuver?.type||''}-${m.step?.maneuver?.modifier||''}`;
     if(d<=far&&d>near+25&&!bucket.has(`${key}-far`)){bucket.add(`${key}-far`);navSayBase(`Dans ${Math.max(50,Math.round(d/50)*50)} mètres, ${instruction(m.step).toLowerCase()}.`,{priority:29,kind:'navigation',ephemeral:true,v184:true})}
     if(d<=near&&!bucket.has(`${key}-near`)){bucket.add(`${key}-near`);navSayBase(`${instruction(m.step)}.`,{priority:31,kind:'navigation',ephemeral:true,v184:true})}
   }
@@ -198,6 +198,11 @@
 
   function installRuntime(){
     if(window.MonSAEIVRuntimeV184.runtimeInstalled)return;window.MonSAEIVRuntimeV184.runtimeInstalled=true;addResumeUi();openManagementWhenReady();
+    // L'ancien moteur V103 garde sa propre référence vocale. On le maintient muet,
+    // tout en conservant le bouton GPS vocal comme commande du nouveau guidage V184.
+    const syncNavVoicePreference=()=>{try{const legacy=localStorage.getItem('fluoNavVoice')!=='off';localStorage.setItem('fluoNavVoiceV184',legacy?'on':'off');localStorage.setItem('fluoNavVoice','off')}catch{}};
+    try{if(localStorage.getItem('fluoNavVoiceV184')===null)localStorage.setItem('fluoNavVoiceV184',localStorage.getItem('fluoNavVoice')==='off'?'off':'on');localStorage.setItem('fluoNavVoice','off')}catch{}
+    ['navVoiceBtn','v15NavVoice'].forEach(id=>q(id)?.addEventListener('click',()=>setTimeout(syncNavVoicePreference,0),{capture:true}));q('navVoiceSetup')?.addEventListener('change',()=>setTimeout(syncNavVoicePreference,0),{capture:true});
     // Supprime les anciennes voix de navigation ; V184 est l'unique source des consignes droite/gauche.
     try{navSayBase=say;const oldSay=say;say=function(text,opts={}){if(opts?.kind==='navigation'&&!opts?.v184)return;return oldSay(text,opts)}}catch(e){console.warn('[V184] filtre voix navigation',e)}
     try{const baseProcess=processPos;processPos=function(p){const r=baseProcess(p);try{monitorNavigation(p)}catch(e){console.warn('[V184] navigation',e)}return r}}catch(e){console.warn('[V184] position wrapper',e)}
