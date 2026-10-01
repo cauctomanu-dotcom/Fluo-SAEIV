@@ -1,0 +1,43 @@
+name: Validate Mon SAEIV 1.0.83
+on:
+  push:
+    branches: [ "fix/1.0.83-navigation-resume" ]
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: JavaScript syntax
+        run: |
+          node --check v182-live-tracking.js
+          node --check v183-live-supervision.js
+          node --check v184-navigation-resume.js
+          node --check voyageurs.js
+          node --check sw.js
+      - name: Corrective invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          v184=Path('v184-navigation-resume.js').read_text()
+          assert 'AUTO_REROUTE_V184' in v184
+          assert 'GPS BRUT' in v184
+          assert 'requestedStops' in v184
+          assert 'speechHealth' in v184
+          assert 'v184Management' in v184
+          v182=Path('v182-live-tracking.js').read_text()
+          assert 'MonSAEIVVisualGPS' in v182
+          assert 'MonSAEIVResumeV184?.resuming' in v182
+          assert 'Espace voyageurs' not in v182
+          v183=Path('v183-live-supervision.js').read_text()
+          assert 'iconAnchor:[16,16]' in v183
+          assert '🚌' in v183
+          passenger=Path('voyageurs.html').read_text()
+          assert 'Espace conducteur' not in passenger
+          gateway=Path('login.html').read_text()
+          assert 'Voyageur ?' not in gateway
+          js=Path('voyageurs.js').read_text()
+          assert "const ROOT=/\\/voyageurs" in js
+          assert 'sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4' in js
+          print('1.0.83 source checks OK')
+          PY
