@@ -3,11 +3,34 @@ on:
   push:
     branches: [ "fix/1.0.83-navigation-resume" ]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Normalize corrective navigation source
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('v184-navigation-resume.js')
+          t=p.read_text(encoding='utf-8')
+          t=t.replace(
+            "const key=`${state?.run?.trip?.id||state?.route?.id||''}|${state.current}|${state.target}|${Math.round(proj.along/80)}`;",
+            "const key=`${state?.run?.trip?.id||state?.route?.id||''}|${state.current}|${state.target}`;"
+          )
+          t=t.replace(
+            "state.target=clamp(state.current+1,state.pattern.stops.length,Number(x.target)||state.current+1);",
+            "state.target=clamp(Math.min(state.current+1,state.pattern.stops.length-1),state.pattern.stops.length-1,Number(x.target)||Math.min(state.current+1,state.pattern.stops.length-1));"
+          )
+          old="function monitorNavigation(p){\n    if(typeof state==='undefined'||!state?.running||state.mode!=='gps'||window.FluoOpsV29?.isDeviationActive?.()){N.recovery.offSince=0;return}const pos=rawPosition(p);"
+          new="function monitorNavigation(p){\n    if(typeof state==='undefined'||!state?.running||state.mode!=='gps'||window.FluoOpsV29?.isDeviationActive?.()){N.recovery.offSince=0;return}if(N.lastTarget!==state.target){N.lastTarget=state.target;N.guidance.key='';N.guidance.route=null;N.guidance.model=null;N.guidance.maneuvers=[];N.guidance.spoken.clear()}const pos=rawPosition(p);"
+          if old not in t:
+              raise SystemExit('monitorNavigation signature not found')
+          t=t.replace(old,new,1)
+          p.write_text(t,encoding='utf-8')
+          PY
       - name: JavaScript syntax
         run: |
           node --check v182-live-tracking.js
@@ -25,6 +48,8 @@ jobs:
           assert 'requestedStops' in v184
           assert 'speechHealth' in v184
           assert 'v184Management' in v184
+          assert "if(N.lastTarget!==state.target)" in v184
+          assert "|${Math.round(proj.along/80)}" not in v184
           v182=Path('v182-live-tracking.js').read_text()
           assert 'MonSAEIVVisualGPS' in v182
           assert 'MonSAEIVResumeV184?.resuming' in v182
@@ -41,3 +66,11 @@ jobs:
           assert 'sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4' in js
           print('1.0.83 source checks OK')
           PY
+      - name: Commit normalized source if needed
+        run: |
+          if git diff --quiet -- v184-navigation-resume.js; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add v184-navigation-resume.js
+          git commit -m "Mon SAEIV 1.0.83: stabilize target-aware navigation"
+          git push origin HEAD:fix/1.0.83-navigation-resume
