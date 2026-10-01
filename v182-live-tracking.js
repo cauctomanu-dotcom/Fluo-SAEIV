@@ -1,4 +1,5 @@
 'use strict';
+/* Mon SAEIV 1.0.83 — publication temps réel : position visuelle calée sur le parcours quand elle est fiable. */
 (()=>{
   const core=window.SAEIVTracking,q=id=>document.getElementById(id);
   if(!core||window.MonSAEIVLiveV182)return;
@@ -15,15 +16,21 @@
     for(const pattern of payload.patterns||[]){const trip=pattern.trips?.find(t=>String(t.id)===String(l.tripId));if(trip){lookupKey=key;lookup={dept:String(l.dept),route,pattern,trip,date:item.date,start:Number(l.startStopIndex||0)};return lookup}}
     return null;
   }
+  function displayedPosition(s){
+    const c=s?.pos?.coords;if(!c)return null;
+    const v=window.MonSAEIVVisualGPS?.getDisplay?.();
+    if(v&&Number.isFinite(Number(v.lat))&&Number.isFinite(Number(v.lon)))return{lat:Number(v.lat),lon:Number(v.lon),accuracy:Number(c.accuracy||0)};
+    return{lat:Number(c.latitude),lon:Number(c.longitude),accuracy:Number(c.accuracy||0)};
+  }
   async function snapshot(){
     const s=st(),h=window.MonSAEIVDayAutopilotV144?.snapshot;
     if(h){if(!h.running||!h.next?.linked)return null;const course=await linkedCourse(h.next);if(!course)return null;const planned=core.at(course.date,course.trip.times?.[course.start]?.[1]||course.trip.times?.[course.start]?.[0]);return{course,stage:'hlp',position:h.position,observed:h.positionAt,delta:Number.isFinite(h.eta)&&planned!==null?(h.eta-planned)/1000:null,current:course.start,served:h.next.linked.serviceMode==='tad'?(h.next.linked.tadStops||[]):null}}
     if(!s?.running||s.mode!=='gps'||!['regular','tad'].includes(s.service?.mode))return null;
     const course=currentCourse();if(!course)return null;
-    const c=s.pos?.coords,stage=s.departed?'service':'waiting';
+    const position=displayedPosition(s),stage=s.departed?'service':'waiting';
     const dep=core.at(course.date,course.trip.times?.[course.start]?.[1]||course.trip.times?.[course.start]?.[0]);
     const delta=stage==='waiting'?(dep===null?null:Math.max(0,(Date.now()-dep)/1000)):s.punctuality?.deltaSeconds;
-    return{course,stage,position:c?{lat:c.latitude,lon:c.longitude,accuracy:c.accuracy}:null,observed:s.pos?.timestamp,delta,current:s.current,served:s.service.mode==='tad'?[...s.service.tadStops]:null};
+    return{course,stage,position,observed:s.pos?.timestamp,delta,current:s.current,served:s.service.mode==='tad'?[...s.service.tadStops]:null};
   }
   let journalBusy=false;
   const journalKey='mon-saeiv-hlp-journal-v182';
@@ -43,13 +50,14 @@
       if(!x.position||Date.now()-x.observed>30000||!Number.isFinite(x.position.lat)||!Number.isFinite(x.position.lon)||x.position.accuracy>100){status('Suivi voyageurs : attente du GPS');return}
       const a=x.course,key=[a.dept,a.date,a.trip.id].join('|');if(key!==identity){identity=key;publicId=crypto.randomUUID()}
       const row={owner_id:c.user.id,organization_id:c.profile.organization_id,public_id:publicId,service_date:a.date,department:a.dept,route_id:String(a.route.id),trip_id:String(a.trip.id),line:String(a.route.short||''),destination:String(a.pattern.headsign||a.pattern.stops.at(-1)?.name||''),stage:x.stage,latitude:x.position.lat,longitude:x.position.lon,accuracy_m:x.position.accuracy||0,observed_at:new Date(x.observed).toISOString(),delay_seconds:Number.isFinite(x.delta)?Math.round(x.delta):null,stop_index:Number(x.current),start_index:a.start,served_stop_indices:x.served};
-      const{error}=await c.client.from('saeiv_live_courses').upsert(row,{onConflict:'owner_id'});if(error)throw error;published=true;status('● Position partagée avec les voyageurs');
-    }catch(e){status('Suivi voyageurs indisponible');console.warn('[Suivi voyageurs]',e?.message||e)}finally{busy=false}
+      const{error}=await c.client.from('saeiv_live_courses').upsert(row,{onConflict:'owner_id'});if(error)throw error;published=true;status('● Position partagée en temps réel');
+    }catch(e){status('Suivi temps réel indisponible');console.warn('[Suivi temps réel]',e?.message||e)}finally{busy=false}
   }
   // Launch a mise en place even when a driver selects a course outside Ma journée.
   if(typeof startGps==='function'){
     const base=startGps;let preparing=false;
     startGps=async function(){
+      if(window.MonSAEIVResumeV184?.resuming)return base.apply(this,arguments);
       if(preparing||window.MonSAEIVDayAutopilotV144?.snapshot)return;const s=st(),course=currentCourse();
       if(!course||!['regular','tad'].includes(s.service?.mode))return base.apply(this,arguments);
       preparing=true;
@@ -66,6 +74,5 @@
       }catch(e){console.warn('[HLP] GPS initial indisponible',e);if(q('status'))q('status').textContent=`Mise en place : ${e.message||'GPS indisponible'}. Réessayez la prise de service.`;return}finally{preparing=false}
     };
   }
-  const link=document.createElement('a');link.href='./voyageurs.html';link.target='_blank';link.rel='noopener';link.textContent='Suivre un bus · Espace voyageurs';link.style.cssText='display:block;padding:14px;color:#ffd000';document.body.appendChild(link);
   window.MonSAEIVLiveV182={tick,snapshot};setInterval(tick,5000);tick();
 })();
