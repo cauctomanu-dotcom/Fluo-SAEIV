@@ -3,16 +3,17 @@
    Les annonces voyageurs utilisent la même voix IA sur Android/iPhone quand la session serveur est active.
    En cas d'absence réseau/TTS, le moteur Web Speech local reprend automatiquement. */
 (()=>{
-  const VERSION='1.0.84';
+  const VERSION='1.0.85';
   const START_RETRY_MS=2200, CANCEL_RESTART_MS=140, RECENT_MS=12000, IDENTITY_STOP_INTERVAL=5;
   const CLOUD_URL='https://xpmrnwipnoekiycghwli.supabase.co/functions/v1/passenger-tts';
   const CLOUD_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
   const CLOUD_CACHE='mon-saeiv-passenger-tts-v1';
   const CLOUD_TIMEOUT_MS=7000, CLOUD_START_TIMEOUT_MS=1800;
   const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  const IOS_SILENT_WAV='data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAACAgICA';
   let installed=false, watchdog=null, identityAnchorStop=null, identityCourseKey=null, cloudBackoffUntil=0;
-  let iosCloudAudio=null, iosCloudUnlocked=false, iosUnlocking=false;
+  // Sortie SAEIV dédiée. La radio conserve son propre <audio>; les annonces iPhone
+  // passent par ce contexte Web Audio et ne dépendent jamais de l'état du lecteur musique.
+  const announcementOutput={ctx:null,gain:null,unlocked:false,unlocking:false,currentSource:null};
   const recent=new Map();
 
   function getAudioState(){try{return (typeof state!=='undefined'&&state?.audio)?state.audio:null}catch{return null}}
@@ -79,32 +80,51 @@
     try{if('caches'in window){const c=await caches.open(CLOUD_CACHE);await c.put(key,new Response(blob,{headers:{'Content-Type':'audio/mpeg'}}))}}catch{}
     return blob;
   }
-  function iosCloudPlayer(){
+  function announcementContext(){
     if(!IS_IOS)return null;
-    if(!iosCloudAudio){
-      iosCloudAudio=new Audio();
-      iosCloudAudio.preload='auto';
-      iosCloudAudio.playsInline=true;
-      try{iosCloudAudio.setAttribute('playsinline','')}catch{}
+    const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;
+    if(!announcementOutput.ctx){
+      try{announcementOutput.ctx=new C({latencyHint:'interactive'})}catch{announcementOutput.ctx=new C()}
+      announcementOutput.gain=announcementOutput.ctx.createGain();
+      announcementOutput.gain.gain.value=1;
+      announcementOutput.gain.connect(announcementOutput.ctx.destination);
     }
-    return iosCloudAudio;
+    return announcementOutput.ctx;
   }
-  function unlockIOSCloudAudio(){
-    if(!IS_IOS)return Promise.resolve(true);
-    if(iosCloudUnlocked)return Promise.resolve(true);
-    if(iosUnlocking)return Promise.resolve(false);
-    const media=iosCloudPlayer();if(!media)return Promise.resolve(false);
-    iosUnlocking=true;
+  async function unlockAnnouncementAudio(){
+    if(!IS_IOS)return true;
+    if(announcementOutput.unlocking)return announcementOutput.unlocked;
+    const ctx=announcementContext();if(!ctx)return false;
+    announcementOutput.unlocking=true;
     try{
-      media.pause();media.src=IOS_SILENT_WAV;media.currentTime=0;media.muted=false;media.volume=1;
-      const p=media.play();
-      return Promise.resolve(p).then(()=>{
-        try{media.pause();media.currentTime=0}catch{}
-        iosCloudUnlocked=true;
-        console.info('[Mon SAEIV] sortie audio iPhone déverrouillée pour les annonces');
-        return true;
-      }).catch(e=>{console.warn('[Mon SAEIV] déverrouillage audio iPhone à renouveler',e?.message||e);return false}).finally(()=>{iosUnlocking=false});
-    }catch(e){iosUnlocking=false;console.warn('[Mon SAEIV] déverrouillage audio iPhone impossible',e?.message||e);return Promise.resolve(false)}
+      if(ctx.state!=='running')await ctx.resume();
+      // Impulsion silencieuse propre au moteur SAEIV : elle ouvre la session Web Audio
+      // sans lancer ni toucher au lecteur radio.
+      const buffer=ctx.createBuffer(1,1,ctx.sampleRate),source=ctx.createBufferSource();
+      source.buffer=buffer;source.connect(announcementOutput.gain);source.start(0);
+      announcementOutput.unlocked=ctx.state==='running';
+      if(announcementOutput.unlocked)console.info('[Mon SAEIV] sortie annonces SAEIV autonome prête');
+      return announcementOutput.unlocked;
+    }catch(e){
+      announcementOutput.unlocked=false;
+      console.warn('[Mon SAEIV] sortie annonces SAEIV à réactiver',e?.message||e);
+      return false;
+    }finally{announcementOutput.unlocking=false}
+  }
+  async function playIOSCloudBlob(blob,cur,onStarted,onEnded){
+    const ctx=announcementContext();if(!ctx)throw new Error('announcement-audio-unavailable');
+    if(ctx.state!=='running'){
+      try{await ctx.resume()}catch{}
+      if(ctx.state!=='running'){const e=new Error('announcement-audio-locked');e.name='NotAllowedError';throw e}
+    }
+    const bytes=await blob.arrayBuffer();
+    const decoded=await ctx.decodeAudioData(bytes.slice(0));
+    if(cur.finished)throw new Error('announcement-cancelled');
+    const source=ctx.createBufferSource();source.buffer=decoded;source.connect(announcementOutput.gain);
+    cur.source=source;announcementOutput.currentSource=source;
+    source.onended=()=>{if(announcementOutput.currentSource===source)announcementOutput.currentSource=null;onEnded?.()};
+    source.start(0);onStarted?.();
+    return source;
   }
   function markCloudLabel(){
     const el=document.getElementById('voiceActual');if(!el)return;const male=passengerVoicePreference()==='male';
@@ -117,11 +137,11 @@
     installed=true;const baseCancel=sp.cancel.bind(sp);let restartNotBefore=0;
     function cancelSafely(){try{baseCancel()}catch{}restartNotBefore=Date.now()+CANCEL_RESTART_MS}
     function disposeCloud(cur,finishDuck=true){
-      if(!cur)return;cur.finished=true;clearTimeout(cur.startWatch);try{cur.abort?.abort()}catch{}try{cur.audio?.pause()}catch{}
-      try{
-        if(cur.audio&&cur.audio!==iosCloudAudio)cur.audio.src='';
-        if(cur.audio===iosCloudAudio){cur.audio.onplaying=null;cur.audio.onended=null;cur.audio.onerror=null;cur.audio.currentTime=0}
-      }catch{}
+      if(!cur)return;cur.finished=true;clearTimeout(cur.startWatch);try{cur.abort?.abort()}catch{}
+      try{cur.source?.stop?.()}catch{}try{cur.source?.disconnect?.()}catch{}
+      if(announcementOutput.currentSource===cur.source)announcementOutput.currentSource=null;
+      try{cur.audio?.pause()}catch{}
+      try{if(cur.audio){cur.audio.onplaying=null;cur.audio.onended=null;cur.audio.onerror=null;cur.audio.src=''}}catch{}
       try{if(cur.objectUrl)URL.revokeObjectURL(cur.objectUrl)}catch{}
       if(finishDuck&&cur.ducked){cur.ducked=false;duckEnd(cur.kind)}
     }
@@ -152,34 +172,44 @@
 
       const launchCloud=async()=>{
         if(!cloudCandidate(item))return launchLocal(prepared,true,0);
-        // Safari iOS n'autorise pas de façon fiable un nouvel <audio> créé après un fetch asynchrone.
-        // On réutilise donc un lecteur permanent déverrouillé par le dernier geste conducteur.
-        if(IS_IOS&&!iosCloudUnlocked)return launchLocal(prepared,true,0);
-        const controller=new AbortController(),cur={priority:Number(item.priority??50),kind:item.kind||'general',token,item,mode:'cloud',abort:controller,audio:null,objectUrl:null,ducked:false,finished:false,started:false,startWatch:null};audio.current=cur;
+        // Sur iPhone, la voix IA utilise une sortie Web Audio SAEIV indépendante.
+        // La radio n'est qu'une source média facultative que duckStart/duckEnd peut atténuer.
+        if(IS_IOS&&!announcementOutput.unlocked)return launchLocal(prepared,true,0);
+        const controller=new AbortController(),cur={priority:Number(item.priority??50),kind:item.kind||'general',token,item,mode:'cloud',abort:controller,audio:null,source:null,objectUrl:null,ducked:false,finished:false,started:false,startWatch:null};audio.current=cur;
         const timeout=setTimeout(()=>controller.abort('timeout'),CLOUD_TIMEOUT_MS);
+        const started=()=>{
+          if(cur.finished)return;cur.started=true;clearTimeout(cur.startWatch);
+          if(item.key)recent.set(item.key,Date.now());
+          if(!cur.ducked){cur.ducked=true;duckStart(item.kind)}
+          markCloudLabel();
+        };
+        const done=()=>{
+          if(cur.finished)return;clearTimeout(cur.startWatch);disposeCloud(cur,true);
+          if(audio.current===cur)audio.current=null;setTimeout(()=>pumpSpeech(),30);
+        };
         const fallbackCloud=reason=>{
           if(cur.finished)return;clearTimeout(timeout);clearTimeout(cur.startWatch);
           if(audio.current===cur)audio.current=null;disposeCloud(cur,true);
           if(item.cancelled||obsolete(item))return setTimeout(()=>pumpSpeech(),20);
-          console.warn('[Mon SAEIV] audio IA non démarré, secours vocal local',reason||'sans détail');
+          console.warn('[Mon SAEIV] sortie annonces SAEIV indisponible, secours vocal local',reason||'sans détail');
           launchLocal(prepared,true,0);
         };
         try{
           const pref=passengerVoicePreference(),blob=await getCloudBlob(prepared,pref,controller.signal);clearTimeout(timeout);
           if(cur.finished||audio.current!==cur||obsolete(item)){disposeCloud(cur,false);return setTimeout(()=>pumpSpeech(),20)}
-          cur.objectUrl=URL.createObjectURL(blob);
-          const media=IS_IOS?iosCloudPlayer():new Audio();cur.audio=media;
-          media.preload='auto';media.playsInline=true;media.volume=1;media.muted=false;media.src=cur.objectUrl;
-          const done=()=>{if(cur.finished)return;clearTimeout(cur.startWatch);disposeCloud(cur,true);if(audio.current===cur)audio.current=null;setTimeout(()=>pumpSpeech(),30)};
-          media.onplaying=()=>{if(cur.finished)return;cur.started=true;clearTimeout(cur.startWatch);if(item.key)recent.set(item.key,Date.now());if(!cur.ducked){cur.ducked=true;duckStart(item.kind)}markCloudLabel()};
-          media.onended=done;
-          media.onerror=()=>fallbackCloud('erreur de lecture audio');
           cur.startWatch=setTimeout(()=>{if(!cur.started&&!cur.finished)fallbackCloud('aucun démarrage audio détecté')},CLOUD_START_TIMEOUT_MS);
-          await media.play();
+          if(IS_IOS){
+            await playIOSCloudBlob(blob,cur,started,done);
+          }else{
+            cur.objectUrl=URL.createObjectURL(blob);const media=new Audio(cur.objectUrl);cur.audio=media;
+            media.preload='auto';media.playsInline=true;media.volume=1;media.muted=false;
+            media.onplaying=started;media.onended=done;media.onerror=()=>fallbackCloud('erreur de lecture audio');
+            await media.play();
+          }
         }catch(e){
           clearTimeout(timeout);clearTimeout(cur.startWatch);
           if(cur.finished)return;
-          if(IS_IOS&&String(e?.name||'')==='NotAllowedError')iosCloudUnlocked=false;
+          if(IS_IOS&&String(e?.name||'')==='NotAllowedError')announcementOutput.unlocked=false;
           if(audio.current===cur)audio.current=null;disposeCloud(cur,true);
           if(item.cancelled||obsolete(item))return setTimeout(()=>pumpSpeech(),20);
           const status=Number(e?.status||0);cloudBackoffUntil=Date.now()+(status===503||status===401?300000:15000);
@@ -199,16 +229,16 @@
     };
 
     watchdog=setInterval(()=>{const audio=getAudioState();if(!audio)return;purge(audio);const cur=audio.current;if(cur?.item&&obsolete(cur.item)){cancelCurrent('obsolete');setTimeout(()=>pumpSpeech(),CANCEL_RESTART_MS+20)}else if(!cur)try{pumpSpeech()}catch{}},180);
-    const userAudioWake=()=>{try{if(sp.paused)sp.resume()}catch{};unlockIOSCloudAudio().catch(()=>{});setTimeout(()=>{try{pumpSpeech()}catch{}},20)};
+    const userAudioWake=()=>{try{if(sp.paused)sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>{try{pumpSpeech()}catch{}},20)};
     document.addEventListener('pointerdown',userAudioWake,{capture:true,passive:true});
     document.addEventListener('touchstart',userAudioWake,{capture:true,passive:true});
     document.addEventListener('click',userAudioWake,{capture:true,passive:true});
     document.addEventListener('change',e=>{if(e.target?.id==='passengerVoiceGender')setTimeout(()=>{if(window.MonSAEIVCloudV156?.user)markCloudLabel()},30)},true);
     window.addEventListener('pageshow',()=>{try{if(sp.paused)sp.resume()}catch{};setTimeout(()=>pumpSpeech(),120)});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{if(sp.paused)sp.resume()}catch{};setTimeout(()=>pumpSpeech(),120)}});
-    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,frenchVoice,voiceProfile,cloud:true,isIOS:IS_IOS,unlockIOSAudio:unlockIOSCloudAudio,restart:()=>{try{sp.resume()}catch{};setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
+    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,frenchVoice,voiceProfile,cloud:true,isIOS:IS_IOS,unlockIOSAudio:unlockAnnouncementAudio,unlockAnnouncementAudio,audioEngine:'independent-webaudio',restart:()=>{try{sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
     window.MonSAEIVSpeechV148=window.MonSAEIVSpeechV131;setTimeout(()=>{if(window.MonSAEIVCloudV156?.user)markCloudLabel()},1800);
-    console.info('[Mon SAEIV] moteur vocal cloud OpenAI + secours local actif');return true;
+    console.info('[Mon SAEIV] moteur vocal SAEIV autonome + cloud OpenAI + secours local actif');return true;
   }
   function versionLabel(){document.title=`Mon SAEIV · ${VERSION}`;const b=document.getElementById('buildInfo');if(b)b.textContent=`Version ${VERSION}`}
   function boot(){versionLabel();if(!installEngine()){let tries=0;const t=setInterval(()=>{if(installEngine()||++tries>60)clearInterval(t)},125)}setTimeout(versionLabel,6000)}
