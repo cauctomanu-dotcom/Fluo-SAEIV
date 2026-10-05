@@ -1,5 +1,5 @@
 'use strict';
-/* Mon SAEIV 1.0.80 — génération Exploitation orientée couverture + journées compactes.
+/* Mon SAEIV 1.0.88 — génération Exploitation orientée couverture + vraies journées conducteur.
    Priorités :
    1) placer le maximum de segments compatibles ;
    2) compléter les journées déjà ouvertes avant d'ouvrir un nouveau conducteur ;
@@ -8,9 +8,9 @@
    Toutes les lignes sont contrôlées en mode RSE 561/2006 conservateur. */
 (()=>{
   if(window.MonSAEIVGenerationEngineV167?.installed)return;
-  const VERSION='1.0.80';
+  const VERSION='1.0.88';
   const ECON=Object.freeze({dieselEurPerLiter:2.10,busLitersPer100Km:30,referenceLaborEurPerHour:30,offParkingCutPct:50,parkingCutPct:0,samePlaceMeters:120});
-  const PLAN=Object.freeze({targetWorkMinutes:360,targetAmplitudeMinutes:480,softMaxWorkMinutes:540,softMaxAmplitudeMinutes:720});
+  const PLAN=Object.freeze({targetWorkMinutes:420,targetAmplitudeMinutes:660,softMaxWorkMinutes:570,softMaxAmplitudeMinutes:780,hardMaxAmplitudeMinutes:780,exceptionalAmplitudeMinutes:840,exceptional14hAutomatic:false});
   const q=id=>document.getElementById(id);
   const cloud=()=>window.MonSAEIVCloudV156;
   const client=()=>cloud()?.client||null;
@@ -62,7 +62,7 @@
   function scoreCandidate(seg,driver,current,setting,{compactOnly=false}={}){
     const park=setting?.bus_parking;if(!validPoint(park))return{ok:false,reason:'stationnement bus absent'};const known=normalizeKnown(setting?.known_lines);if(!known.length)return{ok:false,reason:'lignes connues non renseignées'};if(!knowsLine(seg,setting))return{ok:false,reason:`ligne ${seg.line||''} non déclarée comme connue`};
     const s=mm(seg.start),e0=mm(seg.end);if(s===null||e0===null)return{ok:false,reason:'horaire invalide'};let e=e0;if(e<s)e+=1440;const xs=[...current].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));for(const x of xs){let a=mm(x.start),b=mm(x.end);if(a===null||b===null)continue;if(b<a)b+=1440;if(s<b&&e>a)return{ok:false,reason:'chevauchement'}}
-    const all=[...xs,{...seg,regime:'eu561'}].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999)),eco=scheduleEconomy(all,park);if(!eco.ok)return eco;if(eco.amplitude>780)return{ok:false,reason:'amplitude estimée > 13 h (mode automatique conservateur)'};if(eco.work>600)return{ok:false,reason:'travail estimé > 10 h'};if(eco.drive>540)return{ok:false,reason:'conduite estimée > 9 h'};if(compactOnly&&(eco.maxPaidCut>=120||eco.cutCount>3))return{ok:false,reason:eco.maxPaidCut>=120?'coupure 50 % ≥ 2 h évitée en passe économique':'trop de coupures pour la passe économique'};return{ok:true,score:eco.score,hlpKm:eco.hlpKm,hlpMinutes:eco.hlpMinutes,cutMinutes:eco.cutMinutes,paidCutMinutes:eco.paidCutMinutes,cutCount:eco.cutCount,maxCut:eco.maxCut,maxPaidCut:eco.maxPaidCut,costEur:eco.costEur,economy:eco};
+    const all=[...xs,{...seg,regime:'eu561'}].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999)),eco=scheduleEconomy(all,park);if(!eco.ok)return eco;if(eco.amplitude>PLAN.hardMaxAmplitudeMinutes)return{ok:false,reason:'amplitude estimée > 13 h (plafond automatique service régulier)'};if(eco.work>600)return{ok:false,reason:'travail estimé > 10 h'};if(eco.drive>540)return{ok:false,reason:'conduite estimée > 9 h'};if(compactOnly&&eco.cutCount>4)return{ok:false,reason:'trop de coupures pour une journée conducteur cohérente'};return{ok:true,score:eco.score,hlpKm:eco.hlpKm,hlpMinutes:eco.hlpMinutes,cutMinutes:eco.cutMinutes,paidCutMinutes:eco.paidCutMinutes,cutCount:eco.cutCount,maxCut:eco.maxCut,maxPaidCut:eco.maxPaidCut,costEur:eco.costEur,economy:eco};
   }
 
   function planningRank(current,setting,result){
@@ -119,5 +119,5 @@
 
   function intercept(e){const btn=e.target?.closest?.('#v165Generate');if(!btn)return;e.preventDefault();e.stopImmediatePropagation();generate()}
   document.addEventListener('click',intercept,true);
-  window.MonSAEIVGenerationEngineV167={installed:true,version:VERSION,generate,scoreCandidate,knowsLine,economics:ECON,planningPolicy:PLAN,get running(){return running}};
+  window.MonSAEIVGenerationEngineV167={installed:true,version:VERSION,generate,scoreCandidate,planningRank,scheduleEconomy,knowsLine,economics:ECON,planningPolicy:PLAN,get running(){return running}};
 })();
