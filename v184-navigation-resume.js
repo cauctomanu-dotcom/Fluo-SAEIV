@@ -1,5 +1,5 @@
 'use strict';
-/* Mon SAEIV 1.0.83 — correctifs terrain :
+/* Mon SAEIV 1.0.86 — démarrage terrain + correctifs :
    - entrée Exploitation sans flash de l'écran conducteur ;
    - détection hors parcours sur GPS BRUT et recalcul réellement routier ;
    - guidage basé sur la distance parcourue sur la route, pas la distance à vol d'oiseau ;
@@ -7,7 +7,7 @@
    - reprise de la dernière course avec arrêts demandés conservés. */
 (()=>{
   if(window.MonSAEIVRuntimeV184?.installed)return;
-  const VERSION='1.0.83';
+  const VERSION='1.0.86';
   const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
   const RESUME_KEY='mon-saeiv-resume-v184';
   const q=id=>document.getElementById(id);
@@ -64,6 +64,88 @@
     try{const sh=cleanShape(state?.fusion?.shape?.length>=2?state.fusion.shape:state?.pattern?.shape);if(sh.length<2)return null;return{shape:sh,cum:cumulative(sh)}}catch{return null}
   }
   function rawPosition(p=typeof state!=='undefined'?state?.pos:null){const c=p?.coords;return c&&finite(c.latitude)&&finite(c.longitude)?{lat:Number(c.latitude),lon:Number(c.longitude),accuracy:Number(c.accuracy||999),speed:finite(c.speed)&&Number(c.speed)>=0?Number(c.speed):0,heading:finite(c.heading)?Number(c.heading):null}:null}
+
+  // ---------- Démarrage / reprise : HLP ou déjà sur la ligne ----------
+  const StartFlow={asking:null,lastMode:null,lastTripId:null,resumeHint:null,lastRecalibration:null};
+  function currentTripId(){try{return String(state?.run?.trip?.id||'')}catch{return''}}
+  function setStartDecision(mode,tripId=currentTripId()){StartFlow.lastMode=mode||null;StartFlow.lastTripId=String(tripId||'');return mode}
+  function lastStartMode(){const trip=currentTripId();return !StartFlow.lastTripId||StartFlow.lastTripId===trip?StartFlow.lastMode:null}
+  function setResumeHint(index){const n=Number(index);StartFlow.resumeHint=Number.isInteger(n)?n:null}
+  function clearResumeHint(){StartFlow.resumeHint=null}
+  function gpsPositionV186(){
+    const live=rawPosition();
+    if(live&&live.accuracy<=100&&Date.now()-Number(state?.pos?.timestamp||0)<15000)return Promise.resolve({coords:{latitude:live.lat,longitude:live.lon,accuracy:live.accuracy,speed:live.speed,heading:live.heading},timestamp:Date.now()});
+    return new Promise((resolve,reject)=>{
+      if(!navigator.geolocation)return reject(new Error('GPS indisponible'));
+      navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:15000,maximumAge:250});
+    });
+  }
+  function ensureStartModeUi(){
+    if(q('v186StartMode'))return;
+    const st=document.createElement('style');st.id='v186StartModeStyle';
+    st.textContent='#v186StartMode{position:fixed;inset:0;z-index:2147483600;background:rgba(2,9,14,.84);display:flex;align-items:center;justify-content:center;padding:18px}#v186StartMode.hidden{display:none!important}#v186StartMode .v186-card{width:min(520px,100%);background:#0b1b27;border:1px solid #35566b;border-radius:20px;padding:20px;box-shadow:0 24px 70px rgba(0,0,0,.5)}#v186StartMode h2{margin:0 0 7px;font-size:1.25rem;color:#fff}#v186StartMode p{margin:0 0 16px;color:#b9cfdb;line-height:1.45}#v186StartMode .v186-actions{display:grid;gap:10px}#v186StartMode button{min-height:56px;border-radius:14px;font-weight:800;font-size:.95rem}#v186StartHlp{background:#503b13;border-color:#9b7525;color:#fff1c3}#v186StartLine{background:#123f32;border-color:#2f8c67;color:#d9ffef}#v186StartCancel{min-height:42px!important;background:#172630;color:#b8cbd5}';
+    document.head.appendChild(st);
+    const el=document.createElement('div');el.id='v186StartMode';el.className='hidden';
+    el.innerHTML='<div class="v186-card" role="dialog" aria-modal="true" aria-labelledby="v186StartTitle"><h2 id="v186StartTitle">Situation au démarrage</h2><p id="v186StartText">Indique où se trouve le véhicule par rapport à la course.</p><div class="v186-actions"><button id="v186StartHlp" type="button">🚌 Je suis en HLP vers le départ de ligne</button><button id="v186StartLine" type="button">📍 Je suis déjà sur la ligne</button><button id="v186StartCancel" type="button">Annuler</button></div></div>';
+    document.body.appendChild(el);
+  }
+  function askStartMode(opts={}){
+    if(StartFlow.asking)return StartFlow.asking;
+    ensureStartModeUi();const el=q('v186StartMode'),title=q('v186StartTitle'),txt=q('v186StartText');
+    if(title)title.textContent=opts.resume?'Reprendre la course':'Démarrer la course';
+    if(txt)txt.textContent=opts.resume?'Tu reprends une course interrompue. Es-tu actuellement en haut-le-pied vers le départ, ou déjà positionné sur la ligne ?':'Es-tu en haut-le-pied vers le départ de ligne, ou déjà positionné sur la ligne ?';
+    el?.classList.remove('hidden');
+    StartFlow.asking=new Promise(resolve=>{
+      const finish=mode=>{el?.classList.add('hidden');q('v186StartHlp')?.removeEventListener('click',hlp);q('v186StartLine')?.removeEventListener('click',line);q('v186StartCancel')?.removeEventListener('click',cancel);StartFlow.asking=null;resolve(mode)};
+      const hlp=()=>finish('hlp'),line=()=>finish('line'),cancel=()=>finish(null);
+      q('v186StartHlp')?.addEventListener('click',hlp,{once:true});q('v186StartLine')?.addEventListener('click',line,{once:true});q('v186StartCancel')?.addEventListener('click',cancel,{once:true});
+    });
+    return StartFlow.asking;
+  }
+  function sequentialStopAlong(model){
+    const stops=state?.pattern?.stops||[],out=[];let from=0;
+    for(const s of stops){
+      if(!finite(s?.lat)||!finite(s?.lon)){out.push(null);continue}
+      const p=projectOn(model.shape,model.cum,Number(s.lat),Number(s.lon),Math.max(0,from-2));
+      if(p){from=p.segment;out.push(p.along)}else out.push(null);
+    }
+    return out;
+  }
+  function segmentAtAlong(cum,along){let i=0;while(i<cum.length-2&&cum[i+1]<along)i++;return i}
+  async function recalibrateFromPosition(pos,opts={}){
+    const c=pos?.coords||pos;
+    if(!c||(!finite(c.latitude)&&!finite(c.lat)))throw new Error('Position GPS indisponible.');
+    if(typeof ensureExactPatternGeometry==='function'&&state?.pattern)try{await ensureExactPatternGeometry(state.pattern)}catch{}
+    const model=officialModel();if(!model)throw new Error('Tracé de la course indisponible.');
+    const lat=Number(c.latitude??c.lat),lon=Number(c.longitude??c.lon),accuracy=Math.max(3,Number(c.accuracy||20));
+    const stops=state?.pattern?.stops||[];if(stops.length<2)throw new Error('Arrêts de la course indisponibles.');
+    const alongs=sequentialStopAlong(model),startIndex=clamp(0,stops.length-1,Number(q('startStop')?.value||0));
+    const pref=Number(opts.preferredCurrent),hint=Number.isInteger(pref)?clamp(startIndex,stops.length-1,pref):null;
+    let fromSeg=0;
+    if(hint!==null&&finite(alongs[Math.max(startIndex,hint-1)])){const minAlong=Math.max(0,Number(alongs[Math.max(startIndex,hint-1)])-350);fromSeg=segmentAtAlong(model.cum,minAlong)}
+    let proj=projectOn(model.shape,model.cum,lat,lon,fromSeg);if(!proj&&fromSeg)proj=projectOn(model.shape,model.cum,lat,lon);if(!proj)throw new Error('Impossible de te recaler sur le tracé.');
+    const maxOff=Math.max(260,accuracy*4.5);if(proj.d>maxOff)throw new Error('Le véhicule est à environ '+Math.round(proj.d)+' m de la ligne. Choisis HLP si tu rejoins encore le départ.');
+    const passTolerance=Math.min(12,Math.max(4,accuracy*.35));let current=startIndex;
+    for(let i=startIndex;i<alongs.length;i++){if(finite(alongs[i])&&Number(alongs[i])<=proj.along+passTolerance)current=i;else if(finite(alongs[i])&&Number(alongs[i])>proj.along+passTolerance)break}
+    current=clamp(startIndex,stops.length-1,current);
+    let target=null;try{if(typeof nextOperationalStop==='function')target=nextOperationalStop(current)}catch{}
+    if(!Number.isInteger(target))target=current<stops.length-1?current+1:current;target=clamp(current,stops.length-1,target);
+    state.current=current;state.target=target;
+    if(state.fusion){state.fusion.lastAlong=proj.along;state.fusion.displayAlong=proj.along;state.fusion.lastSegment=proj.segment}
+    let departureAllowed=true;try{const dep=typeof selectedDepartureDate==='function'?selectedDepartureDate():null;if(dep&&Date.now()<dep.getTime())departureAllowed=false}catch{}
+    const startAlong=finite(alongs[startIndex])?Number(alongs[startIndex]):0,beyondStart=current>startIndex||proj.along>startAlong+35;
+    if(beyondStart&&departureAllowed){state.departed=true;state.firstLegDepartureSeen=true;try{if(typeof clearDepartureScheduling==='function')clearDepartureScheduling()}catch{}}
+    else if(!departureAllowed){state.departed=false;state.firstLegDepartureSeen=false}
+    state.announced=false;state.arrivalAnnounced=false;state.nextStopDueAt=state.departed&&target>current?Date.now()+5000:null;state.midpointAnnounced=false;state.reached=false;state.minDist=Infinity;
+    if(state.service?.requestedStops instanceof Set)state.service.requestedStops=new Set([...state.service.requestedStops].map(Number).filter(i=>Number.isInteger(i)&&i>current));
+    try{if(typeof labels==='function')labels()}catch{}try{if(typeof renderRequestsButton==='function')renderRequestsButton()}catch{}try{if(typeof updateRequestAlert==='function')updateRequestAlert(true)}catch{}try{if(typeof updateDepartureDisplay==='function')updateDepartureDisplay()}catch{}
+    N.guidance.key='';N.guidance.route=null;N.guidance.model=null;N.guidance.maneuvers=[];N.guidance.spoken.clear();clearRecovery();
+    const rp=rawPosition(pos)||{lat,lon,accuracy,speed:Number(c.speed||0),heading:c.heading};if(state?.running&&rp)buildGuidance(rp,true).catch(()=>{});
+    StartFlow.lastRecalibration={at:Date.now(),current,target,offRouteM:Math.round(proj.d),along:Math.round(proj.along)};
+    try{window.FluoJournalCore?.log?.('COURSE_RECALAGE_GPS_V186',{current,target,offRouteM:Math.round(proj.d),source:opts.source||'start'})}catch{}
+    const cur=stops[current]?.name||'arrêt courant',nxt=stops[target]?.name||'terminus',status=q('status');if(status)status.textContent='Recalé sur la ligne · '+cur+' → '+nxt;
+    return StartFlow.lastRecalibration;
+  }
 
   // ---------- Navigation 1.0.83 ----------
   const N={recovery:{active:false,calculating:false,route:null,model:null,maneuvers:[],spoken:new Set(),rejoinAlong:null,lastCalc:0,offSince:0,offRecoverySince:0,line:null},guidance:{key:'',loading:false,route:null,model:null,maneuvers:[],spoken:new Set()},lastOfficial:null,lastTarget:null};
@@ -215,6 +297,7 @@
     setInterval(()=>{speechHealth();if(typeof state!=='undefined'&&state?.running)saveResume('checkpoint')},2000);
   }
 
+  window.MonSAEIVCourseStartV186={version:VERSION,askStartMode,gpsPosition:gpsPositionV186,recalibrateFromPosition,setDecision:setStartDecision,lastMode:lastStartMode,setResumeHint,clearResumeHint,get resumeHint(){return StartFlow.resumeHint},get lastRecalibration(){return StartFlow.lastRecalibration}};
   window.MonSAEIVRuntimeV184={installed:true,runtimeInstalled:false,version:VERSION,restoreLastCourse,saveResume,wakeSpeech};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(installRuntime,0),{once:true});else setTimeout(installRuntime,0);
 })();
