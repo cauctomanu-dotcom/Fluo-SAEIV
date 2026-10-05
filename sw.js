@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE='mon-saeiv-clean-1.0.86';
+const CACHE='mon-saeiv-clean-1.0.87';
 const CORE=[
   './voyageurs.html','./voyageurs.css','./voyageurs.js','./tracking-core.js','./v182-live-tracking.js','./v183-live-supervision.js','./v184-navigation-resume.js',
   './',
