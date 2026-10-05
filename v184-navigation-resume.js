@@ -255,16 +255,59 @@
   }
   function refreshResumeButton(){const b=q('v184Resume'),x=resumeSnapshot();if(!b)return;b.classList.toggle('hidden',!x);if(x)b.textContent=`↩ Reprendre ${x.routeShort||'la dernière course'} · ${x.destination||''}`}
   async function restoreLastCourse(){
-    if(R.restoring)return;const x=resumeSnapshot();if(!x)throw new Error('Aucune course récente à reprendre.');R.restoring=true;const status=q('v184ResumeStatus');if(status)status.textContent='Restauration de la course et des arrêts demandés…';
+    if(R.restoring)return;
+    const x=resumeSnapshot();if(!x)throw new Error('Aucune course récente à reprendre.');
+    R.restoring=true;const status=q('v184ResumeStatus');if(status)status.textContent='Restauration de la course et des arrêts demandés…';
     try{
       if(typeof loadDept!=='function'||typeof loadRoute!=='function'||typeof selectRun!=='function')throw new Error('Moteur de course indisponible.');
-      await Promise.resolve(loadDept(x.dept));await waitFor(()=>state?.routes?.length);const route=state.routes.find(r=>String(r.id)===String(x.routeId));if(!route)throw new Error('La ligne sauvegardée n’existe plus dans les données actuelles.');if(q('route'))q('route').value=String(route.id);await Promise.resolve(loadRoute(route));await waitFor(()=>state?.patterns?.length);
-      if(typeof setServiceMode==='function')setServiceMode(x.serviceMode==='tad'?'tad':'regular');if(q('serviceDate')&&x.serviceDate)q('serviceDate').value=x.serviceDate;if(typeof populateRuns==='function')populateRuns();await waitFor(()=>state?.runOptions?.length);
-      const i=state.runOptions.findIndex(r=>String(r.trip?.id)===String(x.tripId));if(i<0)throw new Error('La course exacte n’est plus disponible à cette date.');if(q('trip'))q('trip').value=String(i);await Promise.resolve(selectRun(i));await waitFor(()=>state?.pattern&&state?.run);
-      if(q('startStop'))q('startStop').value=String(clamp(0,state.pattern.stops.length-1,Number(x.startStop)||0));state.service.requestedStops=new Set((x.requestedStops||[]).map(Number).filter(Number.isInteger));state.service.tadStops=new Set((x.tadStops||[]).map(Number).filter(Number.isInteger));if(typeof renderRequestsButton==='function')renderRequestsButton();
-      R.resuming=true;await Promise.resolve(startGps());await sleep(180);if(!state?.running)throw new Error('Le GPS n’a pas pu redémarrer la course.');
-      state.current=clamp(0,state.pattern.stops.length-1,Number(x.current)||0);state.target=clamp(Math.min(state.current+1,state.pattern.stops.length-1),state.pattern.stops.length-1,Number(x.target)||Math.min(state.current+1,state.pattern.stops.length-1));state.departed=x.departed!==false;state.firstLegDepartureSeen=x.firstLegDepartureSeen!==false;state.service.requestedStops=new Set((x.requestedStops||[]).map(Number).filter(i=>Number.isInteger(i)&&i>state.current));if(state.service.mode==='tad')state.service.tadStops=new Set((x.tadStops||[]).map(Number).filter(Number.isInteger));state.announced=false;state.arrivalAnnounced=false;state.nextStopDueAt=Date.now()+5000;state.midpointAnnounced=false;state.reached=false;state.minDist=Infinity;if(finite(state.fusion?.stopAlong?.[state.current]))state.fusion.lastAlong=Number(state.fusion.stopAlong[state.current]);if(typeof labels==='function')labels();if(typeof renderRequestsButton==='function')renderRequestsButton();if(typeof updateRequestAlert==='function')updateRequestAlert(true);if(status)status.textContent=`Course reprise · ${state.service.requestedStops.size} arrêt${state.service.requestedStops.size>1?'s':''} demandé${state.service.requestedStops.size>1?'s':''} restauré${state.service.requestedStops.size>1?'s':''}.`;saveResume('resumed');
-    }finally{R.resuming=false;R.restoring=false}
+      await Promise.resolve(loadDept(x.dept));await waitFor(()=>state?.routes?.length);
+      const route=state.routes.find(r=>String(r.id)===String(x.routeId));if(!route)throw new Error('La ligne sauvegardée n’existe plus dans les données actuelles.');
+      if(q('route'))q('route').value=String(route.id);await Promise.resolve(loadRoute(route));await waitFor(()=>state?.patterns?.length);
+      if(typeof setServiceMode==='function')setServiceMode(x.serviceMode==='tad'?'tad':'regular');
+      if(q('serviceDate')&&x.serviceDate)q('serviceDate').value=x.serviceDate;
+      if(typeof populateRuns==='function')populateRuns();await waitFor(()=>state?.runOptions?.length);
+      const i=state.runOptions.findIndex(r=>String(r.trip?.id)===String(x.tripId));if(i<0)throw new Error('La course exacte n’est plus disponible à cette date.');
+      if(q('trip'))q('trip').value=String(i);await Promise.resolve(selectRun(i));await waitFor(()=>state?.pattern&&state?.run);
+      if(q('startStop'))q('startStop').value=String(clamp(0,state.pattern.stops.length-1,Number(x.startStop)||0));
+      state.service.requestedStops=new Set((x.requestedStops||[]).map(Number).filter(Number.isInteger));
+      state.service.tadStops=new Set((x.tadStops||[]).map(Number).filter(Number.isInteger));
+      if(typeof renderRequestsButton==='function')renderRequestsButton();
+
+      setResumeHint(Number(x.current));
+      R.resuming=true;
+      await Promise.resolve(startGps());
+      await sleep(220);
+      const mode=lastStartMode();
+
+      if(mode==='hlp'&&!state?.running){
+        if(status)status.textContent='Reprise préparée en HLP · les arrêts demandés seront conservés au démarrage de la ligne.';
+        return;
+      }
+      if(!state?.running)throw new Error('Le GPS n’a pas pu redémarrer la course.');
+
+      if(mode!=='line'&&mode!=='hlp'){
+        state.current=clamp(0,state.pattern.stops.length-1,Number(x.current)||0);
+        state.target=clamp(Math.min(state.current+1,state.pattern.stops.length-1),state.pattern.stops.length-1,Number(x.target)||Math.min(state.current+1,state.pattern.stops.length-1));
+        state.departed=x.departed!==false;state.firstLegDepartureSeen=x.firstLegDepartureSeen!==false;
+      }
+
+      state.service.requestedStops=new Set((x.requestedStops||[]).map(Number).filter(idx=>Number.isInteger(idx)&&idx>state.current));
+      if(state.service.mode==='tad')state.service.tadStops=new Set((x.tadStops||[]).map(Number).filter(Number.isInteger));
+      state.announced=false;state.arrivalAnnounced=false;
+      if(mode!=='line')state.nextStopDueAt=state.departed?Date.now()+5000:null;
+      state.midpointAnnounced=false;state.reached=false;state.minDist=Infinity;
+      if(finite(state.fusion?.stopAlong?.[state.current])&&mode!=='line')state.fusion.lastAlong=Number(state.fusion.stopAlong[state.current]);
+      if(typeof labels==='function')labels();
+      if(typeof renderRequestsButton==='function')renderRequestsButton();
+      if(typeof updateRequestAlert==='function')updateRequestAlert(true);
+      if(status){
+        if(mode==='line')status.textContent='Course reprise et recalée sur la position GPS · '+state.service.requestedStops.size+' arrêt(s) demandé(s) conservé(s).';
+        else status.textContent='Course reprise · '+state.service.requestedStops.size+' arrêt(s) demandé(s) restauré(s).';
+      }
+      saveResume('resumed');
+    }finally{
+      clearResumeHint();R.resuming=false;R.restoring=false;
+    }
   }
 
   // ---------- Robustesse audio ----------
