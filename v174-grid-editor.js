@@ -56,7 +56,7 @@
     document.querySelectorAll('[data-driver-lane]').forEach(lane=>{
       const blocks=[...lane.querySelectorAll(':scope > .v165-block')];blocks.forEach(block=>{const item=itemForBlock(block);if(!item)return;block.dataset.v174ItemId=String(item.id);block.classList.toggle('v174-course',isCourse(item));block.classList.toggle('v174-editable',isCourse(item)||isCut(item));if(isCourse(item)||isCut(item))block.title=`${block.title||''} · Clic droit : modifier`});
       const id=lane.dataset.driverLane,d=(board()?.drivers||[]).find(x=>String(x.user_id)===String(id)),meta=lane.closest('.v165-driver-row')?.querySelector('.v165-driver-meta');
-      if(meta&&d&&/^TEST\d{2}$/i.test(String(d.matricule||''))){if(!meta.querySelector('.v174-test-badge'))meta.insertAdjacentHTML('beforeend','<span class="v174-test-badge">🧪 Conducteur fictif</span>');if(!meta.querySelector('[data-v174-delete-test]')){const btn=document.createElement('button');btn.type='button';btn.className='v174-delete-test';btn.dataset.v174DeleteTest=String(id);btn.textContent='🗑 Supprimer ce conducteur test';meta.appendChild(btn)}}
+      if(meta&&d&&/^TEST\d+$/i.test(String(d.matricule||''))){if(!meta.querySelector('.v174-test-badge'))meta.insertAdjacentHTML('beforeend','<span class="v174-test-badge">🧪 Conducteur fictif</span>');if(!meta.querySelector('[data-v174-delete-test]')){const btn=document.createElement('button');btn.type='button';btn.className='v174-delete-test';btn.dataset.v174DeleteTest=String(id);btn.textContent='🗑 Supprimer ce conducteur test';meta.appendChild(btn)}}
     });
     if(!q('v173DayBackdrop')?.classList.contains('hidden'))decorateDetail();updateSelectionUi();
   }
