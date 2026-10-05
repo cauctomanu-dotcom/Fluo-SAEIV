@@ -1,5 +1,5 @@
 'use strict';
-/* Mon SAEIV 1.0.88 — génération Exploitation orientée couverture + vraies journées conducteur.
+/* Mon SAEIV 1.0.89 — génération Exploitation orientée couverture + vraies journées conducteur.
    Priorités :
    1) placer le maximum de segments compatibles ;
    2) compléter les journées déjà ouvertes avant d'ouvrir un nouveau conducteur ;
@@ -8,7 +8,7 @@
    Toutes les lignes sont contrôlées en mode RSE 561/2006 conservateur. */
 (()=>{
   if(window.MonSAEIVGenerationEngineV167?.installed)return;
-  const VERSION='1.0.88';
+  const VERSION='1.0.89';
   const ECON=Object.freeze({dieselEurPerLiter:2.10,busLitersPer100Km:30,referenceLaborEurPerHour:30,offParkingCutPct:50,parkingCutPct:0,samePlaceMeters:120});
   const PLAN=Object.freeze({targetWorkMinutes:420,targetAmplitudeMinutes:660,softMaxWorkMinutes:570,softMaxAmplitudeMinutes:780,hardMaxAmplitudeMinutes:780,exceptionalAmplitudeMinutes:840,exceptional14hAutomatic:false});
   const q=id=>document.getElementById(id);
@@ -29,6 +29,7 @@
   const clientId=seg=>`seg-${hash(seg.id)}`;
   const dateValue=()=>q('v165Date')?.value||new Date().toISOString().slice(0,10);
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'').trim();
+  const isTestDriver=d=>/^TEST\d+$/i.test(String(d?.matricule||'').trim());
   let running=false;
 
   function status(text,kind=''){const el=q('v165Status');if(el){el.textContent=text||'';el.className=`v165-status ${kind}`}}
@@ -37,7 +38,7 @@
   function workingItems(items,driverId){return (items||[]).filter(x=>String(x.driver_user_id)===String(driverId)&&!['auto_hlp','auto_cut','auto_service'].includes(x.source)).map(asActivity).sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999))}
   function normalizeKnown(xs){const out=[],seen=new Set();for(const x of Array.isArray(xs)?xs:[]){const dept=String(x?.dept||'').replace(/\D/g,'').slice(0,2),line=String(x?.line||x?.code||'').trim().toUpperCase().replace(/\s+/g,'');if(!dept||!line)continue;const k=`${dept}|${norm(line)}`;if(seen.has(k))continue;seen.add(k);out.push({dept,line,key:k})}return out}
   function segmentLineKey(seg){const dept=String(seg?.dept||seg?.linked?.dept||String(seg?.id||'').split('|')[0]||'').replace(/\D/g,'').slice(0,2),line=String(seg?.line||'').trim().toUpperCase().replace(/\s+/g,'');return dept&&line?`${dept}|${norm(line)}`:''}
-  function knowsLine(seg,settings){const k=segmentLineKey(seg);return !!k&&normalizeKnown(settings?.known_lines).some(x=>x.key===k)}
+  function knowsLine(seg,settings,driver=null){if(isTestDriver(driver))return true;const k=segmentLineKey(seg);return !!k&&normalizeKnown(settings?.known_lines).some(x=>x.key===k)}
 
   function gapEconomy(a,b,park){
     const ae=mm(a.end),bs0=mm(b.start);if(ae===null||bs0===null)return{ok:false,reason:'horaire invalide'};let bs=bs0;if(bs<ae)bs+=1440;const gap=bs-ae;
@@ -60,7 +61,7 @@
   }
 
   function scoreCandidate(seg,driver,current,setting,{compactOnly=false}={}){
-    const park=setting?.bus_parking;if(!validPoint(park))return{ok:false,reason:'stationnement bus absent'};const known=normalizeKnown(setting?.known_lines);if(!known.length)return{ok:false,reason:'lignes connues non renseignées'};if(!knowsLine(seg,setting))return{ok:false,reason:`ligne ${seg.line||''} non déclarée comme connue`};
+    const park=setting?.bus_parking;if(!validPoint(park))return{ok:false,reason:'stationnement bus absent'};const test=isTestDriver(driver),known=normalizeKnown(setting?.known_lines);if(!test&&!known.length)return{ok:false,reason:'lignes connues non renseignées'};if(!knowsLine(seg,setting,driver))return{ok:false,reason:`ligne ${seg.line||''} non déclarée comme connue`};
     const s=mm(seg.start),e0=mm(seg.end);if(s===null||e0===null)return{ok:false,reason:'horaire invalide'};let e=e0;if(e<s)e+=1440;const xs=[...current].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999));for(const x of xs){let a=mm(x.start),b=mm(x.end);if(a===null||b===null)continue;if(b<a)b+=1440;if(s<b&&e>a)return{ok:false,reason:'chevauchement'}}
     const all=[...xs,{...seg,regime:'eu561'}].sort((a,b)=>(mm(a.start)??9999)-(mm(b.start)??9999)),eco=scheduleEconomy(all,park);if(!eco.ok)return eco;if(eco.amplitude>PLAN.hardMaxAmplitudeMinutes)return{ok:false,reason:'amplitude estimée > 13 h (plafond automatique service régulier)'};if(eco.work>600)return{ok:false,reason:'travail estimé > 10 h'};if(eco.drive>540)return{ok:false,reason:'conduite estimée > 9 h'};if(compactOnly&&eco.cutCount>4)return{ok:false,reason:'trop de coupures pour une journée conducteur cohérente'};return{ok:true,score:eco.score,hlpKm:eco.hlpKm,hlpMinutes:eco.hlpMinutes,cutMinutes:eco.cutMinutes,paidCutMinutes:eco.paidCutMinutes,cutCount:eco.cutCount,maxCut:eco.maxCut,maxPaidCut:eco.maxPaidCut,costEur:eco.costEur,economy:eco};
   }
@@ -84,9 +85,9 @@
   async function generate(){
     if(running)return;const c=client(),p=profile(),b=board();if(!c||!p||!b)return status('Session Exploitation indisponible.','err');const allSegments=b.segments||[];if(!allSegments.length)return status('Charge d’abord les segments du jour.','err');for(const s of allSegments)s.regime='eu561';running=true;const button=q('v165Generate');if(button){button.disabled=true;button.textContent='✨ GÉNÉRATION COMPACTE…'}const date=dateValue();let placed=0,rejectedByServer=0,lastReject='',openedDays=0;const rejectedPairs=new Set();
     try{
-      await b.refresh?.();let{drivers,items,settings}=await fetchState(date);if(!drivers.length)throw new Error('Aucun conducteur actif dans la société.');const withParking=drivers.filter(d=>validPoint(settings.get(String(d.user_id))?.bus_parking)),configured=withParking.filter(d=>normalizeKnown(settings.get(String(d.user_id))?.known_lines).length);if(!withParking.length)throw new Error('Aucun conducteur n’a de « Stationnement bus » géolocalisé.');if(!configured.length)throw new Error('Aucun conducteur n’a encore de lignes connues renseignées.');
+      await b.refresh?.();let{drivers,items,settings}=await fetchState(date);if(!drivers.length)throw new Error('Aucun conducteur actif dans la société.');const withParking=drivers.filter(d=>validPoint(settings.get(String(d.user_id))?.bus_parking)),configured=withParking.filter(d=>isTestDriver(d)||normalizeKnown(settings.get(String(d.user_id))?.known_lines).length);if(!withParking.length)throw new Error('Aucun conducteur n’a de « Stationnement bus » géolocalisé.');if(!configured.length)throw new Error('Aucun conducteur n’a encore de lignes connues renseignées.');
       const{data:{user}}=await c.auth.getUser(),working=new Map(drivers.map(d=>[String(d.user_id),workingItems(items,d.user_id)]));
-      const qualifiedCount=seg=>configured.reduce((n,d)=>n+(knowsLine(seg,settings.get(String(d.user_id)))?1:0),0);
+      const qualifiedCount=seg=>configured.reduce((n,d)=>n+(knowsLine(seg,settings.get(String(d.user_id)),d)?1:0),0);
       const free=allSegments.filter(s=>!assignmentFor(s,items)).slice().sort((a,b)=>qualifiedCount(a)-qualifiedCount(b)||(mm(a.start)??9999)-(mm(b.start)??9999)||String(a.line||'').localeCompare(String(b.line||''),'fr',{numeric:true}));
       if(!free.length){status('Toutes les courses sont déjà placées.','ok');return}
       const pending=new Map(free.map(s=>[s.id,s]));
@@ -110,7 +111,7 @@
         }
         if(passIndex%30===0)await new Promise(r=>setTimeout(r,0));
       }
-      await b.refresh?.();const current=b.items||[],remaining=allSegments.filter(s=>!assignmentFor(s,current));let noQualified=0;for(const s of remaining)if(!configured.some(d=>knowsLine(s,settings.get(String(d.user_id)))))noQualified++;
+      await b.refresh?.();const current=b.items||[],remaining=allSegments.filter(s=>!assignmentFor(s,current));let noQualified=0;for(const s of remaining)if(!configured.some(d=>knowsLine(s,settings.get(String(d.user_id)),d)))noQualified++;
       const activeDays=[...working.values()].filter(x=>x.length).length,shortDays=[...working.entries()].filter(([,xs])=>{if(!xs.length)return false;const first=xs[0],last=xs.at(-1),a=mm(first.start),z=mm(last.end);if(a===null||z===null)return false;let end=z;if(end<a)end+=1440;return end-a<240}).length;
       if(placed)status(`✅ Génération compacte terminée : ${placed} segment${placed>1?'s':''} placé${placed>1?'s':''}. ${activeDays} journée${activeDays>1?'s':''} conducteur active${activeDays>1?'s':''}, ${openedDays} nouvelle${openedDays>1?'s':''} ouverte${openedDays>1?'s':''}. ${remaining.length} non placé${remaining.length>1?'s':''}${noQualified?`, dont ${noQualified} sans conducteur compétent`:''}${shortDays&&remaining.length?` · ${shortDays} journée${shortDays>1?'s':''} courte${shortDays>1?'s':''} restante${shortDays>1?'s':''} : aucun segment restant compatible n’a pu y être ajouté sans conflit/RSE.`:''}.`,'ok');
       else status(`⚠ 0 segment placé. ${noQualified?`${noQualified} sans conducteur compétent. `:''}${rejectedByServer?`${rejectedByServer} proposition${rejectedByServer>1?'s':''} refusée${rejectedByServer>1?'s':''} par HLP/RSE. `:''}${lastReject?`Dernier motif : ${lastReject}`:'Vérifie les lignes connues, le stationnement bus et les horaires.'}`,'err');
@@ -119,5 +120,5 @@
 
   function intercept(e){const btn=e.target?.closest?.('#v165Generate');if(!btn)return;e.preventDefault();e.stopImmediatePropagation();generate()}
   document.addEventListener('click',intercept,true);
-  window.MonSAEIVGenerationEngineV167={installed:true,version:VERSION,generate,scoreCandidate,planningRank,scheduleEconomy,knowsLine,economics:ECON,planningPolicy:PLAN,get running(){return running}};
+  window.MonSAEIVGenerationEngineV167={installed:true,version:VERSION,generate,scoreCandidate,planningRank,scheduleEconomy,knowsLine,isTestDriver,economics:ECON,planningPolicy:PLAN,get running(){return running}};
 })();
