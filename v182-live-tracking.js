@@ -1,5 +1,5 @@
 'use strict';
-/* Mon SAEIV 1.0.83 — publication temps réel : position visuelle calée sur le parcours quand elle est fiable. */
+/* Mon SAEIV 1.0.86 — suivi temps réel + choix HLP / déjà en ligne au démarrage. */
 (()=>{
   const core=window.SAEIVTracking,q=id=>document.getElementById(id);
   if(!core||window.MonSAEIVLiveV182)return;
@@ -53,25 +53,42 @@
       const{error}=await c.client.from('saeiv_live_courses').upsert(row,{onConflict:'owner_id'});if(error)throw error;published=true;status('● Position partagée en temps réel');
     }catch(e){status('Suivi temps réel indisponible');console.warn('[Suivi temps réel]',e?.message||e)}finally{busy=false}
   }
-  // Launch a mise en place even when a driver selects a course outside Ma journée.
+  // Au démarrage, le conducteur choisit explicitement HLP ou déjà sur la ligne.
   if(typeof startGps==='function'){
     const base=startGps;let preparing=false;
     startGps=async function(){
-      if(window.MonSAEIVResumeV184?.resuming)return base.apply(this,arguments);
       if(preparing||window.MonSAEIVDayAutopilotV144?.snapshot)return;const s=st(),course=currentCourse();
       if(!course||!['regular','tad'].includes(s.service?.mode))return base.apply(this,arguments);
+      const flow=window.MonSAEIVCourseStartV186;
       preparing=true;
       try{
-        const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:15000,maximumAge:0}));
-        if(String(currentCourse()?.trip.id)!==String(course.trip.id)||st()?.running)return;if(pos.coords.accuracy>100)throw new Error('Position GPS trop imprécise : réessayez lorsque le signal est meilleur.');s.pos=pos;const stop=course.pattern.stops[course.start];
-        if(pos.coords.accuracy<=100&&stop&&dist(pos.coords.latitude,pos.coords.longitude,Number(stop.lat),Number(stop.lon))>150){
-          const raw=course.trip.times?.[course.start]?.[1]||course.trip.times?.[course.start]?.[0];
-          const next={date:course.date,start:raw?.slice(0,5),line:course.route.short,origin:stop.name,linked:{dept:course.dept,routeId:course.route.id,tripId:course.trip.id,startStopIndex:course.start}};
-          await window.MonSAEIVDayAutopilotV144.startHlp({id:crypto.randomUUID(),synthetic:true,date:course.date,origin:'Position actuelle',destination:stop.name,destinationCoords:{lat:stop.lat,lon:stop.lon}},{manual:true,nextCourse:next,onComplete:()=>base()});
-          return;
+        const resume=window.MonSAEIVResumeV184?.resuming===true;
+        const mode=flow?.askStartMode?await flow.askStartMode({resume,line:course.route.short,destination:course.pattern.headsign}):'hlp';
+        if(!mode){if(q('status'))q('status').textContent='Démarrage annulé.';return}
+        flow?.setDecision?.(mode,course.trip.id);
+        const pos=flow?.gpsPosition?await flow.gpsPosition():await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:15000,maximumAge:0}));
+        if(String(currentCourse()?.trip.id)!==String(course.trip.id)||st()?.running)return;
+        if(pos.coords.accuracy>100)throw new Error('Position GPS trop imprécise : réessayez lorsque le signal est meilleur.');
+        s.pos=pos;const stop=course.pattern.stops[course.start];
+        if(mode==='hlp'){
+          if(stop&&dist(pos.coords.latitude,pos.coords.longitude,Number(stop.lat),Number(stop.lon))>150){
+            const raw=course.trip.times?.[course.start]?.[1]||course.trip.times?.[course.start]?.[0];
+            const next={date:course.date,start:raw?.slice(0,5),line:course.route.short,origin:stop.name,linked:{dept:course.dept,routeId:course.route.id,tripId:course.trip.id,startStopIndex:course.start}};
+            await window.MonSAEIVDayAutopilotV144.startHlp({id:crypto.randomUUID(),synthetic:true,date:course.date,origin:'Position actuelle',destination:stop.name,destinationCoords:{lat:stop.lat,lon:stop.lon}},{manual:true,nextCourse:next,onComplete:()=>base()});
+            return;
+          }
+          return base.apply(this,arguments);
         }
-        return base.apply(this,arguments);
-      }catch(e){console.warn('[HLP] GPS initial indisponible',e);if(q('status'))q('status').textContent=`Mise en place : ${e.message||'GPS indisponible'}. Réessayez la prise de service.`;return}finally{preparing=false}
+        const result=await base.apply(this,arguments);
+        await new Promise(r=>setTimeout(r,180));
+        if(!st()?.running)throw new Error('La course n’a pas pu démarrer.');
+        if(flow?.recalibrateFromPosition)await flow.recalibrateFromPosition(pos,{source:resume?'resume':'start',preferredCurrent:flow.resumeHint});
+        return result;
+      }catch(e){
+        console.warn('[Démarrage course]',e);
+        if(q('status'))q('status').textContent='Démarrage impossible : '+(e.message||'GPS indisponible');
+        return;
+      }finally{preparing=false}
     };
   }
   window.MonSAEIVLiveV182={tick,snapshot};setInterval(tick,5000);tick();
