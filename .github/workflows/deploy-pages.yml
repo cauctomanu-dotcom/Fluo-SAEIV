@@ -142,7 +142,7 @@ jobs:
           set -euo pipefail
           python externalize_runtime.py site/index.html
 
-      - name: Split gateway and stamp release 1.0.85
+      - name: Split gateway and stamp release 1.0.86
         shell: bash
         run: |
           set -euo pipefail
@@ -155,7 +155,7 @@ jobs:
           from pathlib import Path
           import shutil
 
-          old_versions=[f'1.0.{n}' for n in range(22,85)]
+          old_versions=[f'1.0.{n}' for n in range(22,86)]
           for p in Path('site').rglob('*'):
               if not p.is_file() or p.suffix.lower() not in {'.html','.js','.json','.webmanifest'}:
                   continue
@@ -164,12 +164,12 @@ jobs:
               except UnicodeDecodeError:
                   continue
               for old in old_versions:
-                  t=t.replace(old,'1.0.85')
+                  t=t.replace(old,'1.0.86')
               p.write_text(t,encoding='utf-8')
 
           app=Path('site/app.html')
           t=app.read_text(encoding='utf-8')
-          early='<script src="./v184-navigation-resume.js?v=1.0.85"></script>'
+          early='<script src="./v184-navigation-resume.js?v=1.0.86"></script>'
           if early not in t:
               if '</head>' not in t:
                   raise SystemExit('balise </head> absente de app.html')
@@ -183,7 +183,7 @@ jobs:
             'v183-live-supervision.js'
           )
           for name in modules:
-              tag=f'<script src="./{name}?v=1.0.85"></script>'
+              tag=f'<script src="./{name}?v=1.0.86"></script>'
               if tag not in t:
                   if '</body>' not in t:
                       raise SystemExit('balise </body> absente de app.html')
@@ -198,7 +198,7 @@ jobs:
               shutil.copy2(Path('site')/name,public/name)
           PY
 
-      - name: Validate isolated runtime 1.0.85
+      - name: Validate isolated runtime 1.0.86
         shell: bash
         run: |
           set -euo pipefail
@@ -238,11 +238,11 @@ jobs:
               if body.strip(): inline.append(body[:80])
           assert not inline, f'JavaScript inline résiduel: {inline[:2]}'
           for name in ('v165-exploitation-board.js','v167-generation-engine.js','v168-service-grid.js','v167-exploitation-performance.js','v174-grid-editor.js','v176-driver-absences.js','v177-smart-rest-unavailability.js','v178-sick-reassignment.js','v179-minimal-repair.js','v180-dispatch-messages.js','tracking-core.js','v182-live-tracking.js','v183-live-supervision.js'):
-              assert f'{name}?v=1.0.85' in app
-          assert 'v184-navigation-resume.js?v=1.0.85' in app
-          assert app.index('v184-navigation-resume.js?v=1.0.85') < app.index('</head>')
-          assert '<title>Mon SAEIV · 1.0.85</title>' in app
-          assert 'login-gateway.js?v=1.0.85' in gateway
+              assert f'{name}?v=1.0.86' in app
+          assert 'v184-navigation-resume.js?v=1.0.86' in app
+          assert app.index('v184-navigation-resume.js?v=1.0.86') < app.index('</head>')
+          assert '<title>Mon SAEIV · 1.0.86</title>' in app
+          assert 'login-gateway.js?v=1.0.86' in gateway
           assert 'Voyageur ?' not in gateway
           assert Path('site/voyageurs/index.html').is_file()
           assert 'Espace conducteur' not in Path('site/voyageurs/index.html').read_text(encoding='utf-8')
@@ -269,8 +269,11 @@ jobs:
           for token in ('Supervision réseau','saeiv_live_courses','organization_id','Haut-le-pied','v183Open','iconAnchor:[16,16]'):
               assert token in supervision
           fixes=Path('site/v184-navigation-resume.js').read_text(encoding='utf-8')
-          for token in ('AUTO_REROUTE_V184','GPS BRUT','Reprendre la dernière course','speechHealth','requestedStops','v184Management'):
+          for token in ('AUTO_REROUTE_V184','GPS BRUT','Reprendre la dernière course','speechHealth','requestedStops','v184Management','MonSAEIVCourseStartV186','askStartMode','recalibrateFromPosition','COURSE_RECALAGE_GPS_V186','Je suis déjà sur la ligne'):
               assert token in fixes
+          live=Path('site/v182-live-tracking.js').read_text(encoding='utf-8')
+          for token in ('askStartMode',"mode==='hlp'",'recalibrateFromPosition','preferredCurrent:flow.resumeHint'):
+              assert token in live
           ops=Path('site/v136-driver-operations.js').read_text(encoding='utf-8')
           assert "k.startsWith('mon-saeiv-clean-')" in ops
           assert "FluoPlanningV316?.prepareLinkedCourse" in ops
@@ -281,11 +284,11 @@ jobs:
               assert token in speech
           assert 'IOS_SILENT_WAV' not in speech
           assert 'iosCloudAudio' not in speech
-          print('Mon SAEIV 1.0.85 validé · annonces SAEIV indépendantes de la radio')
+          print('Mon SAEIV 1.0.86 validé · choix HLP / ligne et recalage GPS')
           PY
 
-          grep -q "const CACHE='mon-saeiv-clean-1.0.85'" site/sw.js
-          grep -q '"name": "Mon SAEIV 1.0.85"' site/manifest.webmanifest
+          grep -q "const CACHE='mon-saeiv-clean-1.0.86'" site/sw.js
+          grep -q '"name": "Mon SAEIV 1.0.86"' site/manifest.webmanifest
           grep -q './app.html' site/sw.js
           grep -q './login-gateway.js' site/sw.js
           grep -q '57SMH04' site/data/57/routes.json
