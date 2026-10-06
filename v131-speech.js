@@ -3,7 +3,7 @@
    Les annonces voyageurs utilisent la même voix IA sur Android/iPhone quand la session serveur est active.
    En cas d'absence réseau/TTS, le moteur Web Speech local reprend automatiquement. */
 (()=>{
-  const VERSION='1.0.85';
+  const VERSION='1.0.90';
   const START_RETRY_MS=2200, CANCEL_RESTART_MS=140, RECENT_MS=12000, IDENTITY_STOP_INTERVAL=5;
   const CLOUD_URL='https://xpmrnwipnoekiycghwli.supabase.co/functions/v1/passenger-tts';
   const CLOUD_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
@@ -80,45 +80,70 @@
     try{if('caches'in window){const c=await caches.open(CLOUD_CACHE);await c.put(key,new Response(blob,{headers:{'Content-Type':'audio/mpeg'}}))}}catch{}
     return blob;
   }
+  function resetAnnouncementContext(){
+    try{announcementOutput.currentSource?.stop?.()}catch{}
+    try{announcementOutput.currentSource?.disconnect?.()}catch{}
+    announcementOutput.currentSource=null;announcementOutput.ctx=null;announcementOutput.gain=null;announcementOutput.unlocked=false;
+  }
   function announcementContext(){
     if(!IS_IOS)return null;
     const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;
+    if(announcementOutput.ctx?.state==='closed')resetAnnouncementContext();
     if(!announcementOutput.ctx){
       try{announcementOutput.ctx=new C({latencyHint:'interactive'})}catch{announcementOutput.ctx=new C()}
       announcementOutput.gain=announcementOutput.ctx.createGain();
       announcementOutput.gain.gain.value=1;
       announcementOutput.gain.connect(announcementOutput.ctx.destination);
+      announcementOutput.ctx.addEventListener?.('statechange',()=>{
+        const st=announcementOutput.ctx?.state;
+        announcementOutput.unlocked=st==='running';
+        if(st==='closed')resetAnnouncementContext();
+      });
     }
     return announcementOutput.ctx;
+  }
+  async function recoverAnnouncementAudio({prime=false}={}){
+    if(!IS_IOS)return true;
+    let ctx=announcementContext();if(!ctx)return false;
+    try{
+      if(ctx.state==='closed'){resetAnnouncementContext();ctx=announcementContext()}
+      if(ctx?.state!=='running')await ctx?.resume?.();
+      if(prime&&ctx?.state==='running'){
+        const buffer=ctx.createBuffer(1,1,ctx.sampleRate),source=ctx.createBufferSource();
+        source.buffer=buffer;source.connect(announcementOutput.gain);source.start(0);
+      }
+      announcementOutput.unlocked=ctx?.state==='running';
+      return announcementOutput.unlocked;
+    }catch(e){
+      announcementOutput.unlocked=false;
+      console.warn('[Mon SAEIV] reprise sortie annonces impossible',e?.message||e);
+      return false;
+    }
   }
   async function unlockAnnouncementAudio(){
     if(!IS_IOS)return true;
     if(announcementOutput.unlocking)return announcementOutput.unlocked;
-    const ctx=announcementContext();if(!ctx)return false;
     announcementOutput.unlocking=true;
     try{
-      if(ctx.state!=='running')await ctx.resume();
-      // Impulsion silencieuse propre au moteur SAEIV : elle ouvre la session Web Audio
-      // sans lancer ni toucher au lecteur radio.
-      const buffer=ctx.createBuffer(1,1,ctx.sampleRate),source=ctx.createBufferSource();
-      source.buffer=buffer;source.connect(announcementOutput.gain);source.start(0);
-      announcementOutput.unlocked=ctx.state==='running';
-      if(announcementOutput.unlocked)console.info('[Mon SAEIV] sortie annonces SAEIV autonome prête');
-      return announcementOutput.unlocked;
-    }catch(e){
-      announcementOutput.unlocked=false;
-      console.warn('[Mon SAEIV] sortie annonces SAEIV à réactiver',e?.message||e);
-      return false;
+      const ok=await recoverAnnouncementAudio({prime:true});
+      if(ok)console.info('[Mon SAEIV] sortie annonces SAEIV autonome prête');
+      return ok;
     }finally{announcementOutput.unlocking=false}
   }
   async function playIOSCloudBlob(blob,cur,onStarted,onEnded){
-    const ctx=announcementContext();if(!ctx)throw new Error('announcement-audio-unavailable');
+    let ctx=announcementContext();if(!ctx)throw new Error('announcement-audio-unavailable');
     if(ctx.state!=='running'){
-      try{await ctx.resume()}catch{}
-      if(ctx.state!=='running'){const e=new Error('announcement-audio-locked');e.name='NotAllowedError';throw e}
+      const recovered=await recoverAnnouncementAudio();
+      ctx=announcementContext();
+      if(!recovered||ctx?.state!=='running'){const e=new Error('announcement-audio-locked');e.name='NotAllowedError';throw e}
     }
     const bytes=await blob.arrayBuffer();
-    const decoded=await ctx.decodeAudioData(bytes.slice(0));
+    let decoded;
+    try{decoded=await ctx.decodeAudioData(bytes.slice(0))}
+    catch(e){
+      if(ctx.state==='closed'){resetAnnouncementContext();ctx=announcementContext();await recoverAnnouncementAudio();decoded=await ctx.decodeAudioData(bytes.slice(0))}
+      else throw e;
+    }
     if(cur.finished)throw new Error('announcement-cancelled');
     const source=ctx.createBufferSource();source.buffer=decoded;source.connect(announcementOutput.gain);
     cur.source=source;announcementOutput.currentSource=source;
@@ -234,9 +259,11 @@
     document.addEventListener('touchstart',userAudioWake,{capture:true,passive:true});
     document.addEventListener('click',userAudioWake,{capture:true,passive:true});
     document.addEventListener('change',e=>{if(e.target?.id==='passengerVoiceGender')setTimeout(()=>{if(window.MonSAEIVCloudV156?.user)markCloudLabel()},30)},true);
-    window.addEventListener('pageshow',()=>{try{if(sp.paused)sp.resume()}catch{};setTimeout(()=>pumpSpeech(),120)});
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{if(sp.paused)sp.resume()}catch{};setTimeout(()=>pumpSpeech(),120)}});
-    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,frenchVoice,voiceProfile,cloud:true,isIOS:IS_IOS,unlockIOSAudio:unlockAnnouncementAudio,unlockAnnouncementAudio,audioEngine:'independent-webaudio',restart:()=>{try{sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
+    const resumeAllAudio=()=>{try{if(sp.paused)sp.resume()}catch{};recoverAnnouncementAudio().catch(()=>{});setTimeout(()=>pumpSpeech(),120)};
+    window.addEventListener('pageshow',resumeAllAudio);
+    window.addEventListener('focus',resumeAllAudio,{passive:true});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resumeAllAudio()});
+    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,frenchVoice,voiceProfile,cloud:true,isIOS:IS_IOS,unlockIOSAudio:unlockAnnouncementAudio,unlockAnnouncementAudio,recoverAnnouncementAudio,audioEngine:'independent-webaudio-recovery',restart:()=>{try{sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
     window.MonSAEIVSpeechV148=window.MonSAEIVSpeechV131;setTimeout(()=>{if(window.MonSAEIVCloudV156?.user)markCloudLabel()},1800);
     console.info('[Mon SAEIV] moteur vocal SAEIV autonome + cloud OpenAI + secours local actif');return true;
   }
