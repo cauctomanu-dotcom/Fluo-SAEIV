@@ -3,7 +3,7 @@
    Les annonces voyageurs utilisent la même voix IA sur Android/iPhone quand la session serveur est active.
    En cas d'absence réseau/TTS, le moteur Web Speech local reprend automatiquement. */
 (()=>{
-  const VERSION='1.0.85';
+  const VERSION='1.0.90';
   const START_RETRY_MS=2200, CANCEL_RESTART_MS=140, RECENT_MS=12000, IDENTITY_STOP_INTERVAL=5;
   const CLOUD_URL='https://xpmrnwipnoekiycghwli.supabase.co/functions/v1/passenger-tts';
   const CLOUD_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
@@ -83,28 +83,38 @@
   function announcementContext(){
     if(!IS_IOS)return null;
     const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;
+    if(announcementOutput.ctx?.state==='closed'){
+      announcementOutput.ctx=null;announcementOutput.gain=null;announcementOutput.unlocked=false;
+    }
     if(!announcementOutput.ctx){
       try{announcementOutput.ctx=new C({latencyHint:'interactive'})}catch{announcementOutput.ctx=new C()}
       announcementOutput.gain=announcementOutput.ctx.createGain();
       announcementOutput.gain.gain.value=1;
       announcementOutput.gain.connect(announcementOutput.ctx.destination);
+      announcementOutput.ctx.addEventListener?.('statechange',()=>{
+        announcementOutput.unlocked=announcementOutput.ctx?.state==='running';
+        if(announcementOutput.ctx?.state==='interrupted'||announcementOutput.ctx?.state==='suspended'){
+          announcementOutput.ctx.resume?.().then(()=>{announcementOutput.unlocked=announcementOutput.ctx?.state==='running'}).catch(()=>{});
+        }
+      });
     }
     return announcementOutput.ctx;
   }
   async function unlockAnnouncementAudio(){
     if(!IS_IOS)return true;
     if(announcementOutput.unlocking)return announcementOutput.unlocked;
-    const ctx=announcementContext();if(!ctx)return false;
+    let ctx=announcementContext();if(!ctx)return false;
     announcementOutput.unlocking=true;
     try{
-      if(ctx.state!=='running')await ctx.resume();
-      // Impulsion silencieuse propre au moteur SAEIV : elle ouvre la session Web Audio
+      if(ctx.state==='closed'){announcementOutput.ctx=null;announcementOutput.gain=null;ctx=announcementContext()}
+      if(ctx?.state!=='running')await ctx?.resume?.();
+      if(!ctx||ctx.state!=='running'){announcementOutput.unlocked=false;return false}
+      // Impulsion silencieuse propre au moteur SAEIV : elle ouvre/réveille la session Web Audio
       // sans lancer ni toucher au lecteur radio.
       const buffer=ctx.createBuffer(1,1,ctx.sampleRate),source=ctx.createBufferSource();
       source.buffer=buffer;source.connect(announcementOutput.gain);source.start(0);
-      announcementOutput.unlocked=ctx.state==='running';
-      if(announcementOutput.unlocked)console.info('[Mon SAEIV] sortie annonces SAEIV autonome prête');
-      return announcementOutput.unlocked;
+      announcementOutput.unlocked=true;
+      return true;
     }catch(e){
       announcementOutput.unlocked=false;
       console.warn('[Mon SAEIV] sortie annonces SAEIV à réactiver',e?.message||e);
@@ -174,7 +184,7 @@
         if(!cloudCandidate(item))return launchLocal(prepared,true,0);
         // Sur iPhone, la voix IA utilise une sortie Web Audio SAEIV indépendante.
         // La radio n'est qu'une source média facultative que duckStart/duckEnd peut atténuer.
-        if(IS_IOS&&!announcementOutput.unlocked)return launchLocal(prepared,true,0);
+        if(IS_IOS&&!(await unlockAnnouncementAudio()))return launchLocal(prepared,true,0);
         const controller=new AbortController(),cur={priority:Number(item.priority??50),kind:item.kind||'general',token,item,mode:'cloud',abort:controller,audio:null,source:null,objectUrl:null,ducked:false,finished:false,started:false,startWatch:null};audio.current=cur;
         const timeout=setTimeout(()=>controller.abort('timeout'),CLOUD_TIMEOUT_MS);
         const started=()=>{
@@ -229,14 +239,16 @@
     };
 
     watchdog=setInterval(()=>{const audio=getAudioState();if(!audio)return;purge(audio);const cur=audio.current;if(cur?.item&&obsolete(cur.item)){cancelCurrent('obsolete');setTimeout(()=>pumpSpeech(),CANCEL_RESTART_MS+20)}else if(!cur)try{pumpSpeech()}catch{}},180);
-    const userAudioWake=()=>{try{if(sp.paused)sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>{try{pumpSpeech()}catch{}},20)};
+    const reviveAudio=()=>{try{if(sp.paused)sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>{try{pumpSpeech()}catch{}},40)};
+    const userAudioWake=()=>reviveAudio();
     document.addEventListener('pointerdown',userAudioWake,{capture:true,passive:true});
     document.addEventListener('touchstart',userAudioWake,{capture:true,passive:true});
     document.addEventListener('click',userAudioWake,{capture:true,passive:true});
     document.addEventListener('change',e=>{if(e.target?.id==='passengerVoiceGender')setTimeout(()=>{if(window.MonSAEIVCloudV156?.user)markCloudLabel()},30)},true);
-    window.addEventListener('pageshow',()=>{try{if(sp.paused)sp.resume()}catch{};setTimeout(()=>pumpSpeech(),120)});
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{if(sp.paused)sp.resume()}catch{};setTimeout(()=>pumpSpeech(),120)}});
-    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,frenchVoice,voiceProfile,cloud:true,isIOS:IS_IOS,unlockIOSAudio:unlockAnnouncementAudio,unlockAnnouncementAudio,audioEngine:'independent-webaudio',restart:()=>{try{sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
+    window.addEventListener('pageshow',()=>setTimeout(reviveAudio,80));
+    window.addEventListener('focus',()=>setTimeout(reviveAudio,80),{passive:true});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(reviveAudio,80)});
+    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,frenchVoice,voiceProfile,cloud:true,isIOS:IS_IOS,unlockIOSAudio:unlockAnnouncementAudio,unlockAnnouncementAudio,audioEngine:'independent-webaudio-resilient',restart:()=>{try{sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
     window.MonSAEIVSpeechV148=window.MonSAEIVSpeechV131;setTimeout(()=>{if(window.MonSAEIVCloudV156?.user)markCloudLabel()},1800);
     console.info('[Mon SAEIV] moteur vocal SAEIV autonome + cloud OpenAI + secours local actif');return true;
   }
