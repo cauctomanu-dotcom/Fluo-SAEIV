@@ -45,7 +45,10 @@ jobs:
       - name: Validate integrated radio runtime
         run: |
           grep -q "wasPlayingBeforeDuck" site/index.html
+          grep -q "arrêt demandé = Web Audio + duck radio réversible" site/index.html
           grep -q "arrêt demandé = Web Audio + duck radio réversible" app.js
           grep -q "independent-webaudio-resilient" v131-speech.js
           python externalize_runtime.py site/index.html
           find site/runtime -name 'part-*.js' -print0 | xargs -0 -n1 node --check
+          grep -q "wasPlayingBeforeDuck" site/runtime/part-*.js
+          grep -q "arrêt demandé = Web Audio + duck radio réversible" site/runtime/part-*.js
