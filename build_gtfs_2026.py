@@ -199,6 +199,24 @@ def enrich_generated(dept, cfg):
     print(f'{dept}: {relabelled} ancien(s) libellé(s) commune/commune recalé(s) sur les terminus réels')
 
 
+
+def validate_54_school_catalog():
+    """Empêche une publication qui ferait disparaître des scolaires 54 actuellement utilisées."""
+    idx = json.loads((base.DATA / '54' / 'routes.json').read_text(encoding='utf-8'))
+    routes = idx.get('routes') or []
+    by_short = {str(r.get('short') or '').strip(): r for r in routes}
+    required = {
+        '4312': 'SERRES / LUNEVILLE',
+        '4465': 'GIBEAUMEIX / COLOMBEY-LES-BELLES',
+    }
+    missing = [code for code in required if code not in by_short]
+    if missing:
+        raise SystemExit(f"54: scolaires de référence absentes du GTFS courant: {', '.join(missing)}")
+    schools = [r for r in routes if re.fullmatch(r'\\d{4}[A-Z]?', str(r.get('short') or '').strip())]
+    if not schools:
+        raise SystemExit('54: aucune ligne scolaire à 4 chiffres générée')
+    print(f"54: catalogue scolaire validé ({len(schools)} lignes à 4 chiffres; références 4312 et 4465 présentes)")
+
 def validate_57_smh04():
     idx = json.loads((base.DATA / '57' / 'routes.json').read_text(encoding='utf-8'))
     route = next((r for r in idx.get('routes') or [] if str(r.get('short') or '').upper() == '57SMH04'), None)
@@ -352,6 +370,7 @@ def main():
             raise SystemExit(f'{dept}: données statiques non marquées comme prêtes')
         print(f'{dept}: {len(routes)} lignes prêtes pour publication statique')
 
+    validate_54_school_catalog()
     validate_57_smh04()
     print('57SMH04 validée : ASSENONCOURT / MORHANGE')
     rewrite_startup_usage_notice()
