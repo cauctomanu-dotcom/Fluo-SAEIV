@@ -7668,7 +7668,7 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
   const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
   const read=(k,d)=>{try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??d}catch{return d}};
   const pref=read(PREF,{volume:.68,last:null});
-  const R={audio:new Audio(),volume:Math.max(0,Math.min(1,Number(pref.volume)||.68)),station:pref.last||null,restoreTimer:null,ramp:0,tab:'main',results:[],loading:false,stallTimer:null,recovering:false,tried:new Set(),stallCount:0,stallWindow:0,duckMuted:false,preDuckMuted:false};
+  const R={audio:new Audio(),volume:Math.max(0,Math.min(1,Number(pref.volume)||.68)),station:pref.last||null,restoreTimer:null,ramp:0,tab:'main',results:[],loading:false,stallTimer:null,recovering:false,tried:new Set(),stallCount:0,stallWindow:0,duckMuted:false,preDuckMuted:false,wasPlayingBeforeDuck:false};
   R.audio.preload='none';R.audio.volume=R.volume;R.audio.playsInline=true;
   function savePref(){localStorage.setItem(PREF,JSON.stringify({volume:R.volume,last:R.station||null}))}
   function favorites(){const a=read(FAV,[]);return Array.isArray(a)?a:[]}
@@ -7683,9 +7683,12 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     const tick=now=>{const f=Math.min(1,(now-t0)/ms),e=1-Math.pow(1-f,3);try{R.audio.volume=start+(target-start)*e}catch{}if(f<1)R.ramp=requestAnimationFrame(tick)};R.ramp=requestAnimationFrame(tick)
   }
   function duckStart(kind){
-    clearTimeout(R.restoreTimer);if(R.audio.paused)return;
-    // Sur iPhone/PWA : coupure fiable du seul lecteur radio pendant TOUTE voix.
-    // Sur Android/PC : annonces voyageurs quasiment muettes côté radio, GPS très fortement abaissé.
+    clearTimeout(R.restoreTimer);
+    if(!R.audio.paused)R.wasPlayingBeforeDuck=true;
+    if(R.audio.paused)return;
+    // iOS ne sait pas toujours appliquer un volume intermédiaire fiable au média HTML :
+    // on mute temporairement sans mettre le flux en pause. Sur les autres plateformes,
+    // le volume est abaissé progressivement.
     if(IS_IOS || kind!=='navigation'){
       if(!R.duckMuted){R.preDuckMuted=!!R.audio.muted;R.duckMuted=true}
       R.audio.muted=true;
@@ -7695,7 +7698,11 @@ window.addEventListener('DOMContentLoaded',()=>{const e=document.querySelector('
     clearTimeout(R.restoreTimer);
     R.restoreTimer=setTimeout(()=>{
       if(R.duckMuted){R.audio.muted=R.preDuckMuted;R.duckMuted=false}
-      if(!R.audio.paused&&!IS_IOS)smoothVolume(R.volume,360)
+      if(R.wasPlayingBeforeDuck&&R.audio.paused&&R.station?.url){
+        R.audio.play().catch(e=>console.warn('[Mon SAEIV] reprise radio après annonce impossible',e?.name||e));
+      }
+      if(!R.audio.paused&&!IS_IOS)smoothVolume(R.volume,360);
+      R.wasPlayingBeforeDuck=false;
     },260)
   }
   function syncMediaSession(){try{if(!('mediaSession'in navigator))return;if(R.station)navigator.mediaSession.metadata=new MediaMetadata({title:R.station.name,artist:'Radio · Mon SAEIV',album:R.station.state||R.station.country||'France'});navigator.mediaSession.setActionHandler('play',()=>R.audio.play());navigator.mediaSession.setActionHandler('pause',()=>R.audio.pause())}catch{}}
