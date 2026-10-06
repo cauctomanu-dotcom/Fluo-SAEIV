@@ -19,6 +19,9 @@ jobs:
           cp build_gtfs_2026.py scripts/build_gtfs_2026.py
           cp 54.json scripts/trace_overrides/54.json
           cp 57.json scripts/trace_overrides/57.json
+          cp index.html site/index.html
+          cp sw.js site/sw.js
+          cp v128-offline.js site/v128-offline.js
           python scripts/build_gtfs_2026.py
       - name: Verify school routes
         run: |
