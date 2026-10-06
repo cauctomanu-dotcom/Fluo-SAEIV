@@ -11,6 +11,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: JavaScript syntax
+        run: |
+          node --check app.js
+          node --check v131-speech.js
+          node --check v165-exploitation-board.js
       - name: Build current official GTFS
         run: |
           rm -rf site scripts
@@ -37,3 +42,10 @@ jobs:
           schools=[r for r in routes if str(r.get('short','')).strip().isdigit() and len(str(r.get('short','')).strip())==4]
           print('SCHOOLS54',len(schools))
           PY
+      - name: Validate integrated radio runtime
+        run: |
+          grep -q "wasPlayingBeforeDuck" site/index.html
+          grep -q "arrêt demandé = Web Audio + duck radio réversible" app.js
+          grep -q "independent-webaudio-resilient" v131-speech.js
+          python externalize_runtime.py site/index.html
+          find site/runtime -name 'part-*.js' -print0 | xargs -0 -n1 node --check
