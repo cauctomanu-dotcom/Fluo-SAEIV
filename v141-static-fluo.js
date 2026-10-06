@@ -2,7 +2,7 @@
 /* Mon SAEIV 1.0.63 — données Fluo préparées côté GitHub + recherche non destructive
    + corrections locales de noms d'arrêts confirmées conducteur. */
 (()=>{
-  const VERSION='1.0.63';
+  const VERSION='1.0.90';
   const CUTOVER='2026-09-01';
   const STATIC_DEPTS=new Set(['54','57','67','68']);
   const JSON_CACHE=new Map();
@@ -215,11 +215,26 @@
 
     const choose=candidate=>{
       if(!candidate)return false;
-      select.value=candidate.value;
-      select.dispatchEvent(new Event('change',{bubbles:true}));
-      input.value=candidate.text;
-      count.textContent='';
-      hideResults();
+      const finish=()=>{
+        select.value=candidate.value;
+        if(select.value!==candidate.value)return false;
+        select.dispatchEvent(new Event('change',{bubbles:true}));
+        input.value=candidate.text;
+        count.textContent='';
+        hideResults();
+        return true;
+      };
+      if([...select.options].some(o=>String(o.value)===String(candidate.value)))return finish();
+      // La recherche porte sur tout le département, même si le filtre « régulières/scolaires »
+      // masque momentanément la ligne. On ouvre alors « Toutes les lignes » avant sélection.
+      const family=document.getElementById('lineTypeFilter');
+      if(family&&family.value!=='all'){
+        family.value='all';
+        family.dispatchEvent(new Event('change',{bubbles:true}));
+        setTimeout(finish,0);
+        return true;
+      }
+      setTimeout(finish,0);
       return true;
     };
 
@@ -258,7 +273,14 @@
     };
 
     const refresh=()=>{
-      choices=[...select.options]
+      let full=[];
+      try{
+        const dept=document.getElementById('dept')?.value||'';
+        if(typeof state!=='undefined'&&String(state?.dept||'')===String(dept)&&Array.isArray(state?.routes)){
+          full=state.routes.filter(r=>r?.id).map(r=>({value:String(r.id),text:`${r.short||r.id} — ${r.long||''}`.trim()}));
+        }
+      }catch{}
+      choices=full.length?full:[...select.options]
         .filter(o=>o.value&&!o.disabled)
         .map(o=>({value:o.value,text:(o.textContent||'').trim()}));
       input.disabled=select.disabled;
@@ -314,5 +336,5 @@
     clear:()=>{JSON_CACHE.clear();numberingPromise=null;}
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installRouteSearch,{once:true});else installRouteSearch();
-  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + recherche de ligne à suggestions tactiles 1.0.63 active');
+  console.info('[Mon SAEIV] données Fluo 54/57/67/68 à jour + recherche de ligne toutes catégories + données statiques 1.0.90 active');
 })();
