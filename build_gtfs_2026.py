@@ -212,7 +212,7 @@ def validate_54_school_catalog():
     missing = [code for code in required if code not in by_short]
     if missing:
         raise SystemExit(f"54: scolaires de référence absentes du GTFS courant: {', '.join(missing)}")
-    schools = [r for r in routes if re.fullmatch(r'\\d{4}[A-Z]?', str(r.get('short') or '').strip())]
+    schools = [r for r in routes if re.fullmatch(r'\d{4}[A-Z]?', str(r.get('short') or '').strip())]
     if not schools:
         raise SystemExit('54: aucune ligne scolaire à 4 chiffres générée')
     print(f"54: catalogue scolaire validé ({len(schools)} lignes à 4 chiffres; références 4312 et 4465 présentes)")
