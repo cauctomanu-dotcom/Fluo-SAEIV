@@ -1,0 +1,67 @@
+name: Validate Mon SAEIV 1.0.90
+on:
+  push:
+    branches: [ "fix/1.0.90-school-audio" ]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: JavaScript syntax
+        run: |
+          node --check v131-speech.js
+          node --check v141-static-fluo.js
+          node --check app.js
+          node --check sw.js
+      - name: Build current Fluo data
+        run: |
+          rm -rf site scripts
+          mkdir -p site/data scripts/trace_overrides
+          cp build_gtfs.py scripts/build_gtfs.py
+          cp build_gtfs_2026.py scripts/build_gtfs_2026.py
+          cp 54.json scripts/trace_overrides/54.json
+          cp 57.json scripts/trace_overrides/57.json
+          cp index.html site/index.html
+          cp sw.js site/sw.js
+          cp v128-offline.js site/v128-offline.js
+          python scripts/build_gtfs_2026.py
+      - name: Validate fixes
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          routes=json.loads(Path('site/data/54/routes.json').read_text(encoding='utf-8')).get('routes',[])
+          by={str(r.get('short','')).strip():r for r in routes}
+          assert '4465' in by and 'GIBEAUMEIX' in str(by['4465'].get('long','')).upper()
+          assert '4312' in by and 'LUNEVILLE' in str(by['4312'].get('long','')).upper()
+
+          static=Path('v141-static-fluo.js').read_text(encoding='utf-8')
+          for token in ("const VERSION='1.0.90'","recherche porte sur tout le département","full=state.routes.filter","family.value='all'"):
+              assert token in static, token
+
+          speech=Path('v131-speech.js').read_text(encoding='utf-8')
+          for token in ("const VERSION='1.0.90'","resetAnnouncementContext","recoverAnnouncementAudio","window.addEventListener('focus',resumeAllAudio","independent-webaudio-recovery"):
+              assert token in speech, token
+
+          for source in ('index.html','app.js'):
+              chime=Path(source).read_text(encoding='utf-8')
+              for token in ("Aucun <audio> secondaire","MonSAEIVRadio?.duckStart?.('stop')","setTimeout(restore,720)"):
+                  assert token in chime, (source, token)
+              start=chime.index('function playRequestChime(index)')
+              end=chime.index('async function jget',start)
+              block=chime[start:end]
+              assert '.play()' not in block, source
+              assert 'createRequestChimeAudio()' not in block, source
+
+          wf=Path('.github/workflows/deploy-pages.yml').read_text(encoding='utf-8')
+          assert '1.0.90' in wf and 'range(22,90)' in wf
+          assert "const CACHE='mon-saeiv-clean-1.0.90'" in Path('sw.js').read_text(encoding='utf-8')
+          assert '"name": "Mon SAEIV 1.0.90"' in Path('manifest.webmanifest').read_text(encoding='utf-8')
+          print('Mon SAEIV 1.0.90 validé')
+          PY
