@@ -225,6 +225,7 @@ jobs:
           grep -q "catalogue complet lignes exploitation" site/v165-exploitation-board.js
           grep -q "independent-webaudio-resilient" site/v131-speech.js
           grep -q "arrêt demandé = Web Audio + duck radio réversible" site/app.js
+          grep -q "arrêt demandé = Web Audio + duck radio réversible" site/runtime/part-*.js
           grep -q "wasPlayingBeforeDuck" site/runtime/part-*.js
 
           python - <<'PY'
