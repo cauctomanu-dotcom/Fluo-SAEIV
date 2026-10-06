@@ -36,4 +36,13 @@ jobs:
               print(code, 'FOUND' if code in by_short else 'MISSING', by_short.get(code,{}).get('long',''))
           assert '4465' in by_short, '4465 missing from built Fluo 54 catalogue'
           assert any(len(str(r.get('short','')).strip())==4 for r in routes), 'no four-digit school lines in Fluo 54 catalogue'
+          mapping=json.loads(Path('fluo-numbering-2026.json').read_text(encoding='utf-8')).get('departments',{}).get('54',{})
+          expected={str(v.get('new','')).strip() for v in mapping.values() if str(v.get('new','')).strip()}
+          built={str(r.get('short','')).strip() for r in routes}
+          missing=sorted(expected-built)
+          print('EXPECTED_NUMBERED_54',len(expected),'MISSING_FROM_GTFS',len(missing))
+          print('MISSING_CODES',','.join(missing))
+          for old,v in mapping.items():
+              if str(v.get('new','')).strip() in missing:
+                  print('MISSING_DETAIL',old,'=>',v.get('new'),v.get('long',''))
           PY
