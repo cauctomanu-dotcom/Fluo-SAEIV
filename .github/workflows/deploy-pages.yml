@@ -290,11 +290,18 @@ jobs:
           assert "ensureExactPatternGeometry(globalThis.state.pattern)" in ops
           assert "hasGeometry" in ops
           speech=Path('site/v131-speech.js').read_text(encoding='utf-8')
-          for token in ('IS_IOS','announcementOutput','announcementContext','unlockAnnouncementAudio','playIOSCloudBlob','independent-webaudio','sortie annonces SAEIV autonome'):
+          for token in ('IS_IOS','announcementOutput','announcementContext','unlockAnnouncementAudio','playIOSCloudBlob','independent-webaudio-resilient',"state==='interrupted'"):
               assert token in speech
           assert 'IOS_SILENT_WAV' not in speech
           assert 'iosCloudAudio' not in speech
-          print('Mon SAEIV 1.0.90 validé · conducteurs test toutes lignes + supervision simulée')
+          import json
+          routes54=json.loads(Path('site/data/54/routes.json').read_text(encoding='utf-8')).get('routes') or []
+          by54={str(r.get('short','')).strip():r for r in routes54}
+          for code in ('4464','4465'):
+              assert code in by54, f'ligne scolaire 54 {code} absente du GTFS publié'
+          school54=[r for r in routes54 if str(r.get('short','')).strip().isdigit() and len(str(r.get('short','')).strip())==4]
+          assert len(school54)>=180, f'catalogue scolaire 54 anormalement incomplet: {len(school54)} lignes'
+          print(f'Mon SAEIV 1.0.90 validé · scolaires 54={len(school54)} · audio iPhone résilient')
           PY
 
           grep -q "const CACHE='mon-saeiv-clean-1.0.90'" site/sw.js
