@@ -15,6 +15,7 @@ jobs:
         run: |
           rm -rf site scripts
           mkdir -p site/data scripts/trace_overrides
+          cp index.html site/index.html
           cp build_gtfs.py scripts/build_gtfs.py
           cp build_gtfs_2026.py scripts/build_gtfs_2026.py
           cp 54.json scripts/trace_overrides/54.json
