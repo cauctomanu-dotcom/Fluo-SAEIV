@@ -73,6 +73,7 @@
     if(state.draft.status==='validated'){status('Ce brouillon est déjà validé. Il peut être publié.');return}
     if(state.draft.status!=='draft')throw Error('Brouillon dans un état non modifiable');
     await checkService(id,date);
+    await p.saveDraft(); // regenerate missing service markers on older drafts before validation
     await p.validate();
     status('Planning du '+date+' validé pour '+labelFor(id)+'. Il reste NON communiqué tant que tu ne cliques pas sur Publier.');
    }else{
