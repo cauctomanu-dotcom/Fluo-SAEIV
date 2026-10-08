@@ -21,7 +21,7 @@
  async function loadPeriod(){if(S.busy)return;const {a,n}=period();S.busy=true;S.counts.clear();q('v165LoadSegments').disabled=true;
   try{for(let i=0;i<n;i++){const day=plus(a,i);notify('Chargement des segments '+(i+1)+'/'+n+' · '+day);await board().setDate(day);await board().loadSegments();S.counts.set(day,board().segments.length);ribbon()}
     await selectDay(a);notify('Segments chargés pour '+n+' journée(s). Cliquer un jour ci-dessous pour afficher ses courses.')}
-  finally{S.busy=false;q('v165LoadSegments').disabled=false}
+  finally{try{if(board()?.date!==a)await selectDay(a)}catch(e){handle(e)}S.busy=false;q('v165LoadSegments').disabled=false}
  }
  async function generate(driverId=null){if(S.busy)return;const {a,b,n}=period();if(!confirm('Générer '+n+' journée(s)'+(driverId?' pour le conducteur sélectionné':' pour les conducteurs disponibles')+' en BROUILLONS ? Aucune publication automatique.'))return;
   S.busy=true;const button=q('v165Generate');button.disabled=true;
@@ -42,7 +42,7 @@
  async function build(driverId){
   const date=board()?.date||from();
   await planner().openDriverDraft(driverId,date);
-  await board().loadSegments();
+  try{await board().loadSegments()}catch(e){await planner().releaseLock();throw e}
   const db=cloud()?.client,org=cloud()?.profile?.organization_id;
   const [drafts,official]=await Promise.all([
    db.from('saeiv_planning_days').select('driver_user_id,items').eq('organization_id',org).eq('service_date',date),
