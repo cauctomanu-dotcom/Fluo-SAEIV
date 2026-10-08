@@ -7,8 +7,8 @@
  const today=()=>new Date().toLocaleDateString('en-CA');
  const plus=(d,n)=>{const x=new Date(d+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
  const length=(a,b)=>Math.round((new Date(b+'T12:00:00Z')-new Date(a+'T12:00:00Z'))/86400000)+1;
- const S={busy:false,counts:new Map(),driver:null};
- const from=()=>q('v165Date')?.value||today(),to=()=>q('v190End')?.value||from();
+ const S={busy:false,counts:new Map(),driver:null,rangeStart:null};
+ const from=()=>S.rangeStart||q('v165Date')?.value||today(),to=()=>q('v190End')?.value||from();
  const period=()=>{const a=from(),b=to(),n=length(a,b);if(!Number.isFinite(n)||n<1||n>31)throw Error('Choisir une période de 1 à 31 jours, Du inclus et Au inclus.');return{a,b,n}};
  function notify(msg,bad=false){const e=q('v190Status');if(e){e.textContent=msg;e.style.color=bad?'#ffa7a7':'#b7ffce'}}
  const handle=e=>notify(e?.message||String(e),true);
@@ -17,7 +17,7 @@
   const count=ds.length;q('v190Count').textContent=count===1?'Journée unique':count+' journées, du '+ds[0]+' au '+ds[count-1];
   x.innerHTML=count===1?'':ds.map(d=>'<button type="button" data-day="'+d+'" class="'+(d===board()?.date?'active':'')+'">'+d.slice(8)+'/'+d.slice(5,7)+(S.counts.has(d)?' · '+S.counts.get(d):'')+'</button>').join('');
  }
- async function selectDay(date){await board().setDate(date);await board().loadSegments();ribbon()}
+ async function selectDay(date){await board().setDate(date);await board().loadSegments();if(q('v165Date'))q('v165Date').value=from();ribbon()}
  async function loadPeriod(){if(S.busy)return;const {a,n}=period();S.busy=true;S.counts.clear();q('v165LoadSegments').disabled=true;
   try{for(let i=0;i<n;i++){const day=plus(a,i);notify('Chargement des segments '+(i+1)+'/'+n+' · '+day);await board().setDate(day);await board().loadSegments();S.counts.set(day,board().segments.length);ribbon()}
     await selectDay(a);notify('Segments chargés pour '+n+' journée(s). Cliquer un jour ci-dessous pour afficher ses courses.')}
@@ -72,12 +72,12 @@
   document.head.append(style);
   const label=date.closest('label');if(label)for(const n of label.childNodes)if(n.nodeType===3&&n.textContent.trim()==='Date')n.textContent='Du ';
   const au=document.createElement('label');au.textContent='Au ';au.innerHTML='Au <input id="v190End" type="date">';label.insertAdjacentElement('afterend',au);
-  q('v190End').value=date.value;const toolbar=tool.querySelector('.v165-toolbar');
+  S.rangeStart=date.value;q('v190End').value=date.value;const toolbar=tool.querySelector('.v165-toolbar');
   const pub=document.createElement('button');pub.type='button';pub.id='v190Publications';pub.textContent='📋 Brouillons / publications';toolbar.append(pub);
   const billets=document.createElement('button');billets.id='v190Billets';billets.type='button';billets.textContent='🎟 Billets CO';toolbar.append(billets);
   const line=document.createElement('div');line.innerHTML='<div id="v190Count"></div><div id="v190Days"></div><div id="v190Status" role="status"></div>';toolbar.insertAdjacentElement('afterend',line);
   const modal=document.createElement('section');modal.id='v190Builder';modal.className='hide';modal.innerHTML='<h3 id="v190BuilderTitle">Construire le planning</h3><p>Uniquement les segments encore libres, ajoutés directement dans le brouillon du conducteur. Aucune modification du planning publié.</p><strong id="v190FreeCount"></strong><div id="v190Free"></div><button type="button" id="v190Close">Terminer et libérer le verrou</button>';tool.append(modal);
-  date.addEventListener('change',()=>{if(to()<from())q('v190End').value=from();S.counts.clear();ribbon()});
+  date.addEventListener('change',()=>{S.rangeStart=date.value;if(to()<from())q('v190End').value=from();S.counts.clear();ribbon()});
   q('v190End').addEventListener('change',ribbon);
   q('v190Days').addEventListener('click',e=>{const b=e.target.closest('[data-day]');if(b)selectDay(b.dataset.day).catch(handle)});
   q('v190Publications').onclick=()=>toggle('v187Planning');
