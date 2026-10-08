@@ -16,7 +16,7 @@
   const css=document.createElement('style');css.textContent='#v187Planning{color:#e2f3fc;background:#0a2030;border:1px solid #426c84;margin:12px 0;padding:14px;border-radius:16px}#v187Planning.hide{display:none}#v187Planning .v187row{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin:8px 0}#v187Planning label{display:grid;gap:4px;min-width:125px;flex:1;font-size:.7rem}#v187Planning input,#v187Planning select,#v187Planning textarea{padding:9px;background:#071722;border:1px solid #426377;border-radius:8px;color:white;width:100%}#v187Planning button{min-height:40px;padding:8px 12px}#v187Planning .v187item{display:grid;grid-template-columns:100px 105px 100px 100px 1fr 1fr auto;gap:6px;align-items:end;margin:6px 0}#v187Planning .v187item input,#v187Planning .v187item select{min-width:0}#v187Planning h3{color:#ffdd7c;margin-top:16px}#v187Planning .v187requests article{border-bottom:1px solid #315265;padding:10px}#v187Planning .v187locked{background:#563710;color:#fff1ce;padding:8px;border-radius:8px}#v187Planning .v187info{font-size:.73rem;color:#b5cdda}#v187Planning .v187actions{display:flex;flex-wrap:wrap;gap:7px}@media(max-width:850px){#v187Planning .v187item{grid-template-columns:repeat(2,minmax(0,1fr))}#v187Planning .v187item>button{grid-column:span 2}}';
   document.head.append(css);
   const root=document.createElement('section');root.id='v187Planning';
-  root.innerHTML='<h2>📆 Planning collaboratif — nouvelles publications</h2><p class="v187info">Les brouillons sont invisibles aux conducteurs. Ce module n’écrase pas les anciens plannings.</p><div id="v187Status" role="status"></div>'+
+  root.innerHTML='<h2>📋 Brouillons, validation et publication</h2><p class="v187info">Les brouillons sont invisibles aux conducteurs. Ce module n’écrase pas les anciens plannings.</p><div id="v187Status" role="status"></div>'+
     '<div class="v187row"><label>Conducteur<select id="v187Driver"></select></label><label>Date<input type="date" id="v187Date"></label><button id="v187Load">Ouvrir la journée</button><button id="v187Lock">🔒 Verrouiller</button><button id="v187Unlock">Libérer le verrou</button></div>'+
     '<div id="v187LockStatus" class="v187locked">Lecture seule · prendre un verrou pour modifier</div>'+
     '<h3>Journée préparée</h3><div id="v187Items"></div><div class="v187actions"><button id="v187Import">Importer le planning existant</button><button id="v187Add">＋ Activité</button><button id="v187Draft">Enregistrer brouillon</button><button id="v187Validate">Valider</button><button id="v187Publish">Publier au conducteur</button></div>'+
@@ -322,10 +322,10 @@
   if(!q('v187Driver')||!P.drivers.some(d=>d.user_id===driverId))throw Error('Conducteur absent de la société');
   if(P.lock&&(P.lock.date!==date||P.driver!==driverId))await releaseLock();
   q('v187Driver').value=driverId;P.driver=driverId;q('v187Date').value=date;P.date=date;
-  await takeLock();
-  if(!hasLock())throw Error('Journée déjà verrouillée par un autre exploitant');
   await loadDay();
   if(P.official)throw Error('Planning publié : modification par demande d’accord du conducteur obligatoire');
+  await takeLock();
+  if(!hasLock())throw Error('Journée déjà verrouillée par un autre exploitant');
   return P;
  }
  async function appendActivities(items){
