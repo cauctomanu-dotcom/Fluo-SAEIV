@@ -1,0 +1,20 @@
+'use strict';
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const source=fs.readFileSync('v196-generation-feedback.js','utf8');
+const nodes=new Map(['v196Progress','v196Title','v196Bar','v196Details','v196Cancel','v196Log','v190Status','v187Date','v187Driver'].map(id=>[id,{id,style:{},value:'',textContent:'',disabled:false,prepend(){}}]));
+const q=id=>nodes.get(id)||null;
+const record=[],day={value:null},calls=[],rows=new Map();
+const board={segments:[{id:'GTFS1'}],async setDate(d){day.value=d;calls.push('date:'+d)},async loadSegments(){calls.push('segments:'+day.value)}};
+let write=true;
+const planner={state:{lock:null,date:null,driver:'driver-test'},async takeLock(){this.state.lock={date:this.state.date,id:'lock'}},async releaseLock(){this.state.lock=null},async generateDraft(){if(write)rows.set(day.value,[{driver_user_id:'driver-test',revision:1,items:[{id:'COURSE1'}]}]);calls.push('generate:'+day.value)}};
+const client={from(){return{select(){return this},eq(){return this},then(resolve,reject){return Promise.resolve({data:rows.get(day.value)||[],error:null}).then(resolve,reject)}}}};
+const window={MonSAEIVCloudV156:{client,profile:{organization_id:'tenant-1'}},MonSAEIVOperationsBoardV165:board,MonSAEIVPlanningV187:planner};
+vm.runInNewContext(source,{window,document:{getElementById:q,createElement:()=>({textContent:'',style:{}})},setTimeout,setInterval:()=>0,Date,console,Promise},{timeout:3000});
+const fix=window.MonSAEIVGenerationFeedbackV196;
+assert(fix?.installed);assert.equal(planner.generateDateRange,fix.run);
+(async()=>{
+const a=await fix.run('2026-10-12','2026-10-12');assert.equal(a.length,1);assert.equal(a[0].ok,true);assert.equal(a[0].saved,1);assert.equal(planner.state.lock,null);
+write=false;const b=await fix.run('2026-10-12','2026-10-12');assert.equal(b[0].ok,false);assert.match(b[0].error,/Aucun brouillon/);
+assert(calls.some(x=>x==='segments:2026-10-12'));assert.match(nodes.get('v196Title').textContent,/0 journée/);
+console.log('SAEIV v1.0.97: save verified, no-op is failure, progress and lock cleanup OK');
+})().catch(e=>{console.error(e);process.exit(1)});
