@@ -30,7 +30,7 @@ assert.ok(code.sync.includes("saeiv_published_days"),'driver sync must read publ
 assert.ok(code.sync.includes("publishedDates.has(x.service_date)"),'legacy entries superseded on published days');
 for(const [name,source]of Object.entries(code)){
  const doc={getElementById(){return null},addEventListener(){},readyState:'loading'};
- const ctx={window:{},document:doc,localStorage:{},setInterval(){return 0},clearInterval(){},
+ const ctx={window:{addEventListener(){},removeEventListener(){}},document:doc,localStorage:{getItem(){return null},setItem(){}},setInterval(){return 0},clearInterval(){},
    setTimeout(){return 0},Date,console,Math,Number,String,Map,Set,Array,Promise,navigator:{},structuredClone};
  vm.runInNewContext(source,ctx,{timeout:1000,filename:name});
  assert.ok(Object.keys(ctx.window).some(x=>x.startsWith('MonSAEIV')&&name!=='sync'||x.startsWith('MonSAEIV')&&name==='sync'));
