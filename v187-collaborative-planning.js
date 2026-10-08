@@ -197,13 +197,13 @@
   const box=q('v187Planning'),ops=q('v157OpsView');if(box&&ops){box.classList.toggle('hide',ops.classList.contains('hidden'))}
  }
  window.addEventListener('pagehide',()=>{clearInterval(P.heartbeat)});
- async function generateDraft(){
+ async function generateDraft({driverId=null}={}){
   if(!hasLock())throw Error('Verrouiller d’abord la journée du planning');
   const board=window.MonSAEIVOperationsBoardV165,engine=window.MonSAEIVGenerationEngineV167;
   if(!board?.refresh||!engine?.scoreCandidate)throw Error('Moteur de génération indisponible');
   if(!window.MonSAEIVSmartRestV177?.weeklyRestCheck)throw Error('Contrôle repos indisponible : génération bloquée par sécurité');
   const date=P.date,sourceDate=q('v165Date');
-  if(sourceDate&&sourceDate.value!==date){sourceDate.value=date;sourceDate.dispatchEvent(new Event('change',{bubbles:true}))}
+  if(sourceDate&&sourceDate.value!==date&&board.setDate)await board.setDate(date);
   await board.refresh();
   const segments=board.segments||[];if(!segments.length)throw Error('Aucune course GTFS chargée pour ce jour');
   const startHistory=new Date(date+'T12:00:00Z');startHistory.setUTCDate(startHistory.getUTCDate()-28);
@@ -229,7 +229,7 @@
    return !unavailable.some(x=>x.driver_user_id===driver&&(overlap(seg.start,seg.end,x.start_time,x.end_time)||current.some(y=>overlap(y.start,y.end,x.start_time,x.end_time))));
   };
   const publishedIds=new Set(published.map(x=>x.driver_user_id));
-  const eligible=drivers.filter(d=>!publishedIds.has(d.user_id));
+  const eligible=drivers.filter(d=>!publishedIds.has(d.user_id)&&(!driverId||d.user_id===driverId));
   if(!eligible.length)throw Error('Toutes les journées sont déjà publiées : les changements doivent faire l’objet d’un accord');
   const activities=new Map(eligible.map(d=>[d.user_id,Array.isArray(draftBy.get(d.user_id)?.items)?
    structuredClone(draftBy.get(d.user_id).items):
@@ -238,6 +238,8 @@
     originCoords:x.origin_coords||null,destinationCoords:x.destination_coords||null,linked:x.linked||null,driveMinutes:x.drive_minutes||0}))]));
   const used=new Set();
   for(const activitiesDay of activities.values())for(const a of activitiesDay){if(a.segment_id)used.add(String(a.segment_id));if(a.linked?.tripId)used.add(String(a.linked.tripId))}
+  for(const day of [...drafts,...published])for(const a of day.items||[]){if(a.segment_id)used.add(String(a.segment_id));if(a.linked?.tripId)used.add(String(a.linked.tripId))}
+  for(const row of existing){if(row.payload?.segment_id)used.add(String(row.payload.segment_id));if(row.linked?.tripId)used.add(String(row.linked.tripId))}
   const activeLines=lines.filter(x=>x.active&&(x.start_date<=date)&&(!x.end_date||x.end_date>=date));
   const key=x=>String(x||'').replace(/\s+/g,'').toUpperCase();
   const allowed=seg=>!lines.length||activeLines.some(l=>l.department===String(seg.dept||seg.linked?.dept||'')&&key(l.line_code)===key(seg.line));
