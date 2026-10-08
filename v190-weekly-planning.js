@@ -26,9 +26,9 @@
  async function generate(driverId=null){if(S.busy)return;const {a,b,n}=period();if(!confirm('Générer '+n+' journée(s)'+(driverId?' pour le conducteur sélectionné':' pour les conducteurs disponibles')+' en BROUILLONS ? Aucune publication automatique.'))return;
   S.busy=true;const button=q('v165Generate');button.disabled=true;
   try{notify('Génération intelligente du '+a+' au '+b+'…');const results=await planner().generateDateRange(a,b,{driverId});
-    const bad=results.filter(x=>!x.ok),good=results.length-bad.length;
+    const bad=results.filter(x=>!x.ok),already=results.filter(x=>x.unchanged),created=results.filter(x=>x.ok&&!x.unchanged&&!x.empty),empty=results.filter(x=>x.empty);
     ribbon();
-    notify(good+'/'+n+' journée(s) préparée(s) en brouillons.'+(bad.length?' Non traitées : '+bad.map(x=>x.date+' ('+x.error+')').join(' ; '):'')+' Vérifier la RSE avant validation.',bad.length>0);
+    notify('Brouillons : '+already.length+' journée(s) déjà préparée(s), '+created.length+' avec nouvelles affectations, '+empty.length+' sans circulation GTFS. '+bad.length+' erreur(s) réelle(s). '+(bad.length?'Détail dans le journal de génération. ':'')+'Contrôler les repos et la RSE avant validation.',bad.length>0);
   }finally{S.busy=false;button.disabled=false}
  }
  function toggle(id){const e=q(id);if(!e)throw Error('Module non chargé. Rafraîchir la page');e.dataset.open=e.dataset.open==='1'?'0':'1';e.classList.toggle('hide',e.dataset.open!=='1');if(e.dataset.open==='1')e.scrollIntoView({behavior:'smooth',block:'start'})}
