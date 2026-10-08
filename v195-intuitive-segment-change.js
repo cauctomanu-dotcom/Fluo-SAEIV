@@ -87,6 +87,8 @@
   if(!db()||!p()?.organization_id)throw Error('Connexion exploitation requise');
   if(!['admin','dispatcher'].includes(p().role))throw Error('Accès exploitation requis');
   const request=++S.version;S.driver=item.driver_user_id;S.date=item.service_date||board()?.date;S.old=[];S.segments=[];S.oldIndex=null;S.newIndex=null;S.busy=false;
+  if(!q('v174Editor'))window.MonSAEIVGridEditorV174?.decorate?.();
+  if(!q('v174Editor'))throw Error('Fenêtre de modification non chargée : actualiser la page');
   ui(item);q('v174Editor').classList.remove('hidden');msg('Chargement des courses du conducteur et des lignes disponibles…');
   const org=p().organization_id,date=S.date;
   const [published,legacy,active,drafts]=await Promise.all([
@@ -111,6 +113,21 @@
   msg(S.segments.length+' segments disponibles. Recherche par numéro de ligne, ville ou horaire.');
   updateSummary();
  }
+ async function estimate(old,replacement){
+  const engine=window.MonSAEIVGenerationEngineV167;
+  if(!engine?.scoreCandidate||!replacement)return 'Suppression sans remplacement : vérification HLP/RSE globale à effectuer avant validation finale.';
+  const record=await db().from('driver_settings').select('bus_parking,known_lines').eq('organization_id',p().organization_id).eq('user_id',S.driver).maybeSingle();
+  if(record.error)throw record.error;
+  const driver=board()?.drivers?.find(d=>String(d.user_id)===String(S.driver));
+  const keep=S.old.filter(x=>x!==old&&isCourse(x));
+  const evaluation=engine.scoreCandidate(replacement,driver||{user_id:S.driver},keep,record.data||{},{compactOnly:false});
+  if(evaluation?.ok)return 'Contrôle provisoire : aucun conflit HLP estimé, HLP '+Number(evaluation.hlpKm||0).toFixed(1)+' km. Contrôle réglementaire RSE complet requis avant revalidation.';
+  const reason=evaluation?.reason||'Contrôle HLP indisponible';
+  if(/chevauchement|amplitude|travail estimé|conduite estimée|HLP impossible/.test(reason))
+    throw Error('Recalcul provisoire défavorable : '+reason+'. Choisir un autre segment.');
+  return '⚠ Calcul HLP incomplet : '+reason+'. Un exploitant devra vérifier la faisabilité avant revalidation.';
+ }
+
  async function send(){
   if(S.busy)return;
   const old=S.old[S.oldIndex],replacement=S.segments[S.newIndex],deleteOnly=q('v196Delete')?.checked;
@@ -124,6 +141,7 @@
   if(!confirm('Envoyer cette proposition au conducteur ? Son planning actuel restera inchangé jusqu’à son accord et à la validation de l’exploitation.'))return;
   S.busy=true;let lockId=null;const button=q('v196Send');button.disabled=true;
   try{
+   const result=await estimate(old,deleteOnly?null:replacement);q('v196Legality').textContent=result;
    msg('Contrôle des conflits et envoi de la demande au conducteur…');
    const {data:lock,error:lockError}=await db().rpc('saeiv_acquire_lock',{p_start:S.date,p_end:S.date,p_name:p().display_name||'Exploitation'});
    if(lockError)throw lockError;
