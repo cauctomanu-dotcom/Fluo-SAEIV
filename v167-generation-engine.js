@@ -29,7 +29,7 @@
   const clientId=seg=>`seg-${hash(seg.id)}`;
   const dateValue=()=>q('v165Date')?.value||new Date().toISOString().slice(0,10);
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'').trim();
-  const isTestDriver=d=>/^TEST\d+$/i.test(String(d?.matricule||'').trim());
+  const isTestDriver=d=>d?.is_test_driver===true||/^TEST\d+$/i.test(String(d?.matricule||'').trim());
   let running=false;
 
   function status(text,kind=''){const el=q('v165Status');if(el){el.textContent=text||'';el.className=`v165-status ${kind}`}}

@@ -48,8 +48,9 @@
      await board().setDate(day);
      await board().loadSegments();
      const n=board().segments.length;
-     if(!n)throw Error('Aucun segment GTFS trouvé à cette date');
-     note(day+' : '+n+' segments chargés');
+     const regular=board().segments.filter(x=>x.type==='regular').length,school=board().segments.filter(x=>x.type==='school').length;
+     note(day+' : '+n+' segments ACTIFS ce jour (réguliers '+regular+', scolaires '+school+', autres '+(n-regular-school)+')');
+     if(!n){result={date:day,ok:true,empty:true,saved:0,services:0,segments:0};note('ℹ️ '+day+' : aucun service GTFS actif. Aucun brouillon inutile créé');onProgress?.({phase:'empty',date:day,dayIndex:i+1,dayCount:total})}else{
      const before=await fetchVersions(org,day);
      if(!q('v187Date'))throw Error('Éditeur de brouillons non initialisé');
      q('v187Date').value=day;planner().state.date=day;
@@ -57,14 +58,18 @@
      progress('Journée '+(i+1)+'/'+total+' · '+day+' · calcul des affectations…',i,total);
      await planner().takeLock();
      if(!planner().state.lock||planner().state.lock.date!==day)throw Error('Verrou de planification non obtenu');
-     await planner().generateDraft({driverId});
+     const stats=await planner().generateDraft({driverId,onProgress:detail=>{
+      if(detail.phase==='assign'&&q('v196Details'))q('v196Details').textContent='Jour '+(i+1)+'/'+total+' · segments examinés '+detail.processed+'/'+detail.total+' · affectés '+detail.assigned+' · sans conducteur '+detail.unplaced;
+     }});
      const after=await fetchVersions(org,day);
      const saved=[...after].filter(([key,row])=>!before.has(key)||JSON.stringify(row.items)!==JSON.stringify(before.get(key).items));
-     if(!saved.length)throw Error('Aucun brouillon sauvegardé : tous les segments sont déjà attribués ou aucun conducteur n’est compatible (stationnement, HLP, compétences, RSE).');
+     if(!saved.length)throw Error('Aucun nouveau brouillon. '+(stats?.assigned||0)+' courses placées, '+(stats?.unplaced||0)+' impossibles, '+(stats?.restricted||0)+' exclues. '+(stats?.topReasons||[]).slice(0,4).map(x=>x.reason+' ('+x.count+')').join(' · '));
      const services=saved.reduce((n,[,r])=>n+(r.items?.length||0),0);
-     result={date:day,ok:true,saved:saved.length,services};
-     note('✅ '+day+' : '+saved.length+' brouillons enregistrés, '+services+' activités dans ces brouillons');
+     result={date:day,ok:true,saved:saved.length,services,gtfsSegments:n,regular,school,...stats};
+     note('✅ '+day+' : '+n+' courses du calendrier GTFS · '+(stats?.assigned||0)+' nouvelles affectations · '+(stats?.unplaced||0)+' non placées · '+saved.length+' brouillons modifiés');
+     if(stats?.topReasons?.length)note('Causes de refus : '+stats.topReasons.map(x=>x.reason+' ('+x.count+')').join(' · '));
      onProgress?.({phase:'finished',date:day,dayIndex:i+1,dayCount:total,...result});
+     }
     }catch(e){
      result.error=error(e);note('❌ '+day+' : '+result.error);
      onProgress?.({phase:'error',date:day,dayIndex:i+1,dayCount:total,error:result.error});
@@ -76,7 +81,8 @@
     await new Promise(resolve=>setTimeout(resolve,10));
    }
    const ok=results.filter(x=>x.ok).length,failed=results.filter(x=>!x.ok);
-   const summary='Génération terminée : '+ok+' journée(s) avec brouillons enregistrés sur '+total+'.'+(failed.length?' Échecs : '+failed.map(x=>x.date+' : '+x.error).join(' ; '):'');
+   const empty=results.filter(x=>x.empty).length,assigned=results.reduce((n,x)=>n+(x.assigned||0),0);
+   const summary='Semaine : '+(ok-empty)+' jour(s) avec brouillons, '+empty+' jour(s) sans circulation GTFS, '+assigned+' nouvelles courses affectées. '+failed.length+' erreur(s).'+(failed.length?' Détails : '+failed.map(x=>x.date+' : '+x.error).join(' ; '):'');
    if(q('v196Title'))q('v196Title').textContent=summary;
    if(q('v190Status'))q('v190Status').textContent=summary;
    G.history=results;

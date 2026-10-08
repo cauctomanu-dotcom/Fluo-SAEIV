@@ -236,18 +236,23 @@
   const segments=board.segments||[];if(!segments.length)throw Error('Aucune course GTFS chargée pour ce jour');
   const startHistory=new Date(date+'T12:00:00Z');startHistory.setUTCDate(startHistory.getUTCDate()-28);
   const fromHistory=startHistory.toISOString().slice(0,10);
-  const [drivers,settings,existing,drafts,published,lines,rules,exceptions,history,unavailable,historicalPublished]=await Promise.all([
-   client().from('profiles').select('user_id,matricule,display_name,active,depot_id,weekly_contract_minutes').eq('organization_id',org()).eq('role','driver').eq('active',true).then(x=>{if(x.error)throw x.error;return x.data||[]}),
+  const [drivers,settings,existing,drafts,published,lines,rules,exceptions,history,unavailable,historicalPublished,historicalDrafts]=await Promise.all([
+   client().from('profiles').select('user_id,matricule,display_name,active,depot_id,weekly_contract_minutes,is_test_driver').eq('organization_id',org()).eq('role','driver').eq('active',true).then(x=>{if(x.error)throw x.error;return x.data||[]}),
    select('driver_settings',{}),select('plan_items',{service_date:date}),
    select('saeiv_planning_days',{service_date:date}),select('saeiv_published_days',{service_date:date}),
    select('saeiv_company_lines',{}),select('saeiv_vehicle_rules',{}),select('saeiv_vehicle_exceptions',{service_date:date}),
    client().from('plan_items').select('driver_user_id,service_date,type,start_time,end_time,source,payload').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
    select('driver_unavailability',{service_date:date}),
-   client().from('saeiv_published_days').select('driver_user_id,service_date,items').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]})
+   client().from('saeiv_published_days').select('driver_user_id,service_date,items').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
+   client().from('saeiv_planning_days').select('driver_user_id,service_date,items,status').eq('organization_id',org()).gte('service_date',fromHistory).lt('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]})
   ]);
   const settingsBy=new Map(settings.map(x=>[x.user_id,x])),draftBy=new Map(drafts.map(x=>[x.driver_user_id,x]));
-  const historyWork=[...history];
-  for(const day of historicalPublished){if(day.service_date===date)continue;for(const item of day.items||[])historyWork.push({driver_user_id:day.driver_user_id,service_date:day.service_date,type:item.type||'regular',start_time:item.start||item.start_time,end_time:item.end||item.end_time,source:'dispatch',payload:item})}
+  const officialKeys=new Set(historicalPublished.filter(x=>x.service_date<date).map(x=>x.driver_user_id+'|'+x.service_date));
+  const draftKeys=new Set(historicalDrafts.filter(x=>x.status!=='published'&&!officialKeys.has(x.driver_user_id+'|'+x.service_date)).map(x=>x.driver_user_id+'|'+x.service_date));
+  const historyWork=history.filter(x=>!officialKeys.has(x.driver_user_id+'|'+x.service_date)&&!draftKeys.has(x.driver_user_id+'|'+x.service_date));
+  const addHistory=day=>{if(day.service_date>=date)return;for(const item of day.items||[])historyWork.push({driver_user_id:day.driver_user_id,service_date:day.service_date,type:item.type||'regular',start_time:item.start||item.start_time,end_time:item.end||item.end_time,source:'dispatch',payload:item})};
+  for(const day of historicalDrafts)if(draftKeys.has(day.driver_user_id+'|'+day.service_date))addHistory(day);
+  for(const day of historicalPublished)addHistory(day);
   const absenceCheck=(driver,seg,current)=>{
    const absolute=history.some(x=>x.driver_user_id===driver&&x.service_date===date&&(
     ['rh','cp'].includes(String(x.type||'').toLowerCase())||['RH','CP'].includes(String(x.payload?.absence_kind||'').toUpperCase())));
@@ -282,8 +287,12 @@
      ['bus','minibus','van'].find(t=>r.some(x=>x.vehicle_type===t&&x.policy==='allowed')) ;
    return chosen||null;
   };
-  let assigned=0,unplaced=0,restricted=0;
+  let assigned=0,unplaced=0,restricted=0,processed=0;
+  const reasons=new Map();
+  const reject=reason=>reasons.set(reason,(reasons.get(reason)||0)+1);
   for(const seg of segments){
+   processed++;
+   if(processed%40===0){onProgress?.({phase:'assign',processed,total:segments.length,assigned,unplaced});await new Promise(r=>setTimeout(r,0));}
    if(used.has(String(seg.id))||used.has(String(seg.tripId||'')))continue;
    if(!allowed(seg)){restricted++;continue}
    const vehicleType=choseVehicle(seg);if(!vehicleType){restricted++;continue}
@@ -291,13 +300,14 @@
    for(const driver of eligible){
     const day=activities.get(driver.user_id),setting=settingsBy.get(driver.user_id);
     const scoring=engine.scoreCandidate(seg,driver,day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},{compactOnly:false});
-    if(!scoring.ok||!absenceCheck(driver.user_id,seg,day)||day.some(x=>['rh','cp'].includes(String(x.type||'').toLowerCase())))continue;
+    if(!scoring.ok){reject(scoring.reason||'HLP ou règles de conduite');continue}
+    if(!absenceCheck(driver.user_id,seg,day)||day.some(x=>['rh','cp'].includes(String(x.type||'').toLowerCase()))){reject('Repos, absence ou indisponibilité');continue}
     const rank=engine.planningRank(day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},scoring);
     const dailyTarget=Number(driver.weekly_contract_minutes)>0?Number(driver.weekly_contract_minutes)/5:420;
     const nextDay=[...day.filter(x=>['regular','school','tad'].includes(x.type)),seg];
     const rest=window.MonSAEIVSmartRestV177?.weeklyRestCheck?.({history:historyWork,driverId:driver.user_id,date,activities:nextDay,
       park:setting?.bus_parking,compactOnly:!!day.length,alreadyWorkingToday:!!day.length})||{ok:true,penalty:0};
-    if(!rest.ok)continue;
+    if(!rest.ok){reject(rest.reason||'Repos hebdomadaire');continue}
     const contractPenalty=Math.abs(Number(scoring.economy?.work||0)-dailyTarget)*20;
     ranked.push({driver,rank,contractPenalty:contractPenalty+Number(rest.penalty||0)});
    }
@@ -320,8 +330,11 @@
    },{onConflict:'organization_id,driver_user_id,service_date'});
    if(error)throw error;written++;
   }
+  const topReasons=[...reasons.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6).map(([reason,count])=>({reason,count}));
+  onProgress?.({phase:'saved',processed:segments.length,total:segments.length,assigned,unplaced,restricted,written,topReasons});
   await loadDay();
-  status('Pré-génération enregistrée en BROUILLONS · '+assigned+' courses affectées · '+unplaced+' non placées · '+restricted+' hors périmètre/contraintes · '+written+' journées. Contrôle RSE serveur requis avant validation définitive.');
+  status('Pré-génération '+date+' · '+assigned+' affectés · '+unplaced+' sans conducteur · '+restricted+' hors périmètre · '+written+' brouillons. '+topReasons.map(x=>x.reason+': '+x.count).join(' ; '));
+  return {date,segments:segments.length,assigned,unplaced,restricted,written,topReasons,eligibleDrivers:eligible.length};
  }
 
  function appendCollective(tasks){if(!hasLock())throw Error('Verrou obligatoire');if(P.official)throw Error('Planning déjà publié');for(const t of tasks){const i=P.items.findIndex(x=>x.id===t.id);if(i<0)P.items.push(t);else P.items[i]=t}renderItems();}
