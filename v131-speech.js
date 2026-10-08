@@ -3,7 +3,7 @@
    Les annonces voyageurs utilisent la même voix IA sur Android/iPhone quand la session serveur est active.
    En cas d'absence réseau/TTS, le moteur Web Speech local reprend automatiquement. */
 (()=>{
-  const VERSION='1.0.90';
+  const VERSION='1.0.91';
   const START_RETRY_MS=2200, CANCEL_RESTART_MS=140, RECENT_MS=12000, IDENTITY_STOP_INTERVAL=5;
   const CLOUD_URL='https://xpmrnwipnoekiycghwli.supabase.co/functions/v1/passenger-tts';
   const CLOUD_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
@@ -13,7 +13,8 @@
   let installed=false, watchdog=null, identityAnchorStop=null, identityCourseKey=null, cloudBackoffUntil=0;
   // Sortie SAEIV dédiée. La radio conserve son propre <audio>; les annonces iPhone
   // passent par ce contexte Web Audio et ne dépendent jamais de l'état du lecteur musique.
-  const announcementOutput={ctx:null,gain:null,unlocked:false,unlocking:false,currentSource:null};
+  const announcementOutput={ctx:null,gain:null,unlocked:false,unlockPromise:null,currentSource:null};
+  let firstGesturePrimed=false,firstGestureAt=0,cloudSessionReady=false;
   const recent=new Map();
 
   function getAudioState(){try{return (typeof state!=='undefined'&&state?.audio)?state.audio:null}catch{return null}}
@@ -100,26 +101,67 @@
     }
     return announcementOutput.ctx;
   }
-  async function unlockAnnouncementAudio(){
-    if(!IS_IOS)return true;
-    if(announcementOutput.unlocking)return announcementOutput.unlocked;
-    let ctx=announcementContext();if(!ctx)return false;
-    announcementOutput.unlocking=true;
+  // Une seule initialisation partagée entre pointerdown, touchstart, clic et lecture.
+  // Sur Safari iOS le resume() doit être déclenché pendant le geste utilisateur.
+  function unlockAnnouncementAudio(){
+    if(!IS_IOS)return Promise.resolve(true);
+    if(announcementOutput.unlockPromise)return announcementOutput.unlockPromise;
+    const run=async()=>{
+      let ctx=announcementContext();if(!ctx)return false;
+      try{
+        if(ctx.state==='closed'){announcementOutput.ctx=null;announcementOutput.gain=null;ctx=announcementContext()}
+        if(ctx?.state!=='running')await ctx?.resume?.();
+        if(!ctx||ctx.state!=='running'){announcementOutput.unlocked=false;return false}
+        // Un buffer muet prépare Web Audio sans diffuser de son et sans toucher au lecteur radio.
+        const buffer=ctx.createBuffer(1,1,ctx.sampleRate),source=ctx.createBufferSource();
+        source.buffer=buffer;source.connect(announcementOutput.gain);source.start(0);
+        announcementOutput.unlocked=true;
+        return true;
+      }catch(e){
+        announcementOutput.unlocked=false;
+        console.warn('[Mon SAEIV] moteur audio à réactiver',e?.message||e);
+        return false;
+      }
+    };
+    announcementOutput.unlockPromise=run().finally(()=>{announcementOutput.unlockPromise=null;updateAudioIndicator()});
+    return announcementOutput.unlockPromise;
+  }
+
+  function outputReady(){
+    return !IS_IOS||!!(announcementOutput.ctx?.state==='running'&&announcementOutput.unlocked);
+  }
+  function updateAudioIndicator(){
+    const indicator=document.getElementById('v131AudioActivate');
+    if(!indicator)return;
+    let driving=false;try{driving=!!state?.running||!!window.MonSAEIVDayAutopilotV144?.snapshot?.running}catch{}
+    indicator.hidden=!driving||outputReady();
+    indicator.setAttribute('aria-label','Son des annonces à réactiver');
+  }
+  function prepareAudioFromGesture(){
+    firstGestureAt=Date.now();
+    const sp=synth();
     try{
-      if(ctx.state==='closed'){announcementOutput.ctx=null;announcementOutput.gain=null;ctx=announcementContext()}
-      if(ctx?.state!=='running')await ctx?.resume?.();
-      if(!ctx||ctx.state!=='running'){announcementOutput.unlocked=false;return false}
-      // Impulsion silencieuse propre au moteur SAEIV : elle ouvre/réveille la session Web Audio
-      // sans lancer ni toucher au lecteur radio.
-      const buffer=ctx.createBuffer(1,1,ctx.sampleRate),source=ctx.createBufferSource();
-      source.buffer=buffer;source.connect(announcementOutput.gain);source.start(0);
-      announcementOutput.unlocked=true;
-      return true;
-    }catch(e){
-      announcementOutput.unlocked=false;
-      console.warn('[Mon SAEIV] sortie annonces SAEIV à réactiver',e?.message||e);
-      return false;
-    }finally{announcementOutput.unlocking=false}
+      sp?.getVoices?.();
+      if(sp?.paused)sp.resume();
+      // Safari ne charge parfois la liste de voix qu'après un premier usage.
+      // On n'insère pas de test lorsque le conducteur a déjà des annonces en cours.
+      const a=getAudioState();
+      if(!firstGesturePrimed&&sp&&!sp.speaking&&!sp.pending&&!a?.current&&!a?.queue?.length&&typeof SpeechSynthesisUtterance!=='undefined'){
+        firstGesturePrimed=true;
+        const warmup=new SpeechSynthesisUtterance('\u200b');
+        warmup.lang='fr-FR';warmup.volume=0;warmup.rate=1;
+        try{sp.speak(warmup)}catch{}
+      }
+    }catch(e){console.warn('[Mon SAEIV] préparation synthèse vocale',e?.message||e)}
+    // Lance le réveil Web Audio sans attendre une requête réseau qui ferait perdre le geste iOS.
+    const ready=unlockAnnouncementAudio();
+    if(!cloudSessionReady&&window.MonSAEIVCloudV156?.client){
+      cloudSessionReady=true;
+      try{window.MonSAEIVCloudV156.client.auth.getSession().catch(()=>{cloudSessionReady=false})}
+      catch{cloudSessionReady=false}
+    }
+    ready.then(updateAudioIndicator).catch(updateAudioIndicator);
+    return ready;
   }
   async function playIOSCloudBlob(blob,cur,onStarted,onEnded){
     const ctx=announcementContext();if(!ctx)throw new Error('announcement-audio-unavailable');
@@ -238,9 +280,14 @@
       if(cur&&item.ephemeral&&curP>=item.priority)return;if(mustPreempt){cancelCurrent('higher-priority');setTimeout(()=>{audio.queue.push(item);pumpSpeech()},CANCEL_RESTART_MS+20);return}audio.queue.push(item);pumpSpeech();
     };
 
-    watchdog=setInterval(()=>{const audio=getAudioState();if(!audio)return;purge(audio);const cur=audio.current;if(cur?.item&&obsolete(cur.item)){cancelCurrent('obsolete');setTimeout(()=>pumpSpeech(),CANCEL_RESTART_MS+20)}else if(!cur)try{pumpSpeech()}catch{}},180);
-    const reviveAudio=()=>{try{if(sp.paused)sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>{try{pumpSpeech()}catch{}},40)};
-    const userAudioWake=()=>reviveAudio();
+    watchdog=setInterval(()=>{const audio=getAudioState();if(!audio)return;purge(audio);const cur=audio.current;if(cur?.item&&obsolete(cur.item)){cancelCurrent('obsolete');setTimeout(()=>pumpSpeech(),CANCEL_RESTART_MS+20)}else if(!cur)try{pumpSpeech()}catch{};updateAudioIndicator()},250);
+    const reviveAudio=()=>{try{if(sp.paused)sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>{try{pumpSpeech()}catch{}},40);updateAudioIndicator()};
+    const userAudioWake=()=>{prepareAudioFromGesture();setTimeout(()=>{try{pumpSpeech()}catch{}},40)};
+    if(!document.getElementById('v131AudioActivate')){
+      const btn=document.createElement('button');btn.id='v131AudioActivate';btn.type='button';btn.hidden=true;
+      btn.textContent='🔊 Réactiver les annonces';btn.style.cssText='position:fixed;bottom:max(12px,env(safe-area-inset-bottom));right:12px;z-index:2147483000;background:#5d431b;color:#fff4d2;border:1px solid #bb9752;border-radius:10px;font-weight:800;padding:9px 12px;box-shadow:0 3px 14px #0008';
+      btn.addEventListener('click',userAudioWake);document.body.appendChild(btn);
+    }
     document.addEventListener('pointerdown',userAudioWake,{capture:true,passive:true});
     document.addEventListener('touchstart',userAudioWake,{capture:true,passive:true});
     document.addEventListener('click',userAudioWake,{capture:true,passive:true});
@@ -248,7 +295,7 @@
     window.addEventListener('pageshow',()=>setTimeout(reviveAudio,80));
     window.addEventListener('focus',()=>setTimeout(reviveAudio,80),{passive:true});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(reviveAudio,80)});
-    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,frenchVoice,voiceProfile,cloud:true,isIOS:IS_IOS,unlockIOSAudio:unlockAnnouncementAudio,unlockAnnouncementAudio,audioEngine:'independent-webaudio-resilient',restart:()=>{try{sp.resume()}catch{};unlockAnnouncementAudio().catch(()=>{});setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
+    window.MonSAEIVSpeechV131={version:VERSION,safePronunciation,frenchVoice,voiceProfile,cloud:true,isIOS:IS_IOS,unlockIOSAudio:unlockAnnouncementAudio,unlockAnnouncementAudio,prepareAudioFromGesture,isOutputReady:outputReady,get firstGestureAt(){return firstGestureAt},audioEngine:'gesture-initialized-webaudio-resilient',restart:()=>{prepareAudioFromGesture();setTimeout(()=>pumpSpeech(),80)},invalidate:()=>{const audio=getAudioState();purge(audio);if(audio?.current?.item&&obsolete(audio.current.item))cancelCurrent('invalidate')}};
     window.MonSAEIVSpeechV148=window.MonSAEIVSpeechV131;setTimeout(()=>{if(window.MonSAEIVCloudV156?.user)markCloudLabel()},1800);
     console.info('[Mon SAEIV] moteur vocal SAEIV autonome + cloud OpenAI + secours local actif');return true;
   }

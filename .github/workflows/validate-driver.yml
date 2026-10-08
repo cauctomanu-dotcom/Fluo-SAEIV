@@ -1,0 +1,36 @@
+name: Validate SAEIV driver changes
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  driver-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: JavaScript syntax and route view tests
+        run: |
+          set -euo pipefail
+          node --check v131-speech.js
+          node --check v144-day-hlp-driver.js
+          node --check v185-line-thermometer.js
+          node --check sw.js
+          node tests/driver-line-v191.test.cjs
+      - name: Validate module integration and 1.0.91 cache
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          workflow=Path('.github/workflows/deploy-pages.yml').read_text()
+          sw=Path('sw.js').read_text()
+          manifest=Path('manifest.webmanifest').read_text()
+          assert "v185-line-thermometer.js" in workflow
+          assert "./v185-line-thermometer.js" in sw
+          assert "1.0.91" in sw and "1.0.91" in manifest
+          assert "gesture-initialized-webaudio-resilient" in Path('v131-speech.js').read_text()
+          assert "maplibregl.Map" in Path('v144-day-hlp-driver.js').read_text()
+          print('SAEIV driver release checks OK')
+          PY
