@@ -223,6 +223,7 @@ jobs:
           done
 
           node tests/driver-line-v191.test.cjs
+          node tests/unified-planning-v194.test.cjs
           node tests/planning-workflow-v192.test.cjs
           grep -q "catalogue complet lignes exploitation" site/v165-exploitation-board.js
           grep -q "gesture-initialized-webaudio-resilient" site/v131-speech.js
