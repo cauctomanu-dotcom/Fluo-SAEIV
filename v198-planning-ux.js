@@ -89,6 +89,45 @@
    update();
   }
  }
+ async function bulkDay(mode){
+  if(D.busy)throw Error('Une validation ou publication est déjà en cours');
+  if(!db()||!board()?.date)throw Error('Planning indisponible');
+  const date=board().date,organization_id=cloud().profile.organization_id;
+  const {data,error}=await db().from('saeiv_planning_days').select('driver_user_id,status,items').eq('organization_id',organization_id).eq('service_date',date);
+  if(error)throw error;
+  const official=new Set(board().officialDriverIds||[]);
+  const eligible=(data||[]).filter(x=>!official.has(x.driver_user_id)&&hasWork(x.items));
+  if(mode==='publish'&&eligible.some(x=>x.status==='draft'))throw Error('Il reste '+eligible.filter(x=>x.status==='draft').length+' brouillon(s) non validé(s). Valide-les avant de publier la journée.');
+  const target=eligible.filter(x=>mode==='validate'?x.status==='draft':x.status==='validated');
+  if(!target.length)throw Error(mode==='validate'?'Aucun brouillon à valider pour cette journée.':'Aucun planning validé à publier pour cette journée.');
+  if(!confirm((mode==='validate'?'Valider ':'PUBLIER ET COMMUNIQUER ')+target.length+' planning(s) pour le '+date+' ? '+(mode==='publish'?'Les conducteurs recevront leur planning, toute nouvelle modification nécessitera leur accord.':'Les services seront contrôlés un par un ; les journées présentant des anomalies resteront en brouillon.')))return;
+  D.busy=true;let ok=0;const failures=[],p=planner();
+  try{
+   for(const row of target){
+    let locked=false;
+    try{
+     status((mode==='validate'?'Validation':'Publication')+' de la journée · '+(ok+failures.length+1)+' / '+target.length+' · '+labelFor(row.driver_user_id));
+     const state=await p.openDriverDraft(row.driver_user_id,date);locked=true;
+     if(mode==='validate'){
+      await checkService(row.driver_user_id,date);
+      await p.saveDraft();await p.validate();
+     }else{
+      if(state.draft?.status!=='validated')throw Error('Brouillon non validé');
+      await restCheck(row.driver_user_id,date);await p.publish();
+     }
+     ok++;
+    }catch(e){failures.push(labelFor(row.driver_user_id)+' : '+(e.message||String(e)))}
+    finally{try{if(locked)await p.releaseLock()}catch(e){failures.push('Verrou : '+e.message)}}
+    await new Promise(r=>setTimeout(r,0));
+   }
+  }finally{
+   D.busy=false;try{await board().refresh()}catch(e){failures.push('Actualisation : '+e.message)}
+   update();
+   const message=(mode==='validate'?'Validés':'Publiés')+' : '+ok+'/'+target.length+'.'+(failures.length?' Non traités : '+failures.slice(0,5).join(' ; ')+(failures.length>5?' · '+(failures.length-5)+' autre(s)':''):'');
+   status(message,failures.length>0);
+  }
+ }
+
  async function runSelected(action){
   if(!D.driver)throw Error('Choisir un conducteur');
   if(action==='build')await window.MonSAEIVWeeklyV190.build(D.driver);
@@ -121,16 +160,18 @@
   document.head.append(css);
   const el=document.createElement('section');el.id='v198Controls';
   el.innerHTML='<b>🚌 Tableau de planning</b><p id="v198DateSummary"></p><small>Les plannings en préparation apparaissent directement sur les conducteurs, avec leurs prises de service, HLP, coupures et fins de service estimés. Clique sur un conducteur pour agir.</small>'+
-   '<div class="chosen" id="v198Selected" hidden><b id="v198SelectedTitle"></b><small id="v198SelectedHelp"></small><div class="actions"><button id="v198Build">🧩 Construire / retirer des courses</button><button id="v198Validate">✅ Valider le brouillon</button><button id="v198Publish">📤 Publier au conducteur</button><button id="v198EditPublished">✏️ Modifier une course publiée</button></div></div><p id="v198Status" role="status"></p>';
+   '<div class="actions"><button id="v198ValidateDay">✅ Valider les brouillons du jour</button><button id="v198PublishDay">📤 Publier les validés du jour</button></div><div class="chosen" id="v198Selected" hidden><b id="v198SelectedTitle"></b><small id="v198SelectedHelp"></small><div class="actions"><button id="v198Build">🧩 Construire / retirer des courses</button><button id="v198Validate">✅ Valider le brouillon</button><button id="v198Publish">📤 Publier au conducteur</button><button id="v198EditPublished">✏️ Modifier une course publiée</button></div></div><p id="v198Status" role="status"></p>';
   const alert=q('v165Alert');alert?.insertAdjacentElement('beforebegin',el);
   for(const [id,action]of [['v198Build','build'],['v198Validate','validate'],['v198Publish','publish'],['v198EditPublished','edit']]){
    q(id).addEventListener('click',()=>runSelected(action).catch(e=>status(e?.message||String(e),true)));
   }
+  q('v198ValidateDay').addEventListener('click',()=>bulkDay('validate').catch(e=>status(e?.message||String(e),true)));
+  q('v198PublishDay').addEventListener('click',()=>bulkDay('publish').catch(e=>status(e?.message||String(e),true)));
   const oldButton=q('v190Publications');if(oldButton)oldButton.textContent='📨 Suivi des demandes';
   b.addEventListener('click',e=>{const button=e.target.closest('[data-v198-driver-id]');if(button){e.preventDefault();choose(button.dataset.v198DriverId)}});
   window.addEventListener('saeiv-board-updated',update);
   simplifyAdvanced();update();
  }
- window.MonSAEIVPlanningUXV198={installed:true,install,choose,validateOrPublish,editPublished,simplifyAdvanced};
+ window.MonSAEIVPlanningUXV198={installed:true,install,choose,validateOrPublish,bulkDay,editPublished,simplifyAdvanced};
  setInterval(install,1100);
 })();
