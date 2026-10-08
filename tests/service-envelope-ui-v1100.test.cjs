@@ -29,10 +29,14 @@ assert(board.includes("const envelope=(driver,items)=>window.MonSAEIVServiceBloc
 assert(board.includes("['hlp','cut','start','end','pause'].includes(x.type)"),'all service elements visible in timetable');
 assert(planning.includes('engine.compose(P.items')&&planning.includes('blockEngine.compose(items'),'manual and automatic draft saves must reconstruct service');
 assert(week.includes('data-v198-remove-course')&&week.includes('planner().removeActivity'),'build workflow supports safely removing draft course');
-for(const id of ['v198Selected','v198Validate','v198Publish','v198EditPublished'])assert(ux.includes(id),'main board should own action '+id);
+for(const id of ['v198Selected','v198Validate','v198Publish','v198EditPublished','v198ValidateDay','v198PublishDay'])assert(ux.includes(id),'main board should own action '+id);
 assert(ux.includes("if(streak===7)throw Error"),'block 7 consecutive planned workdays');
+assert(ux.includes("eligible.some(x=>x.status==='draft')"),'never publish a full day with unvalidated drafts');
+assert(ux.includes("await p.saveDraft();")&&ux.includes("await p.validate();"),'reconstruct draft service before validation');
 assert(ux.includes("MonSAEIVSegmentChangeV195.open"),'published edits must use the segment chooser');
 assert(published.includes('v196ReasonType')&&published.includes('saeiv_propose_service_change'),'published change requires selected old/new courses and recalculated service envelope');
 const sql=read('supabase/migrations/20261009100000_intuitive_service_envelope_v1100.sql');
 for(const name of ['saeiv_propose_segment_change','saeiv_propose_service_change','before_core is distinct from after_core','revoke all','grant execute'])assert(sql.includes(name));
+const restSql=read('supabase/migrations/20261009101000_week_rest_publish_guard_v1100.sql');
+assert(restSql.includes('saeiv_preflight_week_rest')&&restSql.includes('saeiv_publish_first_day')&&restSql.includes('saeiv_validate_day'));
 console.log('SAEIV 1.0.100: draft and published preview include start/HLP/cuts/end; no duplicate envelope; driver actions and consent protected');
