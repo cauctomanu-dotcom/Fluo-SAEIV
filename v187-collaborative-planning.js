@@ -5,7 +5,7 @@
  const q=id=>document.getElementById(id),esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot','\'':'&#39;'}[c]));
  const cloud=()=>window.MonSAEIVCloudV156,client=()=>cloud()?.client,profile=()=>cloud()?.profile,org=()=>profile()?.organization_id;
  const val=id=>q(id)?.value||'',today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
- const P={lock:null,heartbeat:null,subscription:null,driver:null,drivers:[],date:today(),draft:null,official:null,items:[],changes:[],published:[],busy:false};
+ const P={lock:null,heartbeat:null,subscription:null,driver:null,drivers:[],date:today(),draft:null,official:null,items:[],changes:[],batches:[],published:[],busy:false};
  const status=(message,error=false)=>{const e=q('v187Status');if(e){e.textContent=message;e.style.color=error?'#ffb1b1':'#b5ffd7'}};
  const error=e=>status(e?.message||String(e),true);
  const call=async(name,args)=>{const {data,error}=await client().rpc(name,args);if(error)throw error;return data};
@@ -22,13 +22,15 @@
     '<h3>Journée préparée</h3><div id="v187Items"></div><div class="v187actions"><button id="v187Import">Importer le planning existant</button><button id="v187Add">＋ Activité</button><button id="v187Draft">Enregistrer brouillon</button><button id="v187Validate">Valider</button><button id="v187Publish">Publier au conducteur</button></div>'+
     '<p id="v187Official" class="v187info"></p><div class="v187actions"><button id="v187VehicleException">Exception véhicule ponctuelle</button></div><h3>Modification d’un planning déjà communiqué</h3><label>Motif précis de la modification proposée<textarea id="v187Summary" rows="2" placeholder="Jeudi : prise de service à 07:10 au lieu de 08:00…"></textarea></label><div class="v187actions"><button id="v187Propose">Envoyer au conducteur pour accord</button></div>'+
     '<h3>Publication par période et destinataires</h3><div class="v187row"><label>Du<input id="v187From" type="date"></label><label>Au<input id="v187To" type="date"></label><label>Conducteurs (Ctrl/clic multiple)<select id="v187Recipients" multiple size="4"></select></label><button id="v187PublishPeriod">Publier les brouillons validés sélectionnés</button></div>'+
-    '<h3>Modifications en attente / historique</h3><button id="v187Reload">↻ Actualiser la toolbox</button><div id="v187Changes" class="v187requests"></div><h3>Journal d’audit</h3><div id="v187Audit" class="v187requests"></div>';
+    '<h3>Réaffectations groupées · accord de tous obligatoire</h3><div id="v195Batches" class="v187requests"></div><h3>Modifications en attente / historique</h3><button id="v187Reload">↻ Actualiser la toolbox</button><div id="v187Changes" class="v187requests"></div><h3>Journal d’audit</h3><div id="v187Audit" class="v187requests"></div>';
   const host=q('v157OpsView');host.insertAdjacentElement('afterend',root);
   root.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;
     const actions={v187Load:loadDay,v187Lock:takeLock,v187Unlock:releaseLock,v187Import:importLegacy,v187Add:addItem,v187Draft:saveDraft,v187Validate:validate,v187Publish:publish,v187Propose:propose,v187Reload:loadToolbox,v187PublishPeriod:publishPeriod,v187VehicleException:vehicleException};
     if(actions[b.id])actions[b.id]().catch(error);
     if(b.dataset.remove!==undefined){if(!hasLock())return error(Error('Verrou requis'));P.items.splice(Number(b.dataset.remove),1);renderItems()}
     if(b.dataset.finalize)finalize(b.dataset.finalize).catch(error);
+    if(b.dataset.finalizeBatch)finalizeBatch(b.dataset.finalizeBatch).catch(error);
+    if(b.dataset.cancelBatch)cancelBatch(b.dataset.cancelBatch).catch(error);
     if(b.dataset.cancel)cancelChange(b.dataset.cancel).catch(error);
   });
   root.addEventListener('change',ev=>{if(ev.target.id==='v187Driver')P.driver=ev.target.value;if(ev.target.id==='v187Date')P.date=ev.target.value});
@@ -166,11 +168,23 @@
  }
  async function loadToolbox(){
   if(!ready()||!q('v187Changes'))return;
-  const [changes,audit,locks]=await Promise.all([
-   select('saeiv_change_requests',{}),select('saeiv_planning_audit',{}),select('saeiv_planning_locks',{})]);
-  P.changes=changes.sort((a,b)=>b.created_at.localeCompare(a.created_at));
+  const [changes,audit,locks,batches]=await Promise.all([
+   select('saeiv_change_requests',{}),select('saeiv_planning_audit',{}),select('saeiv_planning_locks',{}),select('saeiv_change_batches',{})]);
+  P.changes=changes.sort((a,b)=>b.created_at.localeCompare(a.created_at));P.batches=batches.sort((a,b)=>b.created_at.localeCompare(a.created_at));
   const names=Object.fromEntries(P.drivers.map(d=>[d.user_id,d.display_name||d.matricule]));
-  q('v187Changes').innerHTML=P.changes.slice(0,70).map(x=>'<article><b>'+esc(names[x.driver_user_id]||'Conducteur')+' · '+esc(x.service_date)+' · '+esc(x.status.toUpperCase())+'</b><div>'+esc(x.summary)+'</div><small>Envoyée '+new Date(x.created_at).toLocaleString('fr-FR')+' · Vue '+(x.seen_at?new Date(x.seen_at).toLocaleString('fr-FR'):'non')+' · Réponse '+(x.response_at?new Date(x.response_at).toLocaleString('fr-FR'):'attendue')+'</small> <span>'+(x.status==='accepted'?'<button data-finalize="'+esc(x.id)+'">Valider et publier la modification</button>':'')+(x.status==='pending'||x.status==='accepted'?'<button data-cancel="'+esc(x.id)+'">Annuler</button>':'')+'</span></article>').join('')||'<p>Aucune modification.</p>';
+  q('v187Changes').innerHTML=P.changes.slice(0,70).map(x=>'<article><b>'+esc(names[x.driver_user_id]||'Conducteur')+' · '+esc(x.service_date)+' · '+esc(x.status.toUpperCase())+'</b><div>'+esc(x.summary)+'</div><small>Envoyée '+new Date(x.created_at).toLocaleString('fr-FR')+' · Vue '+(x.seen_at?new Date(x.seen_at).toLocaleString('fr-FR'):'non')+' · Réponse '+(x.response_at?new Date(x.response_at).toLocaleString('fr-FR'):'attendue')+'</small> <span>'+(x.status==='accepted'&&!x.batch_id?'<button data-finalize="'+esc(x.id)+'">Valider et publier la modification</button>':'')+(!x.batch_id&&(x.status==='pending'||x.status==='accepted')?'<button data-cancel="'+esc(x.id)+'">Annuler</button>':'')+'</span></article>').join('')||'<p>Aucune modification.</p>';
+  const batchNode=q('v195Batches');
+  if(batchNode)batchNode.innerHTML=P.batches.slice(0,65).map(group=>{
+    const members=P.changes.filter(x=>x.batch_id===group.id);
+    const awaiting=members.filter(x=>x.status==='pending').length,accepted=members.filter(x=>x.status==='accepted').length,
+      refused=members.filter(x=>x.status==='refused').length,ready=members.length>=2&&!awaiting&&!refused&&members.every(x=>x.status==='accepted')&&group.status==='pending';
+    const people=members.map(x=>esc(names[x.driver_user_id]||'Conducteur')+' : '+(x.response_exempt?'arrêt enregistré, non soumis à accord':esc(x.status))).join(' · ');
+    return '<article><b>📋 '+esc(group.service_date)+' · '+esc(group.status.toUpperCase())+'</b><div>'+esc(group.reason)+'</div><small>'+members.length+' conducteur(s) concernés · '+accepted+' accord(s) · '+awaiting+' réponse(s) attendue(s) · '+refused+' refus</small><p>'+people+'</p>'+
+      (ready?'<button data-finalize-batch="'+esc(group.id)+'">✅ Revalider et publier TOUT le groupe</button>':'')+
+      (['pending','refused'].includes(group.status)?'<button data-cancel-batch="'+esc(group.id)+'">Annuler le groupe</button>':'')+
+      (group.status==='refused'?'<p>Refus conducteur : aucune modification du groupe ne peut être publiée.</p>':'')+'</article>';
+  }).join('')||'<p>Aucune réaffectation collective en attente.</p>';
+
   q('v187Audit').innerHTML=audit.sort((a,b)=>b.at.localeCompare(a.at)).slice(0,30).map(x=>'<article>'+esc(x.event)+' · '+esc(x.service_date||'')+' · '+new Date(x.at).toLocaleString('fr-FR')+'</article>').join('')||'<p>Aucun évènement.</p>';
   const occupied=locks.filter(x=>new Date(x.expires_at)>new Date()&&x.owner_id!==cloud()?.user?.id);
   if(occupied.length&&!hasLock())q('v187LockStatus').textContent='Édition par '+occupied[0].owner_name+' depuis '+new Date(occupied[0].acquired_at).toLocaleTimeString('fr-FR');
@@ -182,6 +196,20 @@
   try{await call('saeiv_finalize_change',{p_change:id})}finally{await call('saeiv_release_lock',{p_id:lock.id,p_force:false})}
   await loadToolbox();if(P.driver===req.driver_user_id&&P.date===req.service_date)await loadDay();status('Modification acceptée puis validée et publiée par exploitation');
  }
+ async function finalizeBatch(id){
+  const group=P.batches.find(x=>x.id===id);if(!group)throw Error('Groupe absent');
+  if(!confirm('Les conducteurs ont accepté. Confirmer la REPUBLICATION ATOMIQUE des plannings de TOUS les conducteurs de ce groupe ?'))return;
+  const lock=await call('saeiv_acquire_lock',{p_start:group.service_date,p_end:group.service_date,p_name:profile()?.display_name||'Exploitation'});
+  if(!lock.ok)throw Error('Le planning est verrouillé par '+lock.owner);
+  try{await call('saeiv_finalize_change_batch',{p_batch:id})}
+  finally{await call('saeiv_release_lock',{p_id:lock.id,p_force:false})}
+  await loadToolbox();await loadDay();status('Groupe revalidé : tous les plannings concernés sont publiés ensemble.');
+ }
+ async function cancelBatch(id){
+  if(!confirm('Annuler TOUTES les propositions de ce groupe ? Aucun planning officiel ne sera modifié.'))return;
+  await call('saeiv_cancel_change_batch',{p_batch:id});await loadToolbox();status('Groupe annulé. Les anciens plannings restent officiels.');
+ }
+
  async function cancelChange(id){if(!confirm('Annuler cette proposition de modification ?'))return;await call('saeiv_cancel_change',{p_change:id});await loadToolbox();status('Proposition annulée')}
  function setupRealtime(){
   if(P.subscription||!ready())return;
