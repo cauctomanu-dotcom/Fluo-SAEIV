@@ -57,7 +57,7 @@ jobs:
             v165-exploitation-board.js v167-generation-engine.js v168-service-grid.js \
             v167-exploitation-performance.js v174-grid-editor.js v176-driver-absences.js \
             v177-smart-rest-unavailability.js v178-sick-reassignment.js v179-minimal-repair.js \
-            v180-dispatch-messages.js v185-line-thermometer.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js v189-collective-tickets.js v190-weekly-planning.js v191-bulk-drivers.js; do
+            v180-dispatch-messages.js v185-line-thermometer.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js v189-collective-tickets.js v190-weekly-planning.js v191-bulk-drivers.js v192-collective-smart.js; do
             test -f "$f"
             cp "$f" "site/$f"
           done
@@ -180,7 +180,7 @@ jobs:
             'v168-service-grid.js','v167-exploitation-performance.js','v174-grid-editor.js',
             'v176-driver-absences.js','v177-smart-rest-unavailability.js','v178-sick-reassignment.js',
             'v179-minimal-repair.js','v180-dispatch-messages.js','tracking-core.js','v182-live-tracking.js',
-            'v183-live-supervision.js','v185-line-thermometer.js','v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js','v189-collective-tickets.js','v190-weekly-planning.js','v191-bulk-drivers.js'
+            'v183-live-supervision.js','v185-line-thermometer.js','v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js','v189-collective-tickets.js','v190-weekly-planning.js','v191-bulk-drivers.js','v192-collective-smart.js'
           )
           for name in modules:
               tag=f'<script src="./{name}?v=1.0.93"></script>'
@@ -218,7 +218,7 @@ jobs:
             v164-driver-settings.js v165-exploitation-board.js v167-generation-engine.js \
             v168-service-grid.js v167-exploitation-performance.js v174-grid-editor.js \
             v176-driver-absences.js v177-smart-rest-unavailability.js v178-sick-reassignment.js \
-            v179-minimal-repair.js v180-dispatch-messages.js tracking-core.js v182-live-tracking.js v183-live-supervision.js v184-navigation-resume.js v185-line-thermometer.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js v189-collective-tickets.js v190-weekly-planning.js v191-bulk-drivers.js voyageurs.js sw.js; do
+            v179-minimal-repair.js v180-dispatch-messages.js tracking-core.js v182-live-tracking.js v183-live-supervision.js v184-navigation-resume.js v185-line-thermometer.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js v189-collective-tickets.js v190-weekly-planning.js v191-bulk-drivers.js v192-collective-smart.js voyageurs.js sw.js; do
             node --check "site/$f"
           done
 
@@ -249,7 +249,7 @@ jobs:
               assert f'{name}?v=1.0.93' in app
           assert 'v184-navigation-resume.js?v=1.0.93' in app
           assert 'v185-line-thermometer.js?v=1.0.93' in app
-          for name in ('v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js','v189-collective-tickets.js','v190-weekly-planning.js','v191-bulk-drivers.js'):
+          for name in ('v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js','v189-collective-tickets.js','v190-weekly-planning.js','v191-bulk-drivers.js','v192-collective-smart.js'):
               assert f'{name}?v=1.0.93' in app
           assert app.index('v184-navigation-resume.js?v=1.0.93') < app.index('</head>')
           assert '<title>Mon SAEIV · 1.0.93</title>' in app
