@@ -107,6 +107,6 @@
   planner().appendCollective(tasks);
   status('Billet placé pour '+date+'. Enregistrer le brouillon puis valider.');window.dispatchEvent(new CustomEvent('saeiv-collective-assigned',{detail:{id,date}}));
  }
- window.MonSAEIVCollectivesV189={installed:true,install:ui,load,occurrence};
+ window.MonSAEIVCollectivesV189={installed:true,install:ui,load,occurrence,get state(){return C}};
  setInterval(()=>{if(db()&&['admin','dispatcher'].includes(p()?.role))ui();const e=q('v189Root');if(e)e.classList.toggle('hide',q('v157OpsView')?.classList.contains('hidden'))},1200);
 })();
