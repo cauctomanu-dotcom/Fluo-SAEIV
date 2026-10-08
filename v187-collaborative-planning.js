@@ -225,7 +225,7 @@
   const box=q('v187Planning'),ops=q('v157OpsView'),board=q('v165Board');if(box){if(board&&box.previousElementSibling!==board)board.insertAdjacentElement('afterend',box);const visible=(ops&&!ops.classList.contains('hidden'))||(board&&!board.classList.contains('hidden'));box.classList.toggle('hide',!visible||box.dataset.open!=='1')}
  }
  window.addEventListener('pagehide',()=>{clearInterval(P.heartbeat)});
- async function generateDraft({driverId=null}={}){
+ async function generateDraft({driverId=null,onProgress=null}={}){
   if(!hasLock())throw Error('Verrouiller d’abord la journée du planning');
   const board=window.MonSAEIVOperationsBoardV165,engine=window.MonSAEIVGenerationEngineV167;
   if(!board?.refresh||!engine?.scoreCandidate)throw Error('Moteur de génération indisponible');
