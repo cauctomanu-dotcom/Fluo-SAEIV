@@ -92,7 +92,7 @@
   if(!x||!state?.driver)throw Error('Ouvrir d’abord un conducteur dans Planning collaboratif');
   const date=state.date;
   if(!occurrence(x,date))throw Error('Ce billet ne correspond pas au '+date+' ; adapter le jour du planning');
-  if(!state.lock||!(date>=state.lock.start&&date<=state.lock.end))throw Error('Verrouiller d’abord la journée ou la semaine');
+  if(!state.lock||!(state.lock.date===date))throw Error('Verrouiller d’abord la journée ou la semaine');
   if(state.official)throw Error('Planning déjà publié : préparer une proposition de changement, pas un ajout direct');
   const items=state.items||[];
   const a=Number(x.passengers||0);
@@ -104,7 +104,7 @@
    if(items.some(y=>y.id!==t.id&&min(y.start)<end&&min(y.end)>st))throw Error('Chevauchement avec une activité du planning. Affectation refusée.');
   }
   for(const t of tasks){const old=items.findIndex(y=>y.id===t.id);if(old<0)items.push(t);else items[old]=t}
-  await planner().loadDay?.(); // redraw is explicit in planner bridge below
+  planner().appendCollective(tasks);
   status('Billet placé pour '+date+'. Enregistrer le brouillon puis valider.');window.dispatchEvent(new CustomEvent('saeiv-collective-assigned',{detail:{id,date}}));
  }
  window.MonSAEIVCollectivesV189={installed:true,install:ui,load,occurrence};
