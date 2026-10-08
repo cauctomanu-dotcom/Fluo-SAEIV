@@ -194,7 +194,7 @@
  function tick(){
   if(!ready()||!q('v157Dispatch'))return;
   install();
-  const box=q('v187Planning'),ops=q('v157OpsView');if(box&&ops){box.classList.toggle('hide',ops.classList.contains('hidden'))}
+  const box=q('v187Planning'),ops=q('v157OpsView'),board=q('v165Board');if(box){if(board&&box.previousElementSibling!==board)board.insertAdjacentElement('afterend',box);const visible=(ops&&!ops.classList.contains('hidden'))||(board&&!board.classList.contains('hidden'));box.classList.toggle('hide',!visible||box.dataset.open!=='1')}
  }
  window.addEventListener('pagehide',()=>{clearInterval(P.heartbeat)});
  async function generateDraft({driverId=null}={}){
@@ -318,6 +318,52 @@
   return results;
  }
 
- window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,generateDraft,generateWeekDrafts,appendCollective,get state(){return P}};
+ async function openDriverDraft(driverId,date){
+  if(!q('v187Driver')||!P.drivers.some(d=>d.user_id===driverId))throw Error('Conducteur absent de la société');
+  if(P.lock&&(P.lock.date!==date||P.driver!==driverId))await releaseLock();
+  q('v187Driver').value=driverId;P.driver=driverId;q('v187Date').value=date;P.date=date;
+  await takeLock();
+  if(!hasLock())throw Error('Journée déjà verrouillée par un autre exploitant');
+  await loadDay();
+  if(P.official)throw Error('Planning publié : modification par demande d’accord du conducteur obligatoire');
+  return P;
+ }
+ async function appendActivities(items){
+  if(!hasLock()||P.official)throw Error('Brouillon non modifiable ou planning publié');
+  for(const activity of items){
+   if(P.items.some(x=>x.id!==activity.id&&x.start&&x.end&&x.start<activity.end&&x.end>activity.start))throw Error('Chevauchement avec une activité du conducteur');
+   const pos=P.items.findIndex(x=>x.id===activity.id);
+   if(pos<0)P.items.push(activity);else P.items[pos]=activity;
+  }
+  renderItems();
+  await saveDraft();
+ }
+ async function generateDateRange(from,to,{driverId=null}={}){
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(from)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(to)||to<from)throw Error('Période invalide');
+  const count=Math.round((new Date(to+'T12:00:00Z')-new Date(from+'T12:00:00Z'))/86400000)+1;
+  if(count>31)throw Error('Limiter la génération à 31 jours maximum');
+  const board=window.MonSAEIVOperationsBoardV165,results=[];
+  for(let i=0;i<count;i++){
+   const date=new Date(from+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+i);const day=date.toISOString().slice(0,10);
+   try{
+    if(!board?.setDate||!board?.loadSegments)throw Error('Moteur historique indisponible');
+    await board.setDate(day);
+    await board.loadSegments();
+    if(!board.segments.length)throw Error('Aucun segment chargé');
+    q('v187Date').value=day;P.date=day;
+    if(driverId){P.driver=driverId;q('v187Driver').value=driverId}
+    await takeLock();
+    if(!hasLock())throw Error('Journée verrouillée par un autre exploitant');
+    await generateDraft({driverId});
+    results.push({date:day,ok:true});
+   }catch(e){results.push({date:day,ok:false,error:e?.message||String(e)})}
+   finally{if(P.lock)try{await releaseLock()}catch{}}
+  }
+  await board.setDate(from);
+  await board.loadSegments();
+  return results;
+ }
+
+ window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,generateDraft,generateWeekDrafts,generateDateRange,appendCollective,openDriverDraft,appendActivities,saveDraft,takeLock,releaseLock,get state(){return P}};
  setInterval(tick,1300);
 })();
