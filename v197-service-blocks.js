@@ -30,7 +30,7 @@
   const first=services[0],last=services.at(-1);
   const departure=estimate(parking,first.originCoords),returning=estimate(last.destinationCoords,parking);
   const starts=toMin(first.start),ends=toMin(last.end);
-  if(departure===null){issues.push('Début de service : stationnement ou coordonnées du premier arrêt manquants, HLP non calculé.');add('start',starts,starts,name,first.origin,'Prise de service provisoire — stationnement à confirmer')}
+  if(departure===null){issues.push('Début de service : stationnement ou coordonnées du premier arrêt manquants, HLP non calculé.');add('start',starts-10,starts,name,first.origin,'Prise de service provisoire — stationnement à confirmer')}
   else{
    const at=starts-departure.minutes-10;
    add('start',at,at+10,name,name,'Prise de service · 10 min de préparation estimées');
@@ -48,7 +48,7 @@
     add('cut',t+gap.minutes,next,b.origin,b.origin, (idle>=30?'Coupure':'Attente')+' estimée · '+idle+' min, qualification et rémunération à confirmer',{estimatedMinutes:idle,cutClassification:idle>=30?'provisional_cut':'waiting'});
    }
   }
-  if(returning===null){issues.push('Retour dépôt : coordonnées manquantes, HLP de fin non calculé.');add('end',ends,ends,last.destination,name,'Fin de service provisoire — retour dépôt à vérifier')}
+  if(returning===null){issues.push('Retour dépôt : coordonnées manquantes, HLP de fin non calculé.');add('end',ends,ends+5,last.destination,name,'Fin de service provisoire — retour dépôt à vérifier')}
   else{
    if(returning.minutes>0)add('hlp',ends,ends+returning.minutes,last.destination,name,'HLP retour estimé · '+returning.km+' km',{estimatedKm:returning.km,originCoords:point(last.destinationCoords),destinationCoords:point(parking)});
    add('end',ends+returning.minutes,ends+returning.minutes+5,name,name,'Fin de service · clôture estimée de 5 min');
