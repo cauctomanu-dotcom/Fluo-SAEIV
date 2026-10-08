@@ -1,4 +1,4 @@
-name: Validate SAEIV Enterprise 1.0.93
+name: Validate SAEIV Enterprise 1.0.94
 on:
   pull_request:
     branches: [main]
@@ -34,7 +34,7 @@ jobs:
               assert token in m
           for name in ['v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js']:
               assert name in workflow and name in sw
-          assert '1.0.93' in manifest and '1.0.93' in sw
+          assert '1.0.94' in manifest and '1.0.94' in sw
           assert 'saeiv_published_days' in Path('v156-supabase-sync.js').read_text()
-          print('SAEIV 1.0.93 enterprise sources verified')
+          print('SAEIV 1.0.94 enterprise sources verified')
           PY
