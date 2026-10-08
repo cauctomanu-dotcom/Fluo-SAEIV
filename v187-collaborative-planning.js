@@ -20,12 +20,12 @@
     '<div class="v187row"><label>Conducteur<select id="v187Driver"></select></label><label>Date<input type="date" id="v187Date"></label><button id="v187Load">Ouvrir la journée</button><button id="v187Lock">🔒 Verrouiller</button><button id="v187Unlock">Libérer le verrou</button></div>'+
     '<div id="v187LockStatus" class="v187locked">Lecture seule · prendre un verrou pour modifier</div>'+
     '<h3>Journée préparée</h3><div id="v187Items"></div><div class="v187actions"><button id="v187Import">Importer le planning existant</button><button id="v187Add">＋ Activité</button><button id="v187Draft">Enregistrer brouillon</button><button id="v187Validate">Valider</button><button id="v187Publish">Publier au conducteur</button></div>'+
-    '<p id="v187Official" class="v187info"></p><h3>Modification d’un planning déjà communiqué</h3><label>Motif précis de la modification proposée<textarea id="v187Summary" rows="2" placeholder="Jeudi : prise de service à 07:10 au lieu de 08:00…"></textarea></label><div class="v187actions"><button id="v187Propose">Envoyer au conducteur pour accord</button></div>'+
+    '<p id="v187Official" class="v187info"></p><div class="v187actions"><button id="v187VehicleException">Exception véhicule ponctuelle</button></div><h3>Modification d’un planning déjà communiqué</h3><label>Motif précis de la modification proposée<textarea id="v187Summary" rows="2" placeholder="Jeudi : prise de service à 07:10 au lieu de 08:00…"></textarea></label><div class="v187actions"><button id="v187Propose">Envoyer au conducteur pour accord</button></div>'+
     '<h3>Publication par période et destinataires</h3><div class="v187row"><label>Du<input id="v187From" type="date"></label><label>Au<input id="v187To" type="date"></label><label>Conducteurs (Ctrl/clic multiple)<select id="v187Recipients" multiple size="4"></select></label><button id="v187PublishPeriod">Publier les brouillons validés sélectionnés</button></div>'+
     '<h3>Modifications en attente / historique</h3><button id="v187Reload">↻ Actualiser la toolbox</button><div id="v187Changes" class="v187requests"></div><h3>Journal d’audit</h3><div id="v187Audit" class="v187requests"></div>';
   const host=q('v157OpsView');host.insertAdjacentElement('afterend',root);
   root.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;
-    const actions={v187Load:loadDay,v187Lock:takeLock,v187Unlock:releaseLock,v187Import:importLegacy,v187Add:addItem,v187Draft:saveDraft,v187Validate:validate,v187Publish:publish,v187Propose:propose,v187Reload:loadToolbox,v187PublishPeriod:publishPeriod};
+    const actions={v187Load:loadDay,v187Lock:takeLock,v187Unlock:releaseLock,v187Import:importLegacy,v187Add:addItem,v187Draft:saveDraft,v187Validate:validate,v187Publish:publish,v187Propose:propose,v187Reload:loadToolbox,v187PublishPeriod:publishPeriod,v187VehicleException:vehicleException};
     if(actions[b.id])actions[b.id]().catch(error);
     if(b.dataset.remove!==undefined){if(!hasLock())return error(Error('Verrou requis'));P.items.splice(Number(b.dataset.remove),1);renderItems()}
     if(b.dataset.finalize)finalize(b.dataset.finalize).catch(error);
@@ -132,6 +132,18 @@
   await call('saeiv_propose_change',{p_driver:P.driver,p_date:P.date,p_items:P.items,p_summary:summary});
   await loadToolbox();status('Proposition envoyée, ancien planning conservé jusqu’à validation exploitation');
  }
+ async function vehicleException(){
+  if(!hasLock())throw Error('Verrou requis pour une exception véhicule');
+  const lines=await select('saeiv_company_lines',{});
+  if(!lines.length)throw Error('Configurer les lignes exploitées en Administration');
+  const answer=prompt('Choisir le numéro de la ligne parmi :\n'+lines.map((l,i)=>(i+1)+' : '+l.department+' '+l.line_code).join('\n'),'1');if(answer===null)return;
+  const l=lines[Number(answer)-1];if(!l)throw Error('Ligne invalide');
+  const type=prompt('Type exceptionnel : bus, minibus ou van','bus');if(type===null)return;
+  if(!['bus','minibus','van'].includes(type))throw Error('Type invalide');
+  const reason=prompt('Motif de cette exception pour le '+P.date,'Exception exploitation');if(reason===null)return;
+  const {error}=await client().from('saeiv_vehicle_exceptions').insert({organization_id:org(),line_id:l.id,service_date:P.date,vehicle_type:type,reason,created_by:cloud()?.user?.id});if(error)throw error;
+  status('Exception véhicule enregistrée pour '+l.line_code);
+ }
  async function publishPeriod(){
   const start=val('v187From'),end=val('v187To'),targets=[...q('v187Recipients').selectedOptions].map(x=>x.value);
   if(!start||!end||end<start||!targets.length)throw Error('Période et conducteurs obligatoires');
@@ -193,11 +205,11 @@
   if(sourceDate&&sourceDate.value!==date){sourceDate.value=date;sourceDate.dispatchEvent(new Event('change',{bubbles:true}))}
   await board.refresh();
   const segments=board.segments||[];if(!segments.length)throw Error('Aucune course GTFS chargée pour ce jour');
-  const [drivers,settings,existing,drafts,published,lines,rules]=await Promise.all([
+  const [drivers,settings,existing,drafts,published,lines,rules,exceptions]=await Promise.all([
    client().from('profiles').select('user_id,matricule,display_name,active,depot_id,weekly_contract_minutes').eq('organization_id',org()).eq('role','driver').eq('active',true).then(x=>{if(x.error)throw x.error;return x.data||[]}),
    select('driver_settings',{}),select('plan_items',{service_date:date}),
    select('saeiv_planning_days',{service_date:date}),select('saeiv_published_days',{service_date:date}),
-   select('saeiv_company_lines',{}),select('saeiv_vehicle_rules',{})
+   select('saeiv_company_lines',{}),select('saeiv_vehicle_rules',{}),select('saeiv_vehicle_exceptions',{service_date:date})
   ]);
   const settingsBy=new Map(settings.map(x=>[x.user_id,x])),draftBy=new Map(drafts.map(x=>[x.driver_user_id,x]));
   const publishedIds=new Set(published.map(x=>x.driver_user_id));
@@ -216,6 +228,7 @@
   const choseVehicle=seg=>{
    const l=activeLines.find(l=>l.department===String(seg.dept||'')&&key(l.line_code)===key(seg.line));
    if(!l)return 'bus';
+   const exception=exceptions.find(x=>x.line_id===l.id);if(exception)return exception.vehicle_type;
    const r=rules.filter(x=>x.line_id===l.id);
    if(!r.length)return 'bus';
    const chosen=['van','minibus','bus'].find(t=>r.some(x=>x.vehicle_type===t&&x.policy==='preferred')) ||
