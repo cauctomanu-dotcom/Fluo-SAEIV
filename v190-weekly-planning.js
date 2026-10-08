@@ -23,7 +23,9 @@
     await selectDay(a);notify('Segments chargés pour '+n+' journée(s). Cliquer un jour ci-dessous pour afficher ses courses.')}
   finally{try{if(board()?.date!==a)await selectDay(a)}catch(e){handle(e)}S.busy=false;q('v165LoadSegments').disabled=false}
  }
- async function generate(driverId=null){if(S.busy)return;const {a,b,n}=period();if(!confirm('Générer '+n+' journée(s)'+(driverId?' pour le conducteur sélectionné':' pour les conducteurs disponibles')+' en BROUILLONS ? Aucune publication automatique.'))return;
+ async function generate(driverId=null){if(S.busy)return;const {a,b,n}=period();
+  let scopeWarning='';try{const c=cloud()?.client,p=cloud()?.profile;if(c&&p){const check=await c.from('saeiv_company_lines').select('id',{count:'exact',head:true}).eq('organization_id',p.organization_id).eq('active',true);if(!check.error&&check.count===0)scopeWarning='\n\n⚠ Aucune ligne exploitée déclarée dans Administration : TOUTES les courses GTFS du périmètre 54/57 seront examinées. Avec 101 conducteurs, toutes les courses régionales ne peuvent pas être affectées. Configure les lignes de ton entreprise pour un planning réel.'}}catch(e){console.warn('[SAEIV] lignes exploitées inconnues',e)}
+  if(!confirm('Générer '+n+' journée(s)'+(driverId?' pour le conducteur sélectionné':' pour les conducteurs disponibles')+' en BROUILLONS ? Aucune publication automatique.'+scopeWarning))return;
   S.busy=true;const button=q('v165Generate');button.disabled=true;
   try{notify('Génération intelligente du '+a+' au '+b+'…');const results=await planner().generateDateRange(a,b,{driverId});
     const bad=results.filter(x=>!x.ok),already=results.filter(x=>x.unchanged),created=results.filter(x=>x.ok&&!x.unchanged&&!x.empty),empty=results.filter(x=>x.empty);
