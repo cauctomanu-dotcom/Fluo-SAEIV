@@ -337,7 +337,7 @@ begin
  return true;
 end $$;
 create or replace function public.saeiv_propose_change(p_driver uuid,p_date date,p_items jsonb,p_summary text)
-returns uuid language plpgsql security definer set search_path=public,private,pg_temp as $
+returns uuid language plpgsql security definer set search_path=public,private,pg_temp as $$
 declare org uuid; official public.saeiv_published_days%rowtype; cid uuid;
 begin
  org=private.current_org_id();
@@ -355,9 +355,9 @@ begin
  insert into public.saeiv_notifications(organization_id,recipient_user_id,kind,title,message,payload)
  values(org,p_driver,'change_proposed','Modification proposée',p_summary,jsonb_build_object('change_id',cid));
  return cid;
-end $;
+end $$;
 create or replace function public.saeiv_cancel_change(p_change uuid)
-returns boolean language plpgsql security definer set search_path=public,private,pg_temp as $
+returns boolean language plpgsql security definer set search_path=public,private,pg_temp as $$
 declare x public.saeiv_change_requests%rowtype;
 begin
  select * into x from public.saeiv_change_requests where id=p_change for update;
@@ -368,7 +368,7 @@ begin
  insert into public.saeiv_notifications(organization_id,recipient_user_id,kind,title,message)
  values(x.organization_id,x.driver_user_id,'change_cancelled','Modification annulée','La proposition de changement a été retirée par exploitation.');
  return true;
-end $;
+end $$;
 create or replace function public.saeiv_mark_change_seen(p_change uuid)
 returns boolean language plpgsql security definer set search_path=public,private,pg_temp as $$
 declare x public.saeiv_change_requests%rowtype;
