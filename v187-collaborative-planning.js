@@ -110,9 +110,12 @@
  }
  async function saveDraft(){
   if(!hasLock()||!P.driver)throw Error('Prendre le verrou et choisir un conducteur');
-  const row={organization_id:org(),driver_user_id:P.driver,service_date:P.date,items:P.items,status:'draft',updated_by:cloud()?.user?.id};
+  const engine=window.MonSAEIVServiceBlocksV197;if(!engine?.compose)throw Error('Construction des prises de service et HLP indisponible. Actualiser la page.');
+  const {data:config,error:configError}=await client().from('driver_settings').select('bus_parking').eq('organization_id',org()).eq('user_id',P.driver).maybeSingle();if(configError)throw configError;
+  const built=engine.compose(P.items,config?.bus_parking,P.date);
+  const row={organization_id:org(),driver_user_id:P.driver,service_date:P.date,items:built.items,status:'draft',updated_by:cloud()?.user?.id};
   const {error}=await client().from('saeiv_planning_days').upsert(row,{onConflict:'organization_id,driver_user_id,service_date'});
-  if(error)throw error;await loadDay();status('Brouillon enregistré (invisible côté conducteur)');
+  if(error)throw error;await loadDay();status('Planning enregistré en brouillon · '+built.generated+' éléments de service calculés.'+(built.issues.length?' ⚠ '+built.issues.join(' ; '):'') );
  }
  async function validate(){
   if(!hasLock())throw Error('Verrou requis');
@@ -325,8 +328,11 @@
    if(!items.length)continue;
    const existingDraft=draftBy.get(driver_user_id);
    if(existingDraft?.status==='published')continue;
+   const blockEngine=window.MonSAEIVServiceBlocksV197;
+   if(!blockEngine?.compose)throw Error('Calcul des prises de service, HLP et coupures non chargé');
+   const built=blockEngine.compose(items,settingsBy.get(driver_user_id)?.bus_parking,date);
    const {error}=await client().from('saeiv_planning_days').upsert({
-    organization_id:org(),driver_user_id,service_date:date,items,status:'draft',updated_by:cloud()?.user?.id
+    organization_id:org(),driver_user_id,service_date:date,items:built.items,status:'draft',updated_by:cloud()?.user?.id
    },{onConflict:'organization_id,driver_user_id,service_date'});
    if(error)throw error;written++;
   }
@@ -337,6 +343,12 @@
   return {date,segments:segments.length,assigned,unplaced,restricted,written,topReasons,eligibleDrivers:eligible.length};
  }
 
+ async function removeActivity(itemId){
+  if(!hasLock()||P.official)throw Error('Modification non autorisée sans brouillon verrouillé');
+  const before=P.items.length;P.items=P.items.filter(x=>String(x.id)!==String(itemId));
+  if(before===P.items.length)throw Error('Course absente de la journée');
+  await saveDraft();return true;
+ }
  function appendCollective(tasks){if(!hasLock())throw Error('Verrou obligatoire');if(P.official)throw Error('Planning déjà publié');for(const t of tasks){const i=P.items.findIndex(x=>x.id===t.id);if(i<0)P.items.push(t);else P.items[i]=t}renderItems();}
  async function generateWeekDrafts(startDate){
   const monday=new Date(startDate+'T12:00:00Z'),dow=monday.getUTCDay();
@@ -404,6 +416,6 @@
   return results;
  }
 
- window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,generateDraft,generateWeekDrafts,generateDateRange,appendCollective,openDriverDraft,appendActivities,saveDraft,takeLock,releaseLock,get state(){return P}};
+ window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,generateDraft,generateWeekDrafts,generateDateRange,appendCollective,openDriverDraft,appendActivities,removeActivity,saveDraft,validate,publish,takeLock,releaseLock,get state(){return P}};
  setInterval(tick,1300);
 })();
