@@ -25,9 +25,17 @@
   if(q('v190Status'))q('v190Status').textContent=message;
   if(q('v196Details'))q('v196Details').textContent='Journées terminées : '+done+' / '+total;
  }
- async function fetchVersions(org,date){
-  const {data,error:dbError}=await cloud().client.from('saeiv_planning_days').select('driver_user_id,revision,items').eq('organization_id',org).eq('service_date',date);
+ async function fetchVersions(org,date,driverId=null){
+  let query=cloud().client.from('saeiv_planning_days').select('driver_user_id,revision,items').eq('organization_id',org).eq('service_date',date);
+  if(driverId)query=query.eq('driver_user_id',driverId);
+  const {data,error:dbError}=await query;
   if(dbError)throw dbError;return new Map((data||[]).map(x=>[x.driver_user_id,x]));
+ }
+ function overview(rows,segments){
+  const ids=new Set(segments.map(x=>String(x.id))),covered=new Set();let activities=0;
+  for(const row of rows.values())for(const item of row.items||[]){activities++;const id=item.segment_id||item.payload?.segment_id;if(id!=null&&ids.has(String(id)))covered.add(String(id))}
+  for(const item of board()?.items||[]){const id=item.payload?.segment_id||item.segment_id;if(id!=null&&ids.has(String(id)))covered.add(String(id))}
+  return {existingDrivers:rows.size,existingActivities:activities,covered:covered.size,remaining:Math.max(0,segments.length-covered.size)};
  }
  async function run(from,to,{driverId=null,onProgress=null}={}){
   if(G.busy)throw Error('Une génération est déjà en cours');
@@ -36,7 +44,7 @@
   if(total<1||total>31)throw Error('Sélectionner entre 1 et 31 jours');
   if(!cloud()?.client||!cloud()?.profile?.organization_id||!board()?.setDate||!planner()?.generateDraft)throw Error('Modules d’exploitation non chargés. Recharger la page puis réessayer');
   const org=cloud().profile.organization_id;
-  const results=[];G.busy=true;G.cancel=false;G.history=[];
+  const results=[],workingDays=new Map();G.busy=true;G.cancel=false;G.history=[];
   install();if(q('v196Cancel'))q('v196Cancel').disabled=false;
   try{
    for(let i=0;i<total;i++){
@@ -51,7 +59,7 @@
      const regular=board().segments.filter(x=>x.type==='regular').length,school=board().segments.filter(x=>x.type==='school').length;
      note(day+' : '+n+' segments ACTIFS ce jour (réguliers '+regular+', scolaires '+school+', autres '+(n-regular-school)+')');
      if(!n){result={date:day,ok:true,empty:true,saved:0,services:0,segments:0};note('ℹ️ '+day+' : aucun service GTFS actif. Aucun brouillon inutile créé');onProgress?.({phase:'empty',date:day,dayIndex:i+1,dayCount:total})}else{
-     const before=await fetchVersions(org,day);
+     const before=await fetchVersions(org,day,driverId),beforeSummary=overview(before,board().segments);
      if(!q('v187Date'))throw Error('Éditeur de brouillons non initialisé');
      q('v187Date').value=day;planner().state.date=day;
      if(driverId){if(!q('v187Driver'))throw Error('Sélecteur conducteur indisponible');q('v187Driver').value=driverId;planner().state.driver=driverId}
@@ -61,14 +69,23 @@
      const stats=await planner().generateDraft({driverId,onProgress:detail=>{
       if(detail.phase==='assign'&&q('v196Details'))q('v196Details').textContent='Jour '+(i+1)+'/'+total+' · segments examinés '+detail.processed+'/'+detail.total+' · affectés '+detail.assigned+' · sans conducteur '+detail.unplaced;
      }});
-     const after=await fetchVersions(org,day);
+     const after=await fetchVersions(org,day,driverId),afterSummary=overview(after,board().segments);
+     for(const [id,row] of after){if((row.items||[]).some(x=>['regular','school','tad','annex','other'].includes(x.type))){if(!workingDays.has(id))workingDays.set(id,new Set());workingDays.get(id).add(day)}}
      const saved=[...after].filter(([key,row])=>!before.has(key)||JSON.stringify(row.items)!==JSON.stringify(before.get(key).items));
-     if(!saved.length)throw Error('Aucun nouveau brouillon. '+(stats?.assigned||0)+' courses placées, '+(stats?.unplaced||0)+' impossibles, '+(stats?.restricted||0)+' exclues. '+(stats?.topReasons||[]).slice(0,4).map(x=>x.reason+' ('+x.count+')').join(' · '));
-     const services=saved.reduce((n,[,r])=>n+(r.items?.length||0),0);
-     result={date:day,ok:true,saved:saved.length,services,gtfsSegments:n,regular,school,...stats};
-     note('✅ '+day+' : '+n+' courses du calendrier GTFS · '+(stats?.assigned||0)+' nouvelles affectations · '+(stats?.unplaced||0)+' non placées · '+saved.length+' brouillons modifiés');
-     if(stats?.topReasons?.length)note('Causes de refus : '+stats.topReasons.map(x=>x.reason+' ('+x.count+')').join(' · '));
-     onProgress?.({phase:'finished',date:day,dayIndex:i+1,dayCount:total,...result});
+     if(!saved.length){
+      if(beforeSummary.existingDrivers>0&&!(stats?.assigned>0)){
+       result={date:day,ok:true,unchanged:true,gtfsSegments:n,regular,school,saved:0,services:afterSummary.existingActivities,
+        ...afterSummary,assigned:0,unplaced:stats?.unplaced||0,topReasons:stats?.topReasons||[]};
+       note('📝 '+day+' : PLANNING DÉJÀ PRÉPARÉ · '+afterSummary.existingDrivers+' conducteur(s) · '+afterSummary.existingActivities+' activités en brouillons · '+afterSummary.covered+'/'+n+' segments affectés · '+afterSummary.remaining+' restant(s)');
+       onProgress?.({phase:'unchanged',dayIndex:i+1,dayCount:total,...result});
+      }else throw Error('Aucun brouillon exploitable sauvegardé : '+(stats?.assigned||0)+' courses placées, '+(stats?.unplaced||0)+' impossibles, '+(stats?.restricted||0)+' exclues. '+(stats?.topReasons||[]).slice(0,4).map(x=>x.reason+' ('+x.count+')').join(' · '));
+     }else{
+      const services=saved.reduce((n,[,r])=>n+(r.items?.length||0),0);
+      result={date:day,ok:true,saved:saved.length,services,gtfsSegments:n,regular,school,...stats,...afterSummary};
+      note('✅ '+day+' : '+n+' courses GTFS · '+afterSummary.covered+' déjà affectées au total · '+(stats?.assigned||0)+' nouvelles affectations · '+afterSummary.remaining+' encore à placer · '+saved.length+' brouillons modifiés');
+      if(stats?.topReasons?.length)note('Motifs de refus des candidats (pas des courses distinctes) : '+stats.topReasons.map(x=>x.reason+' ('+x.count+')').join(' · '));
+      onProgress?.({phase:'finished',date:day,dayIndex:i+1,dayCount:total,...result});
+     }
      }
     }catch(e){
      result.error=error(e);note('❌ '+day+' : '+result.error);
@@ -80,9 +97,16 @@
     progress('Journées traitées : '+results.length+'/'+total,results.length,total);
     await new Promise(resolve=>setTimeout(resolve,10));
    }
-   const ok=results.filter(x=>x.ok).length,failed=results.filter(x=>!x.ok);
-   const empty=results.filter(x=>x.empty).length,assigned=results.reduce((n,x)=>n+(x.assigned||0),0);
-   const summary='Semaine : '+(ok-empty)+' jour(s) avec brouillons, '+empty+' jour(s) sans circulation GTFS, '+assigned+' nouvelles courses affectées. '+failed.length+' erreur(s).'+(failed.length?' Détails : '+failed.map(x=>x.date+' : '+x.error).join(' ; '):'');
+   const failed=results.filter(x=>!x.ok),existing=results.filter(x=>x.unchanged),empty=results.filter(x=>x.empty),newDays=results.filter(x=>x.ok&&!x.unchanged&&!x.empty);
+   const assigned=results.reduce((n,x)=>n+(x.assigned||0),0),remaining=results.filter(x=>x.ok&&!x.empty).reduce((n,x)=>n+(x.remaining||0),0);
+   const nextDate=x=>{const d=new Date(x+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10)};
+   let tooManyDays=0;for(const dates of workingDays.values()){
+    const sorted=[...dates].sort();let streak=0,maxStreak=0,last=null;
+    for(const day of sorted){streak=last&&day===nextDate(last)?streak+1:1;maxStreak=Math.max(maxStreak,streak);last=day}
+    if(maxStreak>6)tooManyDays++;
+   }
+   if(tooManyDays)note('⚠ Attention : '+tooManyDays+' conducteurs ont plus de 6 journées de travail consécutives sur la période. Repos à corriger avant validation, ne pas publier.');
+   const summary='Période : '+newDays.length+' journée(s) avec nouvelles affectations · '+existing.length+' déjà planifiée(s) · '+empty.length+' sans circulation · '+failed.length+' véritable(s) erreur(s). '+assigned+' nouvelles courses · '+remaining+' segments encore à placer sur les dates préparées.'+(tooManyDays?' ⚠ '+tooManyDays+' conducteur(s) dépassent 6 jours de travail consécutifs : REPOS À CORRIGER.':'')+(failed.length?' Voir les échecs datés dans le journal.':'')+' Brouillons NON validés : contrôler repos et RSE avant publication.';
    if(q('v196Title'))q('v196Title').textContent=summary;
    if(q('v190Status'))q('v190Status').textContent=summary;
    G.history=results;

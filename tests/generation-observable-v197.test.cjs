@@ -14,7 +14,7 @@ const fix=window.MonSAEIVGenerationFeedbackV196;
 assert(fix?.installed);assert.equal(planner.generateDateRange,fix.run);
 (async()=>{
 const a=await fix.run('2026-10-12','2026-10-12');assert.equal(a.length,1);assert.equal(a[0].ok,true);assert.equal(a[0].saved,1);assert.equal(planner.state.lock,null);
-write=false;const b=await fix.run('2026-10-12','2026-10-12');assert.equal(b[0].ok,false);assert.match(b[0].error,/Aucun (nouveau )?brouillon/);
-assert(calls.some(x=>x==='segments:2026-10-12'));assert.match(nodes.get('v196Title').textContent,/0 jour\(s\) avec brouillons/);
-console.log('SAEIV v1.0.97: save verified, no-op is failure, progress and lock cleanup OK');
+write=false;const b=await fix.run('2026-10-12','2026-10-12');assert.equal(b[0].ok,true);assert.equal(b[0].unchanged,true);assert.equal(b[0].existingDrivers,1);
+assert(calls.some(x=>x==='segments:2026-10-12'));assert.match(nodes.get('v196Title').textContent,/1 déjà planifiée/);
+console.log('SAEIV v1.0.99: previously saved day is not an error; draft detection and lock cleanup OK');
 })().catch(e=>{console.error(e);process.exit(1)});
