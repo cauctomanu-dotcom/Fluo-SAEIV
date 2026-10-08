@@ -50,7 +50,7 @@
      const n=board().segments.length;
      const regular=board().segments.filter(x=>x.type==='regular').length,school=board().segments.filter(x=>x.type==='school').length;
      note(day+' : '+n+' segments ACTIFS ce jour (réguliers '+regular+', scolaires '+school+', autres '+(n-regular-school)+')');
-     if(!n){result={date:day,ok:true,empty:true,saved:0,services:0,segments:0};note('ℹ️ '+day+' : aucun service GTFS actif. Aucun brouillon inutile créé');onProgress?.({phase:'empty',date:day,dayIndex:i+1,dayCount:total});continue}
+     if(!n){result={date:day,ok:true,empty:true,saved:0,services:0,segments:0};note('ℹ️ '+day+' : aucun service GTFS actif. Aucun brouillon inutile créé');onProgress?.({phase:'empty',date:day,dayIndex:i+1,dayCount:total})}else{
      const before=await fetchVersions(org,day);
      if(!q('v187Date'))throw Error('Éditeur de brouillons non initialisé');
      q('v187Date').value=day;planner().state.date=day;
@@ -66,6 +66,7 @@
      result={date:day,ok:true,saved:saved.length,services};
      note('✅ '+day+' : '+saved.length+' brouillons enregistrés, '+services+' activités dans ces brouillons');
      onProgress?.({phase:'finished',date:day,dayIndex:i+1,dayCount:total,...result});
+     }
     }catch(e){
      result.error=error(e);note('❌ '+day+' : '+result.error);
      onProgress?.({phase:'error',date:day,dayIndex:i+1,dayCount:total,error:result.error});
