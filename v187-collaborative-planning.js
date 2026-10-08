@@ -247,8 +247,12 @@
    client().from('saeiv_planning_days').select('driver_user_id,service_date,items,status').eq('organization_id',org()).gte('service_date',fromHistory).lt('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]})
   ]);
   const settingsBy=new Map(settings.map(x=>[x.user_id,x])),draftBy=new Map(drafts.map(x=>[x.driver_user_id,x]));
-  const historyWork=[...history];
-  for(const day of historicalPublished){if(day.service_date===date)continue;for(const item of day.items||[])historyWork.push({driver_user_id:day.driver_user_id,service_date:day.service_date,type:item.type||'regular',start_time:item.start||item.start_time,end_time:item.end||item.end_time,source:'dispatch',payload:item})}
+  const officialKeys=new Set(historicalPublished.filter(x=>x.service_date<date).map(x=>x.driver_user_id+'|'+x.service_date));
+  const draftKeys=new Set(historicalDrafts.filter(x=>x.status!=='published'&&!officialKeys.has(x.driver_user_id+'|'+x.service_date)).map(x=>x.driver_user_id+'|'+x.service_date));
+  const historyWork=history.filter(x=>!officialKeys.has(x.driver_user_id+'|'+x.service_date)&&!draftKeys.has(x.driver_user_id+'|'+x.service_date));
+  const addHistory=day=>{if(day.service_date>=date)return;for(const item of day.items||[])historyWork.push({driver_user_id:day.driver_user_id,service_date:day.service_date,type:item.type||'regular',start_time:item.start||item.start_time,end_time:item.end||item.end_time,source:'dispatch',payload:item})};
+  for(const day of historicalDrafts)if(draftKeys.has(day.driver_user_id+'|'+day.service_date))addHistory(day);
+  for(const day of historicalPublished)addHistory(day);
   const absenceCheck=(driver,seg,current)=>{
    const absolute=history.some(x=>x.driver_user_id===driver&&x.service_date===date&&(
     ['rh','cp'].includes(String(x.type||'').toLowerCase())||['RH','CP'].includes(String(x.payload?.absence_kind||'').toUpperCase())));
