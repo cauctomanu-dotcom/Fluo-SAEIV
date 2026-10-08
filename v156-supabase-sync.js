@@ -142,8 +142,11 @@
     const rows=local.map(localToRow).filter(Boolean);
     try{
       if(rows.length){const {error}=await S.client.from('plan_items').upsert(rows,{onConflict:'driver_user_id,client_id'});if(error)throw error}
-      const {data:server,error}=await S.client.from('plan_items').select('id,client_id').eq('driver_user_id',S.user.id).eq('source','driver');if(error)throw error;
-      const keep=new Set(local.map(x=>String(x.id)));const remove=(server||[]).filter(x=>x.client_id&&!keep.has(String(x.client_id))).map(x=>x.id);if(remove.length){const {error:del}=await S.client.from('plan_items').delete().in('id',remove);if(del)throw del}
+      const [legacyRows,officialDays]=await Promise.all([S.client.from('plan_items').select('id,client_id,service_date').eq('driver_user_id',S.user.id).eq('source','driver'),S.client.from('saeiv_published_days').select('service_date').eq('driver_user_id',S.user.id)]);
+      if(legacyRows.error)throw legacyRows.error;if(officialDays.error)throw officialDays.error;
+      const protectedDates=new Set((officialDays.data||[]).map(x=>x.service_date));
+      const keep=new Set(local.map(x=>String(x.id)));
+      const remove=(legacyRows.data||[]).filter(x=>!protectedDates.has(x.service_date)&&x.client_id&&!keep.has(String(x.client_id))).map(x=>x.id);if(remove.length){const {error:del}=await S.client.from('plan_items').delete().in('id',remove);if(del)throw del}
       S.lastSync=Date.now();setCloudStatus('Planning synchronisé.','ok');
     }catch(e){console.warn('[Mon SAEIV] push planning',e);setCloudStatus('Synchronisation différée : '+(e.message||e),'err')}
   }
