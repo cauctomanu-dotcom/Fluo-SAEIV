@@ -149,7 +149,26 @@
   }
   async function pullPlanning(){
     if(!S.client||!S.user||S.profile?.role!=='driver'||!window.FluoPlanningV316?.syncFromServer)return;
-    try{const {data,error}=await S.client.from('plan_items').select('*').eq('driver_user_id',S.user.id).order('service_date',{ascending:true}).order('start_time',{ascending:true,nullsFirst:false}).order('sort_index',{ascending:true});if(error)throw error;S.suppressPush=true;try{window.FluoPlanningV316.syncFromServer((data||[]).map(rowToLocal))}finally{S.suppressPush=false}S.lastSync=Date.now();setCloudStatus('Planning à jour.','ok');window.dispatchEvent(new CustomEvent('mon-saeiv-cloud-planning-synced',{detail:{count:data?.length||0}}))}catch(e){console.warn('[Mon SAEIV] pull planning',e);setCloudStatus('Mode hors ligne : planning local conservé.','err')}
+    try{
+      const [legacy,publications]=await Promise.all([
+        S.client.from('plan_items').select('*').eq('driver_user_id',S.user.id).order('service_date',{ascending:true}).order('start_time',{ascending:true,nullsFirst:false}).order('sort_index',{ascending:true}),
+        S.client.from('saeiv_published_days').select('id,service_date,items,revision,published_at').eq('driver_user_id',S.user.id).eq('organization_id',S.profile.organization_id)
+      ]);
+      if(legacy.error)throw legacy.error;
+      // Compatibilité pendant le déploiement progressif du nouveau schéma : jamais de brouillon conducteur.
+      if(publications.error&&publications.error.code!=='42P01')throw publications.error;
+      const official=publications.data||[],publishedDates=new Set(official.map(x=>x.service_date));
+      const inherited=(legacy.data||[]).filter(x=>!publishedDates.has(x.service_date)).map(rowToLocal);
+      const newlyPublished=official.flatMap(day=>(Array.isArray(day.items)?day.items:[]).map((item,index)=>({
+        ...item,id:String(item.id||'published-'+day.id+'-'+index),date:day.service_date,
+        _serverSource:'dispatch',_lockedByExploitation:true,_serverStatus:'published',
+        _serverRevision:Number(day.revision||1),_publishedAt:day.published_at
+      })));
+      S.suppressPush=true;
+      try{window.FluoPlanningV316.syncFromServer([...inherited,...newlyPublished])}finally{S.suppressPush=false}
+      S.lastSync=Date.now();setCloudStatus('Planning publié synchronisé.','ok');
+      window.dispatchEvent(new CustomEvent('mon-saeiv-cloud-planning-synced',{detail:{count:inherited.length+newlyPublished.length,publishedDays:official.length}}));
+    }catch(e){console.warn('[Mon SAEIV] pull planning',e);setCloudStatus('Mode hors ligne : planning local conservé.','err')}
   }
   async function initialPlanningSync(){
     if(S.profile?.role!=='driver'||!S.client||!S.user)return;
@@ -164,7 +183,7 @@
   }
   function schedulePush(){if(S.suppressPush||S.profile?.role!=='driver')return;clearTimeout(S.pushTimer);S.pushTimer=setTimeout(pushPlanning,650)}
   function schedulePull(){if(S.profile?.role!=='driver')return;clearTimeout(S.pullTimer);S.pullTimer=setTimeout(pullPlanning,450)}
-  function subscribePlanning(){if(!S.client||!S.user)return;try{S.channel&&S.client.removeChannel(S.channel)}catch{};S.channel=S.client.channel(`planning-${S.user.id}`).on('postgres_changes',{event:'*',schema:'public',table:'plan_items',filter:`driver_user_id=eq.${S.user.id}`},schedulePull).subscribe()}
+  function subscribePlanning(){if(!S.client||!S.user)return;try{S.channel&&S.client.removeChannel(S.channel)}catch{};S.channel=S.client.channel(`planning-${S.user.id}`).on('postgres_changes',{event:'*',schema:'public',table:'plan_items',filter:`driver_user_id=eq.${S.user.id}`},schedulePull).on('postgres_changes',{event:'*',schema:'public',table:'saeiv_published_days',filter:`driver_user_id=eq.${S.user.id}`},schedulePull).subscribe()}
   function protectOfficialPlanning(){document.addEventListener('click',e=>{const b=e.target.closest?.('[data-v316-edit],[data-v316-dup]');if(!b)return;const id=b.dataset.v316Edit||b.dataset.v316Dup,item=window.FluoPlanningV316?.items?.().find(x=>String(x.id)===String(id));if(item?._lockedByExploitation){e.preventDefault();e.stopImmediatePropagation();alert('Cette activité a été créée par l’exploitation et est verrouillée. Contacte l’exploitation pour la modifier.')}},true)}
 
   async function afterAuth(session){
