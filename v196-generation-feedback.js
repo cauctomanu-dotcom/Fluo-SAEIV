@@ -59,7 +59,7 @@
      if(!planner().state.lock||planner().state.lock.date!==day)throw Error('Verrou de planification non obtenu');
      await planner().generateDraft({driverId});
      const after=await fetchVersions(org,day);
-     const saved=[...after].filter(([key,row])=>!before.has(key)||row.revision!==before.get(key).revision);
+     const saved=[...after].filter(([key,row])=>!before.has(key)||JSON.stringify(row.items)!==JSON.stringify(before.get(key).items));
      if(!saved.length)throw Error('Aucun brouillon sauvegardé : tous les segments sont déjà attribués ou aucun conducteur n’est compatible (stationnement, HLP, compétences, RSE).');
      const services=saved.reduce((n,[,r])=>n+(r.items?.length||0),0);
      result={date:day,ok:true,saved:saved.length,services};
