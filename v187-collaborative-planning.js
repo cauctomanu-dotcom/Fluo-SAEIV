@@ -294,6 +294,28 @@
   status('Pré-génération enregistrée en BROUILLONS · '+assigned+' courses affectées · '+unplaced+' non placées · '+restricted+' hors périmètre/contraintes · '+written+' journées. Contrôle RSE serveur requis avant validation définitive.');
  }
 
- window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,generateDraft,get state(){return P}};
+ function appendCollective(tasks){if(!hasLock())throw Error('Verrou obligatoire');if(P.official)throw Error('Planning déjà publié');for(const t of tasks){const i=P.items.findIndex(x=>x.id===t.id);if(i<0)P.items.push(t);else P.items[i]=t}renderItems();}
+ async function generateWeekDrafts(startDate){
+  const monday=new Date(startDate+'T12:00:00Z'),dow=monday.getUTCDay();
+  monday.setUTCDate(monday.getUTCDate()-((dow+6)%7));
+  const dates=Array.from({length:7},(_,i)=>{const d=new Date(monday);d.setUTCDate(d.getUTCDate()+i);return d.toISOString().slice(0,10)});
+  const results=[];
+  for(const date of dates){
+   q('v187Date').value=date;
+   P.date=date;
+   try{
+    await takeLock();
+    if(!hasLock())throw Error('Journée verrouillée par un autre agent');
+    await generateDraft();
+    results.push({date,ok:true});
+   }catch(e){results.push({date,ok:false,error:e?.message||String(e)})}
+   finally{try{await releaseLock()}catch{}}
+  }
+  if(results.some(x=>!x.ok))status('Semaine : '+results.filter(x=>x.ok).length+'/7 préparées. Jours restants : '+results.filter(x=>!x.ok).map(x=>x.date).join(', '),true);
+  else status('Semaine complète générée en BROUILLONS, aucune journée publiée.');
+  return results;
+ }
+
+ window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,generateDraft,generateWeekDrafts,appendCollective,get state(){return P}};
  setInterval(tick,1300);
 })();

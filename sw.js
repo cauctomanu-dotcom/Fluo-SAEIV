@@ -1,9 +1,9 @@
 'use strict';
 
-const CACHE='mon-saeiv-clean-1.0.92';
+const CACHE='mon-saeiv-clean-1.0.93';
 const CORE=[
   './voyageurs.html','./voyageurs.css','./voyageurs.js','./tracking-core.js','./v182-live-tracking.js','./v183-live-supervision.js','./v184-navigation-resume.js','./v185-line-thermometer.js',
-  './v186-enterprise-admin.js','./v187-collaborative-planning.js','./v188-driver-inbox.js',
+  './v186-enterprise-admin.js','./v187-collaborative-planning.js','./v188-driver-inbox.js','./v189-collective-tickets.js','./v190-weekly-planning.js','./v191-bulk-drivers.js','./v192-collective-smart.js',
   './',
   './index.html',
   './login-gateway.js',

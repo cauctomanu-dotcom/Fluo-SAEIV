@@ -1,4 +1,4 @@
-name: Validate SAEIV Enterprise 1.0.92
+name: Validate SAEIV Enterprise 1.0.93
 on:
   pull_request:
     branches: [main]
@@ -15,7 +15,7 @@ jobs:
       - name: Check app source syntax
         run: |
           set -euo pipefail
-          for f in v156-supabase-sync.js v167-generation-engine.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js sw.js; do
+          for f in v156-supabase-sync.js v167-generation-engine.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js v189-collective-tickets.js v190-weekly-planning.js v191-bulk-drivers.js v192-collective-smart.js sw.js; do
             node --check "$f"
           done
       - name: Contract tests for permission and consent workflow
@@ -34,7 +34,7 @@ jobs:
               assert token in m
           for name in ['v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js']:
               assert name in workflow and name in sw
-          assert '1.0.92' in manifest and '1.0.92' in sw
+          assert '1.0.93' in manifest and '1.0.93' in sw
           assert 'saeiv_published_days' in Path('v156-supabase-sync.js').read_text()
-          print('SAEIV 1.0.92 enterprise sources verified')
+          print('SAEIV 1.0.93 enterprise sources verified')
           PY
