@@ -57,18 +57,27 @@
   const modal=q('v190Builder');modal.classList.remove('hide');
   const who=board().drivers.find(x=>x.user_id===driverId);
   q('v190BuilderTitle').textContent='Construire le planning · '+(who?.display_name||who?.matricule||'Conducteur')+' · '+date;
-  const render=()=>{q('v190Free').innerHTML=available.length?available.map(x=>
+  const render=()=>{
+   const occupied=planner().state.items||[];
+   if(q('v198Assigned'))q('v198Assigned').innerHTML=occupied.filter(x=>['regular','school','tad','annex','other'].includes(x.type)).map(x=>
+    '<article><div><strong>'+esc(x.line||x.label||'Course')+' · '+esc(x.start)+' → '+esc(x.end)+'</strong><small>'+esc(x.origin||'')+' → '+esc(x.destination||'')+'</small></div><button type="button" data-v198-remove-course="'+esc(x.id)+'">Retirer du brouillon</button></article>').join('')||'<p>Aucune course encore placée pour ce conducteur.</p>';
+   q('v190Free').innerHTML=available.length?available.map(x=>
     '<article><div><strong>'+esc(x.line)+' · '+esc(x.start)+' → '+esc(x.end)+'</strong><small>'+esc(x.origin)+' → '+esc(x.destination)+'</small></div><button type="button" data-add-segment="'+esc(x.id)+'">＋ Ajouter</button></article>').join(''):'<p>Aucun segment libre pour cette journée.</p>';q('v190FreeCount').textContent=available.length+' segment(s) restant(s)'};
   modal.onclick=async ev=>{if(ev.target.closest('#v190Close')){await close();return}
+    const remove=ev.target.closest('[data-v198-remove-course]');if(remove){
+     const item=(planner().state.items||[]).find(x=>String(x.id)===remove.dataset.v198RemoveCourse);
+     if(!item||!confirm('Retirer cette course du BROUILLON de ce conducteur ?'))return;
+     try{await planner().removeActivity(item.id);const replacement=board().segments.find(x=>String(x.id)===String(item.segment_id));if(replacement&&!available.some(x=>x.id===replacement.id))available.push(replacement);render();notify('Course retirée du brouillon. Service et HLP seront recalculés.')}catch(e){handle(e)}return;
+    }
     const b=ev.target.closest('[data-add-segment]');if(!b)return;const seg=available.find(x=>x.id===b.dataset.addSegment);if(!seg)return;
     try{
       if((planner().state.items||[]).some(x=>{const a=minute(x.start),z=minute(x.end),s=minute(seg.start),e=minute(seg.end);return [a,z,s,e].every(Number.isFinite)&&a<e&&z>s}))throw Error('Cette course chevauche déjà une activité de ce conducteur');
       await planner().appendActivities([activity(seg,date)]);
-      available.splice(available.indexOf(seg),1);render();notify('Segment ajouté au brouillon conducteur. Contrôler HLP et RSE avant validation.');
+      available.splice(available.indexOf(seg),1);render();notify('Segment ajouté : prise de service, HLP, coupure et fin de service recalculés. Contrôler les estimations HLP et RSE.');
     }catch(e){handle(e)}
   };render();modal.scrollIntoView({behavior:'smooth',block:'start'});
  }
- async function close(){q('v190Builder')?.classList.add('hide');S.driver=null;try{await planner()?.releaseLock?.()}catch(e){handle(e)}}
+ async function close(){q('v190Builder')?.classList.add('hide');S.driver=null;try{await planner()?.releaseLock?.();await board()?.refresh?.()}catch(e){handle(e)}}
  function install(){const tool=q('v165Board'),date=q('v165Date');if(!tool||!date||q('v190End'))return;
   const style=document.createElement('style');style.textContent='#v165Board .v194DriverActions{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}#v165Board .v194DriverActions button{padding:5px;font-size:.55rem;min-height:28px}#v190Days{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0}#v190Days button{font-size:.7rem;padding:5px 8px;min-height:31px}#v190Days button.active{border-color:#eebd59;color:#ffe6a0}#v190Builder.hide{display:none!important}#v190Builder{background:#0a2230;border:1px solid #527b95;border-radius:14px;padding:14px;margin-top:12px}#v190Free{max-height:450px;overflow:auto}#v190Free article{display:flex;align-items:center;justify-content:space-between;padding:9px;gap:10px;border-bottom:1px solid #325067}#v190Free small{display:block;color:#a8c4ce}#v190Status{font-size:.75rem;padding:5px}';
   document.head.append(style);
@@ -78,7 +87,7 @@
   const pub=document.createElement('button');pub.type='button';pub.id='v190Publications';pub.textContent='📋 Brouillons / publications';toolbar.append(pub);
   const billets=document.createElement('button');billets.id='v190Billets';billets.type='button';billets.textContent='🎟 Billets CO';toolbar.append(billets);
   const line=document.createElement('div');line.innerHTML='<div id="v190Count"></div><div id="v190Days"></div><div id="v190Status" role="status"></div>';toolbar.insertAdjacentElement('afterend',line);
-  const modal=document.createElement('section');modal.id='v190Builder';modal.className='hide';modal.innerHTML='<h3 id="v190BuilderTitle">Construire le planning</h3><p>Uniquement les segments encore libres, ajoutés directement dans le brouillon du conducteur. Aucune modification du planning publié.</p><strong id="v190FreeCount"></strong><div id="v190Free"></div><button type="button" id="v190Close">Terminer et libérer le verrou</button>';tool.append(modal);
+  const modal=document.createElement('section');modal.id='v190Builder';modal.className='hide';modal.innerHTML='<h3 id="v190BuilderTitle">Construire le planning</h3><p>Le planning du conducteur est enregistré en brouillon. Tu peux retirer une course ou ajouter un segment encore disponible. La prise de service, les HLP et les coupures sont recalculés en estimation après chaque modification.</p><h4>Courses du conducteur</h4><div id="v198Assigned"></div><h4>Segments encore libres</h4><strong id="v190FreeCount"></strong><div id="v190Free"></div><button type="button" id="v190Close">Terminer et revenir au tableau</button>';tool.append(modal);
   date.addEventListener('change',()=>{S.rangeStart=date.value;if(to()<from())q('v190End').value=from();S.counts.clear();ribbon()});
   q('v190End').addEventListener('change',ribbon);
   q('v190Days').addEventListener('click',e=>{const b=e.target.closest('[data-day]');if(b)selectDay(b.dataset.day).catch(handle)});
@@ -95,6 +104,6 @@
   if(target.id==='v165Generate')generate().catch(handle);else loadPeriod().catch(handle);
  }
  window.addEventListener('click',intercept,true);
- window.MonSAEIVWeeklyV190={installed:true,install,generate,loadPeriod};
+ window.MonSAEIVWeeklyV190={installed:true,install,generate,loadPeriod,build,close};
  setInterval(install,950);
 })();
