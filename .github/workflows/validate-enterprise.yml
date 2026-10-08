@@ -15,7 +15,7 @@ jobs:
       - name: Check app source syntax
         run: |
           set -euo pipefail
-          for f in v156-supabase-sync.js v167-generation-engine.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js sw.js; do
+          for f in v156-supabase-sync.js v167-generation-engine.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js v189-collective-tickets.js v190-weekly-planning.js v191-bulk-drivers.js v192-collective-smart.js sw.js; do
             node --check "$f"
           done
       - name: Contract tests for permission and consent workflow
