@@ -185,6 +185,82 @@
   const box=q('v187Planning'),ops=q('v157OpsView');if(box&&ops){box.classList.toggle('hide',ops.classList.contains('hidden'))}
  }
  window.addEventListener('pagehide',()=>{clearInterval(P.heartbeat)});
- window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,get state(){return P}};
+ async function generateDraft(){
+  if(!hasLock())throw Error('Verrouiller d’abord la journée du planning');
+  const board=window.MonSAEIVOperationsBoardV165,engine=window.MonSAEIVGenerationEngineV167;
+  if(!board?.refresh||!engine?.scoreCandidate)throw Error('Moteur de génération indisponible');
+  const date=P.date,sourceDate=q('v165Date');
+  if(sourceDate&&sourceDate.value!==date){sourceDate.value=date;sourceDate.dispatchEvent(new Event('change',{bubbles:true}))}
+  await board.refresh();
+  const segments=board.segments||[];if(!segments.length)throw Error('Aucune course GTFS chargée pour ce jour');
+  const [drivers,settings,existing,drafts,published,lines,rules]=await Promise.all([
+   client().from('profiles').select('user_id,matricule,display_name,active,depot_id,weekly_contract_minutes').eq('organization_id',org()).eq('role','driver').eq('active',true).then(x=>{if(x.error)throw x.error;return x.data||[]}),
+   select('driver_settings',{}),select('plan_items',{service_date:date}),
+   select('saeiv_planning_days',{service_date:date}),select('saeiv_published_days',{service_date:date}),
+   select('saeiv_company_lines',{}),select('saeiv_vehicle_rules',{})
+  ]);
+  const settingsBy=new Map(settings.map(x=>[x.user_id,x])),draftBy=new Map(drafts.map(x=>[x.driver_user_id,x]));
+  const publishedIds=new Set(published.map(x=>x.driver_user_id));
+  const eligible=drivers.filter(d=>!publishedIds.has(d.user_id));
+  if(!eligible.length)throw Error('Toutes les journées sont déjà publiées : les changements doivent faire l’objet d’un accord');
+  const activities=new Map(eligible.map(d=>[d.user_id,Array.isArray(draftBy.get(d.user_id)?.items)?
+   structuredClone(draftBy.get(d.user_id).items):
+   existing.filter(x=>x.driver_user_id===d.user_id).map(x=>({...x.payload,id:x.client_id||x.id,date,type:x.type,line:x.line,
+    start:String(x.start_time||'').slice(0,5),end:String(x.end_time||'').slice(0,5),origin:x.origin||'',destination:x.destination||'',
+    originCoords:x.origin_coords||null,destinationCoords:x.destination_coords||null,linked:x.linked||null,driveMinutes:x.drive_minutes||0}))]));
+  const used=new Set();
+  for(const activitiesDay of activities.values())for(const a of activitiesDay){if(a.segment_id)used.add(String(a.segment_id));if(a.linked?.tripId)used.add(String(a.linked.tripId))}
+  const activeLines=lines.filter(x=>x.active&&(x.start_date<=date)&&(!x.end_date||x.end_date>=date));
+  const key=x=>String(x||'').replace(/\s+/g,'').toUpperCase();
+  const allowed=seg=>!lines.length||activeLines.some(l=>l.department===String(seg.dept||seg.linked?.dept||'')&&key(l.line_code)===key(seg.line));
+  const choseVehicle=seg=>{
+   const l=activeLines.find(l=>l.department===String(seg.dept||'')&&key(l.line_code)===key(seg.line));
+   if(!l)return 'bus';
+   const r=rules.filter(x=>x.line_id===l.id);
+   if(!r.length)return 'bus';
+   const chosen=['van','minibus','bus'].find(t=>r.some(x=>x.vehicle_type===t&&x.policy==='preferred')) ||
+     ['bus','minibus','van'].find(t=>r.some(x=>x.vehicle_type===t&&x.policy==='required')) ||
+     ['bus','minibus','van'].find(t=>r.some(x=>x.vehicle_type===t&&x.policy==='allowed')) ;
+   return chosen||null;
+  };
+  let assigned=0,unplaced=0,restricted=0;
+  for(const seg of segments){
+   if(used.has(String(seg.id))||used.has(String(seg.tripId||'')))continue;
+   if(!allowed(seg)){restricted++;continue}
+   const vehicleType=choseVehicle(seg);if(!vehicleType){restricted++;continue}
+   const ranked=[];
+   for(const driver of eligible){
+    const day=activities.get(driver.user_id),setting=settingsBy.get(driver.user_id);
+    const scoring=engine.scoreCandidate(seg,driver,day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},{compactOnly:false});
+    if(!scoring.ok)continue;
+    const rank=engine.planningRank(day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},scoring);
+    const dailyTarget=Number(driver.weekly_contract_minutes)>0?Number(driver.weekly_contract_minutes)/5:420;
+    const contractPenalty=Math.abs(Number(scoring.economy?.work||0)-dailyTarget)*20;
+    ranked.push({driver,rank,contractPenalty});
+   }
+   ranked.sort((a,b)=>a.rank.dayTier-b.rank.dayTier||a.contractPenalty-b.contractPenalty||a.rank.compactPenalty-b.rank.compactPenalty||a.rank.incremental-b.rank.incremental);
+   if(!ranked.length){unplaced++;continue}
+   const target=ranked[0].driver.user_id;
+   activities.get(target).push({id:'gtfs-'+String(seg.id),segment_id:String(seg.id),date,type:seg.type||'regular',
+    line:String(seg.line||''),dept:String(seg.dept||''),start:seg.start,end:seg.end,
+    origin:seg.origin||'',destination:seg.destination||'',originCoords:seg.originCoords||null,
+    destinationCoords:seg.destinationCoords||null,driveMinutes:Number(seg.driveMinutes||0),
+    linked:seg.linked||null,vehicle_type:vehicleType,regime:'eu561',source:'auto_service'});
+   used.add(String(seg.id));assigned++;
+  }
+  let written=0;for(const [driver_user_id,items]of activities){
+   if(!items.length)continue;
+   const existingDraft=draftBy.get(driver_user_id);
+   if(existingDraft?.status==='published')continue;
+   const {error}=await client().from('saeiv_planning_days').upsert({
+    organization_id:org(),driver_user_id,service_date:date,items,status:'draft',updated_by:cloud()?.user?.id
+   },{onConflict:'organization_id,driver_user_id,service_date'});
+   if(error)throw error;written++;
+  }
+  await loadDay();
+  status('Pré-génération enregistrée en BROUILLONS · '+assigned+' courses affectées · '+unplaced+' non placées · '+restricted+' hors périmètre/contraintes · '+written+' journées. Contrôle RSE serveur requis avant validation définitive.');
+ }
+
+ window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,generateDraft,get state(){return P}};
  setInterval(tick,1300);
 })();
