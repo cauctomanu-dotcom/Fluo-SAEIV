@@ -1,0 +1,21 @@
+'use strict';
+const assert=require('assert');
+const fs=require('fs');
+const vm=require('vm');
+const read=n=>fs.readFileSync(n,'utf8');
+const core=read('v165-exploitation-board.js');
+const range=read('v190-weekly-planning.js');
+const planning=read('v187-collaborative-planning.js');
+const tickets=read('v189-collective-tickets.js');
+for(const [name,src] of Object.entries({core,range,planning,tickets})){new vm.Script(src,{filename:name});}
+assert(core.includes('id="v165Date"')&&core.includes('id="v165LoadSegments"')&&core.includes('id="v165Generate"')&&core.includes('id="v165RseCheck"'));
+assert(core.includes('data-v194-build')&&core.includes('data-v194-generate')&&core.includes('async setDate(date)'));
+assert(range.includes('v190End')&&range.includes("S.rangeStart")&&range.includes('generateDateRange(a,b,{driverId})'));
+assert(range.includes('loadPeriod()')&&range.includes("window.addEventListener('click',intercept,true)"));
+assert(range.includes("data-add-segment")&&range.includes('saeiv_published_days')&&range.includes('saeiv_planning_days'));
+assert(!range.includes('v190Wrapper')&&!range.includes('Planification hebdomadaire'));
+assert(planning.includes('generateDraft({driverId=null}={})')&&planning.includes('generateDateRange(from,to,{driverId=null}={})'));
+assert(planning.includes('openDriverDraft(driverId,date)')&&planning.includes('appendActivities(items)'));
+assert(planning.includes('for(const day of [...drafts,...published])'));
+assert(tickets.includes('Billet CO · billets collectifs')&&!tickets.includes('Billet éco'));
+console.log('SAEIV 1.0.94: existing-generator range and driver builder contracts OK');
