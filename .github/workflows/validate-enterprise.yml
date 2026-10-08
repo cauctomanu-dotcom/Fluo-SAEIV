@@ -1,4 +1,4 @@
-name: Validate SAEIV Enterprise 1.0.99
+name: Validate SAEIV Enterprise 1.0.100
 on:
   pull_request:
     branches: [main]
@@ -15,7 +15,7 @@ jobs:
       - name: Check app source syntax
         run: |
           set -euo pipefail
-          for f in v165-exploitation-board.js v156-supabase-sync.js v167-generation-engine.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js v189-collective-tickets.js v190-weekly-planning.js v191-bulk-drivers.js v192-collective-smart.js v193-published-driver-edits.js v194-sick-approval-batches.js v195-intuitive-segment-change.js v174-grid-editor.js v178-sick-reassignment.js sw.js; do
+          for f in v165-exploitation-board.js v156-supabase-sync.js v167-generation-engine.js v186-enterprise-admin.js v187-collaborative-planning.js v188-driver-inbox.js v189-collective-tickets.js v190-weekly-planning.js v191-bulk-drivers.js v192-collective-smart.js v193-published-driver-edits.js v194-sick-approval-batches.js v195-intuitive-segment-change.js v197-service-blocks.js v198-planning-ux.js v174-grid-editor.js v178-sick-reassignment.js sw.js; do
             node --check "$f"
           done
       - name: Contract tests for permission and consent workflow
@@ -25,6 +25,7 @@ jobs:
           node tests/generation-observable-v197.test.cjs
           node tests/daily-service-generation-v198.test.cjs
           node tests/draft-visibility-v199.test.cjs
+          node tests/service-envelope-ui-v1100.test.cjs
           node tests/published-change-consent-v195.test.cjs
           node tests/intuitive-segment-v196.test.cjs
           node tests/driver-line-v191.test.cjs
@@ -38,9 +39,9 @@ jobs:
           manifest=Path('manifest.webmanifest').read_text()
           for token in ['saeiv_propose_change','saeiv_respond_change','saeiv_finalize_change','saeiv_acquire_lock','saeiv_heartbeat_lock','saeiv_planning_audit','saeiv_published_days']:
               assert token in m
-          for name in ['v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js']:
+          for name in ['v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js','v197-service-blocks.js','v198-planning-ux.js']:
               assert name in workflow and name in sw
-          assert '1.0.99' in manifest and '1.0.99' in sw
+          assert '1.0.100' in manifest and '1.0.100' in sw
           assert 'saeiv_published_days' in Path('v156-supabase-sync.js').read_text()
-          print('SAEIV 1.0.99 enterprise sources verified')
+          print('SAEIV 1.0.100 enterprise sources verified')
           PY

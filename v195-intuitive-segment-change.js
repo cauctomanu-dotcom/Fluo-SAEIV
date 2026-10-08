@@ -8,7 +8,7 @@
  const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
  const hh=t=>String(t||'').slice(0,5);
  const mins=t=>{const m=hh(t).match(/^(\d\d):(\d\d)$/);return m?+m[1]*60+(+m[2]):null};
- const S={old:[],segments:[],oldIndex:null,newIndex:null,driver:null,date:null,busy:false,version:0};
+ const S={old:[],officialItems:null,segments:[],oldIndex:null,newIndex:null,driver:null,date:null,busy:false,version:0};
  const msg=(s,error=false)=>{const e=q('v174Status');if(e){e.textContent=s;e.className='v174-status '+(error?'err':'ok')}};
  const fromLegacy=x=>({
    id:String(x.client_id||x.id),legacy_item_id:String(x.id),segment_id:x.payload?.segment_id||null,
@@ -69,7 +69,7 @@
    '<label>2. Ligne / segment de remplacement <span class="v196-help">Recherche parmi les courses GTFS disponibles pour cette journée.</span><div class="v196-combo"><input id="v196Replacement" type="search" autocomplete="off" role="combobox" aria-controls="v196ReplacementList" aria-autocomplete="list" placeholder="Numéro de ligne, ville, horaire…"><div id="v196ReplacementList" class="v196-list"></div></div></label>'+
    '<label style="display:flex;align-items:center;gap:9px;flex-direction:row"><input id="v196Delete" type="checkbox" style="width:20px;min-height:20px">Supprimer cette course sans remplacement</label>'+
    '<div class="v196-preview" id="v196Preview"></div>'+
-   '<label>3. Notes / motif à communiquer au conducteur<textarea id="v196Reason" rows="3" minlength="5" placeholder="Ex. Service supprimé après réorganisation, remplacement sur la ligne 57…"></textarea></label>'+
+   '<label>3. Motif de la modification<select id="v196ReasonType"><option value="Réorganisation de l’exploitation">Réorganisation de l’exploitation</option><option value="Course supprimée">Course supprimée</option><option value="Course remplacée">Course remplacée</option><option value="Modification des horaires">Modification des horaires</option><option value="Réaffectation de service">Réaffectation de service</option><option value="Autre modification de planning">Autre</option></select></label><label>Précision facultative pour le conducteur<textarea id="v196Reason" rows="2" placeholder="Précision complémentaire, si nécessaire"></textarea></label>'+
    '<div class="v196-warning" id="v196Legality">Contrôle préliminaire des horaires avant envoi. HLP et RSE complets à valider avant republication.</div>'+
    '<div class="v196-actions"><button type="button" data-v174-cancel>Annuler</button><button type="submit" id="v196Send" class="primary" disabled>Enregistrer, recalculer et envoyer au conducteur</button></div></form>';
   q('v196DriverName').textContent=(board()?.drivers||[]).find(d=>String(d.user_id)===String(item.driver_user_id))?.display_name||'Conducteur';
@@ -80,13 +80,13 @@
   q('v196Form').addEventListener('submit',ev=>{ev.preventDefault();send().catch(e=>msg(e?.message||String(e),true))});
   updateSummary();
  }
- function sameLegacy(a,b){return String(a.id||'')===String(b.client_id||b.id||'')||String(a.legacy_item_id||'')===String(b.id||'')||
+ function sameLegacy(a,b){return String(a.id||'')===String(b.client_id||b.id||'')||(!!a.legacy_item_id&&!!b.id&&String(a.legacy_item_id)===String(b.id))||
   String(a.segment_id||'')===String(b.payload?.segment_id||'')&&!!a.segment_id||
   (!!a.line&&a.line===b.line&&hh(a.start)===hh(b.start_time)&&hh(a.end)===hh(b.end_time)) }
  async function open(item){
   if(!db()||!p()?.organization_id)throw Error('Connexion exploitation requise');
   if(!['admin','dispatcher'].includes(p().role))throw Error('Accès exploitation requis');
-  const request=++S.version;S.driver=item.driver_user_id;S.date=item.service_date||board()?.date;S.old=[];S.segments=[];S.oldIndex=null;S.newIndex=null;S.busy=false;
+  const request=++S.version;S.driver=item.driver_user_id;S.date=item.service_date||board()?.date;S.old=[];S.officialItems=null;S.segments=[];S.oldIndex=null;S.newIndex=null;S.busy=false;
   if(!q('v174Editor'))window.MonSAEIVGridEditorV174?.decorate?.();
   if(!q('v174Editor'))throw Error('Fenêtre de modification non chargée : actualiser la page');
   ui(item);q('v174Editor').classList.remove('hidden');msg('Chargement des courses du conducteur et des lignes disponibles…');
@@ -99,7 +99,8 @@
   ]);
   if(request!==S.version)return;
   for(const response of [published,legacy,active,drafts])if(response.error)throw response.error;
-  S.old=(published.data?.items||(legacy.data||[]).map(fromLegacy)).filter(isCourse);
+  S.officialItems=Array.isArray(published.data?.items)?published.data.items:null;
+  S.old=(S.officialItems||(legacy.data||[]).map(fromLegacy)).filter(isCourse);
   if(!S.old.length)throw Error('Aucune course à modifier pour ce conducteur à cette date');
   const target=S.old.findIndex(x=>sameLegacy(x,item));
   if(target>=0)select('old',target);else if(S.old.length===1)select('old',0);
@@ -133,7 +134,7 @@
   const old=S.old[S.oldIndex],replacement=S.segments[S.newIndex],deleteOnly=q('v196Delete')?.checked;
   if(!old)throw Error('Sélectionne la course à supprimer dans la liste');
   if(!deleteOnly&&!replacement)throw Error('Choisis une course de remplacement ou coche « Supprimer sans remplacement »');
-  const reason=q('v196Reason').value.trim();if(reason.length<5)throw Error('Indique le motif de la modification (5 caractères minimum)');
+  const reason=(q('v196ReasonType').value.trim()+(q('v196Reason').value.trim()?' · '+q('v196Reason').value.trim():'')).trim();
   if(replacement){
    if(!validTime(replacement))throw Error('Horaires de remplacement invalides');
    for(const a of S.old)if(a!==old&&isCourse(a)&&validTime(a)&&mins(a.start)<mins(replacement.end)&&mins(a.end)>mins(replacement.start))throw Error('Chevauchement avec une autre course du conducteur : remplacement refusé');
@@ -147,18 +148,27 @@
    if(lockError)throw lockError;
    if(!lock?.ok)throw Error('Journée verrouillée par '+(lock?.owner||'un autre agent'));lockId=lock.id;
    const proposal=replacement&&!deleteOnly?{
-     id:'gtfs-'+String(replacement.id),segment_id:String(replacement.id),date:S.date,
+     id:'replacement-'+String(replacement.id),segment_id:String(replacement.id),date:S.date,
      type:replacement.type||'regular',line:replacement.line||'',label:(replacement.line||'Ligne')+' · '+replacement.destination,
      start:replacement.start,end:replacement.end,origin:replacement.origin||'',destination:replacement.destination||'',
      originCoords:replacement.originCoords||null,destinationCoords:replacement.destinationCoords||null,
      driveMinutes:replacement.driveMinutes||null,linked:replacement.linked||null,
      dept:replacement.dept||'',source:'dispatch_proposed',notes:reason
    }:null;
-   const {data,error}=await db().rpc('saeiv_propose_segment_change',{
-    p_driver:S.driver,p_date:S.date,p_remove_id:String(old.id),p_replacement:proposal,p_reason:reason
-   });
+   let rpcName='saeiv_propose_segment_change';
+   const args={p_driver:S.driver,p_date:S.date,p_remove_id:String(old.id),p_replacement:proposal,p_reason:reason};
+   if(S.officialItems){
+    const engine=window.MonSAEIVServiceBlocksV197;if(!engine?.compose)throw Error('Reconstruction HLP non disponible. Recharger la page.');
+    const setting=await db().from('driver_settings').select('bus_parking').eq('organization_id',p().organization_id).eq('user_id',S.driver).maybeSingle();if(setting.error)throw setting.error;
+    const kept=S.officialItems.filter(x=>String(x.id)!==String(old.id));
+    if(proposal)kept.push(proposal);
+    const built=engine.compose(kept,setting.data?.bus_parking,S.date);
+    if(built.issues.length)throw Error('Prise de service / HLP à corriger avant envoi : '+built.issues.join(' ; '));
+    rpcName='saeiv_propose_service_change';args.p_service_items=built.items;
+   }
+   const {data,error}=await db().rpc(rpcName,args);
    if(error)throw error;
-   msg('✅ Proposition n°'+String(data).slice(0,8)+' envoyée dans « Mes plannings ». Le conducteur peut accepter ou refuser. Aucune course officielle modifiée.');
+   msg('✅ Proposition n°'+String(data).slice(0,8)+' envoyée dans « Mes plannings ». Le conducteur peut accepter ou refuser. '+(S.officialItems?'Les HLP, la prise et la fin de service ont été recalculés en estimation.':'Planning historique importé : vérifier HLP et RSE.')+' Aucun planning officiel modifié avant les validations.');
    q('v196Form').querySelectorAll('input,textarea').forEach(x=>x.disabled=true);
   }finally{
    if(lockId){const r=await db().rpc('saeiv_release_lock',{p_id:lockId,p_force:false});if(r.error)console.warn('[SAEIV] verrou à libérer',r.error)}
