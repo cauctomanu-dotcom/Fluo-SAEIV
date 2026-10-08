@@ -20,7 +20,7 @@ jobs:
           node --check v185-line-thermometer.js
           node --check sw.js
           node tests/driver-line-v191.test.cjs
-      - name: Validate module integration and 1.0.95 cache
+      - name: Validate module integration and 1.0.96 cache
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -29,7 +29,7 @@ jobs:
           manifest=Path('manifest.webmanifest').read_text()
           assert "v185-line-thermometer.js" in workflow
           assert "./v185-line-thermometer.js" in sw
-          assert "1.0.95" in sw and "1.0.95" in manifest
+          assert "1.0.96" in sw and "1.0.96" in manifest
           assert "gesture-initialized-webaudio-resilient" in Path('v131-speech.js').read_text()
           assert "maplibregl.Map" in Path('v144-day-hlp-driver.js').read_text()
           print('SAEIV driver release checks OK')
