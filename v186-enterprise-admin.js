@@ -96,7 +96,7 @@
   q('v186DriverDepot').value=d.depot_id||'';q('v186Contract').value=d.contract_type||'';
   q('v186Hours').value=d.weekly_contract_minutes===null?'':d.weekly_contract_minutes/60;q('v186DriverActive').checked=d.active;
   const {data,error}=await client().from('driver_settings').select('known_lines').eq('user_id',d.user_id).maybeSingle();if(error)throw error;
-  q('v186LinesKnown').value=(Array.isArray(data?.known_lines)?data.known_lines:[]).map(x=>typeof x==='string'?x:x?.line||x?.short||'').filter(Boolean).join(', ');
+  q('v186LinesKnown').value=(Array.isArray(data?.known_lines)?data.known_lines:[]).map(x=>typeof x==='string'?x:((x?.dept?x.dept+':':'')+(x?.line||x?.short||''))).filter(Boolean).join(', ');
  }
  async function autoMatricule(){
   if(!A.selected||!value('v186DriverDepot'))throw Error('Choisir conducteur et dépôt');
