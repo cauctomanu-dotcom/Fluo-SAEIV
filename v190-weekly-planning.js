@@ -42,7 +42,7 @@
  async function build(driverId){
   const date=board()?.date||from();
   await planner().openDriverDraft(driverId,date);
-  if(!board()?.segments?.length)await board().loadSegments();
+  await board().loadSegments();
   const db=cloud()?.client,org=cloud()?.profile?.organization_id;
   const [drafts,official]=await Promise.all([
    db.from('saeiv_planning_days').select('driver_user_id,items').eq('organization_id',org).eq('service_date',date),
