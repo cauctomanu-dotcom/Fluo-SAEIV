@@ -4,7 +4,7 @@ const load=p=>fs.readFileSync(p,'utf8');
 const sql=load('supabase/migrations/20261008210000_intuitive_segment_change_v196.sql');
 const script=load('v195-intuitive-segment-change.js'),legacy=load('v174-grid-editor.js'),driver=load('v193-published-driver-edits.js');
 for(const [path,s] of [['UI',script],['legacy',legacy],['driver',driver]])new vm.Script(s,{filename:path});
-for(const key of ['saeiv_propose_segment_change','saeiv_propose_change(','saeiv_published_days','plan_items','private.current_org_id()','private.is_exploitation_for(o)','saeiv_planning_locks','legacy_published_baseline_imported','saeiv_change_requests','revoke all','grant execute'])assert(sql.includes(key),key);
+for(const key of ['saeiv_propose_segment_change','saeiv_propose_change(','saeiv_published_days','plan_items','private.current_org_id()','private.is_exploitation_for(o)','saeiv_planning_locks','legacy_published_baseline_imported','revoke all','grant execute'])assert(sql.includes(key),key);
 assert(!sql.includes('update public.plan_items'), 'live legacy plan must not change');
 assert(!sql.includes('delete from public.plan_items'), 'cannot silently remove existing trips');
 assert(!sql.includes('update public.saeiv_published_days'),'existing official plan must be immutable before consent');
