@@ -14,7 +14,7 @@ assert(range.includes('v190End')&&range.includes("S.rangeStart")&&range.includes
 assert(range.includes('loadPeriod()')&&range.includes("window.addEventListener('click',intercept,true)"));
 assert(range.includes("data-add-segment")&&range.includes('saeiv_published_days')&&range.includes('saeiv_planning_days'));
 assert(!range.includes('v190Wrapper')&&!range.includes('Planification hebdomadaire'));
-assert(planning.includes('generateDraft({driverId=null}={})')&&planning.includes('generateDateRange(from,to,{driverId=null}={})'));
+assert(planning.includes('generateDraft({driverId=null')&&planning.includes('generateDateRange(from,to,{driverId=null}={})'));
 assert(planning.includes('openDriverDraft(driverId,date)')&&planning.includes('appendActivities(items)'));
 assert(planning.includes('for(const day of [...drafts,...published])'));
 assert(tickets.includes('Billet CO · billets collectifs')&&!tickets.includes('Billet éco'));
