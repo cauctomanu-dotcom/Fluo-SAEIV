@@ -44,7 +44,7 @@
   if(total<1||total>31)throw Error('Sélectionner entre 1 et 31 jours');
   if(!cloud()?.client||!cloud()?.profile?.organization_id||!board()?.setDate||!planner()?.generateDraft)throw Error('Modules d’exploitation non chargés. Recharger la page puis réessayer');
   const org=cloud().profile.organization_id;
-  const results=[];G.busy=true;G.cancel=false;G.history=[];
+  const results=[],workingDays=new Map();G.busy=true;G.cancel=false;G.history=[];
   install();if(q('v196Cancel'))q('v196Cancel').disabled=false;
   try{
    for(let i=0;i<total;i++){
@@ -70,6 +70,7 @@
       if(detail.phase==='assign'&&q('v196Details'))q('v196Details').textContent='Jour '+(i+1)+'/'+total+' · segments examinés '+detail.processed+'/'+detail.total+' · affectés '+detail.assigned+' · sans conducteur '+detail.unplaced;
      }});
      const after=await fetchVersions(org,day,driverId),afterSummary=overview(after,board().segments);
+     for(const [id,row] of after){if((row.items||[]).some(x=>['regular','school','tad','annex','other'].includes(x.type))){if(!workingDays.has(id))workingDays.set(id,new Set());workingDays.get(id).add(day)}}
      const saved=[...after].filter(([key,row])=>!before.has(key)||JSON.stringify(row.items)!==JSON.stringify(before.get(key).items));
      if(!saved.length){
       if(beforeSummary.existingDrivers>0&&!(stats?.assigned>0)){
@@ -98,7 +99,14 @@
    }
    const failed=results.filter(x=>!x.ok),existing=results.filter(x=>x.unchanged),empty=results.filter(x=>x.empty),newDays=results.filter(x=>x.ok&&!x.unchanged&&!x.empty);
    const assigned=results.reduce((n,x)=>n+(x.assigned||0),0),remaining=results.filter(x=>x.ok&&!x.empty).reduce((n,x)=>n+(x.remaining||0),0);
-   const summary='Période : '+newDays.length+' journée(s) avec nouvelles affectations · '+existing.length+' déjà planifiée(s) · '+empty.length+' sans circulation · '+failed.length+' véritable(s) erreur(s). '+assigned+' nouvelles courses · '+remaining+' segments encore à placer sur les dates préparées.'+(failed.length?' Voir les échecs datés dans le journal.':'')+' Brouillons NON validés : contrôler repos et RSE avant publication.';
+   const nextDate=x=>{const d=new Date(x+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10)};
+   let tooManyDays=0;for(const dates of workingDays.values()){
+    const sorted=[...dates].sort();let streak=0,maxStreak=0,last=null;
+    for(const day of sorted){streak=last&&day===nextDate(last)?streak+1:1;maxStreak=Math.max(maxStreak,streak);last=day}
+    if(maxStreak>6)tooManyDays++;
+   }
+   if(tooManyDays)note('⚠ Attention : '+tooManyDays+' conducteurs ont plus de 6 journées de travail consécutives sur la période. Repos à corriger avant validation, ne pas publier.');
+   const summary='Période : '+newDays.length+' journée(s) avec nouvelles affectations · '+existing.length+' déjà planifiée(s) · '+empty.length+' sans circulation · '+failed.length+' véritable(s) erreur(s). '+assigned+' nouvelles courses · '+remaining+' segments encore à placer sur les dates préparées.'+(tooManyDays?' ⚠ '+tooManyDays+' conducteur(s) dépassent 6 jours de travail consécutifs : REPOS À CORRIGER.':'')+(failed.length?' Voir les échecs datés dans le journal.':'')+' Brouillons NON validés : contrôler repos et RSE avant publication.';
    if(q('v196Title'))q('v196Title').textContent=summary;
    if(q('v190Status'))q('v190Status').textContent=summary;
    G.history=results;
