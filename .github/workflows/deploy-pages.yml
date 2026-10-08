@@ -142,7 +142,7 @@ jobs:
           set -euo pipefail
           python externalize_runtime.py site/index.html
 
-      - name: Split gateway and stamp release 1.0.98
+      - name: Split gateway and stamp release 1.0.99
         shell: bash
         run: |
           set -euo pipefail
@@ -155,7 +155,7 @@ jobs:
           from pathlib import Path
           import shutil
 
-          old_versions=[f'1.0.{n}' for n in range(22,98)]
+          old_versions=[f'1.0.{n}' for n in range(22,99)]
           for p in Path('site').rglob('*'):
               if not p.is_file() or p.suffix.lower() not in {'.html','.js','.json','.webmanifest'}:
                   continue
@@ -164,12 +164,12 @@ jobs:
               except UnicodeDecodeError:
                   continue
               for old in old_versions:
-                  t=t.replace(old,'1.0.98')
+                  t=t.replace(old,'1.0.99')
               p.write_text(t,encoding='utf-8')
 
           app=Path('site/app.html')
           t=app.read_text(encoding='utf-8')
-          early='<script src="./v184-navigation-resume.js?v=1.0.98"></script>'
+          early='<script src="./v184-navigation-resume.js?v=1.0.99"></script>'
           if early not in t:
               if '</head>' not in t:
                   raise SystemExit('balise </head> absente de app.html')
@@ -183,7 +183,7 @@ jobs:
             'v183-live-supervision.js','v185-line-thermometer.js','v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js','v189-collective-tickets.js','v190-weekly-planning.js','v191-bulk-drivers.js','v192-collective-smart.js','v193-published-driver-edits.js','v194-sick-approval-batches.js','v195-intuitive-segment-change.js','v196-generation-feedback.js'
           )
           for name in modules:
-              tag=f'<script src="./{name}?v=1.0.98"></script>'
+              tag=f'<script src="./{name}?v=1.0.99"></script>'
               if tag not in t:
                   if '</body>' not in t:
                       raise SystemExit('balise </body> absente de app.html')
@@ -198,7 +198,7 @@ jobs:
               shutil.copy2(Path('site')/name,public/name)
           PY
 
-      - name: Validate isolated runtime 1.0.98
+      - name: Validate isolated runtime 1.0.99
         shell: bash
         run: |
           set -euo pipefail
@@ -226,6 +226,7 @@ jobs:
           node tests/unified-planning-v194.test.cjs
           node tests/generation-observable-v197.test.cjs
           node tests/daily-service-generation-v198.test.cjs
+          node tests/draft-visibility-v199.test.cjs
           node tests/published-change-consent-v195.test.cjs
           node tests/intuitive-segment-v196.test.cjs
           node tests/planning-workflow-v192.test.cjs
@@ -251,14 +252,14 @@ jobs:
               if body.strip(): inline.append(body[:80])
           assert not inline, f'JavaScript inline résiduel: {inline[:2]}'
           for name in ('v165-exploitation-board.js','v167-generation-engine.js','v168-service-grid.js','v167-exploitation-performance.js','v174-grid-editor.js','v176-driver-absences.js','v177-smart-rest-unavailability.js','v178-sick-reassignment.js','v179-minimal-repair.js','v180-dispatch-messages.js','tracking-core.js','v182-live-tracking.js','v183-live-supervision.js'):
-              assert f'{name}?v=1.0.98' in app
-          assert 'v184-navigation-resume.js?v=1.0.98' in app
-          assert 'v185-line-thermometer.js?v=1.0.98' in app
+              assert f'{name}?v=1.0.99' in app
+          assert 'v184-navigation-resume.js?v=1.0.99' in app
+          assert 'v185-line-thermometer.js?v=1.0.99' in app
           for name in ('v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js','v189-collective-tickets.js','v190-weekly-planning.js','v191-bulk-drivers.js','v192-collective-smart.js','v193-published-driver-edits.js','v194-sick-approval-batches.js','v195-intuitive-segment-change.js','v196-generation-feedback.js'):
-              assert f'{name}?v=1.0.98' in app
-          assert app.index('v184-navigation-resume.js?v=1.0.98') < app.index('</head>')
-          assert '<title>Mon SAEIV · 1.0.98</title>' in app
-          assert 'login-gateway.js?v=1.0.98' in gateway
+              assert f'{name}?v=1.0.99' in app
+          assert app.index('v184-navigation-resume.js?v=1.0.99') < app.index('</head>')
+          assert '<title>Mon SAEIV · 1.0.99</title>' in app
+          assert 'login-gateway.js?v=1.0.99' in gateway
           assert 'Voyageur ?' not in gateway
           assert Path('site/voyageurs/index.html').is_file()
           assert 'Espace conducteur' not in Path('site/voyageurs/index.html').read_text(encoding='utf-8')
@@ -313,11 +314,11 @@ jobs:
               assert code in by54, f'ligne scolaire 54 {code} absente du GTFS publié'
           school54=[r for r in routes54 if str(r.get('short','')).strip().isdigit() and len(str(r.get('short','')).strip())==4]
           assert len(school54)>=180, f'catalogue scolaire 54 anormalement incomplet: {len(school54)} lignes'
-          print(f'Mon SAEIV 1.0.98 validé · scolaires 54={len(school54)} · audio iPhone résilient')
+          print(f'Mon SAEIV 1.0.99 validé · scolaires 54={len(school54)} · audio iPhone résilient')
           PY
 
-          grep -q "const CACHE='mon-saeiv-clean-1.0.98'" site/sw.js
-          grep -q '"name": "Mon SAEIV 1.0.98"' site/manifest.webmanifest
+          grep -q "const CACHE='mon-saeiv-clean-1.0.99'" site/sw.js
+          grep -q '"name": "Mon SAEIV 1.0.99"' site/manifest.webmanifest
           grep -q './v185-line-thermometer.js' site/sw.js
           grep -q './v186-enterprise-admin.js' site/sw.js
           grep -q './v187-collaborative-planning.js' site/sw.js
