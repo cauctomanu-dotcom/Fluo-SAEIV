@@ -26,11 +26,12 @@ return '<article class="v190day"><button data-open-day="'+date+'"><strong>'+day+
 function install(){
 if(q('v190Wrapper')||!q('v187Planning'))return;
 const style=document.createElement('style');style.textContent='#v190Wrapper{border:1px solid #406779;border-radius:12px;padding:12px;margin:8px 0}#v190Week{display:grid;grid-template-columns:repeat(7,minmax(130px,1fr));gap:6px;overflow-x:auto}#v190Week .v190day{background:#112d40;padding:9px;border:1px solid #31556a;border-radius:10px}#v190Week small,#v190Week b{display:block}#v190Week p{font-size:.65rem}';document.head.append(style);
-const wrapper=document.createElement('section');wrapper.id='v190Wrapper';wrapper.innerHTML='<h3>📅 Planification hebdomadaire</h3><p>Vue du lundi au dimanche. Cliquer un jour pour le préparer, valider ou publier indépendamment.</p><label>Début de semaine<input type="date" id="v190WeekStart"></label><button id="v190Prev">◀ Semaine précédente</button><button id="v190Next">Semaine suivante ▶</button><button id="v190Refresh">Actualiser</button><div id="v190Week"></div>';
+const wrapper=document.createElement('section');wrapper.id='v190Wrapper';wrapper.innerHTML='<h3>📅 Planification hebdomadaire</h3><p>Vue du lundi au dimanche. Cliquer un jour pour le préparer, valider ou publier indépendamment.</p><label>Début de semaine<input type="date" id="v190WeekStart"></label><button id="v190Prev">◀ Semaine précédente</button><button id="v190Next">Semaine suivante ▶</button><button id="v190Refresh">Actualiser</button><button id="v190GenerateWeek">✨ Créer les brouillons de la semaine</button><div id="v190Week"></div>';
 q('v187Planning').insertBefore(wrapper,q('v187Planning').children[2]||null);
 q('v190WeekStart').value=monday(pl()?.state?.date||new Date().toISOString().slice(0,10));
 for(const [id,offset]of [['v190Prev',-7],['v190Next',7]])q(id).addEventListener('click',()=>{q('v190WeekStart').value=d(q('v190WeekStart').value,offset);render().catch(console.warn)});
 q('v190Refresh').addEventListener('click',()=>render().catch(console.warn));
+q('v190GenerateWeek').addEventListener('click',async()=>{const btn=q('v190GenerateWeek');if(!confirm('Créer les brouillons des 7 journées sélectionnées ? Aucune publication automatique.'))return;btn.disabled=true;try{await pl().generateWeekDrafts(q('v190WeekStart').value);await render()}catch(e){alert(e.message||e)}finally{btn.disabled=false}});
 q('v190WeekStart').addEventListener('change',()=>render().catch(console.warn));
 q('v190Week').addEventListener('click',e=>{const b=e.target.closest('[data-open-day]');if(!b)return;q('v187Date').value=b.dataset.openDay;q('v187Date').dispatchEvent(new Event('change',{bubbles:true}));pl().loadDay().catch(console.warn)});
 render().catch(console.warn);
