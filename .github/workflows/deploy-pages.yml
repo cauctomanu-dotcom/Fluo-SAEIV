@@ -293,7 +293,7 @@ jobs:
           assert "ensureExactPatternGeometry(globalThis.state.pattern)" in ops
           assert "hasGeometry" in ops
           speech=Path('site/v131-speech.js').read_text(encoding='utf-8')
-          for token in ('IS_IOS','announcementOutput','announcementContext','unlockAnnouncementAudio','playIOSCloudBlob','independent-webaudio-resilient',"state==='interrupted'"):
+          for token in ('IS_IOS','announcementOutput','announcementContext','unlockAnnouncementAudio','playIOSCloudBlob','gesture-initialized-webaudio-resilient',"state==='interrupted'"):
               assert token in speech
           assert 'prepareAudioFromGesture' in speech
           assert 'IOS_SILENT_WAV' not in speech
