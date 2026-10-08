@@ -63,7 +63,7 @@ try{
  M.busy=false;
 }
 }
-function intercept(e){const b=e.target?.closest?.('[data-v195-edit]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();open(b.dataset.v195Edit).catch(e=>{ensure();q('v193EditModal').classList.remove('hide');msg(e.message||String(e),true)})}
+function intercept(e){const b=e.target?.closest?.('[data-v195-edit]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();(window.MonSAEIVSegmentChangeV195?.open?window.MonSAEIVSegmentChangeV195.open({driver_user_id:b.dataset.v195Edit,service_date:board()?.date}):open(b.dataset.v195Edit)).catch(e=>{ensure();q('v193EditModal').classList.remove('hide');msg(e.message||String(e),true)})}
 window.addEventListener('click',intercept,true);
 window.MonSAEIVPublishedEditV193={installed:true,open};
 })();
