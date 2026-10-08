@@ -207,8 +207,7 @@ create policy saeiv_locks_read on public.saeiv_planning_locks for select to auth
 create policy saeiv_days_dispatch on public.saeiv_planning_days for all to authenticated using (private.is_exploitation_for(organization_id)) with check (private.is_exploitation_for(organization_id));
 create policy saeiv_published_read on public.saeiv_published_days for select to authenticated using ((driver_user_id=auth.uid() and organization_id=private.current_org_id()) or private.is_exploitation_for(organization_id));
 create policy saeiv_changes_read on public.saeiv_change_requests for select to authenticated using ((driver_user_id=auth.uid() and organization_id=private.current_org_id()) or private.is_exploitation_for(organization_id));
-create policy saeiv_changes_dispatch_insert on public.saeiv_change_requests for insert to authenticated with check (private.is_exploitation_for(organization_id) and created_by=auth.uid() and status='pending');
-create policy saeiv_changes_dispatch_update on public.saeiv_change_requests for update to authenticated using (private.is_exploitation_for(organization_id)) with check (private.is_exploitation_for(organization_id));
+-- Proposal creation and all state transitions are RPC-only: dispatchers cannot spoof a driver's consent.
 create policy saeiv_notifications_self_read on public.saeiv_notifications for select to authenticated using (recipient_user_id=auth.uid() and organization_id=private.current_org_id());
 create policy saeiv_notifications_self_update on public.saeiv_notifications for update to authenticated using (recipient_user_id=auth.uid() and organization_id=private.current_org_id()) with check (recipient_user_id=auth.uid() and organization_id=private.current_org_id());
 create policy saeiv_audit_dispatch_read on public.saeiv_planning_audit for select to authenticated using (private.is_exploitation_for(organization_id));
@@ -217,8 +216,8 @@ create policy saeiv_audit_driver_read on public.saeiv_planning_audit for select 
 -- Client writes may not directly update published snapshots or audit records.
 grant select,insert,update,delete on public.saeiv_company_lines,public.saeiv_line_depots,public.saeiv_vehicle_rules,
  public.saeiv_driver_secondary_depots,public.saeiv_driver_line_skills,public.saeiv_vehicle_exceptions,
- public.saeiv_planning_days,public.saeiv_change_requests to authenticated;
-grant select on public.saeiv_published_days,public.saeiv_planning_locks,public.saeiv_planning_audit,public.saeiv_matricule_sequences to authenticated;
+ public.saeiv_planning_days to authenticated;
+grant select on public.saeiv_published_days,public.saeiv_planning_locks,public.saeiv_planning_audit,public.saeiv_matricule_sequences,public.saeiv_change_requests to authenticated;
 grant select on public.saeiv_notifications to authenticated;
 grant update(read_at) on public.saeiv_notifications to authenticated;
 grant usage,select on sequence public.saeiv_planning_audit_id_seq to authenticated;
@@ -228,8 +227,11 @@ create or replace function public.saeiv_require_planning_lock() returns trigger
 language plpgsql security invoker set search_path=public,pg_temp as $$
 declare oid uuid; d date;
 begin
- oid=coalesce(new.organization_id,old.organization_id);
- d=coalesce(new.service_date,old.service_date);
+ if tg_op='DELETE' then
+   oid=old.organization_id;d=old.service_date;
+ else
+   oid=new.organization_id;d=new.service_date;
+ end if;
  if not exists(select 1 from public.saeiv_planning_locks l where l.organization_id=oid
    and l.owner_id=auth.uid() and l.start_date<=d and l.end_date>=d and l.expires_at>now()) then
    raise exception 'VERROU_REQUIS: obtenir le verrou du planning avant toute modification';
@@ -334,6 +336,39 @@ begin
  values(r.organization_id,r.driver_user_id,'planning_published','Nouveau planning', 'Votre planning du '||to_char(r.service_date,'DD/MM/YYYY')||' est disponible.');
  return true;
 end $$;
+create or replace function public.saeiv_propose_change(p_driver uuid,p_date date,p_items jsonb,p_summary text)
+returns uuid language plpgsql security definer set search_path=public,private,pg_temp as $
+declare org uuid; official public.saeiv_published_days%rowtype; cid uuid;
+begin
+ org=private.current_org_id();
+ if org is null or not private.is_exploitation_for(org) then raise exception 'Non autorisé';end if;
+ if jsonb_typeof(p_items)<>'array' or length(trim(coalesce(p_summary,'')))=0 then raise exception 'Planning/description invalide';end if;
+ if not exists(select 1 from public.saeiv_planning_locks where organization_id=org and owner_id=auth.uid() and p_date between start_date and end_date and expires_at>now()) then raise exception 'Verrou requis';end if;
+ select * into official from public.saeiv_published_days where organization_id=org and driver_user_id=p_driver and service_date=p_date for update;
+ if not found then raise exception 'Première publication absente : publier le brouillon avant de proposer un changement';end if;
+ if official.items=p_items then raise exception 'Aucune différence entre les deux plannings';end if;
+ if exists(select 1 from public.saeiv_change_requests where organization_id=org and driver_user_id=p_driver and service_date=p_date and status in ('pending','accepted')) then raise exception 'Une modification est déjà en cours';end if;
+ insert into public.saeiv_change_requests(organization_id,driver_user_id,service_date,base_revision,previous_items,proposed_items,summary,created_by)
+ values(org,p_driver,p_date,official.revision,official.items,p_items,p_summary,auth.uid()) returning id into cid;
+ insert into public.saeiv_planning_audit(organization_id,driver_user_id,service_date,event,old_items,new_items,actor_id,change_id)
+ values(org,p_driver,p_date,'change_proposed',official.items,p_items,auth.uid(),cid);
+ insert into public.saeiv_notifications(organization_id,recipient_user_id,kind,title,message,payload)
+ values(org,p_driver,'change_proposed','Modification proposée',p_summary,jsonb_build_object('change_id',cid));
+ return cid;
+end $;
+create or replace function public.saeiv_cancel_change(p_change uuid)
+returns boolean language plpgsql security definer set search_path=public,private,pg_temp as $
+declare x public.saeiv_change_requests%rowtype;
+begin
+ select * into x from public.saeiv_change_requests where id=p_change for update;
+ if not found or not private.is_exploitation_for(x.organization_id) or x.status not in ('pending','accepted') then raise exception 'Proposition non annulable';end if;
+ update public.saeiv_change_requests set status='cancelled' where id=p_change;
+ insert into public.saeiv_planning_audit(organization_id,driver_user_id,service_date,event,old_items,new_items,actor_id,change_id)
+ values(x.organization_id,x.driver_user_id,x.service_date,'change_cancelled',x.previous_items,x.proposed_items,auth.uid(),p_change);
+ insert into public.saeiv_notifications(organization_id,recipient_user_id,kind,title,message)
+ values(x.organization_id,x.driver_user_id,'change_cancelled','Modification annulée','La proposition de changement a été retirée par exploitation.');
+ return true;
+end $;
 create or replace function public.saeiv_mark_change_seen(p_change uuid)
 returns boolean language plpgsql security definer set search_path=public,private,pg_temp as $$
 declare x public.saeiv_change_requests%rowtype;
@@ -383,11 +418,13 @@ end $$;
 revoke all on function public.saeiv_acquire_lock(date,date,text), public.saeiv_heartbeat_lock(uuid),
  public.saeiv_release_lock(uuid,boolean), public.saeiv_next_matricule(uuid),
  public.saeiv_validate_day(uuid), public.saeiv_publish_first_day(uuid),
+ public.saeiv_propose_change(uuid,date,jsonb,text),public.saeiv_cancel_change(uuid),
  public.saeiv_mark_change_seen(uuid), public.saeiv_respond_change(uuid,text),
  public.saeiv_finalize_change(uuid) from public,anon;
 grant execute on function public.saeiv_acquire_lock(date,date,text), public.saeiv_heartbeat_lock(uuid),
  public.saeiv_release_lock(uuid,boolean), public.saeiv_next_matricule(uuid),
  public.saeiv_validate_day(uuid), public.saeiv_publish_first_day(uuid),
+ public.saeiv_propose_change(uuid,date,jsonb,text),public.saeiv_cancel_change(uuid),
  public.saeiv_mark_change_seen(uuid), public.saeiv_respond_change(uuid,text),
  public.saeiv_finalize_change(uuid) to authenticated;
 -- Existing planning is unchanged. Realtime is scoped by the existing RLS policies.
