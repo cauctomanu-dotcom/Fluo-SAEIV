@@ -148,7 +148,7 @@
    if(lockError)throw lockError;
    if(!lock?.ok)throw Error('Journée verrouillée par '+(lock?.owner||'un autre agent'));lockId=lock.id;
    const proposal=replacement&&!deleteOnly?{
-     id:'gtfs-'+String(replacement.id),segment_id:String(replacement.id),date:S.date,
+     id:'replacement-'+String(replacement.id),segment_id:String(replacement.id),date:S.date,
      type:replacement.type||'regular',line:replacement.line||'',label:(replacement.line||'Ligne')+' · '+replacement.destination,
      start:replacement.start,end:replacement.end,origin:replacement.origin||'',destination:replacement.destination||'',
      originCoords:replacement.originCoords||null,destinationCoords:replacement.destinationCoords||null,
