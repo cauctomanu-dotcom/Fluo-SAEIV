@@ -1,4 +1,4 @@
-name: Validate SAEIV Enterprise 1.0.97
+name: Validate SAEIV Enterprise 1.0.98
 on:
   pull_request:
     branches: [main]
@@ -23,6 +23,7 @@ jobs:
           node tests/planning-workflow-v192.test.cjs
           node tests/unified-planning-v194.test.cjs
           node tests/generation-observable-v197.test.cjs
+          node tests/daily-service-generation-v198.test.cjs
           node tests/published-change-consent-v195.test.cjs
           node tests/intuitive-segment-v196.test.cjs
           node tests/driver-line-v191.test.cjs
@@ -38,7 +39,7 @@ jobs:
               assert token in m
           for name in ['v186-enterprise-admin.js','v187-collaborative-planning.js','v188-driver-inbox.js']:
               assert name in workflow and name in sw
-          assert '1.0.97' in manifest and '1.0.97' in sw
+          assert '1.0.98' in manifest and '1.0.98' in sw
           assert 'saeiv_published_days' in Path('v156-supabase-sync.js').read_text()
-          print('SAEIV 1.0.97 enterprise sources verified')
+          print('SAEIV 1.0.98 enterprise sources verified')
           PY
