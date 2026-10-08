@@ -96,9 +96,9 @@
     progress('Journées traitées : '+results.length+'/'+total,results.length,total);
     await new Promise(resolve=>setTimeout(resolve,10));
    }
-   const ok=results.filter(x=>x.ok).length,failed=results.filter(x=>!x.ok);
-   const empty=results.filter(x=>x.empty).length,assigned=results.reduce((n,x)=>n+(x.assigned||0),0);
-   const summary='Semaine : '+(ok-empty)+' jour(s) avec brouillons, '+empty+' jour(s) sans circulation GTFS, '+assigned+' nouvelles courses affectées. '+failed.length+' erreur(s).'+(failed.length?' Détails : '+failed.map(x=>x.date+' : '+x.error).join(' ; '):'');
+   const failed=results.filter(x=>!x.ok),existing=results.filter(x=>x.unchanged),empty=results.filter(x=>x.empty),newDays=results.filter(x=>x.ok&&!x.unchanged&&!x.empty);
+   const assigned=results.reduce((n,x)=>n+(x.assigned||0),0),remaining=results.filter(x=>x.ok&&!x.empty).reduce((n,x)=>n+(x.remaining||0),0);
+   const summary='Période : '+newDays.length+' journée(s) avec nouvelles affectations · '+existing.length+' déjà planifiée(s) · '+empty.length+' sans circulation · '+failed.length+' véritable(s) erreur(s). '+assigned+' nouvelles courses · '+remaining+' segments encore à placer sur les dates préparées.'+(failed.length?' Voir les échecs datés dans le journal.':'')+' Brouillons NON validés : contrôler repos et RSE avant publication.';
    if(q('v196Title'))q('v196Title').textContent=summary;
    if(q('v190Status'))q('v190Status').textContent=summary;
    G.history=results;
