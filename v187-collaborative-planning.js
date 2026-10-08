@@ -295,13 +295,14 @@
    for(const driver of eligible){
     const day=activities.get(driver.user_id),setting=settingsBy.get(driver.user_id);
     const scoring=engine.scoreCandidate(seg,driver,day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},{compactOnly:false});
-    if(!scoring.ok||!absenceCheck(driver.user_id,seg,day)||day.some(x=>['rh','cp'].includes(String(x.type||'').toLowerCase())))continue;
+    if(!scoring.ok){reject(scoring.reason||'HLP ou règles de conduite');continue}
+    if(!absenceCheck(driver.user_id,seg,day)||day.some(x=>['rh','cp'].includes(String(x.type||'').toLowerCase()))){reject('Repos, absence ou indisponibilité');continue}
     const rank=engine.planningRank(day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},scoring);
     const dailyTarget=Number(driver.weekly_contract_minutes)>0?Number(driver.weekly_contract_minutes)/5:420;
     const nextDay=[...day.filter(x=>['regular','school','tad'].includes(x.type)),seg];
     const rest=window.MonSAEIVSmartRestV177?.weeklyRestCheck?.({history:historyWork,driverId:driver.user_id,date,activities:nextDay,
       park:setting?.bus_parking,compactOnly:!!day.length,alreadyWorkingToday:!!day.length})||{ok:true,penalty:0};
-    if(!rest.ok)continue;
+    if(!rest.ok){reject(rest.reason||'Repos hebdomadaire');continue}
     const contractPenalty=Math.abs(Number(scoring.economy?.work||0)-dailyTarget)*20;
     ranked.push({driver,rank,contractPenalty:contractPenalty+Number(rest.penalty||0)});
    }
