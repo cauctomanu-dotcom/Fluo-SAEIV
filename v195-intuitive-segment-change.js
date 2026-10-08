@@ -80,7 +80,7 @@
   q('v196Form').addEventListener('submit',ev=>{ev.preventDefault();send().catch(e=>msg(e?.message||String(e),true))});
   updateSummary();
  }
- function sameLegacy(a,b){return String(a.id||'')===String(b.client_id||b.id||'')||String(a.legacy_item_id||'')===String(b.id||'')||
+ function sameLegacy(a,b){return String(a.id||'')===String(b.client_id||b.id||'')||(!!a.legacy_item_id&&!!b.id&&String(a.legacy_item_id)===String(b.id))||
   String(a.segment_id||'')===String(b.payload?.segment_id||'')&&!!a.segment_id||
   (!!a.line&&a.line===b.line&&hh(a.start)===hh(b.start_time)&&hh(a.end)===hh(b.end_time)) }
  async function open(item){
