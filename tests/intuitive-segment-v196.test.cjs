@@ -11,6 +11,7 @@ assert(!sql.includes('update public.saeiv_published_days'),'existing official pl
 for(const key of ['Modifier un service','Ligne / segment supprimé','Ligne / segment de remplacement','Supprimer cette course sans remplacement','Enregistrer, recalculer et envoyer au conducteur','saeiv_propose_segment_change','saeiv_acquire_lock','saeiv_release_lock','estimate(old,replacement)','scoreCandidate'])assert(script.includes(key),key);
 assert(legacy.includes('window.MonSAEIVSegmentChangeV195')&&legacy.includes('Des courses appartiennent à un planning officiellement publié'),'old editor must redirect and block destructive shortcuts');
 assert(driver.includes('window.MonSAEIVSegmentChangeV195.open'),'per-driver edit shortcut must use one shared UI');
+assert(board.includes('saeiv_published_days')&&board.includes('B.officialDriverIds')&&board.includes('guardOfficial'), 'the grid must display true official versions and guard against direct changes');
 const context={window:{},document:{},console:{log(){}},crypto:{randomUUID:()=> '0000'},setTimeout(){}};
 vm.runInNewContext(script,context);
 const api=context.window.MonSAEIVSegmentChangeV195;
