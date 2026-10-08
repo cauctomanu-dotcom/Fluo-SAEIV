@@ -201,6 +201,7 @@
   if(!hasLock())throw Error('Verrouiller d’abord la journée du planning');
   const board=window.MonSAEIVOperationsBoardV165,engine=window.MonSAEIVGenerationEngineV167;
   if(!board?.refresh||!engine?.scoreCandidate)throw Error('Moteur de génération indisponible');
+  if(!window.MonSAEIVSmartRestV177?.weeklyRestCheck)throw Error('Contrôle repos indisponible : génération bloquée par sécurité');
   const date=P.date,sourceDate=q('v165Date');
   if(sourceDate&&sourceDate.value!==date){sourceDate.value=date;sourceDate.dispatchEvent(new Event('change',{bubbles:true}))}
   await board.refresh();
@@ -260,7 +261,7 @@
    for(const driver of eligible){
     const day=activities.get(driver.user_id),setting=settingsBy.get(driver.user_id);
     const scoring=engine.scoreCandidate(seg,driver,day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},{compactOnly:false});
-    if(!scoring.ok||!absenceCheck(driver.user_id,seg,day))continue;
+    if(!scoring.ok||!absenceCheck(driver.user_id,seg,day)||day.some(x=>['rh','cp'].includes(String(x.type||'').toLowerCase())))continue;
     const rank=engine.planningRank(day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},scoring);
     const dailyTarget=Number(driver.weekly_contract_minutes)>0?Number(driver.weekly_contract_minutes)/5:420;
     const nextDay=[...day.filter(x=>['regular','school','tad'].includes(x.type)),seg];
