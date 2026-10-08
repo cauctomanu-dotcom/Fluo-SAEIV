@@ -294,6 +294,7 @@
   status('Pré-génération enregistrée en BROUILLONS · '+assigned+' courses affectées · '+unplaced+' non placées · '+restricted+' hors périmètre/contraintes · '+written+' journées. Contrôle RSE serveur requis avant validation définitive.');
  }
 
- window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,generateDraft,get state(){return P}};
+ function appendCollective(tasks){if(!hasLock())throw Error('Verrou obligatoire');if(P.official)throw Error('Planning déjà publié');for(const t of tasks){const i=P.items.findIndex(x=>x.id===t.id);if(i<0)P.items.push(t);else P.items[i]=t}renderItems();}
+ window.MonSAEIVPlanningV187={installed:true,install,loadDay,loadToolbox,generateDraft,appendCollective,get state(){return P}};
  setInterval(tick,1300);
 })();
