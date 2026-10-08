@@ -58,10 +58,12 @@
      progress('Journée '+(i+1)+'/'+total+' · '+day+' · calcul des affectations…',i,total);
      await planner().takeLock();
      if(!planner().state.lock||planner().state.lock.date!==day)throw Error('Verrou de planification non obtenu');
-     await planner().generateDraft({driverId});
+     const stats=await planner().generateDraft({driverId,onProgress:detail=>{
+      if(detail.phase==='assign'&&q('v196Details'))q('v196Details').textContent='Jour '+(i+1)+'/'+total+' · segments examinés '+detail.processed+'/'+detail.total+' · affectés '+detail.assigned+' · sans conducteur '+detail.unplaced;
+     }});
      const after=await fetchVersions(org,day);
      const saved=[...after].filter(([key,row])=>!before.has(key)||JSON.stringify(row.items)!==JSON.stringify(before.get(key).items));
-     if(!saved.length)throw Error('Aucun brouillon sauvegardé : tous les segments sont déjà attribués ou aucun conducteur n’est compatible (stationnement, HLP, compétences, RSE).');
+     if(!saved.length)throw Error('Aucun nouveau brouillon. '+(stats?.assigned||0)+' courses placées, '+(stats?.unplaced||0)+' impossibles, '+(stats?.restricted||0)+' exclues. '+(stats?.topReasons||[]).slice(0,4).map(x=>x.reason+' ('+x.count+')').join(' · '));
      const services=saved.reduce((n,[,r])=>n+(r.items?.length||0),0);
      result={date:day,ok:true,saved:saved.length,services};
      note('✅ '+day+' : '+saved.length+' brouillons enregistrés, '+services+' activités dans ces brouillons');
