@@ -325,8 +325,11 @@
    },{onConflict:'organization_id,driver_user_id,service_date'});
    if(error)throw error;written++;
   }
+  const topReasons=[...reasons.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6).map(([reason,count])=>({reason,count}));
+  onProgress?.({phase:'saved',processed:segments.length,total:segments.length,assigned,unplaced,restricted,written,topReasons});
   await loadDay();
-  status('Pré-génération enregistrée en BROUILLONS · '+assigned+' courses affectées · '+unplaced+' non placées · '+restricted+' hors périmètre/contraintes · '+written+' journées. Contrôle RSE serveur requis avant validation définitive.');
+  status('Pré-génération '+date+' · '+assigned+' affectés · '+unplaced+' sans conducteur · '+restricted+' hors périmètre · '+written+' brouillons. '+topReasons.map(x=>x.reason+': '+x.count).join(' ; '));
+  return {date,segments:segments.length,assigned,unplaced,restricted,written,topReasons,eligibleDrivers:eligible.length};
  }
 
  function appendCollective(tasks){if(!hasLock())throw Error('Verrou obligatoire');if(P.official)throw Error('Planning déjà publié');for(const t of tasks){const i=P.items.findIndex(x=>x.id===t.id);if(i<0)P.items.push(t);else P.items[i]=t}renderItems();}
