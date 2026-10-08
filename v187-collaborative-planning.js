@@ -359,8 +359,7 @@
    }catch(e){results.push({date:day,ok:false,error:e?.message||String(e)})}
    finally{if(P.lock)try{await releaseLock()}catch{}}
   }
-  await board.setDate(from);
-  await board.loadSegments();
+  try{await board.setDate(from);await board.loadSegments()}catch(e){console.warn('[SAEIV] retour à la date de début impossible',e)}
   return results;
  }
 
