@@ -282,8 +282,12 @@
      ['bus','minibus','van'].find(t=>r.some(x=>x.vehicle_type===t&&x.policy==='allowed')) ;
    return chosen||null;
   };
-  let assigned=0,unplaced=0,restricted=0;
+  let assigned=0,unplaced=0,restricted=0,processed=0;
+  const reasons=new Map();
+  const reject=reason=>reasons.set(reason,(reasons.get(reason)||0)+1);
   for(const seg of segments){
+   processed++;
+   if(processed%40===0){onProgress?.({phase:'assign',processed,total:segments.length,assigned,unplaced});await new Promise(r=>setTimeout(r,0));}
    if(used.has(String(seg.id))||used.has(String(seg.tripId||'')))continue;
    if(!allowed(seg)){restricted++;continue}
    const vehicleType=choseVehicle(seg);if(!vehicleType){restricted++;continue}
