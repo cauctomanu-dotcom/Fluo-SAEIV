@@ -205,13 +205,28 @@
   if(sourceDate&&sourceDate.value!==date){sourceDate.value=date;sourceDate.dispatchEvent(new Event('change',{bubbles:true}))}
   await board.refresh();
   const segments=board.segments||[];if(!segments.length)throw Error('Aucune course GTFS chargée pour ce jour');
-  const [drivers,settings,existing,drafts,published,lines,rules,exceptions]=await Promise.all([
+  const startHistory=new Date(date+'T12:00:00Z');startHistory.setUTCDate(startHistory.getUTCDate()-28);
+  const fromHistory=startHistory.toISOString().slice(0,10);
+  const [drivers,settings,existing,drafts,published,lines,rules,exceptions,history,unavailable,historicalPublished]=await Promise.all([
    client().from('profiles').select('user_id,matricule,display_name,active,depot_id,weekly_contract_minutes').eq('organization_id',org()).eq('role','driver').eq('active',true).then(x=>{if(x.error)throw x.error;return x.data||[]}),
    select('driver_settings',{}),select('plan_items',{service_date:date}),
    select('saeiv_planning_days',{service_date:date}),select('saeiv_published_days',{service_date:date}),
-   select('saeiv_company_lines',{}),select('saeiv_vehicle_rules',{}),select('saeiv_vehicle_exceptions',{service_date:date})
+   select('saeiv_company_lines',{}),select('saeiv_vehicle_rules',{}),select('saeiv_vehicle_exceptions',{service_date:date}),
+   client().from('plan_items').select('driver_user_id,service_date,type,start_time,end_time,source,payload').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
+   select('driver_unavailability',{service_date:date}),
+   client().from('saeiv_published_days').select('driver_user_id,service_date,items').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]})
   ]);
   const settingsBy=new Map(settings.map(x=>[x.user_id,x])),draftBy=new Map(drafts.map(x=>[x.driver_user_id,x]));
+  const historyWork=[...history];
+  for(const day of historicalPublished){if(day.service_date===date)continue;for(const item of day.items||[])historyWork.push({driver_user_id:day.driver_user_id,service_date:day.service_date,type:item.type||'regular',start_time:item.start||item.start_time,end_time:item.end||item.end_time,source:'dispatch',payload:item})}
+  const absenceCheck=(driver,seg,current)=>{
+   const absolute=history.some(x=>x.driver_user_id===driver&&x.service_date===date&&(
+    ['rh','cp'].includes(String(x.type||'').toLowerCase())||['RH','CP'].includes(String(x.payload?.absence_kind||'').toUpperCase())));
+   if(absolute)return false;
+   const toMin=t=>{const m=String(t||'').match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null};
+   const overlap=(a,b,c,d)=>{const vals=[a,b,c,d].map(toMin);return vals.every(Number.isFinite)&&vals[0]<vals[3]&&vals[1]>vals[2]};
+   return !unavailable.some(x=>x.driver_user_id===driver&&(overlap(seg.start,seg.end,x.start_time,x.end_time)||current.some(y=>overlap(y.start,y.end,x.start_time,x.end_time))));
+  };
   const publishedIds=new Set(published.map(x=>x.driver_user_id));
   const eligible=drivers.filter(d=>!publishedIds.has(d.user_id));
   if(!eligible.length)throw Error('Toutes les journées sont déjà publiées : les changements doivent faire l’objet d’un accord');
@@ -245,11 +260,15 @@
    for(const driver of eligible){
     const day=activities.get(driver.user_id),setting=settingsBy.get(driver.user_id);
     const scoring=engine.scoreCandidate(seg,driver,day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},{compactOnly:false});
-    if(!scoring.ok)continue;
+    if(!scoring.ok||!absenceCheck(driver.user_id,seg,day))continue;
     const rank=engine.planningRank(day.filter(x=>['regular','school','tad'].includes(x.type)),setting||{},scoring);
     const dailyTarget=Number(driver.weekly_contract_minutes)>0?Number(driver.weekly_contract_minutes)/5:420;
+    const nextDay=[...day.filter(x=>['regular','school','tad'].includes(x.type)),seg];
+    const rest=window.MonSAEIVSmartRestV177?.weeklyRestCheck?.({history:historyWork,driverId:driver.user_id,date,activities:nextDay,
+      park:setting?.bus_parking,compactOnly:!!day.length,alreadyWorkingToday:!!day.length})||{ok:true,penalty:0};
+    if(!rest.ok)continue;
     const contractPenalty=Math.abs(Number(scoring.economy?.work||0)-dailyTarget)*20;
-    ranked.push({driver,rank,contractPenalty});
+    ranked.push({driver,rank,contractPenalty:contractPenalty+Number(rest.penalty||0)});
    }
    ranked.sort((a,b)=>a.rank.dayTier-b.rank.dayTier||a.contractPenalty-b.contractPenalty||a.rank.compactPenalty-b.rank.compactPenalty||a.rank.incremental-b.rank.incremental);
    if(!ranked.length){unplaced++;continue}
