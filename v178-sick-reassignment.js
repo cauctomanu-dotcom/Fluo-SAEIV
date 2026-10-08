@@ -159,7 +159,12 @@
     try{
       const{data,error}=await c.rpc('register_sick_leave',{p_organization_id:p.organization_id,p_driver_user_id:driver,p_from:from,p_to:to,p_reason:reason});if(error)throw error;
       await board()?.refresh?.();await smart()?.loadUnavailability?.(dateValue());await loadAndDecorateSick();
-      const n=Number(data?.displacedCourses||0),days=Number(data?.days||datesBetween(from,to).length);modalStatus(`✅ Arrêt enregistré sur ${days} jour${days>1?'s':''}. ${n} course${n>1?'s':''} libérée${n>1?'s':''} et placée${n>1?'s':''} dans la file « à replacer ». Les autres plannings n'ont pas été modifiés.`,'ok');
+      const n=Number(data?.displacedCourses||0),days=Number(data?.days||datesBetween(from,to).length);const approval=window.MonSAEIVSickApprovalV194;
+      if(approval?.propose){
+       const results=await approval.propose(from,to,driver,reason);
+       const sent=results.filter(x=>x.batch_id),skipped=results.filter(x=>x.skipped),failed=results.filter(x=>x.error);
+       modalStatus('Arrêt enregistré · '+n+' course(s) déplacée(s) du planning historique. '+sent.length+' journée(s) publiée(s) : propositions envoyées aux conducteurs concernés, encore NON appliquées. '+(skipped.length?'Sans services publiés : '+skipped.length+'. ':'')+(failed.length?'⚠ Réaffectation publiée non proposée pour : '+failed.map(x=>x.date+' ('+x.error+')').join('; ')+'. Reprise manuelle indispensable.':''),failed.length?'err':'ok');
+      }else modalStatus('Arrêt enregistré · '+n+' course(s) placée(s) dans la file historique. ⚠ La gestion des plannings déjà publiés n’a pas pu être chargée.','err');
     }catch(err){modalStatus(err?.message||String(err),'err')}finally{S.busy=false}
   }
 
