@@ -45,7 +45,7 @@
    if(gap.minutes>0)add('hlp',t,t+gap.minutes,a.destination,b.origin,'HLP entre courses estimé · '+gap.km+' km',{estimatedKm:gap.km,originCoords:point(a.destinationCoords),destinationCoords:point(b.originCoords)});
    if(next>t+gap.minutes){
     const idle=next-t-gap.minutes;
-    add('cut',t+gap.minutes,next,b.origin,b.origin, (idle>=30?'Coupure':'Attente')+' estimée · '+idle+' min, qualification et rémunération à confirmer',{estimatedMinutes:idle,cutClassification:idle>=30?'provisional_cut':'waiting'});
+    add(idle>=30?'cut':'pause',t+gap.minutes,next,b.origin,b.origin, (idle>=30?'Coupure':'Attente')+' estimée · '+idle+' min, qualification et rémunération à confirmer',{estimatedMinutes:idle,cutClassification:idle>=30?'provisional_cut':'waiting'});
    }
   }
   if(returning===null){issues.push('Retour dépôt : coordonnées manquantes, HLP de fin non calculé.');add('end',ends,ends+5,last.destination,name,'Fin de service provisoire — retour dépôt à vérifier')}
