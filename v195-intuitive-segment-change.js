@@ -31,7 +31,7 @@
   const source=which==='old'?S.old:S.segments,query=q(which==='old'?'v196Old':'v196Replacement')?.value||'',
    container=q(which==='old'?'v196OldList':'v196ReplacementList');
   if(!container)return;
-  if(!query.trim()&&which==='new'){container.innerHTML='';return}
+  // Empty search opens the initial dropdown; typing narrows the available line/segment list.
   const matches=source.map((x,i)=>({x,i})).filter(({x})=>tokensMatch(query,x)).slice(0,55);
   container.innerHTML=matches.length?matches.map(({x,i})=>'<button type="button" class="v196-choice" data-v196-pick="'+which+'" data-index="'+i+'">'+esc(format(x))+'</button>').join(''):
     '<div class="v196-help" style="padding:9px">Aucun segment correspondant. Vérifie les départements chargés et la date.</div>';
