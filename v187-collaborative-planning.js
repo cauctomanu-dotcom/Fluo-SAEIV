@@ -237,7 +237,7 @@
   const startHistory=new Date(date+'T12:00:00Z');startHistory.setUTCDate(startHistory.getUTCDate()-28);
   const fromHistory=startHistory.toISOString().slice(0,10);
   const [drivers,settings,existing,drafts,published,lines,rules,exceptions,history,unavailable,historicalPublished]=await Promise.all([
-   client().from('profiles').select('user_id,matricule,display_name,active,depot_id,weekly_contract_minutes').eq('organization_id',org()).eq('role','driver').eq('active',true).then(x=>{if(x.error)throw x.error;return x.data||[]}),
+   client().from('profiles').select('user_id,matricule,display_name,active,depot_id,weekly_contract_minutes,is_test_driver').eq('organization_id',org()).eq('role','driver').eq('active',true).then(x=>{if(x.error)throw x.error;return x.data||[]}),
    select('driver_settings',{}),select('plan_items',{service_date:date}),
    select('saeiv_planning_days',{service_date:date}),select('saeiv_published_days',{service_date:date}),
    select('saeiv_company_lines',{}),select('saeiv_vehicle_rules',{}),select('saeiv_vehicle_exceptions',{service_date:date}),
