@@ -25,9 +25,17 @@
   if(q('v190Status'))q('v190Status').textContent=message;
   if(q('v196Details'))q('v196Details').textContent='Journées terminées : '+done+' / '+total;
  }
- async function fetchVersions(org,date){
-  const {data,error:dbError}=await cloud().client.from('saeiv_planning_days').select('driver_user_id,revision,items').eq('organization_id',org).eq('service_date',date);
+ async function fetchVersions(org,date,driverId=null){
+  let query=cloud().client.from('saeiv_planning_days').select('driver_user_id,revision,items').eq('organization_id',org).eq('service_date',date);
+  if(driverId)query=query.eq('driver_user_id',driverId);
+  const {data,error:dbError}=await query;
   if(dbError)throw dbError;return new Map((data||[]).map(x=>[x.driver_user_id,x]));
+ }
+ function overview(rows,segments){
+  const ids=new Set(segments.map(x=>String(x.id))),covered=new Set();let activities=0;
+  for(const row of rows.values())for(const item of row.items||[]){activities++;const id=item.segment_id||item.payload?.segment_id;if(id!=null&&ids.has(String(id)))covered.add(String(id))}
+  for(const item of board()?.items||[]){const id=item.payload?.segment_id||item.segment_id;if(id!=null&&ids.has(String(id)))covered.add(String(id))}
+  return {existingDrivers:rows.size,existingActivities:activities,covered:covered.size,remaining:Math.max(0,segments.length-covered.size)};
  }
  async function run(from,to,{driverId=null,onProgress=null}={}){
   if(G.busy)throw Error('Une génération est déjà en cours');
@@ -51,7 +59,7 @@
      const regular=board().segments.filter(x=>x.type==='regular').length,school=board().segments.filter(x=>x.type==='school').length;
      note(day+' : '+n+' segments ACTIFS ce jour (réguliers '+regular+', scolaires '+school+', autres '+(n-regular-school)+')');
      if(!n){result={date:day,ok:true,empty:true,saved:0,services:0,segments:0};note('ℹ️ '+day+' : aucun service GTFS actif. Aucun brouillon inutile créé');onProgress?.({phase:'empty',date:day,dayIndex:i+1,dayCount:total})}else{
-     const before=await fetchVersions(org,day);
+     const before=await fetchVersions(org,day,driverId),beforeSummary=overview(before,board().segments);
      if(!q('v187Date'))throw Error('Éditeur de brouillons non initialisé');
      q('v187Date').value=day;planner().state.date=day;
      if(driverId){if(!q('v187Driver'))throw Error('Sélecteur conducteur indisponible');q('v187Driver').value=driverId;planner().state.driver=driverId}
@@ -61,14 +69,22 @@
      const stats=await planner().generateDraft({driverId,onProgress:detail=>{
       if(detail.phase==='assign'&&q('v196Details'))q('v196Details').textContent='Jour '+(i+1)+'/'+total+' · segments examinés '+detail.processed+'/'+detail.total+' · affectés '+detail.assigned+' · sans conducteur '+detail.unplaced;
      }});
-     const after=await fetchVersions(org,day);
+     const after=await fetchVersions(org,day,driverId),afterSummary=overview(after,board().segments);
      const saved=[...after].filter(([key,row])=>!before.has(key)||JSON.stringify(row.items)!==JSON.stringify(before.get(key).items));
-     if(!saved.length)throw Error('Aucun nouveau brouillon. '+(stats?.assigned||0)+' courses placées, '+(stats?.unplaced||0)+' impossibles, '+(stats?.restricted||0)+' exclues. '+(stats?.topReasons||[]).slice(0,4).map(x=>x.reason+' ('+x.count+')').join(' · '));
-     const services=saved.reduce((n,[,r])=>n+(r.items?.length||0),0);
-     result={date:day,ok:true,saved:saved.length,services,gtfsSegments:n,regular,school,...stats};
-     note('✅ '+day+' : '+n+' courses du calendrier GTFS · '+(stats?.assigned||0)+' nouvelles affectations · '+(stats?.unplaced||0)+' non placées · '+saved.length+' brouillons modifiés');
-     if(stats?.topReasons?.length)note('Causes de refus : '+stats.topReasons.map(x=>x.reason+' ('+x.count+')').join(' · '));
-     onProgress?.({phase:'finished',date:day,dayIndex:i+1,dayCount:total,...result});
+     if(!saved.length){
+      if(beforeSummary.existingDrivers>0&&!(stats?.assigned>0)){
+       result={date:day,ok:true,unchanged:true,gtfsSegments:n,regular,school,saved:0,services:afterSummary.existingActivities,
+        ...afterSummary,assigned:0,unplaced:stats?.unplaced||0,topReasons:stats?.topReasons||[]};
+       note('📝 '+day+' : PLANNING DÉJÀ PRÉPARÉ · '+afterSummary.existingDrivers+' conducteur(s) · '+afterSummary.existingActivities+' activités en brouillons · '+afterSummary.covered+'/'+n+' segments affectés · '+afterSummary.remaining+' restant(s)');
+       onProgress?.({phase:'unchanged',dayIndex:i+1,dayCount:total,...result});
+      }else throw Error('Aucun brouillon exploitable sauvegardé : '+(stats?.assigned||0)+' courses placées, '+(stats?.unplaced||0)+' impossibles, '+(stats?.restricted||0)+' exclues. '+(stats?.topReasons||[]).slice(0,4).map(x=>x.reason+' ('+x.count+')').join(' · '));
+     }else{
+      const services=saved.reduce((n,[,r])=>n+(r.items?.length||0),0);
+      result={date:day,ok:true,saved:saved.length,services,gtfsSegments:n,regular,school,...stats,...afterSummary};
+      note('✅ '+day+' : '+n+' courses GTFS · '+afterSummary.covered+' déjà affectées au total · '+(stats?.assigned||0)+' nouvelles affectations · '+afterSummary.remaining+' encore à placer · '+saved.length+' brouillons modifiés');
+      if(stats?.topReasons?.length)note('Motifs de refus des candidats (pas des courses distinctes) : '+stats.topReasons.map(x=>x.reason+' ('+x.count+')').join(' · '));
+      onProgress?.({phase:'finished',date:day,dayIndex:i+1,dayCount:total,...result});
+     }
      }
     }catch(e){
      result.error=error(e);note('❌ '+day+' : '+result.error);
