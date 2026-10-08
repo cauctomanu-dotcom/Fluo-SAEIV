@@ -28,6 +28,7 @@ assert.ok(code.generation.includes('MonSAEIVPlanningV187?.generateDraft'),'legac
 assert.ok(code.driver.includes('saeiv_respond_change')&&code.driver.includes('accepted')&&code.driver.includes('refused'));
 assert.ok(code.sync.includes("saeiv_published_days"),'driver sync must read publication records');
 assert.ok(code.sync.includes("publishedDates.has(x.service_date)"),'legacy entries superseded on published days');
+assert.ok(code.sync.includes('!protectedDates.has(x.service_date)'),'legacy database items must not be deleted after publication');
 for(const [name,source]of Object.entries(code)){
  const doc={getElementById(){return null},addEventListener(){},readyState:'loading'};
  const ctx={window:{addEventListener(){},removeEventListener(){}},document:doc,localStorage:{getItem(){return null},setItem(){}},setInterval(){return 0},clearInterval(){},
