@@ -239,7 +239,7 @@
   const segments=board.segments||[];if(!segments.length)throw Error('Aucune course GTFS chargée pour ce jour');
   const startHistory=new Date(date+'T12:00:00Z');startHistory.setUTCDate(startHistory.getUTCDate()-28);
   const fromHistory=startHistory.toISOString().slice(0,10);
-  const [drivers,settings,existing,drafts,published,lines,rules,exceptions,history,unavailable,historicalPublished,historicalDrafts,operatorMembers]=await Promise.all([
+  const [drivers,settings,existing,drafts,published,lines,rules,exceptions,history,unavailable,historicalPublished,historicalDrafts]=await Promise.all([
    client().from('profiles').select('user_id,matricule,display_name,active,depot_id,weekly_contract_minutes,is_test_driver').eq('organization_id',org()).eq('role','driver').eq('active',true).then(x=>{if(x.error)throw x.error;return x.data||[]}),
    select('driver_settings',{}),select('plan_items',{service_date:date}),
    select('saeiv_planning_days',{service_date:date}),select('saeiv_published_days',{service_date:date}),
@@ -247,8 +247,7 @@
    client().from('plan_items').select('driver_user_id,service_date,type,start_time,end_time,source,payload').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
    select('driver_unavailability',{service_date:date}),
    client().from('saeiv_published_days').select('driver_user_id,service_date,items').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
-   client().from('saeiv_planning_days').select('driver_user_id,service_date,items,status').eq('organization_id',org()).gte('service_date',fromHistory).lt('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
-   client().from('saeiv_operator_driver_memberships').select('driver_user_id,operator_name').eq('organization_id',org()).eq('operator_name','René Antoni').then(x=>{if(x.error)throw x.error;return x.data||[]})
+   client().from('saeiv_planning_days').select('driver_user_id,service_date,items,status').eq('organization_id',org()).gte('service_date',fromHistory).lt('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]})
   ]);
   const settingsBy=new Map(settings.map(x=>[x.user_id,x])),draftBy=new Map(drafts.map(x=>[x.driver_user_id,x]));
   const officialKeys=new Set(historicalPublished.filter(x=>x.service_date<date).map(x=>x.driver_user_id+'|'+x.service_date));
@@ -266,16 +265,10 @@
    return !unavailable.some(x=>x.driver_user_id===driver&&(overlap(seg.start,seg.end,x.start_time,x.end_time)||current.some(y=>overlap(y.start,y.end,x.start_time,x.end_time))));
   };
   const publishedIds=new Set(published.map(x=>x.driver_user_id));
-  const holidayCrew=operatorMembers.filter(x=>x.operator_name==='René Antoni');
-  const memberIds=new Set(holidayCrew.map(x=>x.driver_user_id));
-  const dispatcher=cloud()?.profile?.role==='dispatcher';
-  // Company roster always applies for dispatchers. A date before 17 October
-  // must not silently widen the generation from 27 to all 101 test drivers.
-  const eligible=drivers.filter(d=>!publishedIds.has(d.user_id)
-    &&(!driverId||d.user_id===driverId)
-    &&(!dispatcher||memberIds.has(d.user_id)));
-  if(dispatcher&&!memberIds.size)throw Error('Aucun conducteur affecté à René Antoni : génération annulée.');
-  if(!eligible.length)throw Error('Toutes les journées sont déjà publiées : les changements doivent faire l’objet d’un accord');
+  // Only profiles owned by the current company may be scheduled.
+  // The ANTONI organization starts with 27 pilots, with no permanent limit.
+  const eligible=drivers.filter(d=>!publishedIds.has(d.user_id)&&(!driverId||d.user_id===driverId));
+  if(!eligible.length)throw Error('Aucun conducteur de la société disponible pour cette journée');
   const activities=new Map(eligible.map(d=>[d.user_id,Array.isArray(draftBy.get(d.user_id)?.items)?
    structuredClone(draftBy.get(d.user_id).items):
    existing.filter(x=>x.driver_user_id===d.user_id).map(x=>({...x.payload,id:x.client_id||x.id,date,type:x.type,line:x.line,
