@@ -285,11 +285,20 @@
   for(const activitiesDay of activities.values())for(const a of activitiesDay){if(a.segment_id)used.add(String(a.segment_id));if(a.linked?.tripId)used.add(String(a.linked.tripId))}
   for(const day of [...drafts,...published])for(const a of day.items||[]){if(a.segment_id)used.add(String(a.segment_id));if(a.linked?.tripId)used.add(String(a.linked.tripId))}
   for(const row of existing){if(row.payload?.segment_id)used.add(String(row.payload.segment_id));if(row.linked?.tripId)used.add(String(row.linked.tripId))}
-  const activeLines=lines.filter(x=>x.active&&(x.start_date<=date)&&(!x.end_date||x.end_date>=date));
+  const activeLines=lines.filter(x=>x.active&&(!x.start_date||x.start_date<=date)&&(!x.end_date||x.end_date>=date));
   const key=x=>String(x||'').replace(/\s+/g,'').toUpperCase();
-  const allowed=seg=>!activeLines.length||activeLines.some(l=>l.department===String(seg.dept||seg.linked?.dept||'')&&key(l.line_code)===key(seg.line));
+  const lineKey=value=>{
+    const raw=key(value);
+    const regular=raw.match(/^(?:(?:54|57)R|R)?0*(\d+)$/);
+    if(regular)return 'R'+String(Number(regular[1]));
+    const school=raw.match(/^(DZ|MH|CS|ELB|EHP)0*(\d+)$/);
+    return school?school[1]+String(Number(school[2])):raw;
+  };
+  if(!activeLines.length)throw Error('Aucune ligne de la société n’est active à cette date : génération bloquée pour éviter les courses hors périmètre.');
+  const allowed=seg=>activeLines.some(l=>String(l.department)===String(seg.dept||seg.linked?.dept||'')
+    &&lineKey(l.line_code)===lineKey(seg.line));
   const choseVehicle=seg=>{
-   const l=activeLines.find(l=>l.department===String(seg.dept||'')&&key(l.line_code)===key(seg.line));
+   const l=activeLines.find(l=>String(l.department)===String(seg.dept||seg.linked?.dept||'')&&lineKey(l.line_code)===lineKey(seg.line));
    if(!l)return 'bus';
    const exception=exceptions.find(x=>x.line_id===l.id);if(exception)return exception.vehicle_type;
    const r=rules.filter(x=>x.line_id===l.id);
