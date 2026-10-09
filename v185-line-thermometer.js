@@ -89,7 +89,17 @@
       '#v185LineList li.end{font-weight:900}#v185LineList li span{display:block;font-size:.7rem;color:#bed5e0}'+
       '#v185LineBus{font-size:.87rem;font-weight:950;padding:7px 9px;border-radius:10px;background:#ffdf70;color:#13252e;margin:4px 0 4px -12px;position:relative}'+
       '#v185LineBus::before{content:"";height:var(--v185-bus-position);width:4px;background:#ffdf70;position:absolute;left:-32px;top:-25px}'+
-      '@media(max-width:650px){#v185LineHeader strong{font-size:1.05rem}#v185LineList{max-height:42vh}#v185ViewSwitch button{font-size:.96rem}}';
+      '@media(max-width:650px){#v185LineHeader strong{font-size:1.05rem}#v185LineList{max-height:42vh}#v185ViewSwitch button{font-size:.96rem}}'+
+      '@media(orientation:landscape) and (max-height:650px) and (max-width:1100px){'+
+      '#driver #v185ViewSwitch{display:none!important}'+
+      '#driver .v15-landscape-side #v185LandscapeSwitch{display:grid!important;grid-template-columns:1fr 1fr;gap:5px;flex:0 0 auto}'+
+      '#v185LandscapeSwitch button{padding:8px 4px;min-height:37px;font-size:.73rem;font-weight:900;background:#173041;color:#edf7ff;border:1px solid #54788a;border-radius:9px}'+
+      '#v185LandscapeSwitch button[aria-pressed="true"]{background:#ffe071;color:#15252c;border-color:#ffe071}'+
+      '#driver.v185-view-line .navmap-wrap{display:none!important}'+
+      '#driver.v185-view-line #v185Line{display:block!important;grid-column:1;grid-row:1;margin:0!important;height:100%;min-height:0;overflow:hidden}'+
+      '#driver.v185-view-map #v185Line{display:none!important}'+
+      '#driver #v185LineHeader{padding:10px 14px}#driver #v185LineList{max-height:calc(100% - 115px);min-height:0;overflow-y:auto}'+
+      '}';
     document.head.appendChild(style);
     const switcher=document.createElement('div');switcher.id='v185ViewSwitch';switcher.setAttribute('role','group');switcher.setAttribute('aria-label','Affichage de conduite');
     const mapButton=document.createElement('button');mapButton.type='button';mapButton.id='v185MapBtn';mapButton.textContent='🗺 Carte';
@@ -99,15 +109,25 @@
     linePanel.innerHTML='<header id="v185LineHeader"><div><small id="v185LineNumber">Ligne —</small><strong id="v185LineDirection">—</strong></div><time id="v185LineClock"></time></header><div id="v185LineDelay">En attente de GPS</div><div id="v185LineRequest" hidden>🔔 ARRÊT DEMANDÉ</div><ol id="v185LineList"></ol>';
     wrap.after(linePanel);
     mapButton.addEventListener('click',()=>setView('map'));lineButton.addEventListener('click',()=>setView('line'));
-    ui={wrap,linePanel,mapButton,lineButton};
+    const side=byId('v15LandscapeSide');let sideMap=null,sideLine=null;
+    if(side){
+      const group=document.createElement('div');group.id='v185LandscapeSwitch';group.setAttribute('role','group');group.setAttribute('aria-label','Choix de vue en conduite');
+      sideMap=document.createElement('button');sideMap.type='button';sideMap.id='v185SideMap';sideMap.textContent='🗺 Carte';
+      sideLine=document.createElement('button');sideLine.type='button';sideLine.id='v185SideLine';sideLine.textContent='🚏 Baromètre';
+      group.append(sideMap,sideLine);(side.querySelector('.v15-line-box')||side).insertAdjacentElement('afterend',group);
+      sideMap.addEventListener('click',()=>setView('map'));sideLine.addEventListener('click',()=>setView('line'));
+    }
+    ui={wrap,linePanel,mapButton,lineButton,sideMap,sideLine};
     applyView();
   }
   function applyView(){
     if(!ui)return;
     ui.wrap.style.display=view==='map'?'':'none';
     ui.linePanel.style.display=view==='line'?'':'none';
+    const driver=byId('driver');driver?.classList.toggle('v185-view-line',view==='line');driver?.classList.toggle('v185-view-map',view==='map');
     ui.mapButton.setAttribute('aria-pressed',String(view==='map'));
     ui.lineButton.setAttribute('aria-pressed',String(view==='line'));
+    ui.sideMap?.setAttribute('aria-pressed',String(view==='map'));ui.sideLine?.setAttribute('aria-pressed',String(view==='line'));
     if(view==='map')setTimeout(()=>{
       try{state?.nav?.map?.invalidateSize?.()}catch{}
       try{window.__fluoV16?.map3d?.resize?.()}catch{}

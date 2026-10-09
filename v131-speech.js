@@ -134,8 +134,14 @@
     const indicator=document.getElementById('v131AudioActivate');
     if(!indicator)return;
     let driving=false;try{driving=!!state?.running||!!window.MonSAEIVDayAutopilotV144?.snapshot?.running}catch{}
-    indicator.hidden=!driving||outputReady();
-    indicator.setAttribute('aria-label','Son des annonces à réactiver');
+    const side=document.getElementById('v15LandscapeSide'),portrait=document.querySelector('#driver .controls');
+    const isLandscape=!!window.matchMedia?.('(orientation:landscape) and (max-height:650px) and (max-width:1100px)').matches;
+    const target=isLandscape?side:portrait;
+    if(target&&indicator.parentElement!==target)target.appendChild(indicator);
+    // This control is always within the driving panel, never fixed over the map or bottom navigation.
+    indicator.hidden=!driving||!target;
+    if(!indicator.dataset.busy){indicator.textContent=outputReady()?'🔊 Tester les annonces':'🔊 Activer le son';}
+    indicator.setAttribute('aria-label',outputReady()?'Tester ou réactiver les annonces vocales':'Réactiver le son des annonces');
   }
   function prepareAudioFromGesture(){
     firstGestureAt=Date.now();
@@ -285,8 +291,26 @@
     const userAudioWake=()=>{prepareAudioFromGesture();setTimeout(()=>{try{pumpSpeech()}catch{}},40)};
     if(!document.getElementById('v131AudioActivate')){
       const btn=document.createElement('button');btn.id='v131AudioActivate';btn.type='button';btn.hidden=true;
-      btn.textContent='🔊 Réactiver les annonces';btn.style.cssText='position:fixed;bottom:max(12px,env(safe-area-inset-bottom));right:12px;z-index:2147483000;background:#5d431b;color:#fff4d2;border:1px solid #bb9752;border-radius:10px;font-weight:800;padding:9px 12px;box-shadow:0 3px 14px #0008';
-      btn.addEventListener('click',userAudioWake);document.body.appendChild(btn);
+      btn.textContent='🔊 Activer le son';btn.style.cssText='position:static!important;display:block;min-height:35px;max-width:100%;width:100%;grid-column:1/-1;background:#24445b;color:#fff5dd;border:1px solid #8fa9bb;border-radius:9px;font-weight:850;font-size:.72rem;padding:7px 8px;margin:5px 0;box-shadow:none!important';
+      btn.addEventListener('click',async()=>{
+        // Begin audio resume synchronously in the trusted tap event: required by iOS Safari.
+        const ready=prepareAudioFromGesture();btn.dataset.busy='1';btn.disabled=true;btn.textContent='⏳ Activation audio…';
+        const a=getAudioState();if(a){a.passengerEnabled=true;try{localStorage.setItem('fluoPassengerAnnouncementsEnabled','on')}catch{}}
+        try{
+          const ok=await ready;
+          if(!ok){btn.textContent='⚠ Son bloqué · toucher pour réessayer';btn.title='iOS bloque encore la sortie audio. Vérifier le volume et toucher à nouveau.';return}
+          btn.textContent='🔊 Test vocal demandé';btn.title='Le moteur vocal va prononcer une courte confirmation';
+          try{say('Annonces vocales actives.',{priority:92,kind:'system'})}catch(e){console.warn('[SAEIV] test sonore',e)}
+          // Explicit audio action also restores the UI toggle, without changing navigation guidance.
+          for(const id of ['v28PassengerToggleSide','v28PassengerToggle']){
+            const toggle=document.getElementById(id);
+            if(toggle){toggle.setAttribute('aria-pressed','true');toggle.classList.remove('v28-off');toggle.textContent='🔊 Arrêts / destination ON'}
+          }
+          const display=document.getElementById('v315PassengerToggle');
+          if(display){display.classList.remove('off');display.setAttribute('aria-pressed','true');const value=display.querySelector('b');if(value)value.textContent='ON'}
+        }catch(e){btn.textContent='⚠ Réessayer le son';console.warn('[SAEIV] reprise annonces',e)}
+        finally{btn.disabled=false;delete btn.dataset.busy;setTimeout(updateAudioIndicator,2000)}
+      });document.body.appendChild(btn);updateAudioIndicator();
     }
     document.addEventListener('pointerdown',userAudioWake,{capture:true,passive:true});
     document.addEventListener('touchstart',userAudioWake,{capture:true,passive:true});
