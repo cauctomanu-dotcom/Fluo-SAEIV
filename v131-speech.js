@@ -3,7 +3,7 @@
    Les annonces voyageurs utilisent la même voix IA sur Android/iPhone quand la session serveur est active.
    En cas d'absence réseau/TTS, le moteur Web Speech local reprend automatiquement. */
 (()=>{
-  const VERSION='1.0.104';
+  const VERSION='1.0.105';
   const START_RETRY_MS=2200, CANCEL_RESTART_MS=140, RECENT_MS=12000, IDENTITY_STOP_INTERVAL=5;
   const CLOUD_URL='https://xpmrnwipnoekiycghwli.supabase.co/functions/v1/passenger-tts';
   const CLOUD_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
@@ -391,28 +391,61 @@
         finally{btn.disabled=false;delete btn.dataset.busy;btn.dataset.feedbackUntil=String(Date.now()+8000);setTimeout(updateAudioIndicator,8200)}
       });document.body.appendChild(btn);updateAudioIndicator();
     }
-    // Override the obsolete V12 home preview: it cleared the speech queue and
-    // used the old speechSynthesis path rather than the same iPhone TTS output as the bus.
+    // Safari iOS requires speechSynthesis.speak() in the *trusted click* itself.
+    // The previous preview queued a cloud request, losing iOS user activation before
+    // fallback, and a concurrent beep could mask an otherwise valid speech test.
+    let activePreview=null,previewTimeout=null;
+    const previewFeedback=(message,error=false)=>{
+      const el=document.getElementById('v131VoicePreviewStatus');
+      if(el){el.textContent=message;el.style.color=error?'#ffc0b7':'#bce8d4'}
+    };
     document.addEventListener('click',event=>{
       const control=event.target?.closest?.('#voiceTest');
       if(!control)return;
       event.preventDefault();event.stopImmediatePropagation();
-      const text=(document.getElementById('passengerVoiceGender')?.value==='male'
-        ?'Aperçu de la voix homme. Prochain arrêt, Delme République.'
-        :'Aperçu de la voix femme. Prochain arrêt, Delme République.');
-      control.disabled=true;control.textContent='🔊 Test de la voix en cours…';
-      // Both calls start inside this user tap so iOS can unlock the output.
-      const probe=probeIOSMediaFromGesture();
-      prepareAudioFromGesture();
-      const audio=getAudioState();
-      if(audio){audio.queue=[];if(audio.current)cancelCurrent('home-preview')}
-      try{say(text,{priority:150,kind:'system',ephemeral:false})}
-      catch(e){console.warn('[SAEIV] aperçu vocal',e)}
-      Promise.resolve(probe).then(result=>{
-        if(IS_IOS&&!result?.ok)control.title='iPhone : sortie audio refusée ('+(result?.reason||'erreur')+'). Vérifier le volume et la sortie son.';
-        else control.title='La voix doit maintenant prononcer un aperçu. Sur iPhone, le bip teste la sortie multimédia.';
-      }).catch(e=>{control.title='Test audio impossible : '+(e?.message||e)});
-      setTimeout(()=>{control.disabled=false;control.textContent='🔊 Écouter la voix'},4500);
+      const speech=synth();
+      if(!speech||typeof SpeechSynthesisUtterance==='undefined'){
+        previewFeedback('La synthèse vocale du navigateur est indisponible.',true);return;
+      }
+      if(!document.getElementById('v131VoicePreviewStatus')){
+        const label=document.createElement('small');label.id='v131VoicePreviewStatus';
+        label.setAttribute('role','status');label.style.cssText='display:block;margin:6px 0;font-size:.76rem;line-height:1.4';
+        control.insertAdjacentElement('afterend',label);
+      }
+      // The local preview deliberately plays without network, even when cloud TTS
+      // is unavailable. Regular passenger announcements still use cloud-first.
+      const preference=passengerVoicePreference();
+      const phrase=preference==='male'
+        ?'Essai de la voix masculine. Prochain arrêt, Delme République.'
+        :'Essai de la voix féminine. Prochain arrêt, Delme République.';
+      try{
+        // Both resume and speak begin during this user gesture, never after fetch.
+        prepareAudioFromGesture();
+        speech.cancel();
+        const utterance=new SpeechSynthesisUtterance(phrase);
+        utterance.lang='fr-FR';utterance.rate=.92;utterance.volume=1;
+        const profile=voiceProfile();if(profile.voice)utterance.voice=profile.voice;
+        if(Number.isFinite(profile.pitch))utterance.pitch=profile.pitch;
+        if(previewTimeout)clearTimeout(previewTimeout);
+        activePreview=utterance;
+        control.disabled=true;control.textContent='🔊 Lecture du test…';
+        previewFeedback('Test vocal local en cours (sans connexion Internet).');
+        const finish=(message,error=false)=>{
+          if(activePreview!==utterance)return;
+          if(previewTimeout)clearTimeout(previewTimeout);
+          previewTimeout=null;activePreview=null;
+          control.disabled=false;control.textContent='🔊 Écouter la voix';
+          previewFeedback(message,error);
+        };
+        utterance.onstart=()=>previewFeedback('La voix du téléphone est en train de parler.');
+        utterance.onend=()=>finish('Test vocal terminé. Les annonces IA restent prioritaires en service.');
+        utterance.onerror=e=>finish('Lecture refusée ('+String(e?.error||'erreur')+'). Vérifiez volume et sortie audio.',true);
+        previewTimeout=setTimeout(()=>finish('Aucun démarrage vocal détecté. Vérifiez le volume et les réglages de voix du téléphone.',true),12000);
+        speech.speak(utterance); // synchronous trusted user gesture: required by iOS
+      }catch(e){
+        activePreview=null;control.disabled=false;control.textContent='🔊 Écouter la voix';
+        previewFeedback('Impossible de lancer le test vocal : '+String(e?.message||e),true);
+      }
     },true);
     document.addEventListener('pointerdown',userAudioWake,{capture:true,passive:true});
     document.addEventListener('touchstart',userAudioWake,{capture:true,passive:true});
@@ -425,7 +458,51 @@
     window.MonSAEIVSpeechV148=window.MonSAEIVSpeechV131;setTimeout(()=>{if(window.MonSAEIVCloudV156?.user)markCloudLabel()},1800);
     console.info('[Mon SAEIV] moteur vocal SAEIV autonome + cloud OpenAI + secours local actif');return true;
   }
+  // Defensive mobile layout, installed from the entrypoint's always-loaded voice module.
+  // Android landscape must be scrollable on the setup screen; driver controls
+  // remain finger-sized and horizontally scrollable instead of clipping 8 buttons.
+  function installMobileSafetyStyle(){
+    if(document.getElementById('v131MobileSafety20261009'))return;
+    const style=document.createElement('style');style.id='v131MobileSafety20261009';
+    style.textContent=`
+      @media (max-width:900px){
+        html,body,.app,#setup,#driver{box-sizing:border-box!important;min-width:0!important;max-width:100%!important}
+        #setup .grid,#setup .sim-config,#setup label,#driver .grid{min-width:0!important;max-width:100%!important}
+        #setup input,#setup select,#setup button,#driver input,#driver select,#driver button{box-sizing:border-box!important;max-width:100%!important}
+        .sheet-backdrop .sheet{max-height:calc(100dvh - env(safe-area-inset-top))!important;overflow-y:auto!important}
+      }
+      @media (orientation:landscape) and (max-height:650px) and (max-width:1100px){
+        html,body{overflow-x:hidden!important}
+        body{overflow-y:auto!important;overscroll-behavior-y:contain}
+        .app{width:100%!important;max-width:100%!important}
+        #setup:not(.hidden){height:auto!important;max-height:none!important;overflow:visible!important}
+        #driver:not(.hidden){max-width:100%!important;min-height:0!important;overflow:hidden!important}
+        #driver>#v31LandscapeBottom{display:flex!important;grid-column:1/3!important;grid-row:2!important;
+          flex-wrap:nowrap!important;gap:5px!important;min-width:0!important;max-width:100%!important;
+          overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-x:contain!important;
+          touch-action:pan-x!important;-webkit-overflow-scrolling:touch!important;padding:4px!important}
+        #driver>#v31LandscapeBottom button{flex:0 0 clamp(84px,12vw,138px)!important;
+          box-sizing:border-box!important;width:auto!important;min-width:84px!important;
+          max-width:none!important;min-height:42px!important;padding:5px 7px!important;
+          font-size:clamp(.64rem,1.4vw,.78rem)!important;line-height:1.15!important;
+          white-space:normal!important;overflow-wrap:anywhere!important}
+        #driver #v15LandscapeSide{overflow-y:auto!important;overscroll-behavior-y:contain!important}
+      }
+      @media (orientation:portrait) and (max-width:800px){
+        body{overflow-x:hidden!important}
+        .app{width:100%!important;padding-left:max(8px,env(safe-area-inset-left))!important;
+          padding-right:max(8px,env(safe-area-inset-right))!important}
+        #driver .controls,#driver .sim-controls{display:grid!important;
+          grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+        #driver .controls button,#driver .sim-controls button{min-width:0!important;
+          min-height:44px!important;white-space:normal!important;overflow-wrap:anywhere!important}
+        #setup #voiceTest{width:100%!important;min-height:46px!important}
+        #driver .navmap-wrap{max-width:100%!important;width:100%!important}
+      }
+    `;
+    document.head.appendChild(style);
+  }
   function versionLabel(){document.title=`Mon SAEIV · ${VERSION}`;const b=document.getElementById('buildInfo');if(b)b.textContent=`Version ${VERSION}`}
-  function boot(){versionLabel();if(!installEngine()){let tries=0;const t=setInterval(()=>{if(installEngine()||++tries>60)clearInterval(t)},125)}setTimeout(versionLabel,6000)}
+  function boot(){installMobileSafetyStyle();versionLabel();if(!installEngine()){let tries=0;const t=setInterval(()=>{if(installEngine()||++tries>60)clearInterval(t)},125)}setTimeout(versionLabel,6000)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
