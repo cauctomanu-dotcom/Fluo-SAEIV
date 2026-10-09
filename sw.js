@@ -1,11 +1,12 @@
 'use strict';
 
-const CACHE='mon-saeiv-clean-1.0.106';
+const CACHE='mon-saeiv-clean-1.0.108';
 const CORE=[
   './voyageurs.html','./voyageurs.css','./voyageurs.js','./tracking-core.js','./v182-live-tracking.js','./v183-live-supervision.js','./v184-navigation-resume.js','./v185-line-thermometer.js',
   './v186-enterprise-admin.js','./v187-collaborative-planning.js','./v188-driver-inbox.js','./v189-collective-tickets.js','./v190-weekly-planning.js','./v191-bulk-drivers.js','./v192-collective-smart.js','./v193-published-driver-edits.js','./v194-sick-approval-batches.js','./v195-intuitive-segment-change.js','./v196-generation-feedback.js','./v197-service-blocks.js','./v198-planning-ux.js','./v199-cockpit-responsive.js',
   './',
   './index.html',
+  './login.html',
   './login-gateway.js',
   './app.html',
   './manifest.webmanifest',
@@ -89,7 +90,7 @@ self.addEventListener('fetch',event=>{
   const request=event.request;if(request.method!=='GET')return;const url=new URL(request.url);
   if(request.mode==='navigate'){
     const passenger=/\/voyageurs(?:\/|\/index\.html|\.html)$/.test(url.pathname);
-    const fallback=passenger?(url.pathname.endsWith('/voyageurs.html')?'./voyageurs.html':'./voyageurs/index.html'):url.pathname.endsWith('/app.html')?'./app.html':'./index.html';
+    const fallback=passenger?(url.pathname.endsWith('/voyageurs.html')?'./voyageurs.html':'./voyageurs/index.html'):url.pathname.endsWith('/login.html')?'./login.html':'./index.html';
     event.respondWith(networkFirst(request,fallback));return;
   }
   if(url.origin===self.location.origin){event.respondWith(networkFirst(request));return}
