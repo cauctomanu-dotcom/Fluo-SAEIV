@@ -266,7 +266,9 @@
    return !unavailable.some(x=>x.driver_user_id===driver&&(overlap(seg.start,seg.end,x.start_time,x.end_time)||current.some(y=>overlap(y.start,y.end,x.start_time,x.end_time))));
   };
   const publishedIds=new Set(published.map(x=>x.driver_user_id));
-  const eligible=drivers.filter(d=>!publishedIds.has(d.user_id)&&(!driverId||d.user_id===driverId));
+  const holidayCrew=operatorMembers.filter(x=>x.operator_name==='René Antoni');
+  const memberIds=new Set(holidayCrew.map(x=>x.driver_user_id));
+  const eligible=drivers.filter(d=>!publishedIds.has(d.user_id)&&(!driverId||d.user_id===driverId)&&(!holidayCrew.length||memberIds.has(d.user_id)));
   if(!eligible.length)throw Error('Toutes les journées sont déjà publiées : les changements doivent faire l’objet d’un accord');
   const activities=new Map(eligible.map(d=>[d.user_id,Array.isArray(draftBy.get(d.user_id)?.items)?
    structuredClone(draftBy.get(d.user_id).items):
