@@ -151,8 +151,11 @@
     setCloudStatus('Déconnecté du serveur.');switchMode('login');
     if(oldRole==='dispatcher'||oldRole==='admin'){
       // Leave the protected exploitation interface; do not simply close the dialog.
-      try{window.MonSAEIVEntryBridgeV160?.openGateway?.(oldRole)}catch{}
-      location.replace('./?role='+encodeURIComponent(oldRole)+'&signed_out=1');
+      if(window.MonSAEIVEntryBridgeV160?.openGateway){
+        window.MonSAEIVEntryBridgeV160.openGateway(oldRole);
+      }else{
+        location.replace('./?role='+encodeURIComponent(oldRole)+'&signed_out=1');
+      }
     }else prefillFromLocal();
   }
   function stripPrivate(item){const out={};for(const [k,v] of Object.entries(item||{})){if(!k.startsWith('_server')&&k!=='_lockedByExploitation')out[k]=v}return out}
