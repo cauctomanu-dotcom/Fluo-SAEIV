@@ -247,7 +247,8 @@
    client().from('plan_items').select('driver_user_id,service_date,type,start_time,end_time,source,payload').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
    select('driver_unavailability',{service_date:date}),
    client().from('saeiv_published_days').select('driver_user_id,service_date,items').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
-   client().from('saeiv_planning_days').select('driver_user_id,service_date,items,status').eq('organization_id',org()).gte('service_date',fromHistory).lt('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]})
+   client().from('saeiv_planning_days').select('driver_user_id,service_date,items,status').eq('organization_id',org()).gte('service_date',fromHistory).lt('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
+   client().from('saeiv_operator_driver_memberships').select('driver_user_id,operator_name').eq('organization_id',org()).lte('valid_from',date).gte('valid_until',date).then(x=>{if(x.error)throw x.error;return x.data||[]})
   ]);
   const settingsBy=new Map(settings.map(x=>[x.user_id,x])),draftBy=new Map(drafts.map(x=>[x.driver_user_id,x]));
   const officialKeys=new Set(historicalPublished.filter(x=>x.service_date<date).map(x=>x.driver_user_id+'|'+x.service_date));
