@@ -3,7 +3,7 @@
    Les annonces voyageurs utilisent la même voix IA sur Android/iPhone quand la session serveur est active.
    En cas d'absence réseau/TTS, le moteur Web Speech local reprend automatiquement. */
 (()=>{
-  const VERSION='1.0.91';
+  const VERSION='1.0.104';
   const START_RETRY_MS=2200, CANCEL_RESTART_MS=140, RECENT_MS=12000, IDENTITY_STOP_INTERVAL=5;
   const CLOUD_URL='https://xpmrnwipnoekiycghwli.supabase.co/functions/v1/passenger-tts';
   const CLOUD_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
@@ -309,7 +309,7 @@
         if(!cloudCandidate(item))return launchLocal(prepared,true,0);
         // Sur iPhone, la voix IA utilise une sortie Web Audio SAEIV indépendante.
         // La radio n'est qu'une source média facultative que duckStart/duckEnd peut atténuer.
-        if(IS_IOS&&!(await unlockAnnouncementAudio()))return launchLocal(prepared,true,0);
+        if(IS_IOS&&!announcementOutput.mediaUnlocked&&!(await unlockAnnouncementAudio())&&!announcementOutput.mediaUnlocked)return launchLocal(prepared,true,0);
         const controller=new AbortController(),cur={priority:Number(item.priority??50),kind:item.kind||'general',token,item,mode:'cloud',abort:controller,audio:null,source:null,objectUrl:null,ducked:false,finished:false,started:false,startWatch:null};audio.current=cur;
         const timeout=setTimeout(()=>controller.abort('timeout'),CLOUD_TIMEOUT_MS);
         const started=()=>{
@@ -391,6 +391,29 @@
         finally{btn.disabled=false;delete btn.dataset.busy;btn.dataset.feedbackUntil=String(Date.now()+8000);setTimeout(updateAudioIndicator,8200)}
       });document.body.appendChild(btn);updateAudioIndicator();
     }
+    // Override the obsolete V12 home preview: it cleared the speech queue and
+    // used the old speechSynthesis path rather than the same iPhone TTS output as the bus.
+    document.addEventListener('click',event=>{
+      const control=event.target?.closest?.('#voiceTest');
+      if(!control)return;
+      event.preventDefault();event.stopImmediatePropagation();
+      const text=(document.getElementById('passengerVoiceGender')?.value==='male'
+        ?'Aperçu de la voix homme. Prochain arrêt, Delme République.'
+        :'Aperçu de la voix femme. Prochain arrêt, Delme République.');
+      control.disabled=true;control.textContent='🔊 Test de la voix en cours…';
+      // Both calls start inside this user tap so iOS can unlock the output.
+      const probe=probeIOSMediaFromGesture();
+      prepareAudioFromGesture();
+      const audio=getAudioState();
+      if(audio){audio.queue=[];if(audio.current)cancelCurrent('home-preview')}
+      try{say(text,{priority:150,kind:'system',ephemeral:false})}
+      catch(e){console.warn('[SAEIV] aperçu vocal',e)}
+      Promise.resolve(probe).then(result=>{
+        if(IS_IOS&&!result?.ok)control.title='iPhone : sortie audio refusée ('+(result?.reason||'erreur')+'). Vérifier le volume et la sortie son.';
+        else control.title='La voix doit maintenant prononcer un aperçu. Sur iPhone, le bip teste la sortie multimédia.';
+      }).catch(e=>{control.title='Test audio impossible : '+(e?.message||e)});
+      setTimeout(()=>{control.disabled=false;control.textContent='🔊 Écouter la voix'},4500);
+    },true);
     document.addEventListener('pointerdown',userAudioWake,{capture:true,passive:true});
     document.addEventListener('touchstart',userAudioWake,{capture:true,passive:true});
     document.addEventListener('click',userAudioWake,{capture:true,passive:true});
