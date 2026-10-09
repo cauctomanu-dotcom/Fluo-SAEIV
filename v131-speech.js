@@ -197,7 +197,7 @@
     }
     // This control is always within the driving panel, never fixed over the map or bottom navigation.
     indicator.hidden=!driving||!target;
-    if(!indicator.dataset.busy){indicator.textContent=outputReady()?'🔊 Tester les annonces':'🔊 Activer le son';}
+    if(!indicator.dataset.busy&&Number(indicator.dataset.feedbackUntil||0)<Date.now()){indicator.textContent=outputReady()?'🔊 Tester les annonces':'🔊 Activer le son';}
     indicator.setAttribute('aria-label',outputReady()?'Tester ou réactiver les annonces vocales':'Réactiver le son des annonces');
   }
   function prepareAudioFromGesture(){
@@ -226,7 +226,7 @@
     ready.then(updateAudioIndicator).catch(updateAudioIndicator);
     return ready;
   }
-  async function playIOSCloudBlob(blob,cur,onStarted,onEnded){
+  async function playIOSCloudBlob(blob,cur,onStarted,onEnded,onError){
     const media=announcementOutput.htmlMedia;
     if(media&&announcementOutput.mediaUnlocked){
       let url=null;
@@ -236,7 +236,7 @@
         media.src=url;media.currentTime=0;media.volume=1;media.muted=false;
         cur.audio=media;cur.objectUrl=url;
         media.onplaying=()=>onStarted?.();media.onended=()=>onEnded?.();
-        media.onerror=()=>onEnded?.();
+        media.onerror=()=>onError?.('Lecture HTML Audio iPhone interrompue');
         await media.play();
         return media;
       }catch(e){
@@ -334,7 +334,7 @@
           if(cur.finished||audio.current!==cur||obsolete(item)){disposeCloud(cur,false);return setTimeout(()=>pumpSpeech(),20)}
           cur.startWatch=setTimeout(()=>{if(!cur.started&&!cur.finished)fallbackCloud('aucun démarrage audio détecté')},CLOUD_START_TIMEOUT_MS);
           if(IS_IOS){
-            await playIOSCloudBlob(blob,cur,started,done);
+            await playIOSCloudBlob(blob,cur,started,done,fallbackCloud);
           }else{
             cur.objectUrl=URL.createObjectURL(blob);const media=new Audio(cur.objectUrl);cur.audio=media;
             media.preload='auto';media.playsInline=true;media.volume=1;media.muted=false;
@@ -378,7 +378,7 @@
           const [webReady,probeResult]=await Promise.all([ready,probe]);
           const ok=!!webReady||!!probeResult.ok;
           if(!ok){btn.textContent='⚠ Audio iPhone refusé · réessayer';btn.title='Lecture refusée ('+probeResult.reason+'). Vérifier le volume, le mode silencieux, la sortie Bluetooth et Safari.';return}
-          btn.textContent='🔊 BIP joué · test vocal lancé';btn.title=probeResult.ok?'Un bip a été lancé par le lecteur audio iPhone. Une annonce vocale doit suivre.':'Le moteur Web Audio a été débloqué, mais le lecteur iPhone n’a pas démarré.';
+          btn.textContent=IS_IOS?'🔊 Bip + voix en test':'🔊 Test vocal lancé';btn.title=probeResult.ok?'Un bip a été lancé par le lecteur audio iPhone. Une annonce vocale doit suivre.':'Le moteur Web Audio a été débloqué, mais le lecteur iPhone n’a pas démarré.';
           try{say('Annonces vocales actives.',{priority:92,kind:'system'})}catch(e){console.warn('[SAEIV] test sonore',e)}
           // Explicit audio action also restores the UI toggle, without changing navigation guidance.
           for(const id of ['v28PassengerToggleSide','v28PassengerToggle']){
@@ -388,7 +388,7 @@
           const display=document.getElementById('v315PassengerToggle');
           if(display){display.classList.remove('off');display.setAttribute('aria-pressed','true');const value=display.querySelector('b');if(value)value.textContent='ON'}
         }catch(e){btn.textContent='⚠ Réessayer le son';console.warn('[SAEIV] reprise annonces',e)}
-        finally{btn.disabled=false;delete btn.dataset.busy;setTimeout(updateAudioIndicator,8000)}
+        finally{btn.disabled=false;delete btn.dataset.busy;btn.dataset.feedbackUntil=String(Date.now()+8000);setTimeout(updateAudioIndicator,8200)}
       });document.body.appendChild(btn);updateAudioIndicator();
     }
     document.addEventListener('pointerdown',userAudioWake,{capture:true,passive:true});
