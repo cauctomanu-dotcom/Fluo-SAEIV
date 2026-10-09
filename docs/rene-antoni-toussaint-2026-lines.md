@@ -16,7 +16,7 @@ Les correspondances ci-dessous sont vérifiées dans les fichiers GTFS déjà in
 | 57R033 | 1006677 | CHATEAU-SALINS / SARREBOURG | IMG_0909 |
 | 57R041 | 1006683 | MORHANGE / DIEUZE | IMG_0909 |
 | 57R166 | 1006717 | WALSCHEID / SARREBOURG | IMG_0909 |
-| 54R330 | 1004062 | PONT-A-MOUSSON / NANCY | IMG_0910 / IMG_0908 |
+| 54R330 | 1004062 | PONT-A-MOUSSON / NANCY | IMG_0909 / IMG_0910 |
 | 54R340 | 1004788 | ARRAYE-ET-HAN / NOMENY / PONT-A-MOUSSON | IMG_0910 / IMG_0908 |
 | 54R350 | 1004063 | CHATEAU-SALINS / NANCY | IMG_0910 / IMG_0908 |
 | 54R360 | 1004064 | CHAMBREY - NANCY | IMG_0910 / IMG_0908 |
@@ -24,8 +24,8 @@ Les correspondances ci-dessous sont vérifiées dans les fichiers GTFS déjà in
 | 54R380 | 1004066 | ECUELLE / NANCY | IMG_0908 |
 
 **Statut :** rattachées à l’organisation SAEIV existante (code PILOTE), renommée en
-« Transports René Antoni (SAEIV pilote) », avec une date d'effet technique au 09/10/2026.
-La date d'effet est une date de configuration, pas une preuve d'exploitation avant les vacances.
+« Transports René Antoni (pilote SAEIV) », avec une période d'exploitation documentée du **17/10/2026 au 01/11/2026**.
+Le planning reçu ne justifie pas une attribution permanente ni pour les autres périodes.
 Aucune association déjà existante n’est supprimée ni désactivée.
 
 **Portée technique :** `saeiv_company_lines` sert à limiter les lignes candidates du
