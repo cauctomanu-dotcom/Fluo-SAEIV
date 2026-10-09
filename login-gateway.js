@@ -2,7 +2,7 @@
 /* Mon SAEIV 1.0.63 — sas de connexion isolé + transfert du profil local. */
 (()=>{
   if(window.MonSAEIVGatewayV163?.installed)return;
-  const VERSION='1.0.108';
+  const VERSION='1.0.109';
   const SUPABASE_URL='https://xpmrnwipnoekiycghwli.supabase.co';
   const SUPABASE_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
@@ -53,7 +53,7 @@
   function saveProfile(p){try{localStorage.setItem(PROFILE_CACHE,JSON.stringify(p))}catch{}}
   function goApp(mode='cloud'){
     try{localStorage.setItem(ENTRY_MODE_KEY,mode)}catch{}
-    location.replace(`./index.html?v=${VERSION}&entry=${encodeURIComponent(mode)}`);
+    location.replace(`./app.html?v=${VERSION}&entry=${encodeURIComponent(mode)}`);
   }
 
   function prefillLocal(){
