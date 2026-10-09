@@ -25,7 +25,7 @@
   // jamais recharger la page pendant que le conducteur choisit réseau/département.
   try{sessionStorage.setItem('mon-saeiv-full-sync-reloaded-v162','1')}catch{}
 
-  const VERSION='1.0.109';
+  const VERSION='1.0.110';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
   const LOCAL_ACCOUNT_KEY='fluoSaeivAccountV13';
   const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
@@ -58,7 +58,7 @@
     if(redirecting)return;
     redirecting=true;
     const r=['driver','dispatcher','admin'].includes(role)?role:'driver';
-    location.replace(`./index.html?v=1.0.109&role=${r}`);
+    location.replace(`./index.html?v=1.0.110&role=${r}`);
   }
   function profileRole(){return window.MonSAEIVCloudV156?.profile?.role||cachedProfile()?.role||'driver'}
 
@@ -67,7 +67,7 @@
     const st=document.createElement('style');
     st.id='v160EntryStyle';
     st.textContent=`
-      #v156CloudAuth{display:none!important;pointer-events:none!important}
+      html[data-saeiv-entry="local"] #v156CloudAuth{display:none!important;pointer-events:none!important}
       #v13Auth.v13-auth{z-index:2147483647!important;pointer-events:auto!important;isolation:isolate!important}
       #v13Auth .v13-auth-card,#v13Auth form,#v13Auth label,#v13Auth input,#v13Auth select,#v13Auth button{pointer-events:auto!important}
       html[data-saeiv-entry="cloud"] #v13Auth{display:none!important;pointer-events:none!important}
@@ -112,7 +112,7 @@
     const cloud=cloudEntry();
     document.documentElement.dataset.saeivEntry=cloud?'cloud':'local';
     const oldCloud=q('v156CloudAuth');
-    if(oldCloud){
+    if(oldCloud&&!cloud){
       oldCloud.classList.add('hidden');
       oldCloud.style.setProperty('display','none','important');
       oldCloud.style.setProperty('pointer-events','none','important');
@@ -195,7 +195,9 @@
       const t=e.target?.closest?.('#v156LocalCloudEntry,#v156ServerRecovery,#v156CloudLogout');
       if(!t)return;
       e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-      if(t.id==='v156CloudLogout')signOutToGateway();else gateway('driver');
+      if(t.id==='v156CloudLogout'){
+        window.MonSAEIVCloudV156?.logout?.().catch(e=>console.error('[SAEIV] Déconnexion',e));
+      }else gateway('driver');
     },true);
   }
 
@@ -204,25 +206,25 @@
       try{localStorage.setItem(ENTRY_MODE_KEY,requested)}catch{}
     }
     markEntry();
-    const started=Date.now();
-    const check=()=>{
-      if(redirecting)return;
-      if(window.MonSAEIVCloudV156?.user||window.MonSAEIVCloudV156?.profile)return;
-      if(cloudEntry()&&cachedDriverUnlock())return;
-      if(mode()==='local'&&localAccount())return;
-
-      const elapsed=Date.now()-started;
-      const cloud=cloudEntry();
-      const hasCloudHint=!!cachedProfile()||hasPersistedCloudSession();
-
-      // Sur mobile la restauration du module Supabase / session peut dépasser 10 s.
-      // Tant qu'une session ou un profil persistant existe, ne jamais casser ce démarrage.
-      if(cloud&&hasCloudHint&&elapsed<60000){setTimeout(check,500);return}
-      // Sans trace de session, laisse quand même le runtime et le storage finir leur amorçage.
-      if(elapsed<2500){setTimeout(check,250);return}
-      gateway(profileRole());
-    };
-    setTimeout(check,300);
+    // IMPORTANT: never send a freshly authenticated user back to the gateway
+    // based on a timer. On cold starts, iOS/Android can take well over 60s to
+    // restore Supabase and initialize the large runtime.
+    // v156-supabase-sync is the authority for login state: it either opens the
+    // dispatcher workspace or displays the cloud login form in-place.
+    if(cloudEntry()){
+      document.documentElement.dataset.saeivAuth='restoring';
+      console.info('[Mon SAEIV] restauration de la session cloud, aucune redirection temporelle');
+      return;
+    }
+    // Preserve the historical local-profile path without disturbing cloud auth.
+    if(mode()==='local'&&localAccount())return;
+    if(!localAccount()){
+      const fallback=()=>{
+        if(window.MonSAEIVCloudV156?.user||window.MonSAEIVCloudV156?.profile)return;
+        gateway('driver');
+      };
+      setTimeout(fallback,4000);
+    }
   }
 
   installEarlyGuard();
