@@ -1,9 +1,9 @@
 'use strict';
 
-const CACHE='mon-saeiv-clean-1.0.102';
+const CACHE='mon-saeiv-clean-1.0.103';
 const CORE=[
   './voyageurs.html','./voyageurs.css','./voyageurs.js','./tracking-core.js','./v182-live-tracking.js','./v183-live-supervision.js','./v184-navigation-resume.js','./v185-line-thermometer.js',
-  './v186-enterprise-admin.js','./v187-collaborative-planning.js','./v188-driver-inbox.js','./v189-collective-tickets.js','./v190-weekly-planning.js','./v191-bulk-drivers.js','./v192-collective-smart.js','./v193-published-driver-edits.js','./v194-sick-approval-batches.js','./v195-intuitive-segment-change.js','./v196-generation-feedback.js','./v197-service-blocks.js','./v198-planning-ux.js',
+  './v186-enterprise-admin.js','./v187-collaborative-planning.js','./v188-driver-inbox.js','./v189-collective-tickets.js','./v190-weekly-planning.js','./v191-bulk-drivers.js','./v192-collective-smart.js','./v193-published-driver-edits.js','./v194-sick-approval-batches.js','./v195-intuitive-segment-change.js','./v196-generation-feedback.js','./v197-service-blocks.js','./v198-planning-ux.js','./v199-cockpit-responsive.js',
   './',
   './index.html',
   './login-gateway.js',
