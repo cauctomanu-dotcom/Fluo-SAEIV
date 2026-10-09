@@ -13,7 +13,7 @@
   let installed=false, watchdog=null, identityAnchorStop=null, identityCourseKey=null, cloudBackoffUntil=0;
   // Sortie SAEIV dédiée. La radio conserve son propre <audio>; les annonces iPhone
   // passent par ce contexte Web Audio et ne dépendent jamais de l'état du lecteur musique.
-  const announcementOutput={ctx:null,gain:null,unlocked:false,unlockPromise:null,currentSource:null};
+  const announcementOutput={ctx:null,gain:null,unlocked:false,unlockPromise:null,currentSource:null,htmlMedia:null,mediaUnlocked:false,lastProbe:''};
   let firstGesturePrimed=false,firstGestureAt=0,cloudSessionReady=false;
   const recent=new Map();
 
@@ -127,8 +127,61 @@
     return announcementOutput.unlockPromise;
   }
 
+  function iosMedia(){
+    if(!IS_IOS)return null;
+    if(!announcementOutput.htmlMedia){
+      const media=document.createElement('audio');
+      media.setAttribute('playsinline','');media.setAttribute('webkit-playsinline','');
+      media.preload='auto';media.volume=1;media.muted=false;media.style.display='none';
+      media.id='v131AnnouncementMedia';
+      document.body.appendChild(media);
+      announcementOutput.htmlMedia=media;
+    }
+    return announcementOutput.htmlMedia;
+  }
+  function beepWav(){
+    // 240 ms soft sine test tone. Generated locally: no network or cloud dependency.
+    const rate=22050,count=Math.round(rate*.24),length=44+count*2;
+    const buffer=new ArrayBuffer(length),view=new DataView(buffer);
+    const letters=(offset,text)=>{for(let i=0;i<text.length;i++)view.setUint8(offset+i,text.charCodeAt(i))};
+    letters(0,'RIFF');view.setUint32(4,length-8,true);letters(8,'WAVE');
+    letters(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);
+    view.setUint16(22,1,true);view.setUint32(24,rate,true);
+    view.setUint32(28,rate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);
+    letters(36,'data');view.setUint32(40,count*2,true);
+    for(let i=0;i<count;i++){
+      const fade=Math.min(1,i/450,(count-1-i)/450),sample=Math.sin(2*Math.PI*880*i/rate)*Math.max(0,fade)*.32;
+      view.setInt16(44+i*2,Math.round(sample*32767),true);
+    }
+    return new Blob([buffer],{type:'audio/wav'});
+  }
+  function probeIOSMediaFromGesture(){
+    const media=iosMedia();
+    if(!media)return Promise.resolve({ok:true,reason:'non-iOS'});
+    let url=null;
+    try{
+      const wave=beepWav();url=URL.createObjectURL(wave);
+      media.pause();media.onplaying=null;media.onended=null;media.onerror=null;
+      media.src=url;media.currentTime=0;media.muted=false;media.volume=1;
+      // .play() must be invoked directly in the click, never after awaiting an unlock/fetch.
+      const started=media.play();
+      return Promise.resolve(started).then(()=>{
+        announcementOutput.mediaUnlocked=true;announcementOutput.lastProbe='played';
+        media.onended=()=>{try{URL.revokeObjectURL(url)}catch{}};
+        return {ok:true,reason:'html-audio-started'};
+      }).catch(e=>{
+        announcementOutput.mediaUnlocked=false;announcementOutput.lastProbe='blocked';
+        try{URL.revokeObjectURL(url)}catch{}
+        return {ok:false,reason:e?.name||e?.message||'audio-blocked'};
+      });
+    }catch(e){
+      announcementOutput.mediaUnlocked=false;announcementOutput.lastProbe='error';
+      if(url)try{URL.revokeObjectURL(url)}catch{}
+      return Promise.resolve({ok:false,reason:e?.message||String(e)});
+    }
+  }
   function outputReady(){
-    return !IS_IOS||!!(announcementOutput.ctx?.state==='running'&&announcementOutput.unlocked);
+    return !IS_IOS||announcementOutput.mediaUnlocked||!!(announcementOutput.ctx?.state==='running'&&announcementOutput.unlocked);
   }
   function updateAudioIndicator(){
     const indicator=document.getElementById('v131AudioActivate');
@@ -137,10 +190,14 @@
     const side=document.getElementById('v15LandscapeSide'),portrait=document.querySelector('#driver .controls');
     const isLandscape=!!window.matchMedia?.('(orientation:landscape) and (max-height:650px) and (max-width:1100px)').matches;
     const target=isLandscape?side:portrait;
-    if(target&&indicator.parentElement!==target)target.appendChild(indicator);
+    if(target&&indicator.parentElement!==target){
+      if(isLandscape){const marker=side.querySelector('#v315VoiceControls')||side.querySelector('.v15-next-box');
+        if(marker)side.insertBefore(indicator,marker);else side.appendChild(indicator);
+      }else target.appendChild(indicator);
+    }
     // This control is always within the driving panel, never fixed over the map or bottom navigation.
     indicator.hidden=!driving||!target;
-    if(!indicator.dataset.busy){indicator.textContent=outputReady()?'🔊 Tester les annonces':'🔊 Activer le son';}
+    if(!indicator.dataset.busy&&Number(indicator.dataset.feedbackUntil||0)<Date.now()){indicator.textContent=outputReady()?'🔊 Tester les annonces':'🔊 Activer le son';}
     indicator.setAttribute('aria-label',outputReady()?'Tester ou réactiver les annonces vocales':'Réactiver le son des annonces');
   }
   function prepareAudioFromGesture(){
@@ -169,7 +226,27 @@
     ready.then(updateAudioIndicator).catch(updateAudioIndicator);
     return ready;
   }
-  async function playIOSCloudBlob(blob,cur,onStarted,onEnded){
+  async function playIOSCloudBlob(blob,cur,onStarted,onEnded,onError){
+    const media=announcementOutput.htmlMedia;
+    if(media&&announcementOutput.mediaUnlocked){
+      let url=null;
+      try{
+        url=URL.createObjectURL(blob);
+        media.pause();media.onplaying=null;media.onended=null;media.onerror=null;
+        media.src=url;media.currentTime=0;media.volume=1;media.muted=false;
+        cur.audio=media;cur.objectUrl=url;
+        media.onplaying=()=>onStarted?.();media.onended=()=>onEnded?.();
+        media.onerror=()=>onError?.('Lecture HTML Audio iPhone interrompue');
+        await media.play();
+        return media;
+      }catch(e){
+        console.warn('[SAEIV] iPhone HTML Audio indisponible, retour Web Audio',e?.message||e);
+        try{media.pause();media.removeAttribute('src');media.load()}catch{}
+        if(url)try{URL.revokeObjectURL(url)}catch{}
+        cur.audio=null;cur.objectUrl=null;
+        announcementOutput.mediaUnlocked=false;
+      }
+    }
     const ctx=announcementContext();if(!ctx)throw new Error('announcement-audio-unavailable');
     if(ctx.state!=='running'){
       try{await ctx.resume()}catch{}
@@ -257,7 +334,7 @@
           if(cur.finished||audio.current!==cur||obsolete(item)){disposeCloud(cur,false);return setTimeout(()=>pumpSpeech(),20)}
           cur.startWatch=setTimeout(()=>{if(!cur.started&&!cur.finished)fallbackCloud('aucun démarrage audio détecté')},CLOUD_START_TIMEOUT_MS);
           if(IS_IOS){
-            await playIOSCloudBlob(blob,cur,started,done);
+            await playIOSCloudBlob(blob,cur,started,done,fallbackCloud);
           }else{
             cur.objectUrl=URL.createObjectURL(blob);const media=new Audio(cur.objectUrl);cur.audio=media;
             media.preload='auto';media.playsInline=true;media.volume=1;media.muted=false;
@@ -294,12 +371,14 @@
       btn.textContent='🔊 Activer le son';btn.style.cssText='position:static!important;display:block;min-height:35px;max-width:100%;width:100%;grid-column:1/-1;background:#24445b;color:#fff5dd;border:1px solid #8fa9bb;border-radius:9px;font-weight:850;font-size:.72rem;padding:7px 8px;margin:5px 0;box-shadow:none!important';
       btn.addEventListener('click',async()=>{
         // Begin audio resume synchronously in the trusted tap event: required by iOS Safari.
-        const ready=prepareAudioFromGesture();btn.dataset.busy='1';btn.disabled=true;btn.textContent='⏳ Activation audio…';
+        const probe=probeIOSMediaFromGesture();
+        const ready=prepareAudioFromGesture();btn.dataset.busy='1';btn.disabled=true;btn.textContent='⏳ Test sonore iPhone…';
         const a=getAudioState();if(a){a.passengerEnabled=true;try{localStorage.setItem('fluoPassengerAnnouncementsEnabled','on')}catch{}}
         try{
-          const ok=await ready;
-          if(!ok){btn.textContent='⚠ Son bloqué · toucher pour réessayer';btn.title='iOS bloque encore la sortie audio. Vérifier le volume et toucher à nouveau.';return}
-          btn.textContent='🔊 Test vocal demandé';btn.title='Le moteur vocal va prononcer une courte confirmation';
+          const [webReady,probeResult]=await Promise.all([ready,probe]);
+          const ok=!!webReady||!!probeResult.ok;
+          if(!ok){btn.textContent='⚠ Audio iPhone refusé · réessayer';btn.title='Lecture refusée ('+probeResult.reason+'). Vérifier le volume, le mode silencieux, la sortie Bluetooth et Safari.';return}
+          btn.textContent=IS_IOS?'🔊 Bip + voix en test':'🔊 Test vocal lancé';btn.title=probeResult.ok?'Un bip a été lancé par le lecteur audio iPhone. Une annonce vocale doit suivre.':'Le moteur Web Audio a été débloqué, mais le lecteur iPhone n’a pas démarré.';
           try{say('Annonces vocales actives.',{priority:92,kind:'system'})}catch(e){console.warn('[SAEIV] test sonore',e)}
           // Explicit audio action also restores the UI toggle, without changing navigation guidance.
           for(const id of ['v28PassengerToggleSide','v28PassengerToggle']){
@@ -309,7 +388,7 @@
           const display=document.getElementById('v315PassengerToggle');
           if(display){display.classList.remove('off');display.setAttribute('aria-pressed','true');const value=display.querySelector('b');if(value)value.textContent='ON'}
         }catch(e){btn.textContent='⚠ Réessayer le son';console.warn('[SAEIV] reprise annonces',e)}
-        finally{btn.disabled=false;delete btn.dataset.busy;setTimeout(updateAudioIndicator,2000)}
+        finally{btn.disabled=false;delete btn.dataset.busy;btn.dataset.feedbackUntil=String(Date.now()+8000);setTimeout(updateAudioIndicator,8200)}
       });document.body.appendChild(btn);updateAudioIndicator();
     }
     document.addEventListener('pointerdown',userAudioWake,{capture:true,passive:true});
