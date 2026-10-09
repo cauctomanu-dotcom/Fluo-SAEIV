@@ -231,6 +231,7 @@ jobs:
           node tests/driver-day-detail-v1101.test.cjs
           node tests/cockpit-controls-v1102.test.cjs
           node tests/iphone-audio-responsive-v1103.test.cjs
+          node tests/home-voice-android-v1104.test.cjs
           node tests/rene-antoni-toussaint-v1104.test.cjs
           node tests/published-change-consent-v195.test.cjs
           node tests/intuitive-segment-v196.test.cjs
