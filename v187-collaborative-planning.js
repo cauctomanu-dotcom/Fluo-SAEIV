@@ -281,7 +281,7 @@
   for(const row of existing){if(row.payload?.segment_id)used.add(String(row.payload.segment_id));if(row.linked?.tripId)used.add(String(row.linked.tripId))}
   const activeLines=lines.filter(x=>x.active&&(x.start_date<=date)&&(!x.end_date||x.end_date>=date));
   const key=x=>String(x||'').replace(/\s+/g,'').toUpperCase();
-  const allowed=seg=>!lines.length||activeLines.some(l=>l.department===String(seg.dept||seg.linked?.dept||'')&&key(l.line_code)===key(seg.line));
+  const allowed=seg=>!activeLines.length||activeLines.some(l=>l.department===String(seg.dept||seg.linked?.dept||'')&&key(l.line_code)===key(seg.line));
   const choseVehicle=seg=>{
    const l=activeLines.find(l=>l.department===String(seg.dept||'')&&key(l.line_code)===key(seg.line));
    if(!l)return 'bus';
