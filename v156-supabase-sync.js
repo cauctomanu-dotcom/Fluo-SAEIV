@@ -182,7 +182,7 @@
     setCloudStatus('Déconnecté du serveur.');
     // Do not use the entry-bridge's former './?role=...' path: that opens the
     // application instead of the standalone authentication gateway.
-    const dest=new URL('./login.html',location.href);
+    const dest=new URL('./index.html',location.href);
     dest.searchParams.set('role',['dispatcher','admin'].includes(oldRole)?oldRole:'driver');
     dest.searchParams.set('signed_out','1');
     dest.searchParams.set('v','1.0.109');
