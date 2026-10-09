@@ -13,15 +13,15 @@
      body{overflow-y:auto!important}
      #driver{min-width:0!important;max-width:100vw!important;overflow:hidden!important}
      #driver>#v31LandscapeBottom{
-       box-sizing:border-box!important;display:flex!important;flex-wrap:nowrap!important;grid-column:1/3!important;grid-row:2!important;
+       box-sizing:border-box!important;display:grid!important;grid-template-columns:repeat(8,minmax(0,1fr))!important;
+       grid-column:1/3!important;grid-row:2!important;
        width:100%!important;min-width:0!important;max-width:100%!important;
-       overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-x:contain!important;
-       touch-action:pan-x!important;-webkit-overflow-scrolling:touch!important;
-       gap:5px!important;padding:4px!important;scrollbar-width:thin!important
+       overflow-x:hidden!important;overflow-y:visible!important;
+       gap:5px!important;padding:4px!important
      }
      #driver>#v31LandscapeBottom button{
-       box-sizing:border-box!important;flex:0 0 clamp(84px,12vw,138px)!important;min-width:84px!important;max-width:none!important;
-       width:auto!important;min-height:42px!important;padding:5px 7px!important;
+       box-sizing:border-box!important;min-width:0!important;max-width:100%!important;
+       width:100%!important;min-height:43px!important;padding:5px 7px!important;
        white-space:normal!important;overflow-wrap:anywhere!important;
        font-size:clamp(.64rem,1.4vw,.78rem)!important;line-height:1.14!important
      }
@@ -47,7 +47,7 @@
      #v15LandscapeSide #v131AudioActivate{min-height:30px!important;font-size:.58rem!important}
    }
    @media (orientation:landscape) and (max-height:650px) and (max-width:1000px){
-     #driver>#v31LandscapeBottom{gap:4px!important}
+     #driver>#v31LandscapeBottom{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important}
      #driver>#v31LandscapeBottom button{min-height:42px!important;padding:5px 6px!important;font-size:clamp(.65rem,1.3vw,.78rem)!important}
    }
    @media (orientation:portrait) and (max-width:800px){
