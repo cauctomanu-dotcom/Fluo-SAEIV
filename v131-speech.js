@@ -302,9 +302,12 @@
           btn.textContent='🔊 Test vocal demandé';btn.title='Le moteur vocal va prononcer une courte confirmation';
           try{say('Annonces vocales actives.',{priority:92,kind:'system'})}catch(e){console.warn('[SAEIV] test sonore',e)}
           // Explicit audio action also restores the UI toggle, without changing navigation guidance.
-          const toggle=document.getElementById('v28PassengerToggleSide')||document.getElementById('v28PassengerToggle');
-          if(toggle?.getAttribute('aria-pressed')==='false')toggle.click();
-          else {const display=document.getElementById('v315PassengerToggle');if(display){display.setAttribute('aria-pressed','true');const value=display.querySelector('b');if(value)value.textContent='ON'}}
+          for(const id of ['v28PassengerToggleSide','v28PassengerToggle']){
+            const toggle=document.getElementById(id);
+            if(toggle){toggle.setAttribute('aria-pressed','true');toggle.classList.remove('v28-off');toggle.textContent='🔊 Arrêts / destination ON'}
+          }
+          const display=document.getElementById('v315PassengerToggle');
+          if(display){display.classList.remove('off');display.setAttribute('aria-pressed','true');const value=display.querySelector('b');if(value)value.textContent='ON'}
         }catch(e){btn.textContent='⚠ Réessayer le son';console.warn('[SAEIV] reprise annonces',e)}
         finally{btn.disabled=false;delete btn.dataset.busy;setTimeout(updateAudioIndicator,2000)}
       });document.body.appendChild(btn);updateAudioIndicator();
