@@ -248,7 +248,7 @@
    select('driver_unavailability',{service_date:date}),
    client().from('saeiv_published_days').select('driver_user_id,service_date,items').eq('organization_id',org()).gte('service_date',fromHistory).lte('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
    client().from('saeiv_planning_days').select('driver_user_id,service_date,items,status').eq('organization_id',org()).gte('service_date',fromHistory).lt('service_date',date).then(x=>{if(x.error)throw x.error;return x.data||[]}),
-   client().from('saeiv_operator_driver_memberships').select('driver_user_id,operator_name').eq('organization_id',org()).lte('valid_from',date).gte('valid_until',date).then(x=>{if(x.error)throw x.error;return x.data||[]})
+   client().from('saeiv_operator_driver_memberships').select('driver_user_id,operator_name').eq('organization_id',org()).eq('operator_name','René Antoni').then(x=>{if(x.error)throw x.error;return x.data||[]})
   ]);
   const settingsBy=new Map(settings.map(x=>[x.user_id,x])),draftBy=new Map(drafts.map(x=>[x.driver_user_id,x]));
   const officialKeys=new Set(historicalPublished.filter(x=>x.service_date<date).map(x=>x.driver_user_id+'|'+x.service_date));
@@ -268,7 +268,13 @@
   const publishedIds=new Set(published.map(x=>x.driver_user_id));
   const holidayCrew=operatorMembers.filter(x=>x.operator_name==='René Antoni');
   const memberIds=new Set(holidayCrew.map(x=>x.driver_user_id));
-  const eligible=drivers.filter(d=>!publishedIds.has(d.user_id)&&(!driverId||d.user_id===driverId)&&(!holidayCrew.length||memberIds.has(d.user_id)));
+  const dispatcher=cloud()?.profile?.role==='dispatcher';
+  // Company roster always applies for dispatchers. A date before 17 October
+  // must not silently widen the generation from 27 to all 101 test drivers.
+  const eligible=drivers.filter(d=>!publishedIds.has(d.user_id)
+    &&(!driverId||d.user_id===driverId)
+    &&(!dispatcher||memberIds.has(d.user_id)));
+  if(dispatcher&&!memberIds.size)throw Error('Aucun conducteur affecté à René Antoni : génération annulée.');
   if(!eligible.length)throw Error('Toutes les journées sont déjà publiées : les changements doivent faire l’objet d’un accord');
   const activities=new Map(eligible.map(d=>[d.user_id,Array.isArray(draftBy.get(d.user_id)?.items)?
    structuredClone(draftBy.get(d.user_id).items):
