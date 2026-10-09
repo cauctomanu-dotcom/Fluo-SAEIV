@@ -127,36 +127,52 @@
       const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;await afterAuth(data.session);
     }catch(err){setCloudStatus(err.message||'Création impossible.','err')}
   }
+  let logoutInProgress=false;
   async function logoutCloud(){
-    const oldRole=String(S.profile?.role||'driver');
-    S.suppressPush=true; // Never sync an outdated planning snapshot during logout.
+    if(logoutInProgress)return;
+    logoutInProgress=true;
+    const oldRole=String(S.profile?.role||cachedProfile()?.role||'driver');
+    // A radio/network or Supabase timeout must never trap a dispatcher inside
+    // the protected UI. Local session removal precedes deterministic navigation.
+    S.suppressPush=true;
+    clearTimeout(S.pushTimer);clearTimeout(S.pullTimer);
+    const auth=S.client?.auth;
     try{
-      const {error}=await S.client?.auth.signOut({scope:'global'})||{};
-      if(error)console.warn('[Mon SAEIV] déconnexion distante',error.message||error);
-    }catch(e){console.warn('[Mon SAEIV] déconnexion distante indisponible',e?.message||e)}
-    try{await S.client?.auth.signOut({scope:'local'})}catch(e){console.warn('[Mon SAEIV] déconnexion locale',e?.message||e)}
-    try{S.channel&&await S.client?.removeChannel(S.channel)}catch{}
+      if(auth){
+        // Only end this device's session, not all sessions of the account.
+        const result=await Promise.race([
+          auth.signOut({scope:'local'}),
+          new Promise(resolve=>setTimeout(()=>resolve({timeout:true}),1800))
+        ]);
+        if(result?.error)console.warn('[Mon SAEIV] déconnexion locale',result.error);
+        if(result?.timeout)console.warn('[Mon SAEIV] délai de déconnexion : nettoyage local forcé');
+      }
+    }catch(e){console.warn('[Mon SAEIV] session signOut indisponible',e?.message||e)}
+    try{S.channel&&await Promise.race([S.client.removeChannel(S.channel),new Promise(resolve=>setTimeout(resolve,400))])}catch{}
     S.user=null;S.profile=null;S.channel=null;
     try{
       localStorage.removeItem(PROFILE_CACHE);
       localStorage.removeItem(ENTRY_MODE_KEY);
-      // A failed network sign-out must never leave a reusable session on this phone.
-      localStorage.removeItem('sb-xpmrnwipnoekiycghwli-auth-token');
+      // Clear stale Supabase persistence even if signOut could not reach auth.
+      for(let i=localStorage.length-1;i>=0;i--){
+        const key=localStorage.key(i);
+        if(key&&/^sb-.*-auth-token$/i.test(key))localStorage.removeItem(key);
+      }
+      sessionStorage.removeItem('mon-saeiv-full-sync-reloaded-v162');
     }catch{}
     q('v156AccountSheet')?.classList.add('hidden');
     q('v156CloudAuth')?.classList.remove('hidden');
     q('v13Auth')?.classList.add('hidden');
     q('v165Board')?.classList.add('hidden');
     q('v157Dispatch')?.classList.add('hidden');
-    setCloudStatus('Déconnecté du serveur.');switchMode('login');
-    if(oldRole==='dispatcher'||oldRole==='admin'){
-      // Leave the protected exploitation interface; do not simply close the dialog.
-      if(window.MonSAEIVEntryBridgeV160?.openGateway){
-        window.MonSAEIVEntryBridgeV160.openGateway(oldRole);
-      }else{
-        location.replace('./?role='+encodeURIComponent(oldRole)+'&signed_out=1');
-      }
-    }else prefillFromLocal();
+    setCloudStatus('Déconnecté du serveur.');
+    // Do not use the entry-bridge's former './?role=...' path: that opens the
+    // application instead of the standalone authentication gateway.
+    const dest=new URL('./login.html',location.href);
+    dest.searchParams.set('role',['dispatcher','admin'].includes(oldRole)?oldRole:'driver');
+    dest.searchParams.set('signed_out','1');
+    dest.searchParams.set('v','1.0.108');
+    location.replace(dest.href);
   }
   function stripPrivate(item){const out={};for(const [k,v] of Object.entries(item||{})){if(!k.startsWith('_server')&&k!=='_lockedByExploitation')out[k]=v}return out}
   function localToRow(item,index){
