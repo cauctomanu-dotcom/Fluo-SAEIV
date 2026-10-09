@@ -79,7 +79,7 @@
               <label class="wide">Adresse e-mail<input id="v156RegEmail" type="email" autocomplete="email" required></label>
               <label>Mot de passe<input id="v156RegPassword" type="password" autocomplete="new-password" minlength="8" required></label>
               <label>Confirmer<input id="v156RegConfirm" type="password" autocomplete="new-password" minlength="8" required></label>
-              <label>Code société<input id="v156RegOrg" type="text" value="PILOTE" maxlength="40" required></label>
+              <label>Code société<input id="v156RegOrg" type="text" value="ANTONI" maxlength="40" required></label>
               <label>Matricule<input id="v156RegMatricule" type="text" maxlength="40" required></label>
               <label class="wide">Nom affiché<input id="v156RegName" type="text" maxlength="80" placeholder="Prénom / nom"></label>
               <label>Réseau<select id="v156RegNetwork"><option value="fluo">Fluo Grand Est</option><option value="stan">STAN</option><option value="lemet">LE MET’</option><option value="temob">TeMo’b</option><option value="rgtr">RGTR</option><option value="tice">TICE</option></select></label>
