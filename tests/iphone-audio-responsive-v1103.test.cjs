@@ -17,7 +17,7 @@ assert(audio.includes('const wave=beepWav()'),'audio probe waveform generated lo
 assert(audio.includes('if(media&&announcementOutput.mediaUnlocked)'),'prefer unlocked HTMLMedia for actual iOS cloud MP3');
 assert(audio.includes('playIOSCloudBlob(blob,cur,started,done,fallbackCloud)'),'fallback when native media reports async error');
 assert(audio.includes("media.onerror=()=>onError?.('Lecture HTML Audio iPhone interrompue')"),'media error should not be confused with successful end');
-assert(audio.includes("audio.passengerEnabled=true")&&audio.includes("fluoPassengerAnnouncementsEnabled','on'"),'audio retry actually enables announcements');
+assert(audio.includes("a.passengerEnabled=true")&&audio.includes("fluoPassengerAnnouncementsEnabled','on'"),'audio retry actually enables announcements');
 assert(audio.includes("say('Annonces vocales actives.'"),'audible voice phrase follows probe');
 assert(audio.includes("side.insertBefore(indicator,marker)"),'voice test control is placed above next stop/low panel items');
 assert(!audio.includes("position:fixed;bottom:max(12px"),'no floating audio button covering map');
