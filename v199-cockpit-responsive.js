@@ -1,5 +1,5 @@
 'use strict';
-/* SAEIV 1.0.103: compact landscape cockpit; no clipped audio/voice actions or hidden bottom buttons.
+/* SAEIV 1.0.104: compact landscape cockpit; no clipped audio/voice actions or hidden bottom buttons.
    Keep the underlying map, route tracking and line thermometer mounted. */
 (()=>{
  if(window.MonSAEIVCockpitResponsiveV199?.installed)return;
@@ -44,8 +44,38 @@
      #driver #v15LandscapeSide{gap:3px!important;padding:3px!important}
      #v15LandscapeSide #v131AudioActivate{min-height:30px!important;font-size:.58rem!important}
    }
-   @media (orientation:portrait){
-     #driver #v131AudioActivate{position:static!important;width:100%!important;max-width:100%!important}
+   @media (orientation:landscape) and (max-height:650px) and (max-width:1000px){
+     #driver>#v31LandscapeBottom{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important}
+     #driver>#v31LandscapeBottom button{min-height:34px!important;padding:5px 3px!important;font-size:clamp(.55rem,1.1vw,.7rem)!important}
+   }
+   @media (orientation:portrait) and (max-width:800px){
+     html,body{overflow-x:hidden!important;width:100%!important;max-width:100%!important}
+     .app{width:100%!important;min-width:0!important;max-width:100%!important;
+       padding-left:max(8px,env(safe-area-inset-left))!important;
+       padding-right:max(8px,env(safe-area-inset-right))!important}
+     #setup.panel,#driver.panel{width:100%!important;max-width:100%!important;min-width:0!important}
+     #setup .grid,#setup .grid.two,#setup .grid.three,#setup .sim-config{
+       grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))!important}
+     #setup input,#setup select,#setup button,#driver input,#driver select,#driver button{
+       max-width:100%!important;min-width:0!important}
+     #setup #voiceTest{min-height:44px!important;width:100%!important;white-space:normal!important}
+     #driver .controls,#driver .sim-controls{
+       display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+     #driver .controls button,#driver .sim-controls button{
+       min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;
+       min-height:43px!important;font-size:clamp(.71rem,2.8vw,.88rem)!important}
+     #driver .navmap-wrap{width:100%!important;max-width:100%!important;min-height:220px!important;height:clamp(240px,42dvh,450px)!important}
+     #driver .v15-landscape-side{max-width:100%!important;min-width:0!important}
+     #driver #v131AudioActivate{position:static!important;width:100%!important;max-width:100%!important;grid-column:1/-1}
+   }
+   @media (orientation:portrait) and (max-width:390px){
+     #driver .controls,#driver .sim-controls{gap:5px!important}
+     #driver .controls button,#driver .sim-controls button{font-size:.7rem!important;padding:8px 5px!important}
+     #setup .service-choice-buttons{grid-template-columns:1fr!important}
+   }
+   @media (orientation:portrait) and (min-width:801px) and (max-width:1200px){
+     .app{width:100%!important;max-width:100%!important}
+     #setup .grid.three{grid-template-columns:repeat(2,minmax(0,1fr))!important}
    }
   `;
   document.head.appendChild(style);
