@@ -6,6 +6,12 @@
  planner=()=>window.MonSAEIVPlanningV187,cloud=()=>window.MonSAEIVCloudV156,db=()=>cloud()?.client;
  const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const D={driver:null,busy:false,simplified:false};
+ const types={start:['Prise de service','🚍'],hlp:['HLP · trajet à vide','↗'],cut:['Coupure','⏸'],pause:['Attente / pause','◷'],regular:['Course régulière','🚌'],school:['Course scolaire','🎒'],tad:['Transport à la demande','🚐'],annex:['Course annexe','🚌'],other:['Activité','◻'],end:['Fin de service','🏁']};
+ const mins=t=>{const m=String(t||'').match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null};
+ const clock=t=>String(t||'').slice(0,5);
+ const readable=n=>Number.isFinite(n)?Math.floor(n/60)+' h '+String(n%60).padStart(2,'0'): 'non calculable';
+ const length=x=>{const a=mins(x.start_time),b=mins(x.end_time);return a===null||b===null?0:Math.max(0,b>=a?b-a:b+1440-a)};
+ const isTrip=x=>['regular','school','tad','annex','other'].includes(String(x?.type||''));
  const status=(msg,problem=false)=>{const n=q('v198Status');if(n){n.textContent=msg;n.style.color=problem?'#ffc4ac':'#bbf2d1'}};
  const dates=(date,delta)=>{const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10)};
  const hasWork=items=>(items||[]).some(x=>['regular','school','tad','annex','other'].includes(x.type));
@@ -32,14 +38,62 @@
   await restCheck(driverId,date);
  }
  function labelFor(id){const d=board()?.drivers.find(x=>String(x.user_id)===String(id));return d?.display_name||d?.matricule||'Conducteur'}
+ function renderDriverDay(id,date){
+  const target=q('v198DayDetail');if(!target)return;
+  // Reuse precisely the same loaded, tenant-filtered activities that appear in the main timeline.
+  // Drafts, official and legacy sources are mutually exclusive for one driver/day on the board.
+  const items=[...(board()?.items||[]),...(board()?.draftItems||[])]
+    .filter(x=>String(x.driver_user_id)===String(id)&&x.service_date===date)
+    .sort((a,b)=>(mins(a.start_time)??9999)-(mins(b.start_time)??9999));
+  target.hidden=false;
+  const title=q('v198DayTitle');if(title)title.textContent='Détail de la journée · '+labelFor(id)+' · '+date.split('-').reverse().join('/');
+  if(!items.length){
+   q('v198DayMetrics').innerHTML='';
+   q('v198DayActivities').innerHTML='<p class="v198-empty">Aucune activité enregistrée pour cette journée. Tu peux utiliser « Construire / retirer des courses » pour la préparer.</p>';
+   q('v198DayNote').textContent='';
+   return;
+  }
+  const starts=items.filter(x=>x.type==='start'),ends=items.filter(x=>x.type==='end');
+  const first=starts[0]||items[0],last=ends.at(-1)||items.at(-1);
+  const firstMinute=mins(first.start_time),lastMinute=mins(last.end_time);
+  const amplitude=firstMinute===null||lastMinute===null?null:lastMinute>=firstMinute?lastMinute-firstMinute:lastMinute+1440-firstMinute;
+  const trips=items.filter(isTrip),hlp=items.filter(x=>x.type==='hlp'),cuts=items.filter(x=>x.type==='cut'||x.type==='pause');
+  const estimated=items.some(x=>x.provisional),kms=hlp.reduce((n,x)=>n+(Number(x.estimatedKm)||0),0);
+  q('v198DayMetrics').innerHTML=[
+   ['Prise',clock(first.start_time)||'—'],['Fin',clock(last.end_time)||'—'],
+   ['Amplitude'+(estimated?' estimée':''),amplitude===null?'À vérifier':readable(amplitude)],
+   ['Courses',String(trips.length)],['HLP estimés',readable(hlp.reduce((n,x)=>n+length(x),0))+(kms?' · '+kms.toFixed(1).replace('.',',')+' km':'')],
+   ['Coupures / attentes',readable(cuts.reduce((n,x)=>n+length(x),0))]
+  ].map(([label,value])=>'<div class="v198-metric"><small>'+escape(label)+'</small><strong>'+escape(value)+'</strong></div>').join('');
+  q('v198DayActivities').innerHTML=items.map((x,i)=>{
+   const [category,symbol]=types[x.type]||['Activité','•'];
+   const line=x.line||'',origin=x.origin||'',destination=x.destination||'';
+   const details=[line,origin&&destination?origin+' → '+destination:origin||destination].filter(Boolean).join(' · ');
+   const note=x.notes||x.label||'';
+   const tentative=!!x.provisional;
+   const dateLabel=clock(x.start_time)+' – '+clock(x.end_time);
+   const kind=x.type||'other';
+   return '<li class="v198-detail-item v198-type-'+escape(kind)+'">'+
+      '<span class="v198-detail-time">'+escape(dateLabel)+'</span>'+
+      '<span class="v198-detail-symbol" aria-hidden="true">'+escape(symbol)+'</span>'+
+      '<div class="v198-detail-content"><strong>'+escape(category)+(line?' · '+escape(line):'')+'</strong>'+
+       (details?'<div>'+escape(details)+'</div>':'')+
+       (note&&note!==details?'<small>'+escape(note)+'</small>':'')+
+       (tentative?'<small class="v198-estimate">Estimation à vérifier</small>':'')+
+      '</div><span class="v198-duration">'+escape(readable(length(x)))+'</span></li>';
+  }).join('');
+  q('v198DayNote').textContent=estimated?
+   'Les prises de service, HLP, coupures et fins de service marqués « estimation » sont provisoires. Contrôler les trajets réels et la RSE avant validation ou publication.':
+   'Journée enregistrée dans le tableau. Vérifier la RSE avant publication.';
+ }
  function update(){
   const root=q('v198Controls'),b=board();if(!root||!b)return;
   const drafts=b.draftDriverIds||[],official=b.officialDriverIds||[],date=b.date||'';
   q('v198DateSummary').textContent='Planning du '+date+' · '+drafts.length+' conducteur(s) avec brouillon · '+official.length+' planning(s) déjà communiqué(s).';
   const id=D.driver,picked=q('v198Selected');
-  if(!id){picked.hidden=true;return}
+  if(!id){picked.hidden=true;if(q('v198DayDetail'))q('v198DayDetail').hidden=true;return}
   const driver=b.drivers.find(x=>String(x.user_id)===String(id));
-  if(!driver){D.driver=null;picked.hidden=true;return}
+  if(!driver){D.driver=null;picked.hidden=true;if(q('v198DayDetail'))q('v198DayDetail').hidden=true;return}
   picked.hidden=false;
   const state=official.map(String).includes(String(id))?'publié':drafts.map(String).includes(String(id))?'brouillon':'non préparé';
   q('v198SelectedTitle').textContent=labelFor(id)+' · '+date+' · '+state;
@@ -48,10 +102,11 @@
   q('v198Validate').hidden=state!=='brouillon';
   q('v198Publish').hidden=state!=='brouillon';
   q('v198EditPublished').hidden=state!=='publié';
+  renderDriverDay(id,date);
   root.querySelectorAll('[data-v198-driver-id]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.v198DriverId===id)));
   document.querySelectorAll('#v165Grid .v165-driver-row').forEach(row=>row.classList.toggle('v198-picked',row.querySelector('[data-v198-driver-id]')?.dataset.v198DriverId===id));
  }
- function choose(id){D.driver=id;update();q('v198Controls')?.scrollIntoView({behavior:'smooth',block:'nearest'})}
+ function choose(id){D.driver=String(id);update();q('v198DayDetail')?.scrollIntoView({behavior:'smooth',block:'start'})}
  async function editPublished(){
   if(!D.driver||!board()?.officialDriverIds?.includes(D.driver))throw Error('Ce planning n’est pas encore publié. Ouvrir Construire.');
   if(!board().segments.length)await board().loadSegments();
@@ -156,11 +211,11 @@
  }
  function install(){
   const b=q('v165Board');if(!b||q('v198Controls')){simplifyAdvanced();return}
-  const css=document.createElement('style');css.textContent='#v198Controls{margin:8px 0;border:1px solid #4a7186;border-radius:14px;background:#0b2432;padding:12px;color:#e7f5fc}#v198Controls .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}#v198Controls button{padding:9px;border:1px solid #51788d;border-radius:9px;min-height:38px}#v198Controls button[hidden]{display:none}#v198Controls small{display:block;color:#b0c9d4;margin-top:5px}#v198Controls .chosen{border-top:1px solid #42617a;padding-top:10px;margin-top:12px}#v165Grid .v165-driver-row.v198-picked .v165-driver-meta{background:#163c4c}#v187Planning #v198Advanced{border:1px solid #3b596c;border-radius:11px;padding:9px;margin-top:9px}#v187Planning #v198Advanced summary{cursor:pointer;color:#c9dce6}';
+  const css=document.createElement('style');css.textContent=' #v198DayDetail{margin-top:12px;border:1px solid #52798d;border-radius:14px;padding:13px;background:#0a1c2a}#v198DayDetail[hidden]{display:none!important}#v198DayDetail h3{margin:0 0 8px;font-size:1rem;color:#e0f2ff}#v198DayMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:6px;margin:10px 0}#v198DayMetrics .v198-metric{background:#123446;border-radius:8px;padding:9px}#v198DayMetrics small{display:block;margin:0 0 3px;color:#abc8d6;font-size:.66rem}#v198DayMetrics strong{font-size:.82rem}#v198DayActivities{list-style:none;margin:9px 0;padding:0;max-height:490px;overflow:auto}#v198DayActivities .v198-detail-item{display:grid;grid-template-columns:112px 28px minmax(0,1fr) 64px;align-items:start;gap:7px;padding:9px 6px;border-bottom:1px solid #315367;border-left:3px solid #51869a;font-size:.73rem}#v198DayActivities .v198-detail-item.v198-type-start,#v198DayActivities .v198-detail-item.v198-type-end{border-left-color:#7bc998}#v198DayActivities .v198-detail-item.v198-type-hlp{border-left-color:#e8b65b}#v198DayActivities .v198-detail-item.v198-type-cut,#v198DayActivities .v198-detail-item.v198-type-pause{border-left-color:#adb7e4}#v198DayActivities .v198-detail-time{font-weight:800;white-space:nowrap;color:#e6f2fd}#v198DayActivities .v198-detail-content{min-width:0;overflow-wrap:anywhere}#v198DayActivities .v198-detail-content strong{display:block}#v198DayActivities .v198-detail-content small{display:block;margin-top:3px;font-size:.65rem;color:#b0c7d5}#v198DayActivities .v198-detail-content .v198-estimate{color:#efd19a}#v198DayActivities .v198-duration{text-align:right;white-space:nowrap;color:#c5dbe6}#v198DayNote{font-size:.7rem;color:#cbd8e3;margin:8px 0 0}#v198DayActivities .v198-empty{padding:15px;color:#bfd4e0}@media(max-width:600px){#v198DayActivities .v198-detail-item{grid-template-columns:90px 20px minmax(0,1fr)}#v198DayActivities .v198-duration{grid-column:3;text-align:left}}#v198Controls{margin:8px 0;border:1px solid #4a7186;border-radius:14px;background:#0b2432;padding:12px;color:#e7f5fc}#v198Controls .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}#v198Controls button{padding:9px;border:1px solid #51788d;border-radius:9px;min-height:38px}#v198Controls button[hidden]{display:none}#v198Controls small{display:block;color:#b0c9d4;margin-top:5px}#v198Controls .chosen{border-top:1px solid #42617a;padding-top:10px;margin-top:12px}#v165Grid .v165-driver-row.v198-picked .v165-driver-meta{background:#163c4c}#v187Planning #v198Advanced{border:1px solid #3b596c;border-radius:11px;padding:9px;margin-top:9px}#v187Planning #v198Advanced summary{cursor:pointer;color:#c9dce6}';
   document.head.append(css);
   const el=document.createElement('section');el.id='v198Controls';
   el.innerHTML='<b>🚌 Tableau de planning</b><p id="v198DateSummary"></p><small>Les plannings en préparation apparaissent directement sur les conducteurs, avec leurs prises de service, HLP, coupures et fins de service estimés. Clique sur un conducteur pour agir.</small>'+
-   '<div class="actions"><button id="v198ValidateDay">✅ Valider les brouillons du jour</button><button id="v198PublishDay">📤 Publier les validés du jour</button></div><div class="chosen" id="v198Selected" hidden><b id="v198SelectedTitle"></b><small id="v198SelectedHelp"></small><div class="actions"><button id="v198Build">🧩 Construire / retirer des courses</button><button id="v198Validate">✅ Valider le brouillon</button><button id="v198Publish">📤 Publier au conducteur</button><button id="v198EditPublished">✏️ Modifier une course publiée</button></div></div><p id="v198Status" role="status"></p>';
+   '<div class="actions"><button id="v198ValidateDay">✅ Valider les brouillons du jour</button><button id="v198PublishDay">📤 Publier les validés du jour</button></div><div class="chosen" id="v198Selected" hidden><b id="v198SelectedTitle"></b><small id="v198SelectedHelp"></small><div class="actions"><button id="v198Build">🧩 Construire / retirer des courses</button><button id="v198Validate">✅ Valider le brouillon</button><button id="v198Publish">📤 Publier au conducteur</button><button id="v198EditPublished">✏️ Modifier une course publiée</button></div><section id="v198DayDetail" aria-label="Détail des services du conducteur" hidden><h3 id="v198DayTitle"></h3><div id="v198DayMetrics"></div><ol id="v198DayActivities"></ol><p id="v198DayNote"></p></section></div><p id="v198Status" role="status"></p>';
   const alert=q('v165Alert');alert?.insertAdjacentElement('beforebegin',el);
   for(const [id,action]of [['v198Build','build'],['v198Validate','validate'],['v198Publish','publish'],['v198EditPublished','edit']]){
    q(id).addEventListener('click',()=>runSelected(action).catch(e=>status(e?.message||String(e),true)));
@@ -172,6 +227,6 @@
   window.addEventListener('saeiv-board-updated',update);
   simplifyAdvanced();update();
  }
- window.MonSAEIVPlanningUXV198={installed:true,install,choose,validateOrPublish,bulkDay,editPublished,simplifyAdvanced};
+ window.MonSAEIVPlanningUXV198={installed:true,install,choose,renderDriverDay,validateOrPublish,bulkDay,editPublished,simplifyAdvanced};
  setInterval(install,1100);
 })();
