@@ -1,5 +1,5 @@
 'use strict';
-/* SAEIV 1.0.104: compact landscape cockpit; no clipped audio/voice actions or hidden bottom buttons.
+/* SAEIV 1.0.105: compact landscape cockpit; no clipped audio/voice actions or hidden bottom buttons.
    Keep the underlying map, route tracking and line thermometer mounted. */
 (()=>{
  if(window.MonSAEIVCockpitResponsiveV199?.installed)return;
@@ -10,18 +10,20 @@
   style.textContent=`
    @media (orientation:landscape) and (max-height:650px) and (max-width:1100px){
      html,body{overflow-x:hidden!important}
+     body{overflow-y:auto!important}
      #driver{min-width:0!important;max-width:100vw!important;overflow:hidden!important}
      #driver>#v31LandscapeBottom{
-       box-sizing:border-box!important;display:grid!important;grid-column:1/3!important;grid-row:2!important;
-       grid-template-columns:repeat(8,minmax(0,1fr))!important;width:100%!important;
-       min-width:0!important;max-width:100%!important;overflow-x:hidden!important;overflow-y:hidden!important;
-       gap:4px!important;padding:4px!important;scrollbar-width:none!important
+       box-sizing:border-box!important;display:flex!important;flex-wrap:nowrap!important;grid-column:1/3!important;grid-row:2!important;
+       width:100%!important;min-width:0!important;max-width:100%!important;
+       overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-x:contain!important;
+       touch-action:pan-x!important;-webkit-overflow-scrolling:touch!important;
+       gap:5px!important;padding:4px!important;scrollbar-width:thin!important
      }
      #driver>#v31LandscapeBottom button{
-       box-sizing:border-box!important;flex:none!important;min-width:0!important;max-width:100%!important;
-       width:100%!important;min-height:38px!important;padding:5px 3px!important;
+       box-sizing:border-box!important;flex:0 0 clamp(84px,12vw,138px)!important;min-width:84px!important;max-width:none!important;
+       width:auto!important;min-height:42px!important;padding:5px 7px!important;
        white-space:normal!important;overflow-wrap:anywhere!important;
-       font-size:clamp(.5rem,.9vw,.63rem)!important;line-height:1.08!important
+       font-size:clamp(.64rem,1.4vw,.78rem)!important;line-height:1.14!important
      }
      #driver #v15LandscapeSide{
        box-sizing:border-box!important;min-height:0!important;max-height:100%!important;
@@ -39,14 +41,14 @@
      #driver.v185-view-line #v185Line{min-height:0!important;overflow:hidden!important}
    }
    @media (orientation:landscape) and (max-height:650px) and (max-width:800px){
-     #driver>#v31LandscapeBottom{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:3px!important}
-     #driver>#v31LandscapeBottom button{min-height:30px!important;padding:4px 3px!important;font-size:.53rem!important}
+     #driver>#v31LandscapeBottom{gap:4px!important}
+     #driver>#v31LandscapeBottom button{min-height:42px!important;padding:5px 6px!important;font-size:.65rem!important}
      #driver #v15LandscapeSide{gap:3px!important;padding:3px!important}
      #v15LandscapeSide #v131AudioActivate{min-height:30px!important;font-size:.58rem!important}
    }
    @media (orientation:landscape) and (max-height:650px) and (max-width:1000px){
-     #driver>#v31LandscapeBottom{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important}
-     #driver>#v31LandscapeBottom button{min-height:34px!important;padding:5px 3px!important;font-size:clamp(.55rem,1.1vw,.7rem)!important}
+     #driver>#v31LandscapeBottom{gap:4px!important}
+     #driver>#v31LandscapeBottom button{min-height:42px!important;padding:5px 6px!important;font-size:clamp(.65rem,1.3vw,.78rem)!important}
    }
    @media (orientation:portrait) and (max-width:800px){
      html,body{overflow-x:hidden!important;width:100%!important;max-width:100%!important}
@@ -58,7 +60,7 @@
        grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))!important}
      #setup input,#setup select,#setup button,#driver input,#driver select,#driver button{
        max-width:100%!important;min-width:0!important}
-     #setup #voiceTest{min-height:44px!important;width:100%!important;white-space:normal!important}
+     #setup #voiceTest{min-height:46px!important;width:100%!important;white-space:normal!important}
      #driver .controls,#driver .sim-controls{
        display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
      #driver .controls button,#driver .sim-controls button{
