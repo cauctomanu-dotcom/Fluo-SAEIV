@@ -2,7 +2,7 @@
 /* Mon SAEIV 1.0.56 — comptes Supabase, multi-appareils et synchronisation planning. */
 (()=>{
   if(window.MonSAEIVCloudV156?.installed)return;
-  const VERSION='1.0.56';
+  const VERSION='1.0.108';
   const SUPABASE_URL='https://xpmrnwipnoekiycghwli.supabase.co';
   const SUPABASE_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
   const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
@@ -117,7 +117,21 @@
     const bar=q('v13Userbar');if(!bar||q('v156CloudChip'))return;
     q('v156LocalCloudEntry')?.remove();const b=document.createElement('button');b.id='v156CloudChip';b.type='button';b.textContent='☁ Compte serveur';b.addEventListener('click',openAccount);bar.appendChild(b);
   }
-  function openAccount(){const p=S.profile;if(!p)return;const info=q('v156AccountInfo');if(info)info.innerHTML=`<p><b>${esc(p.display_name||p.matricule)}</b><br>Matricule ${esc(p.matricule)} · ${esc(roleLabel(p.role))}<br>Société ${esc(p.organization_id)}<br>Dernière synchro : ${S.lastSync?new Date(S.lastSync).toLocaleTimeString('fr-FR'):'—'}</p>`;q('v156AccountSheet')?.classList.remove('hidden')}
+  async function openAccount(){
+    const p=S.profile;if(!p)return;
+    const info=q('v156AccountInfo');
+    const render=name=>{
+      if(!info)return;
+      info.innerHTML=`<p><b>${esc(p.display_name||p.matricule)}</b><br>Matricule ${esc(p.matricule)} · ${esc(roleLabel(p.role))}<br>Entreprise : <strong>${esc(name)}</strong><br>Dernière synchro : ${S.lastSync?new Date(S.lastSync).toLocaleTimeString('fr-FR'):'—'}</p>`;
+    };
+    q('v156AccountSheet')?.classList.remove('hidden');
+    render('Vérification du rattachement…');
+    try{
+      const {data,error}=await S.client.from('organizations').select('name').eq('id',p.organization_id).maybeSingle();
+      if(error)throw error;
+      if(S.profile?.user_id===p.user_id)render(data?.name||'Organisation '+p.organization_id);
+    }catch(e){if(S.profile?.user_id===p.user_id)render('Organisation '+p.organization_id)}
+  }
 
   async function login(e){e.preventDefault();setEntryMode('cloud');setCloudStatus('Connexion…','busy');try{const c=await loadClient(),email=q('v156LoginEmail').value.trim(),password=q('v156LoginPassword').value;const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;await afterAuth(data.session)}catch(err){setCloudStatus(err.message||'Connexion impossible.','err')}}
   async function register(e){
