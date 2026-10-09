@@ -2,7 +2,7 @@
 /* Mon SAEIV 1.0.63 — sas de connexion isolé + transfert du profil local. */
 (()=>{
   if(window.MonSAEIVGatewayV163?.installed)return;
-  const VERSION='1.0.63';
+  const VERSION='1.0.107';
   const SUPABASE_URL='https://xpmrnwipnoekiycghwli.supabase.co';
   const SUPABASE_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
@@ -172,6 +172,29 @@
       setStatus(message,'err');
     }
   }
+  // Management invitations require an email. The driver's matricule-only
+  // form must never submit a dispatcher invitation and strand the user.
+  function openManagementRegistrationFromDriver(){
+    const copy=[
+      ['driverOrg','managementOrg'],
+      ['driverInvite','managementInvite'],
+      ['driverRegMatricule','managementMatricule'],
+      ['driverName','managementName'],
+      ['driverRegPassword','managementRegPassword'],
+      ['driverConfirm','managementConfirm']
+    ];
+    for(const [from,to] of copy){
+      const input=q(to),origin=q(from);
+      if(input&&origin?.value&&!input.value)input.value=origin.value;
+    }
+    selectRole('dispatcher',false);
+    try{history.replaceState(null,'',location.pathname+location.search+'#dispatcher')}catch{}
+    q('managementRegisterForm')?.classList.remove('hidden');
+    q('managementRegEmail')?.closest('label')?.scrollIntoView({block:'center',behavior:'smooth'});
+    setStatus('Compte Exploitation : renseigne ton adresse e-mail puis termine la création. Ton code d’invitation et ton matricule ont été repris.','ok');
+    q('managementRegEmail')?.focus({preventScroll:true});
+  }
+
   async function driverRegister(e){
     e.preventDefault();
     const password=q('driverRegPassword').value;
@@ -185,7 +208,14 @@
       if(!r.ok||!b.ok)throw new Error(b.error||'Création impossible.');
       if(b.profile?.role!=='driver')throw new Error(`Ce code d’invitation correspond au rôle ${roleLabel(b.profile?.role)}, pas Conducteur.`);
       await loginDriver(matricule,password);setStatus('Compte conducteur créé et lié.','ok');goApp('cloud');
-    }catch(err){setStatus(err?.message||'Création impossible.','err')}
+    }catch(err){
+      const message=String(err?.message||'Création impossible.');
+      if(/adresse e-mail.*requise|email.*required|email.*requise/i.test(message)){
+        openManagementRegistrationFromDriver();
+        return;
+      }
+      setStatus(message,'err');
+    }
   }
 
   async function loginManagement(email,password){
@@ -208,7 +238,7 @@
     if(password!==q('managementConfirm').value)return setStatus('Les deux mots de passe ne correspondent pas.','err');
     setStatus('Création du compte de gestion…','busy');
     try{
-      const email=q('managementRegEmail').value.trim();
+      const email=q('managementRegEmail').value.trim().toLowerCase();
       const r=await fetch(`${SUPABASE_URL}/functions/v1/register-member`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},body:JSON.stringify({email,password,organizationCode:q('managementOrg').value.trim(),matricule:q('managementMatricule').value.trim(),displayName:q('managementName').value.trim(),inviteCode:q('managementInvite').value.trim(),network:'fluo'})});
       const b=await r.json().catch(()=>({}));
       if(!r.ok||!b.ok)throw new Error(b.error||'Création impossible.');
@@ -246,6 +276,7 @@
     q('managementRegisterForm')?.addEventListener('submit',managementRegister);
     q('showDriverRegister')?.addEventListener('click',()=>{q('driverRegisterForm')?.classList.remove('hidden');q('showDriverRegister')?.classList.add('hidden')});
     q('hideDriverRegister')?.addEventListener('click',()=>{q('driverRegisterForm')?.classList.add('hidden');q('showDriverRegister')?.classList.remove('hidden')});
+    q('switchToManagementRegister')?.addEventListener('click',openManagementRegistrationFromDriver);
     q('showManagementRegister')?.addEventListener('click',()=>q('managementRegisterForm')?.classList.toggle('hidden'));
     q('openLocal')?.addEventListener('click',()=>goApp('local'));
     q('linkLocal')?.addEventListener('click',()=>{selectRole('driver');q('driverRegisterForm')?.classList.remove('hidden');q('showDriverRegister')?.classList.add('hidden');prefillLocal();q('driverInvite')?.focus()});
