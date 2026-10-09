@@ -127,7 +127,34 @@
       const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;await afterAuth(data.session);
     }catch(err){setCloudStatus(err.message||'Création impossible.','err')}
   }
-  async function logoutCloud(){try{await S.client?.auth.signOut()}catch{};try{S.channel&&await S.client?.removeChannel(S.channel)}catch{};S.user=null;S.profile=null;S.channel=null;localStorage.removeItem(PROFILE_CACHE);q('v156AccountSheet')?.classList.add('hidden');q('v156CloudAuth')?.classList.remove('hidden');q('v13Auth')?.classList.add('hidden');setCloudStatus(localAccount()?'Déconnecté du serveur. Ton profil conducteur local est toujours disponible.':'Déconnecté du serveur.');switchMode('login');prefillFromLocal()}
+  async function logoutCloud(){
+    const oldRole=String(S.profile?.role||'driver');
+    S.suppressPush=true; // Never sync an outdated planning snapshot during logout.
+    try{
+      const {error}=await S.client?.auth.signOut({scope:'global'})||{};
+      if(error)console.warn('[Mon SAEIV] déconnexion distante',error.message||error);
+    }catch(e){console.warn('[Mon SAEIV] déconnexion distante indisponible',e?.message||e)}
+    try{await S.client?.auth.signOut({scope:'local'})}catch(e){console.warn('[Mon SAEIV] déconnexion locale',e?.message||e)}
+    try{S.channel&&await S.client?.removeChannel(S.channel)}catch{}
+    S.user=null;S.profile=null;S.channel=null;
+    try{
+      localStorage.removeItem(PROFILE_CACHE);
+      localStorage.removeItem(ENTRY_MODE_KEY);
+      // A failed network sign-out must never leave a reusable session on this phone.
+      localStorage.removeItem('sb-xpmrnwipnoekiycghwli-auth-token');
+    }catch{}
+    q('v156AccountSheet')?.classList.add('hidden');
+    q('v156CloudAuth')?.classList.remove('hidden');
+    q('v13Auth')?.classList.add('hidden');
+    q('v165Board')?.classList.add('hidden');
+    q('v157Dispatch')?.classList.add('hidden');
+    setCloudStatus('Déconnecté du serveur.');switchMode('login');
+    if(oldRole==='dispatcher'||oldRole==='admin'){
+      // Leave the protected exploitation interface; do not simply close the dialog.
+      try{window.MonSAEIVEntryBridgeV160?.openGateway?.(oldRole)}catch{}
+      location.replace('./?role='+encodeURIComponent(oldRole)+'&signed_out=1');
+    }else prefillFromLocal();
+  }
   function stripPrivate(item){const out={};for(const [k,v] of Object.entries(item||{})){if(!k.startsWith('_server')&&k!=='_lockedByExploitation')out[k]=v}return out}
   function localToRow(item,index){
     const p=S.profile,u=S.user;if(!p||!u)return null;const type=allowedTypes.has(item.type)?item.type:'other';
