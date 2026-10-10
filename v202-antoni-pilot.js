@@ -194,6 +194,6 @@
  },true);
  document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
  const start=()=>{sync();setInterval(sync,1200)};
- window.MonSAEIVAntoniPilotV202={installed:true,version:'1.0.114',sync,openDriverDay:open,closeDriverDay:close};
+ window.MonSAEIVAntoniPilotV202={installed:true,version:'1.0.115',sync,openDriverDay:open,closeDriverDay:close};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
