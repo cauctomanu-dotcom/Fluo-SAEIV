@@ -112,7 +112,8 @@
   if(!hasLock()||!P.driver)throw Error('Prendre le verrou et choisir un conducteur');
   const engine=window.MonSAEIVServiceBlocksV197;if(!engine?.compose)throw Error('Construction des prises de service et HLP indisponible. Actualiser la page.');
   const {data:config,error:configError}=await client().from('driver_settings').select('bus_parking').eq('organization_id',org()).eq('user_id',P.driver).maybeSingle();if(configError)throw configError;
-  const built=engine.compose(P.items,config?.bus_parking,P.date);
+  const built=engine.compose(P.items,config?.bus_parking,P.date,
+    org()==='533814ff-a356-4b65-ba94-c5ca36ce917a'?{economicRouting:true}:{});
   const row={organization_id:org(),driver_user_id:P.driver,service_date:P.date,items:built.items,status:'draft',updated_by:cloud()?.user?.id};
   const {error}=await client().from('saeiv_planning_days').upsert(row,{onConflict:'organization_id,driver_user_id,service_date'});
   if(error)throw error;await loadDay();status('Planning enregistré en brouillon · '+built.generated+' éléments de service calculés.'+(built.issues.length?' ⚠ '+built.issues.join(' ; '):'') );
