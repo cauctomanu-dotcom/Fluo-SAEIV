@@ -2,8 +2,8 @@
 /* Mon SAEIV 1.0.89 — supervision exploitation temps réel + simulation conducteurs test. */
 (()=>{
   if(window.MonSAEIVLiveSupervisionV183?.installed)return;
-  const VERSION='1.0.89',q=id=>document.getElementById(id);
-  const S={open:false,map:null,markers:new Map(),rows:[],profiles:new Map(),timer:null,busy:false,fitOnce:false,routeIndexes:new Map(),routePayloads:new Map()};
+  const VERSION='1.0.116',q=id=>document.getElementById(id);
+  const S={open:false,map:null,markers:new Map(),rows:[],profiles:new Map(),timer:null,busy:false,fitOnce:false,routeIndexes:new Map(),routePayloads:new Map(),selected:null,sending:false};
   const cloud=()=>window.MonSAEIVCloudV156;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const allowed=()=>['dispatcher','admin'].includes(String(cloud()?.profile?.role||''));
@@ -41,11 +41,52 @@
       .v183-map-wrap{position:relative;min-width:0;min-height:0;overflow:hidden;background:#0b1c26}.v183-map{width:100%;height:100%;min-height:360px}
       .v183-map-note{position:absolute;z-index:900;left:12px;bottom:12px;max-width:min(440px,calc(100% - 24px));padding:8px 10px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(5,16,24,.9);color:#c6d7de;font-size:.58rem;line-height:1.35}
       .v183-bus-icon{background:transparent!important;border:0!important}.v183-marker{display:grid;place-items:center;width:32px;height:32px;border:2px solid #fff;border-radius:50%;background:#173747;box-shadow:0 2px 9px rgba(0,0,0,.55);font-size:18px;line-height:1}.v183-marker.late{background:#8f3035}.v183-marker.warn{background:#80600f}.v183-marker.early{background:#176589}.v183-marker.stale,.v183-marker.lost{background:#505b63}.v183-marker.simulated{outline:2px dashed #c6b8ff;outline-offset:2px}.v183-sim-badge{display:inline-flex;margin-left:6px;padding:2px 5px;border:1px solid #7257bf;border-radius:999px;background:#251a46;color:#dcd1ff;font-size:.48rem;font-weight:950;vertical-align:middle}.v183-popup{min-width:210px}.v183-popup b{font-size:14px}.v183-popup div{margin-top:5px;font-size:12px}.v183-popup .delta{font-size:18px;font-weight:1000}
+      /* Calm shared supervision for dispatchers on phone and desktop. */
+      .v183-root{background:#f4f6f8;color:#243d4d}
+      .v183-top{background:#fff;color:#243d4d;border-color:#d8e2e8}
+      .v183-title span,.v183-statusline{color:#587181;font-size:.8rem}
+      .v183-kpis,.v183-side,.v183-filters,.v183-mobile-tabs{background:#f1f5f7;border-color:#d7e1e7}
+      .v183-kpi{background:#fff;border-color:#d7e1e7;color:#244154}
+      .v183-kpi span{color:#577184;font-size:.69rem}
+      .v183-card{background:#fff;color:#243e51;border-color:#d5e1e8;box-shadow:none}
+      .v183-card strong{font-size:.97rem;color:#1e3a4e;white-space:normal}
+      .v183-card small{font-size:.77rem;color:#566e7c;white-space:normal;line-height:1.45}
+      .v183-card .v183-state{color:#3c5c71;font-size:.79rem}
+      .v183-card.late,.v183-card.warn,.v183-card.early,.v183-card.stale,.v183-card.lost{background:#fff;border-left-width:5px}
+      .v183-card.late{border-left-color:#c16a66}.v183-card.warn{border-left-color:#baa26a}.v183-card.early{border-left-color:#6b97b0}.v183-card.stale,.v183-card.lost{border-left-color:#a4adb4}
+      .v183-line{background:#e6eef3;color:#274c63;font-size:.9rem}
+      .v183-delta{font-size:.94rem;color:#28475a}
+      .v183-mobile-tabs button{min-height:46px;background:#fff;color:#315269;border-color:#d1dee6;font-size:.96rem}
+      .v183-mobile-tabs button.active{background:#315f78;color:#fff;border-color:#315f78}
+      .v183-list{gap:10px;padding:12px}
+      .v183-actions button,.v183-filters input,.v183-filters select{min-height:44px;font-size:.88rem}
+      #v183VehiclePanel{position:fixed;inset:0;z-index:49001;display:grid;place-items:center;padding:16px;background:rgba(20,38,50,.58)}
+      #v183VehiclePanel[hidden]{display:none!important}
+      #v183VehiclePanel .v183-sheet{background:#fff;color:#243d4d;width:min(560px,100%);max-height:92dvh;overflow:auto;border-radius:16px;padding:20px;box-shadow:0 22px 65px #06152244}
+      #v183VehiclePanel h2{margin:0 0 6px;font-size:1.4rem;color:#24485f}
+      #v183VehiclePanel p{font-size:.9rem;color:#516a7a;line-height:1.5}
+      #v183VehiclePanel label{display:block;margin:14px 0 5px;font-weight:750}
+      #v183VehiclePanel textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:110px;background:#fff;color:#223d4f;border:1px solid #acbfcb;border-radius:10px;font:400 16px/1.5 system-ui;padding:11px}
+      #v183VehiclePanel .v183-panel-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:13px}
+      #v183VehiclePanel button{min-height:44px;border-radius:9px;padding:9px 13px;border:1px solid #c1d2dc;background:#eaf0f3;color:#29495f;font-size:.92rem;font-weight:750}
+      #v183VehiclePanel #v183SendMessage{background:#315f78;color:#fff;border-color:#315f78}
+      #v183VehiclePanel .v183-panel-status{min-height:1.6em;font-size:.9rem;color:#4f6675}
       @media(max-width:1000px){
         .v183-work{grid-template-columns:minmax(280px,34vw) minmax(0,1fr)}
         .v183-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
       }
       @media(max-width:700px){
+        .v183-root{font-size:14px}
+        .v183-title b{font-size:1.05rem}
+        .v183-mobile-tabs{gap:9px;padding:10px}
+        .v183-actions button{font-size:.85rem}
+        .v183-list{padding:12px}
+        .v183-card{padding:14px}
+        .v183-card strong{font-size:1.02rem}
+        .v183-card small{font-size:.8rem}
+        #v183VehiclePanel{padding:0;align-items:end}
+        #v183VehiclePanel .v183-sheet{border-radius:16px 16px 0 0;max-height:95dvh;padding:18px}
+      
         .v183-root{grid-template-rows:auto auto auto minmax(0,1fr);padding-bottom:env(safe-area-inset-bottom)}
         .v183-top{padding:calc(8px + env(safe-area-inset-top)) 10px 8px;gap:8px;align-items:stretch}
         .v183-title{flex-basis:100%}.v183-title b{font-size:1rem}.v183-title span{display:none}
@@ -71,6 +112,12 @@
       }
     `;document.head.appendChild(style);
     document.body.insertAdjacentHTML('beforeend',`<section id="v183Supervision" class="v183-root hidden"><header class="v183-top"><div class="v183-title"><b>🗺 Supervision réseau</b><span>Tous les véhicules actifs de votre société · Mon SAEIV ${VERSION}</span></div><div class="v183-actions"><span class="v183-live">TEMPS RÉEL</span><button id="v183Refresh">↻ Actualiser</button><button id="v183Fit">◎ Tout voir</button><button id="v183Close">Fermer</button></div></header><div id="v183Kpis" class="v183-kpis"></div><nav class="v183-mobile-tabs" aria-label="Vue supervision"><button id="v183MobileMap" class="active" type="button">🗺 Carte</button><button id="v183MobileList" type="button">🚌 Véhicules <span id="v183MobileCount"></span></button></nav><div class="v183-work"><aside class="v183-side"><div class="v183-filters"><div class="v183-filter-grid"><input id="v183Search" class="wide" type="search" placeholder="Ligne, destination, conducteur…"><select id="v183Line"><option value="">Toutes les lignes</option></select><select id="v183State"><option value="">Tous les états</option><option value="late">Retards importants</option><option value="warn">Retards</option><option value="early">Avances</option><option value="hlp">Haut-le-pied</option><option value="stale">GPS ancien</option></select></div><div id="v183Status" class="v183-statusline">Connexion au serveur…</div></div><div id="v183Vehicles" class="v183-list"></div></aside><main class="v183-map-wrap"><div id="v183Map" class="v183-map"></div><div class="v183-map-note">Le 🚌 est centré exactement sur la position partagée. En service normal, cette position est recalée sur le tracé routier ; en déviation/recalcul, elle suit la position GPS réelle.</div></main></div></section>`);
+    document.body.insertAdjacentHTML('beforeend','<section id="v183VehiclePanel" hidden role="dialog" aria-modal="true" aria-label="Détails du véhicule"><div class="v183-sheet"><h2 id="v183VehicleTitle">Véhicule</h2><p id="v183VehicleMeta"></p><label for="v183DirectText">Message au conducteur</label><textarea id="v183DirectText" maxlength="800" placeholder="Consigne courte et claire. À consulter uniquement à l’arrêt."></textarea><p>Le message est envoyé uniquement au conducteur de ce véhicule, dans votre entreprise. Aucun changement de planning n’est déclenché.</p><div class="v183-panel-actions"><button type="button" id="v183SendMessage">Envoyer le message</button><button type="button" id="v183ShowPosition">Voir la position</button><button type="button" id="v183VehicleClose">Fermer</button></div><p class="v183-panel-status" id="v183VehicleStatus" role="status"></p></div></section>');
+    q('v183VehicleClose').addEventListener('click',closeVehicle);
+    q('v183VehiclePanel').addEventListener('click',e=>{if(e.target===q('v183VehiclePanel'))closeVehicle()});
+    q('v183SendMessage').addEventListener('click',()=>sendDirectMessage().catch(e=>vehicleStatus(e.message||String(e),true)));
+    q('v183ShowPosition').addEventListener('click',()=>{const id=S.selected?.owner_id;closeVehicle();if(id)focusVehicle(id)});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!q('v183VehiclePanel')?.hidden)closeVehicle()});
     q('v183Close')?.addEventListener('click',close);q('v183Refresh')?.addEventListener('click',()=>refresh(true));q('v183Fit')?.addEventListener('click',()=>{setMobileView('map');setTimeout(fitAll,50)});q('v183MobileMap')?.addEventListener('click',()=>setMobileView('map'));q('v183MobileList')?.addEventListener('click',()=>setMobileView('list'));['v183Search','v183Line','v183State'].forEach(id=>q(id)?.addEventListener(id==='v183Search'?'input':'change',render));
   }
   function addOpenButton(){const top=q('v157Dispatch')?.querySelector('.v157-top-actions');if(!top||q('v183Open')||!allowed())return;const b=document.createElement('button');b.id='v183Open';b.type='button';b.textContent='🗺 Supervision temps réel';b.addEventListener('click',open);top.prepend(b)}
@@ -132,19 +179,53 @@
   }
   async function initMap(){if(S.map)return S.map;const L=await ensureLeaflet();S.map=L.map('v183Map',{zoomControl:true,preferCanvas:true}).setView([48.9,6.2],8);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(S.map);setTimeout(()=>S.map.invalidateSize(),80);return S.map}
   async function open(){if(!allowed())return;installUi();S.open=true;const root=q('v183Supervision');root?.classList.remove('hidden');document.body.style.overflow='hidden';setMobileView('map');try{await initMap()}catch(e){q('v183Status').textContent=e.message||'Carte indisponible'}setTimeout(()=>S.map?.invalidateSize(),80);await refresh(true);clearInterval(S.timer);S.timer=setInterval(()=>{if(S.open&&!document.hidden)refresh(false)},5000)}
-  function close(){S.open=false;q('v183Supervision')?.classList.add('hidden');document.body.style.overflow='';clearInterval(S.timer);S.timer=null}
+  function close(){closeVehicle();S.open=false;q('v183Supervision')?.classList.add('hidden');document.body.style.overflow='';clearInterval(S.timer);S.timer=null}
   async function loadProfiles(){const c=cloud(),org=c?.profile?.organization_id;if(!c?.client||!org)return;const{data,error}=await c.client.from('profiles').select('user_id,display_name,matricule,role,active').eq('organization_id',org).eq('active',true);if(error)throw error;S.profiles=new Map((data||[]).map(x=>[String(x.user_id),x]))}
   async function refresh(force=false){if(S.busy||!S.open||!allowed())return;const c=cloud(),org=c?.profile?.organization_id;if(!c?.client||!org){q('v183Status').textContent='Compte exploitation non connecté.';return}S.busy=true;if(force)q('v183Status').textContent='Actualisation…';try{if(!S.profiles.size||force)await loadProfiles();const since=new Date(Date.now()-10*60*1000).toISOString();const[{data,error},simulated]=await Promise.all([c.client.from('saeiv_live_courses').select('owner_id,organization_id,public_id,service_date,department,route_id,trip_id,line,destination,stage,latitude,longitude,accuracy_m,observed_at,delay_seconds,stop_index,start_index').eq('organization_id',org).gte('observed_at',since).order('observed_at',{ascending:false}),simulatedRows(org)]);if(error)throw error;const live=(data||[]).map(r=>({...r,driver:S.profiles.get(String(r.owner_id))||null})),liveOwners=new Set(live.map(r=>String(r.owner_id))),sims=(simulated||[]).filter(r=>!liveOwners.has(String(r.owner_id)));S.rows=[...live,...sims];syncLineFilter();render();q('v183Status').textContent=`Actualisé ${new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})} · ${S.rows.length} véhicule${S.rows.length>1?'s':''}${sims.length?` · ${sims.length} simulation${sims.length>1?'s':''} TEST`:''}`}catch(e){console.warn('[Supervision]',e);q('v183Status').textContent=`Supervision indisponible : ${e.message||e}`}finally{S.busy=false}}
   function syncLineFilter(){const el=q('v183Line');if(!el)return;const selected=el.value,lines=[...new Set(S.rows.map(r=>String(r.line||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr',{numeric:true}));el.innerHTML='<option value="">Toutes les lignes</option>'+lines.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if(lines.includes(selected))el.value=selected}
   function filtered(){const search=String(q('v183Search')?.value||'').trim().toLowerCase(),line=q('v183Line')?.value||'',wanted=q('v183State')?.value||'';return S.rows.filter(r=>{const st=stateOf(r),p=r.driver||{},hay=[r.line,r.destination,r.department,p.display_name,p.matricule].join(' ').toLowerCase();if(search&&!hay.includes(search))return false;if(line&&String(r.line)!==line)return false;if(wanted==='hlp'&&r.stage!=='hlp')return false;if(wanted==='stale'&&!['stale','lost'].includes(st.key))return false;if(['late','warn','early'].includes(wanted)&&st.key!==wanted)return false;return true}).sort((a,b)=>stateOf(b).rank-stateOf(a).rank||Number(b.delay_seconds||0)-Number(a.delay_seconds||0))}
   function renderKpis(){const rows=S.rows,states=rows.map(stateOf),late=states.filter(s=>['late','warn'].includes(s.key)).length,early=states.filter(s=>s.key==='early').length,stale=states.filter(s=>['stale','lost'].includes(s.key)).length,hlp=rows.filter(r=>r.stage==='hlp').length,ok=states.filter(s=>s.key==='ok').length;q('v183Kpis').innerHTML=[[rows.length,'Véhicules actifs'],[ok,'À l’heure'],[late,'En retard'],[early,'En avance'],[hlp,'Haut-le-pied'],[stale,'GPS ancien']].map(([n,l])=>`<div class="v183-kpi"><b>${n}</b><span>${l}</span></div>`).join('')}
   function driverLabel(r){const p=r.driver;return p?.display_name||p?.matricule?`${p.display_name||'Conducteur'}${p.matricule?` · ${p.matricule}`:''}`:'Conducteur connecté'}
-  function renderList(rows){const box=q('v183Vehicles'),count=q('v183MobileCount');if(count)count.textContent=rows.length?`(${rows.length})`:'';if(!box)return;if(!rows.length){box.innerHTML='<div class="v183-empty">Aucun véhicule ne correspond aux filtres.</div>';return}box.innerHTML=rows.map(r=>{const st=stateOf(r),a=Math.round(age(r));return`<button class="v183-card ${st.key} ${r.simulated?'simulated':''}" data-v183-id="${esc(r.owner_id)}"><div class="v183-card-head"><span class="v183-line">${esc(r.line||'—')}</span><span class="v183-delta">${esc(delayText(r.delay_seconds))}</span></div><strong>${esc(r.destination||'Destination non renseignée')}${r.simulated?'<span class="v183-sim-badge">SIMULATION</span>':''}</strong><small>${esc(driverLabel(r))}</small><small>${r.simulated?`🧪 Planning simulé · ${Math.round(Number(r.simulation_progress||0)*100)} % de la course`:`${esc(stageLabel(r.stage))} · position il y a ${a<60?`${a} s`:`${Math.floor(a/60)} min`}`}</small><small class="v183-state">${r.simulated?'Simulation à l’heure':esc(st.label)}</small></button>`}).join('');box.querySelectorAll('[data-v183-id]').forEach(b=>b.addEventListener('click',()=>focusVehicle(b.dataset.v183Id)))}
+  function renderList(rows){const box=q('v183Vehicles'),count=q('v183MobileCount');if(count)count.textContent=rows.length?`(${rows.length})`:'';if(!box)return;if(!rows.length){box.innerHTML='<div class="v183-empty">Aucun véhicule ne correspond aux filtres.</div>';return}box.innerHTML=rows.map(r=>{const st=stateOf(r),a=Math.round(age(r));return`<button class="v183-card ${st.key} ${r.simulated?'simulated':''}" data-v183-id="${esc(r.owner_id)}"><div class="v183-card-head"><span class="v183-line">${esc(r.line||'—')}</span><span class="v183-delta">${esc(delayText(r.delay_seconds))}</span></div><strong>${esc(r.destination||'Destination non renseignée')}${r.simulated?'<span class="v183-sim-badge">SIMULATION</span>':''}</strong><small>${esc(driverLabel(r))}</small><small>${r.simulated?`🧪 Planning simulé · ${Math.round(Number(r.simulation_progress||0)*100)} % de la course`:`${esc(stageLabel(r.stage))} · position il y a ${a<60?`${a} s`:`${Math.floor(a/60)} min`}`}</small><small class="v183-state">${r.simulated?'Simulation à l’heure':esc(st.label)}</small></button>`}).join('');box.querySelectorAll('[data-v183-id]').forEach(b=>b.addEventListener('click',()=>openVehicle(b.dataset.v183Id)))}
+  function vehicleStatus(message,problem=false){const el=q('v183VehicleStatus');if(el){el.textContent=message;el.style.color=problem?'#a33339':'#3f6254'}}
+  function closeVehicle(){if(q('v183VehiclePanel'))q('v183VehiclePanel').hidden=true;S.selected=null}
+  function openVehicle(id){
+    const current=S.rows.find(r=>String(r.owner_id)===String(id));
+    if(!current||!allowed())return;
+    const p=S.profiles.get(String(current.owner_id));
+    if(!p||p.role!=='driver'||p.active===false||String(current.organization_id)!==String(cloud()?.profile?.organization_id))return;
+    S.selected=current;
+    q('v183VehicleTitle').textContent='Ligne '+(current.line||'—')+' · '+(p.display_name||p.matricule||'Conducteur');
+    q('v183VehicleMeta').textContent=(current.simulated?'Simulation · ':'GPS · ')+stageLabel(current.stage)+' · '+delayText(current.delay_seconds)+' · '+(current.destination||'Destination non renseignée');
+    q('v183DirectText').value='';
+    q('v183VehiclePanel').hidden=false;
+    vehicleStatus('Rédige une consigne courte. Le conducteur pourra la lire à un moment sûr.');
+    q('v183DirectText').focus();
+  }
+  async function sendDirectMessage(){
+    if(S.sending)return;
+    const row=S.selected,c=cloud(),body=String(q('v183DirectText')?.value||'').trim();
+    if(!row||!c?.client||!c.profile?.organization_id||!allowed())throw Error('Aucun véhicule de votre société sélectionné.');
+    if(!body||body.length>800)throw Error('Rédige un message de 1 à 800 caractères.');
+    const recipient=S.profiles.get(String(row.owner_id));
+    if(!recipient||recipient.role!=='driver'||recipient.active===false||String(row.organization_id)!==String(c.profile.organization_id))
+      throw Error('Le conducteur ne fait pas partie de votre entreprise.');
+    S.sending=true;q('v183SendMessage').disabled=true;vehicleStatus('Envoi du message…');
+    try{
+      const note={organization_id:c.profile.organization_id,recipient_user_id:row.owner_id,kind:'dispatch_direct',
+        title:'Message de l’exploitation · Ligne '+String(row.line||'—').slice(0,40),message:body,
+        payload:{department:row.department||null,line:row.line||null,trip_id:row.trip_id||null,service_date:row.service_date||null,source:'live_supervision',simulation:Boolean(row.simulated)}};
+      const {error}=await c.client.from('saeiv_notifications').insert(note);
+      if(error)throw error;
+      vehicleStatus('Message transmis au compte du conducteur. Réception en direct si son SAEIV est ouvert et connecté.');
+      q('v183DirectText').value='';
+    }finally{S.sending=false;q('v183SendMessage').disabled=false}
+  }
   function markerHtml(st,r){return`<div class="v183-marker ${st.key} ${r?.simulated?'simulated':''}" aria-label="Bus">🚌</div>`}
   function renderMap(rows){if(!S.map||!window.L)return;const keep=new Set(rows.map(r=>String(r.owner_id)));for(const[id,m]of S.markers)if(!keep.has(id)){m.remove();S.markers.delete(id)}for(const r of rows){const id=String(r.owner_id),st=stateOf(r),lat=Number(r.latitude),lon=Number(r.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const icon=L.divIcon({className:'v183-bus-icon',html:markerHtml(st,r),iconSize:[32,32],iconAnchor:[16,16],popupAnchor:[0,-18]});let m=S.markers.get(id);if(!m){m=L.marker([lat,lon],{icon,zIndexOffset:st.rank*10}).addTo(S.map);S.markers.set(id,m)}else{m.setLatLng([lat,lon]);m.setIcon(icon);m.setZIndexOffset(st.rank*10)}m.bindTooltip(`${r.simulated?'🧪':'🚌'} ${r.line||'—'} · ${r.simulated?'simulation':delayText(r.delay_seconds)}`,{direction:'top',offset:[0,-14],opacity:.92});m.bindPopup(`<div class="v183-popup"><b>Ligne ${esc(r.line||'—')}${r.simulated?' · SIMULATION':''}</b><div>${esc(r.destination||'')}</div><div class="delta">${esc(r.simulated?'À l’heure simulée':delayText(r.delay_seconds))}</div><div>${esc(stageLabel(r.stage))}</div><div>${esc(driverLabel(r))}</div><div>${esc(r.simulated?'Position calculée depuis le planning':st.label)}</div></div>`)}if(!S.fitOnce&&rows.length){S.fitOnce=true;fitAll()}}
   function render(){const rows=filtered();renderKpis();renderList(rows);renderMap(rows)}
   function focusVehicle(id){const m=S.markers.get(String(id));if(!m||!S.map)return;const go=()=>{try{S.map.invalidateSize();S.map.setView(m.getLatLng(),Math.max(S.map.getZoom(),15),{animate:true});m.openPopup()}catch{}};if(isMobileLayout()){setMobileView('map');setTimeout(go,70)}else go()}
   function fitAll(){if(!S.map||!S.markers.size)return;const b=L.latLngBounds([...S.markers.values()].map(m=>m.getLatLng()));if(b.isValid())S.map.fitBounds(b.pad(.18),{maxZoom:14})}
   function watch(){installUi();let n=0;const tick=()=>{addOpenButton();if(!q('v183Open')&&n++<160)setTimeout(tick,250)};tick();document.addEventListener('visibilitychange',()=>{if(S.open&&!document.hidden){setTimeout(()=>S.map?.invalidateSize(),80);refresh(true)}});const resize=()=>{if(!S.open)return;if(!isMobileLayout())q('v183Supervision')?.removeAttribute('data-mobile-view');else if(!q('v183Supervision')?.dataset.mobileView)setMobileView('map');setTimeout(()=>S.map?.invalidateSize(),100)};window.addEventListener('resize',resize,{passive:true});window.addEventListener('orientationchange',()=>setTimeout(resize,120),{passive:true})}
-  window.MonSAEIVLiveSupervisionV183={installed:true,version:VERSION,open,close,refresh};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watch,{once:true});else watch();
+  window.MonSAEIVLiveSupervisionV183={installed:true,version:VERSION,open,close,refresh,openVehicle};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watch,{once:true});else watch();
 })();
