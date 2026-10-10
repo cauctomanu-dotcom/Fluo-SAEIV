@@ -13,7 +13,7 @@ assert(planner.includes("const eligible=drivers.filter(d=>!publishedIds.has(d.us
 assert(board.includes('B.drivers=B.allDrivers.slice()'));
 assert(board.includes("const {data:companyLines,error:companyError}=await c.from('saeiv_company_lines')"));
 assert(board.includes("if(!active.some(l=>String(l.department)===String(dept)))continue"));
-assert(board.includes("&&lineKey(l.line_code)===lineKey(route.short)))continue"));
+assert(board.includes("&&lineKey(l.line_code,dept)===lineKey(route.short,dept)))continue"));
 assert(board.includes("B.segments=[...found.values()].filter(seg=>active.some(l=>sameCompanyLine(l,seg)))"));
 assert(board.includes('B.segments=[...found.values()].filter(seg=>active.some(l=>sameCompanyLine(l,seg)))'));
 assert(dispatch.includes(".eq('organization_id',orgId).eq('role','driver').eq('active',true)"));
