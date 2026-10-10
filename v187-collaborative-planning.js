@@ -278,6 +278,7 @@
   for(const activitiesDay of activities.values())for(const a of activitiesDay){if(a.segment_id)used.add(String(a.segment_id));if(a.linked?.tripId)used.add(String(a.linked.tripId))}
   for(const day of [...drafts,...published])for(const a of day.items||[]){if(a.segment_id)used.add(String(a.segment_id));if(a.linked?.tripId)used.add(String(a.linked.tripId))}
   for(const row of existing){if(row.payload?.segment_id)used.add(String(row.payload.segment_id));if(row.linked?.tripId)used.add(String(row.linked.tripId))}
+  const antoniPilot=org()==='533814ff-a356-4b65-ba94-c5ca36ce917a';
   const activeLines=lines.filter(x=>x.active&&(!x.start_date||x.start_date<=date)&&(!x.end_date||x.end_date>=date));
   const key=x=>String(x||'').replace(/\s+/g,'').toUpperCase();
   const new54={'330':'460','340':'461','350':'465','360':'466','370':'468','380':'469'};
@@ -293,10 +294,14 @@
     return school?school[1]+String(Number(school[2])):raw;
   };
   if(!activeLines.length)throw Error('Aucune ligne de la société n’est active à cette date : génération bloquée pour éviter les courses hors périmètre.');
-  const allowed=seg=>activeLines.some(l=>String(l.department)===String(seg.dept||seg.linked?.dept||'')
-    &&lineKey(l.line_code,l.department)===lineKey(seg.line,seg.dept||seg.linked?.dept));
+  const gtfsRouteId=x=>String(x||'').replace(/^TED:/i,'');
+  const sameLine=(l,seg)=>String(l.department)===String(seg.dept||seg.linked?.dept||'')&&(
+    (!!l.gtfs_route_id&&gtfsRouteId(l.gtfs_route_id)===gtfsRouteId(seg.routeId||seg.linked?.routeId))||
+    lineKey(l.line_code,l.department)===lineKey(seg.line,seg.dept||seg.linked?.dept)
+  );
+  const allowed=seg=>activeLines.some(l=>sameLine(l,seg));
   const choseVehicle=seg=>{
-   const l=activeLines.find(l=>String(l.department)===String(seg.dept||seg.linked?.dept||'')&&lineKey(l.line_code,l.department)===lineKey(seg.line,seg.dept||seg.linked?.dept));
+   const l=activeLines.find(l=>sameLine(l,seg));
    if(!l)return 'bus';
    const exception=exceptions.find(x=>x.line_id===l.id);if(exception)return exception.vehicle_type;
    const r=rules.filter(x=>x.line_id===l.id);
@@ -330,7 +335,16 @@
     const contractPenalty=Math.abs(Number(scoring.economy?.work||0)-dailyTarget)*20;
     ranked.push({driver,rank,contractPenalty:contractPenalty+Number(rest.penalty||0)});
    }
-   ranked.sort((a,b)=>a.rank.dayTier-b.rank.dayTier||a.contractPenalty-b.contractPenalty||a.rank.compactPenalty-b.rank.compactPenalty||a.rank.incremental-b.rank.incremental);
+   ranked.sort((a,b)=>{
+     if(a.rank.dayTier!==b.rank.dayTier)return a.rank.dayTier-b.rank.dayTier;
+     if(antoniPilot){
+       // One driver/day preferred; balance paid cuts, distance/HLP fuel cost,
+       // hours and excess idle time instead of treating each trip in isolation.
+       const cost=x=>x.rank.incremental+x.rank.compactPenalty*.20+x.contractPenalty*.50;
+       return cost(a)-cost(b)||a.rank.incremental-b.rank.incremental;
+     }
+     return a.contractPenalty-b.contractPenalty||a.rank.compactPenalty-b.rank.compactPenalty||a.rank.incremental-b.rank.incremental;
+   });
    if(!ranked.length){unplaced++;continue}
    const target=ranked[0].driver.user_id;
    activities.get(target).push({id:'gtfs-'+String(seg.id),segment_id:String(seg.id),date,type:seg.type||'regular',
@@ -346,7 +360,8 @@
    if(existingDraft?.status==='published')continue;
    const blockEngine=window.MonSAEIVServiceBlocksV197;
    if(!blockEngine?.compose)throw Error('Calcul des prises de service, HLP et coupures non chargé');
-   const built=blockEngine.compose(items,settingsBy.get(driver_user_id)?.bus_parking,date);
+   const built=blockEngine.compose(items,settingsBy.get(driver_user_id)?.bus_parking,date,
+     antoniPilot?{economicRouting:true}:{});
    const {error}=await client().from('saeiv_planning_days').upsert({
     organization_id:org(),driver_user_id,service_date:date,items:built.items,status:'draft',updated_by:cloud()?.user?.id
    },{onConflict:'organization_id,driver_user_id,service_date'});
