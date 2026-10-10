@@ -112,8 +112,7 @@
   if(!hasLock()||!P.driver)throw Error('Prendre le verrou et choisir un conducteur');
   const engine=window.MonSAEIVServiceBlocksV197;if(!engine?.compose)throw Error('Construction des prises de service et HLP indisponible. Actualiser la page.');
   const {data:config,error:configError}=await client().from('driver_settings').select('bus_parking').eq('organization_id',org()).eq('user_id',P.driver).maybeSingle();if(configError)throw configError;
-  const built=engine.compose(P.items,config?.bus_parking,P.date,
-    org()==='533814ff-a356-4b65-ba94-c5ca36ce917a'?{economicRouting:true}:{});
+  const built=engine.compose(P.items,config?.bus_parking,P.date,{economicRouting:true});
   const row={organization_id:org(),driver_user_id:P.driver,service_date:P.date,items:built.items,status:'draft',updated_by:cloud()?.user?.id};
   const {error}=await client().from('saeiv_planning_days').upsert(row,{onConflict:'organization_id,driver_user_id,service_date'});
   if(error)throw error;await loadDay();status('Planning enregistré en brouillon · '+built.generated+' éléments de service calculés.'+(built.issues.length?' ⚠ '+built.issues.join(' ; '):'') );
@@ -279,7 +278,7 @@
   for(const activitiesDay of activities.values())for(const a of activitiesDay){if(a.segment_id)used.add(String(a.segment_id));if(a.linked?.tripId)used.add(String(a.linked.tripId))}
   for(const day of [...drafts,...published])for(const a of day.items||[]){if(a.segment_id)used.add(String(a.segment_id));if(a.linked?.tripId)used.add(String(a.linked.tripId))}
   for(const row of existing){if(row.payload?.segment_id)used.add(String(row.payload.segment_id));if(row.linked?.tripId)used.add(String(row.linked.tripId))}
-  const antoniPilot=org()==='533814ff-a356-4b65-ba94-c5ca36ce917a';
+  // This is the common planning engine. Tenancy changes data, not scoring rules.
   const activeLines=lines.filter(x=>x.active&&(!x.start_date||x.start_date<=date)&&(!x.end_date||x.end_date>=date));
   const key=x=>String(x||'').replace(/\s+/g,'').toUpperCase();
   const new54={'330':'460','340':'461','350':'465','360':'466','370':'468','380':'469'};
@@ -338,13 +337,10 @@
    }
    ranked.sort((a,b)=>{
      if(a.rank.dayTier!==b.rank.dayTier)return a.rank.dayTier-b.rank.dayTier;
-     if(antoniPilot){
-       // One driver/day preferred; balance paid cuts, distance/HLP fuel cost,
-       // hours and excess idle time instead of treating each trip in isolation.
-       const cost=x=>x.rank.incremental+x.rank.compactPenalty*.20+x.contractPenalty*.50;
-       return cost(a)-cost(b)||a.rank.incremental-b.rank.incremental;
-     }
-     return a.contractPenalty-b.contractPenalty||a.rank.compactPenalty-b.rank.compactPenalty||a.rank.incremental-b.rank.incremental;
+     // Shared cost/efficiency rules for every company, with exactly the same
+     // driver, rest, HLP and regulatory feasibility checks.
+     const cost=x=>x.rank.incremental+x.rank.compactPenalty*.20+x.contractPenalty*.50;
+     return cost(a)-cost(b)||a.rank.incremental-b.rank.incremental;
    });
    if(!ranked.length){unplaced++;continue}
    const target=ranked[0].driver.user_id;
@@ -362,7 +358,7 @@
    const blockEngine=window.MonSAEIVServiceBlocksV197;
    if(!blockEngine?.compose)throw Error('Calcul des prises de service, HLP et coupures non chargé');
    const built=blockEngine.compose(items,settingsBy.get(driver_user_id)?.bus_parking,date,
-     antoniPilot?{economicRouting:true}:{});
+     {economicRouting:true});
    const {error}=await client().from('saeiv_planning_days').upsert({
     organization_id:org(),driver_user_id,service_date:date,items:built.items,status:'draft',updated_by:cloud()?.user?.id
    },{onConflict:'organization_id,driver_user_id,service_date'});
