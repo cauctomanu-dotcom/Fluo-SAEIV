@@ -97,7 +97,7 @@
   const root=q('v165Board');if(!root)return;
   if(!q('antoniPilotHead')){
     const h=document.createElement('section');h.id='antoniPilotHead';
-    h.innerHTML='<h2>Exploitation · Transports René Antoni</h2><p>Environnement de test isolé · 27 conducteurs de départ · courses chargées selon chaque jour de circulation Fluo. Les TAD sont planifiés d’office et peuvent être retirés du brouillon en l’absence de réservation. Anciennes références 54R3xx : correspondance de numérotation actuelle à vérifier sur Fluo avant publication.</p>';
+    h.innerHTML='<h2>Exploitation · Transports René Antoni</h2><p>Environnement de test isolé · 27 conducteurs de départ · courses chargées selon chaque jour de circulation Fluo. Les TAD sont planifiés d’office et peuvent être retirés du brouillon en l’absence de réservation. Nouveaux numéros Fluo du 54 : 460 (ex-R330), 461 (ex-R340), 465 (ex-R350), 466 (ex-R360), 468 (ex-R370) et 469 (ex-R380). Identifiants GTFS historiques préservés.</p>';
     root.prepend(h);
   }
   root.querySelectorAll('.v165-driver-meta').forEach(meta=>{
