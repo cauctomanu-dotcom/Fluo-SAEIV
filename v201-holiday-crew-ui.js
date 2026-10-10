@@ -10,7 +10,9 @@
   if(root&&b){
    let label=q('v201OperatorLabel');
    if(!label){label=document.createElement('p');label.id='v201OperatorLabel';label.style.cssText='padding:7px 10px;margin:7px 0;background:#103b4d;border:1px solid #5795a5;border-radius:8px;color:#e7f8ff;font-weight:750';root.prepend(label)}
-   label.textContent=b.currentOperator?'🏢 '+b.currentOperator+' · Toussaint 2026 · '+b.drivers.length+' conducteurs tests affectés. Les autres comptes restent disponibles hors de cette période.':'Périmètre de la journée : conducteurs de la société pilote (hors groupe Toussaint).';
+   label.textContent=String(cloud()?.profile?.organization_id||'')==='533814ff-a356-4b65-ba94-c5ca36ce917a'
+    ?'🏢 Transports René Antoni · '+b.drivers.length+' conducteurs · espace de test indépendant du catalogue Fluo.'
+    :'Périmètre : conducteurs affectés à la société connectée.';
   }
   const panel=q('v186Admin'),client=cloud()?.client,org=cloud()?.profile?.organization_id;
   if(!panel||!client||!org||cloud()?.profile?.role!=='admin'||loading)return;
@@ -24,7 +26,7 @@
   loading=true;
   try{
    const [members,profiles]=await Promise.all([
-    client.from('saeiv_operator_driver_memberships').select('driver_user_id').eq('organization_id',org).eq('operator_name','René Antoni').eq('valid_from','2026-10-17'),
+    client.from('saeiv_operator_driver_memberships').select('driver_user_id').eq('organization_id',org).eq('operator_name','René Antoni'),
     client.from('profiles').select('user_id,display_name,matricule').eq('organization_id',org).eq('role','driver')
    ]);
    if(members.error)throw members.error;if(profiles.error)throw profiles.error;
