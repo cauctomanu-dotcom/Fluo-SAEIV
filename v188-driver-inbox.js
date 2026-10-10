@@ -5,7 +5,7 @@
  const q=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const cl=()=>window.MonSAEIVCloudV156,profile=()=>cl()?.profile,db=()=>cl()?.client,user=()=>cl()?.user;
  const eligible=()=>profile()?.role==='driver'&&!!profile()?.organization_id&&!!user()?.id&&!!db();
- const I={channel:null,changes:[],published:[],notes:[],open:false,loading:false,directCurrent:null,directPolling:false};
+ const I={channel:null,changes:[],published:[],notes:[],open:false,loading:false,directCurrent:null,directPolling:false,lastDirectPoll:0};
  function message(text,bad=false){const box=q('v188Status');if(box){box.textContent=text;box.style.color=bad?'#ffb5b5':'#b2ffcc'}}
  function install(){
   if(q('v188Open')||!eligible())return;
@@ -96,11 +96,11 @@
    .eq('organization_id',profile().organization_id).eq('recipient_user_id',user().id).eq('id',note.id);
   if(error){message('Impossible de confirmer la lecture : '+error.message,true);return}
   q('v188DirectAlert').hidden=true;I.directCurrent=null;
-  pollDirect().catch(()=>{});
+  I.lastDirectPoll=0;pollDirect().catch(()=>{});
  }
  async function pollDirect(){
-  if(!eligible()||I.directPolling||I.directCurrent)return;
-  I.directPolling=true;
+  if(!eligible()||I.directPolling||I.directCurrent||Date.now()-I.lastDirectPoll<15000)return;
+  I.lastDirectPoll=Date.now();I.directPolling=true;
   try{
    const {data,error}=await db().from('saeiv_notifications')
     .select('id,organization_id,recipient_user_id,title,message,kind,read_at,created_at')
