@@ -12,7 +12,7 @@
  const dist=(a,b)=>{const x=point(a),y=point(b);if(!x||!y)return null;const r=v=>v*Math.PI/180,lat=r(y.lat-x.lat),lon=r(y.lon-x.lon),v=Math.sin(lat/2)**2+Math.cos(r(x.lat))*Math.cos(r(y.lat))*Math.sin(lon/2)**2;return 6371*2*Math.asin(Math.sqrt(v))};
  const estimate=(from,to)=>{const km=dist(from,to);return km===null?null:{km:Math.round(km*1.18*10)/10,minutes:km<.12?0:Math.max(1,Math.ceil(km*1.18/42*60))}};
  const label=p=>p?.address||p?.name||p?.label||'Stationnement du véhicule';
- function compose(input,parking,date){
+ function compose(input,parking,date,options={}){
   const all=Array.isArray(input)?input:[];
   const base=all.filter(x=>x?.source!==SOURCE);
   const manuallyDefined=base.some(x=>markTypes.has(x.type));
@@ -42,10 +42,34 @@
    const gap=estimate(a.destinationCoords,b.originCoords);
    if(!gap){issues.push('HLP intermédiaire '+(a.line||'')+' → '+(b.line||'')+' : coordonnées manquantes.');continue}
    if(t+gap.minutes>next){issues.push('HLP impossible entre '+(a.line||'')+' et '+(b.line||'')+' : '+gap.minutes+' min nécessaires.');continue}
-   if(gap.minutes>0)add('hlp',t,t+gap.minutes,a.destination,b.origin,'HLP entre courses estimé · '+gap.km+' km',{estimatedKm:gap.km,originCoords:point(a.destinationCoords),destinationCoords:point(b.originCoords)});
-   if(next>t+gap.minutes){
-    const idle=next-t-gap.minutes;
-    add(idle>=30?'cut':'pause',t+gap.minutes,next,b.origin,b.origin, (idle>=30?'Coupure':'Attente')+' estimée · '+idle+' min, qualification et rémunération à confirmer',{estimatedMinutes:idle,cutClassification:idle>=30?'provisional_cut':'waiting'});
+   const cutPctAtStop=dist(b.originCoords,parking)!==null&&dist(b.originCoords,parking)<.12?0:50;
+   let viaDepot=false,via1=null,via2=null;
+   if(options.economicRouting&&point(parking)){
+     via1=estimate(a.destinationCoords,parking);
+     via2=estimate(parking,b.originCoords);
+     if(via1&&via2&&t+via1.minutes+via2.minutes<=next){
+       const directIdle=next-t-gap.minutes,viaIdle=next-t-via1.minutes-via2.minutes;
+       // Provisional pricing: 0.63 EUR/km fuel, 30 EUR/h HLP,
+       // 50% pay at a cut away from the depot, 0% at the depot.
+       const directCost=gap.km*.63+gap.minutes*.5+Math.max(0,directIdle)*.25*(cutPctAtStop===50?1:0);
+       const depotCost=(via1.km+via2.km)*.63+(via1.minutes+via2.minutes)*.5;
+       viaDepot=depotCost+1<directCost&&viaIdle>=0;
+     }
+   }
+   if(viaDepot){
+     if(via1.minutes>0)add('hlp',t,t+via1.minutes,a.destination,label(parking),'HLP retour stationnement estimé · '+via1.km+' km',{estimatedKm:via1.km,originCoords:point(a.destinationCoords),destinationCoords:point(parking)});
+     const cutStart=t+via1.minutes,cutEnd=next-via2.minutes,idle=cutEnd-cutStart;
+     if(idle>0)add(idle>=30?'cut':'pause',cutStart,cutEnd,label(parking),label(parking),(idle>=30?'Coupure':'Attente')+' au stationnement · '+idle+' min · indemnisation estimée 0 %, à confirmer',{estimatedMinutes:idle,cutPercentage:0,cut_percentage:0,cutClassification:idle>=30?'provisional_depot_cut':'waiting',economicChoice:'depot'});
+     if(via2.minutes>0)add('hlp',next-via2.minutes,next,label(parking),b.origin,'HLP départ stationnement estimé · '+via2.km+' km',{estimatedKm:via2.km,originCoords:point(parking),destinationCoords:point(b.originCoords)});
+   }else{
+     if(gap.minutes>0)add('hlp',t,t+gap.minutes,a.destination,b.origin,'HLP entre courses estimé · '+gap.km+' km',{estimatedKm:gap.km,originCoords:point(a.destinationCoords),destinationCoords:point(b.originCoords)});
+     if(next>t+gap.minutes){
+       const idle=next-t-gap.minutes;
+       const pct=options.economicRouting?cutPctAtStop:null;
+       add(idle>=30?'cut':'pause',t+gap.minutes,next,b.origin,b.origin,
+         (idle>=30?'Coupure':'Attente')+' estimée · '+idle+' min'+(pct!==null?' · indemnisation estimée '+pct+' %':'')+', à confirmer',
+         {estimatedMinutes:idle,cutClassification:idle>=30?'provisional_cut':'waiting',...(pct===null?{}:{cutPercentage:pct,cut_percentage:pct,economicChoice:'direct'})});
+     }
    }
   }
   if(returning===null){issues.push('Retour dépôt : coordonnées manquantes, HLP de fin non calculé.');add('end',ends,ends+5,last.destination,name,'Fin de service provisoire — retour dépôt à vérifier')}
