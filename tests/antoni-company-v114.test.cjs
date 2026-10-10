@@ -25,7 +25,7 @@ assert(board.includes('await planner.openDriverDraft(driverId,date)'), 'drafts m
 assert(board.includes('await planner.saveDraft()'), 'persist edited drafts');
 assert(board.includes('saveHidden(date,done)'), 'date-scoped pilot exclusion');
 assert(board.includes('if(!antoniPilot())return'), 'isolate pilot state from global operator');
-assert(view.includes("const isDispatcher=()=>"),'same operator UI for every company');
+assert(view.includes("const permitted=()=>"),'same operator UI for every company');
 assert(view.includes('saeiv-shared-ops'),'consistent dispatch styling across organizations');
 assert(view.includes("h.id='saeivWorkHeader'"),'shared dispatcher header');
 assert(view.includes('saeivWorkToggle'),'same collapsible course toolbox for all');
