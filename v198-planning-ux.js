@@ -33,7 +33,7 @@
   if(error)throw error;
   const engine=window.MonSAEIVServiceBlocksV197;
   if(!engine?.compose)throw Error('Calcul des prises de service/HLP indisponible');
-  const result=engine.compose(planner().state.items,data?.bus_parking,date);
+  const result=engine.compose(planner().state.items,data?.bus_parking,date,{economicRouting:true});
   if(result.issues.length)throw Error('Service incomplet : '+result.issues.slice(0,3).join(' ; ')+'. Corriger avant validation.');
   await restCheck(driverId,date);
  }
