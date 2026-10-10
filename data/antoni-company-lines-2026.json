@@ -1,0 +1,1712 @@
+{
+  "version": "2026-10-10",
+  "scope": "ANTONI test company only",
+  "organization_id": "533814ff-a356-4b65-ba94-c5ca36ce917a",
+  "source": "Codes dictés par le conducteur depuis son téléphone professionnel, le 10 octobre 2026; normalisation GTFS v54/57 et numérotation Fluo 2026",
+  "caution": "Les codes E54 sans correspondance Fluo restent inscrits comme scolaires, sans numéro inventé; certains codes dictés sont à confirmer.",
+  "summary": {
+    "total": 199,
+    "byDept": {
+      "54": 70,
+      "57": 129
+    },
+    "byCategory": {
+      "regular": 27,
+      "school": 172
+    },
+    "mapped": 172,
+    "review": [
+      "57 167",
+      "57 LS491",
+      "57 SV11",
+      "54 E334",
+      "54 E350",
+      "54 E354",
+      "54 E358",
+      "54 E359",
+      "54 E360",
+      "54 E362",
+      "54 E364",
+      "54 E365",
+      "54 E366",
+      "54 E370",
+      "54 E372",
+      "54 E373",
+      "54 E374",
+      "54 E375",
+      "54 E715",
+      "54 E716",
+      "54 E718",
+      "54 E724",
+      "54 E726",
+      "54 E727",
+      "54 E730",
+      "54 E732",
+      "54 E740"
+    ]
+  },
+  "lines": [
+    {
+      "department": "57",
+      "source_code": "026",
+      "line_code": "57R026",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006672",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "084",
+      "line_code": "57R084",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006691",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "140",
+      "line_code": "57R140",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006707",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "143",
+      "line_code": "57R143",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006708",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "155",
+      "line_code": "57R155",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006713",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "156",
+      "line_code": "57R156",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006714",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "160",
+      "line_code": "57R160",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006715",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "166",
+      "line_code": "57R166",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006717",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "167",
+      "line_code": "57R167",
+      "category": "regular",
+      "gtfs_route_id": null,
+      "match": "review"
+    },
+    {
+      "department": "57",
+      "source_code": "028",
+      "line_code": "57R028",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006673",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "030",
+      "line_code": "57R030",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006674",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "031",
+      "line_code": "57R031",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006675",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "033",
+      "line_code": "57R033",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006677",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "034",
+      "line_code": "57R034",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006678",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "035",
+      "line_code": "57R035",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006679",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "036",
+      "line_code": "57R036",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006680",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "041",
+      "line_code": "57R041",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006683",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "044",
+      "line_code": "57R044",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006684",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "045",
+      "line_code": "57R045",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006685",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "027",
+      "line_code": "57R027",
+      "category": "regular",
+      "gtfs_route_id": "TED:1006282",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "AL01",
+      "line_code": "57SAL01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006310",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "AL02",
+      "line_code": "57SAL02",
+      "category": "school",
+      "gtfs_route_id": "TED:1006311",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "AL03",
+      "line_code": "57SAL03",
+      "category": "school",
+      "gtfs_route_id": "TED:1006312",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "AL04",
+      "line_code": "57SAL04",
+      "category": "school",
+      "gtfs_route_id": "TED:1006313",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "AL05",
+      "line_code": "57SAL05",
+      "category": "school",
+      "gtfs_route_id": "TED:1006314",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "CS01",
+      "line_code": "57SCS01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006370",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "CS02",
+      "line_code": "57SCS02",
+      "category": "school",
+      "gtfs_route_id": "TED:1006371",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "CS04",
+      "line_code": "57SCS04",
+      "category": "school",
+      "gtfs_route_id": "TED:1006372",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DM01",
+      "line_code": "57SDM01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006377",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DM02",
+      "line_code": "57SDM02",
+      "category": "school",
+      "gtfs_route_id": "TED:1006378",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DM03",
+      "line_code": "57SDM03",
+      "category": "school",
+      "gtfs_route_id": "TED:1006379",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DM04",
+      "line_code": "57SDM04",
+      "category": "school",
+      "gtfs_route_id": "TED:1006380",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DM06",
+      "line_code": "57SDM06",
+      "category": "school",
+      "gtfs_route_id": "TED:1006382",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ01",
+      "line_code": "57SDZ01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006383",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ02",
+      "line_code": "57SDZ02",
+      "category": "school",
+      "gtfs_route_id": "TED:1006384",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ03",
+      "line_code": "57SDZ03",
+      "category": "school",
+      "gtfs_route_id": "TED:1006385",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ04",
+      "line_code": "57SDZ04",
+      "category": "school",
+      "gtfs_route_id": "TED:1006386",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ05",
+      "line_code": "57SDZ05",
+      "category": "school",
+      "gtfs_route_id": "TED:1006387",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ07",
+      "line_code": "57SDZ07",
+      "category": "school",
+      "gtfs_route_id": "TED:1006388",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ08",
+      "line_code": "57SDZ08",
+      "category": "school",
+      "gtfs_route_id": "TED:1006389",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ09",
+      "line_code": "57SDZ09",
+      "category": "school",
+      "gtfs_route_id": "TED:1006390",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ10",
+      "line_code": "57SDZ10",
+      "category": "school",
+      "gtfs_route_id": "TED:1006391",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ11",
+      "line_code": "57SDZ11",
+      "category": "school",
+      "gtfs_route_id": "TED:1006392",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "DZ12",
+      "line_code": "57SDZ12",
+      "category": "school",
+      "gtfs_route_id": "TED:1006393",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EAB00",
+      "line_code": "57EAB00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006394",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EAC00",
+      "line_code": "57EAC00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006397",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EAI00",
+      "line_code": "57EAI00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006400",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EAU00",
+      "line_code": "57EAU00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006403",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EAU01",
+      "line_code": "57EAU01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006404",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EAU02",
+      "line_code": "57EAU02",
+      "category": "school",
+      "gtfs_route_id": "TED:1006405",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBO00",
+      "line_code": "57EBO00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006419",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBC00",
+      "line_code": "57EBC00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006409",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBD00",
+      "line_code": "57EBD00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006410",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBF01",
+      "line_code": "57EBF01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006412",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBN00",
+      "line_code": "57EBN00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006418",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBP00",
+      "line_code": "57EBP00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006420",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBP01",
+      "line_code": "57EBP01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006421",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBS00",
+      "line_code": "57EBS00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006423",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBU00",
+      "line_code": "57EBU00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006425",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EBU01",
+      "line_code": "57EBU01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006426",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ECS00",
+      "line_code": "57ECS00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006431",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ECS01",
+      "line_code": "57ECS01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006432",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EDM00",
+      "line_code": "57EDM00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006435",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EDM01",
+      "line_code": "57EDM01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006436",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EDM02",
+      "line_code": "57EDM02",
+      "category": "school",
+      "gtfs_route_id": "TED:1006437",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EGA00",
+      "line_code": "57EGA00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006442",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EHG00",
+      "line_code": "57EHG00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006446",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EHI00",
+      "line_code": "57EHI00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006447",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EHP00",
+      "line_code": "57EHP00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006450",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EHP01",
+      "line_code": "57EHP01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006451",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EHS00",
+      "line_code": "57EHS00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006452",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EIB00",
+      "line_code": "57EIB00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006455",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EIM00",
+      "line_code": "57EIM00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006456",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EKV00",
+      "line_code": "57EKV00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006464",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ELA00",
+      "line_code": "57ELA00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006465",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ELB00",
+      "line_code": "57ELB00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006466",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ELB01",
+      "line_code": "57ELB01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006467",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ELQ00",
+      "line_code": "57ELQ00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006470",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ELR01",
+      "line_code": "57ELR01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006471",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EMA00",
+      "line_code": "57EMA00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006474",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EMM00",
+      "line_code": "57EMM00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006478",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EMM01",
+      "line_code": "57EMM01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006479",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EMT00",
+      "line_code": "57EMT00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006483",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EMV00",
+      "line_code": "57EMV00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006484",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "END00",
+      "line_code": "57END00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006486",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ENR00",
+      "line_code": "57ENR00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006488",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EPC00",
+      "line_code": "57EPC00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006491",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ERC00",
+      "line_code": "57ERC00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006497",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ESJ00",
+      "line_code": "57ESJ00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006507",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ESQ00",
+      "line_code": "57ESQ00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006509",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "ESV00",
+      "line_code": "57ESV00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006511",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EVI00",
+      "line_code": "57EVI00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006522",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EVI01",
+      "line_code": "57EVI01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006523",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EVL00",
+      "line_code": "57EVL00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006524",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EVY00",
+      "line_code": "57EVY00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006531",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EWS00",
+      "line_code": "57EWS00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006534",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "EZB00",
+      "line_code": "57EZB00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006535",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "HZ01",
+      "line_code": "57SHZ01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006556",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "HZ03",
+      "line_code": "57SHZ03",
+      "category": "school",
+      "gtfs_route_id": "TED:1006558",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "HZ04",
+      "line_code": "57SHZ04",
+      "category": "school",
+      "gtfs_route_id": "TED:1006559",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "HZ05",
+      "line_code": "57SHZ05",
+      "category": "school",
+      "gtfs_route_id": "TED:1006560",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "LQ01",
+      "line_code": "57SLQ01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006576",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "LQ02",
+      "line_code": "57SLQ02",
+      "category": "school",
+      "gtfs_route_id": "TED:1006577",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "LQ05",
+      "line_code": "57SLQ05",
+      "category": "school",
+      "gtfs_route_id": "TED:1006578",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "LQ06",
+      "line_code": "57SLQ06",
+      "category": "school",
+      "gtfs_route_id": "TED:1006579",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "LQ07",
+      "line_code": "57SLQ07",
+      "category": "school",
+      "gtfs_route_id": "TED:1006580",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "LS491",
+      "line_code": "57SLS491",
+      "category": "school",
+      "gtfs_route_id": null,
+      "match": "review"
+    },
+    {
+      "department": "57",
+      "source_code": "MH01",
+      "line_code": "57SMH01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006588",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "MH03",
+      "line_code": "57SMH03",
+      "category": "school",
+      "gtfs_route_id": "TED:1006589",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "MH04",
+      "line_code": "57SMH04",
+      "category": "school",
+      "gtfs_route_id": "TED:1006590",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "MS00",
+      "line_code": "57SMS00",
+      "category": "school",
+      "gtfs_route_id": "TED:1006597",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "MS01",
+      "line_code": "57SMS01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006598",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "MS03",
+      "line_code": "57SMS03",
+      "category": "school",
+      "gtfs_route_id": "TED:1006599",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "PB02",
+      "line_code": "57SPB02",
+      "category": "school",
+      "gtfs_route_id": "TED:1006604",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "PB03",
+      "line_code": "57SPB03",
+      "category": "school",
+      "gtfs_route_id": "TED:1006605",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "PB04",
+      "line_code": "57SPB04",
+      "category": "school",
+      "gtfs_route_id": "TED:1006606",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "PB05",
+      "line_code": "57SPB05",
+      "category": "school",
+      "gtfs_route_id": "TED:1006607",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "PB06",
+      "line_code": "57SPB06",
+      "category": "school",
+      "gtfs_route_id": "TED:1006608",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "PB07",
+      "line_code": "57SPB07",
+      "category": "school",
+      "gtfs_route_id": "TED:1006609",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "PB10",
+      "line_code": "57SPB10",
+      "category": "school",
+      "gtfs_route_id": "TED:1006610",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "SB01",
+      "line_code": "57SSB01",
+      "category": "school",
+      "gtfs_route_id": "TED:1006628",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "SB02",
+      "line_code": "57SSB02",
+      "category": "school",
+      "gtfs_route_id": "TED:1006629",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "SB03",
+      "line_code": "57SSB03",
+      "category": "school",
+      "gtfs_route_id": "TED:1006630",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "SB04",
+      "line_code": "57SSB04",
+      "category": "school",
+      "gtfs_route_id": "TED:1006631",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "SB05",
+      "line_code": "57SSB05",
+      "category": "school",
+      "gtfs_route_id": "TED:1006632",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "SV11",
+      "line_code": "57SSV11",
+      "category": "school",
+      "gtfs_route_id": null,
+      "match": "review"
+    },
+    {
+      "department": "57",
+      "source_code": "SB18",
+      "line_code": "57SSB18",
+      "category": "school",
+      "gtfs_route_id": "TED:1006635",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "SB22",
+      "line_code": "57SSB22",
+      "category": "school",
+      "gtfs_route_id": "TED:1006637",
+      "match": "gtfs"
+    },
+    {
+      "department": "57",
+      "source_code": "SB26",
+      "line_code": "57SSB26",
+      "category": "school",
+      "gtfs_route_id": "TED:1006638",
+      "match": "gtfs"
+    },
+    {
+      "department": "54",
+      "source_code": "R330",
+      "line_code": "54R460",
+      "category": "regular",
+      "gtfs_route_id": "TED:1004062",
+      "gtfs_original": "54R330",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "R340",
+      "line_code": "54R461",
+      "category": "regular",
+      "gtfs_route_id": "TED:1004788",
+      "gtfs_original": "54R340",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "R350",
+      "line_code": "54R465",
+      "category": "regular",
+      "gtfs_route_id": "TED:1004063",
+      "gtfs_original": "54R350",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "R360",
+      "line_code": "54R466",
+      "category": "regular",
+      "gtfs_route_id": "TED:1004064",
+      "gtfs_original": "54R360",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "R370",
+      "line_code": "54R468",
+      "category": "regular",
+      "gtfs_route_id": "TED:1004789",
+      "gtfs_original": "54R370",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "R380",
+      "line_code": "54R469",
+      "category": "regular",
+      "gtfs_route_id": "TED:1004066",
+      "gtfs_original": "54R380",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "R710",
+      "line_code": "54R471",
+      "category": "regular",
+      "gtfs_route_id": "TED:1004073",
+      "gtfs_original": "54R710",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S301",
+      "line_code": "54S4120",
+      "category": "school",
+      "gtfs_route_id": "TED:1004127",
+      "gtfs_original": "54S301",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "E334",
+      "line_code": "54E334",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E334",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E350",
+      "line_code": "54E350",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E350",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E354",
+      "line_code": "54E354",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E354",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E358",
+      "line_code": "54E358",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E358",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E359",
+      "line_code": "54E359",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E359",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E360",
+      "line_code": "54E360",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E360",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E362",
+      "line_code": "54E362",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E362",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E364",
+      "line_code": "54E364",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E364",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E365",
+      "line_code": "54E365",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E365",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E366",
+      "line_code": "54E366",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E366",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E370",
+      "line_code": "54E370",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E370",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E372",
+      "line_code": "54E372",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E372",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E373",
+      "line_code": "54E373",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E373",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E374",
+      "line_code": "54E374",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E374",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E375",
+      "line_code": "54E375",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E375",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E715",
+      "line_code": "54E715",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E715",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E716",
+      "line_code": "54E716",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E716",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E718",
+      "line_code": "54E718",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E718",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E724",
+      "line_code": "54E724",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E724",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E726",
+      "line_code": "54E726",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E726",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E727",
+      "line_code": "54E727",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E727",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E730",
+      "line_code": "54E730",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E730",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E732",
+      "line_code": "54E732",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E732",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "E740",
+      "line_code": "54E740",
+      "category": "school",
+      "gtfs_route_id": null,
+      "gtfs_original": "54E740",
+      "match": "review"
+    },
+    {
+      "department": "54",
+      "source_code": "S302",
+      "line_code": "54S4121",
+      "category": "school",
+      "gtfs_route_id": "TED:1004128",
+      "gtfs_original": "54S302",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S304",
+      "line_code": "54S4122",
+      "category": "school",
+      "gtfs_route_id": "TED:1004129",
+      "gtfs_original": "54S304",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S320",
+      "line_code": "54S4125",
+      "category": "school",
+      "gtfs_route_id": "TED:1004778",
+      "gtfs_original": "54S320",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S350",
+      "line_code": "54S4130",
+      "category": "school",
+      "gtfs_route_id": "TED:1004144",
+      "gtfs_original": "54S350",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S351",
+      "line_code": "54S4131",
+      "category": "school",
+      "gtfs_route_id": "TED:1004145",
+      "gtfs_original": "54S351",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S352",
+      "line_code": "54S4132",
+      "category": "school",
+      "gtfs_route_id": "TED:1004782",
+      "gtfs_original": "54S352",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S353",
+      "line_code": "54S4133",
+      "category": "school",
+      "gtfs_route_id": "TED:1004146",
+      "gtfs_original": "54S353",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S354",
+      "line_code": "54S4134",
+      "category": "school",
+      "gtfs_route_id": "TED:1004147",
+      "gtfs_original": "54S354",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S355",
+      "line_code": "54S4135",
+      "category": "school",
+      "gtfs_route_id": "TED:1004148",
+      "gtfs_original": "54S355",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S356",
+      "line_code": "54S4136",
+      "category": "school",
+      "gtfs_route_id": "TED:1004149",
+      "gtfs_original": "54S356",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S359",
+      "line_code": "54S4140",
+      "category": "school",
+      "gtfs_route_id": "TED:1004783",
+      "gtfs_original": "54S359",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S370",
+      "line_code": "54S4150",
+      "category": "school",
+      "gtfs_route_id": "TED:1004154",
+      "gtfs_original": "54S370",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S371",
+      "line_code": "54S4151",
+      "category": "school",
+      "gtfs_route_id": "TED:1004155",
+      "gtfs_original": "54S371",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S372",
+      "line_code": "54S4152",
+      "category": "school",
+      "gtfs_route_id": "TED:1004156",
+      "gtfs_original": "54S372",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S375",
+      "line_code": "54S4154",
+      "category": "school",
+      "gtfs_route_id": "TED:1004157",
+      "gtfs_original": "54S375",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S376",
+      "line_code": "54S4155",
+      "category": "school",
+      "gtfs_route_id": "TED:1004158",
+      "gtfs_original": "54S376",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S380",
+      "line_code": "54S4160",
+      "category": "school",
+      "gtfs_route_id": "TED:1004160",
+      "gtfs_original": "54S380",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S387",
+      "line_code": "54S4165",
+      "category": "school",
+      "gtfs_route_id": "TED:1004161",
+      "gtfs_original": "54S387",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S725",
+      "line_code": "54S4340",
+      "category": "school",
+      "gtfs_route_id": "TED:1004234",
+      "gtfs_original": "54S725",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S726",
+      "line_code": "54S4341",
+      "category": "school",
+      "gtfs_route_id": "TED:1004235",
+      "gtfs_original": "54S726",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S727",
+      "line_code": "54S4342",
+      "category": "school",
+      "gtfs_route_id": "TED:1004236",
+      "gtfs_original": "54S727",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S728",
+      "line_code": "54S4343",
+      "category": "school",
+      "gtfs_route_id": "TED:1004237",
+      "gtfs_original": "54S728",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S729",
+      "line_code": "54S4344",
+      "category": "school",
+      "gtfs_route_id": "TED:1004238",
+      "gtfs_original": "54S729",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S730",
+      "line_code": "54S4350",
+      "category": "school",
+      "gtfs_route_id": "TED:1004239",
+      "gtfs_original": "54S730",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S731",
+      "line_code": "54S4351",
+      "category": "school",
+      "gtfs_route_id": "TED:1004240",
+      "gtfs_original": "54S731",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S732",
+      "line_code": "54S4352",
+      "category": "school",
+      "gtfs_route_id": "TED:1004241",
+      "gtfs_original": "54S732",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S733",
+      "line_code": "54S4353",
+      "category": "school",
+      "gtfs_route_id": "TED:1004242",
+      "gtfs_original": "54S733",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S734",
+      "line_code": "54S4354",
+      "category": "school",
+      "gtfs_route_id": "TED:1004243",
+      "gtfs_original": "54S734",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S735",
+      "line_code": "54S4355",
+      "category": "school",
+      "gtfs_route_id": "TED:1004244",
+      "gtfs_original": "54S735",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S736",
+      "line_code": "54S4356",
+      "category": "school",
+      "gtfs_route_id": "TED:1004245",
+      "gtfs_original": "54S736",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S737",
+      "line_code": "54S4357",
+      "category": "school",
+      "gtfs_route_id": "TED:1004246",
+      "gtfs_original": "54S737",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S743",
+      "line_code": "54S4360",
+      "category": "school",
+      "gtfs_route_id": "TED:1004251",
+      "gtfs_original": "54S743",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S744",
+      "line_code": "54S4361",
+      "category": "school",
+      "gtfs_route_id": "TED:1004252",
+      "gtfs_original": "54S744",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S746",
+      "line_code": "54S4362",
+      "category": "school",
+      "gtfs_route_id": "TED:1004254",
+      "gtfs_original": "54S746",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S751",
+      "line_code": "54S4363",
+      "category": "school",
+      "gtfs_route_id": "TED:1004259",
+      "gtfs_original": "54S751",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S753",
+      "line_code": "54S4364",
+      "category": "school",
+      "gtfs_route_id": "TED:1004774",
+      "gtfs_original": "54S753",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S763",
+      "line_code": "54S4365",
+      "category": "school",
+      "gtfs_route_id": "TED:1004264",
+      "gtfs_original": "54S763",
+      "match": "gtfs-renumbered"
+    },
+    {
+      "department": "54",
+      "source_code": "S780",
+      "line_code": "54S4366",
+      "category": "school",
+      "gtfs_route_id": "TED:1004267",
+      "gtfs_original": "54S780",
+      "match": "gtfs-renumbered"
+    }
+  ]
+}
