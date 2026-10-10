@@ -24,7 +24,7 @@
   // Keep the visible date equal to the selected GTFS service day.
   // Previously resetting the input to "Du" after loading another day caused
   // generateDraft to silently switch back to the first day of the period.
-  if(!antoniPilot()&&q('v165Date'))q('v165Date').value=from();
+  if(q('v165Date'))q('v165Date').value=from();
   ribbon();
  }
  async function loadPeriod(){if(S.busy)return;const {a,n}=period();S.busy=true;S.counts.clear();q('v165LoadSegments').disabled=true;
@@ -98,7 +98,7 @@
   const line=document.createElement('div');line.innerHTML='<div id="v190Count"></div><div id="v190Days"></div><div id="v190Status" role="status"></div>';toolbar.insertAdjacentElement('afterend',line);
   const modal=document.createElement('section');modal.id='v190Builder';modal.className='hide';modal.innerHTML='<h3 id="v190BuilderTitle">Construire le planning</h3><p>Le planning du conducteur est enregistré en brouillon. Tu peux retirer une course ou ajouter un segment encore disponible. La prise de service, les HLP et les coupures sont recalculés en estimation après chaque modification.</p><h4>Courses du conducteur</h4><div id="v198Assigned"></div><h4>Segments encore libres</h4><strong id="v190FreeCount"></strong><div id="v190Free"></div><button type="button" id="v190Close">Terminer et revenir au tableau</button>';tool.append(modal);
   date.addEventListener('change',()=>{
-    if(!antoniPilot()||!S.busy)S.rangeStart=date.value;
+    if(!S.busy)S.rangeStart=date.value;
     if(to()<from())q('v190End').value=from();
     S.counts.clear();ribbon();
   });
@@ -117,6 +117,6 @@
   if(target.id==='v165Generate')generate().catch(handle);else loadPeriod().catch(handle);
  }
  window.addEventListener('click',intercept,true);
- window.MonSAEIVWeeklyV190={installed:true,install,generate,loadPeriod,build,close};
+ window.MonSAEIVWeeklyV190={installed:true,install,generate,loadPeriod,build,close,get rangeStart(){return from()}};
  setInterval(install,950);
 })();
