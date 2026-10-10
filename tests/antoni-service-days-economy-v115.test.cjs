@@ -10,8 +10,8 @@ assert(board.includes("serviceMode:antoniPilot()&&reservation?'tad':'regular'"),
 assert(board.includes('type=routeFamily(route,dept)'),'school type remains school');
 assert(board.includes("if(!run.trip?.service||!state?.services?.[run.trip.service])continue"),'missing GTFS calendars fail closed');
 assert(board.includes("if(rd&&[rd.getFullYear()"),'each run constrained to requested service day');
-assert(planning.includes("const antoniPilot=org()==='533814ff-a356-4b65-ba94-c5ca36ce917a'"),'economy logic isolated');
-assert(planning.includes("const cost=x=>x.rank.incremental+x.rank.compactPenalty*.20+x.contractPenalty*.50"),'company ranking balances HLP cost with compact day');
+assert(planning.includes('Tenancy changes data, not scoring rules'),'same economy engine for every company');
+assert(planning.includes("const cost=x=>x.rank.incremental+x.rank.compactPenalty*.20+x.contractPenalty*.50"),'shared ranking balances HLP cost with compact day');
 assert(planning.includes("const sameLine=(l,seg)=>"),'verified company route matching');
 assert(planning.includes("economicRouting:true"),'pilot draft service blocks include economic options');
 const ctx={window:{},console};vm.runInNewContext(read('v197-service-blocks.js'),ctx);
