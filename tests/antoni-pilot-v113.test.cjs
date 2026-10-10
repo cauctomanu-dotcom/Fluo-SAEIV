@@ -13,9 +13,10 @@ for(const [oldCode,newCode] of Object.entries({'54R330':'460','54R340':'461','54
   assert(board.includes("'"+oldCode.slice(-3)+"':'"+newCode+"'"),'board legacy map '+oldCode);
   assert(planner.includes("'"+oldCode.slice(-3)+"':'"+newCode+"'"),'planning legacy map '+oldCode);
 }
-assert(board.includes("for(const serviceMode of (antoniPilot()?['regular','tad']:['regular']))"),'ANTONI TAD must be included');
-assert(board.includes("type=antoniPilot()&&serviceMode==='tad'?'regular'"),'TAD should be planned like regular');
-assert(board.includes("if(found.has(id)){"),'avoid duplicate trips');
+assert(board.includes("for(const serviceMode of (antoniPilot()?['tad']:['regular']))"),'ANTONI GTFS pilot must load one complete service-day catalogue');
+assert(board.includes('type=routeFamily(route,dept)'),'TAD pass must preserve each route regular or school classification');
+assert(board.includes("reservationRequired:antoniPilot()&&reservation"),'real reservation flag must be trip-level');
+assert(board.includes('if(found.has(id))continue;'),'avoid duplicate trips');
 assert(board.includes('if(antoniPilot())B.segments=[]'), 'dates must not carry segments between days');
 assert(board.includes("if(!active.some(l=>String(l.department)===String(dept)))continue"),'restrict GTFS to company');
 assert(weekly.includes("if(!antoniPilot()&&q('v165Date'))q('v165Date').value=from()"),'selected GTFS date must not jump to range start');
