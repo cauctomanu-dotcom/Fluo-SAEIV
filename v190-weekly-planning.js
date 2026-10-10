@@ -3,6 +3,7 @@
 (()=>{
  if(window.MonSAEIVWeeklyV190?.installed)return;
  const q=id=>document.getElementById(id),board=()=>window.MonSAEIVOperationsBoardV165,planner=()=>window.MonSAEIVPlanningV187,cloud=()=>window.MonSAEIVCloudV156;
+ const antoniPilot=()=>String(cloud()?.profile?.organization_id||'')==='533814ff-a356-4b65-ba94-c5ca36ce917a';
  const esc=s=>String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
  const today=()=>new Date().toLocaleDateString('en-CA');
  const plus=(d,n)=>{const x=new Date(d+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
@@ -17,7 +18,15 @@
   const count=ds.length;q('v190Count').textContent=count===1?'Journée unique':count+' journées, du '+ds[0]+' au '+ds[count-1];
   x.innerHTML=count===1?'':ds.map(d=>'<button type="button" data-day="'+d+'" class="'+(d===board()?.date?'active':'')+'">'+d.slice(8)+'/'+d.slice(5,7)+(S.counts.has(d)?' · '+S.counts.get(d):'')+'</button>').join('');
  }
- async function selectDay(date){await board().setDate(date);await board().loadSegments();if(q('v165Date'))q('v165Date').value=from();ribbon()}
+ async function selectDay(date){
+  await board().setDate(date);
+  await board().loadSegments();
+  // Keep the visible date equal to the selected GTFS service day.
+  // Previously resetting the input to "Du" after loading another day caused
+  // generateDraft to silently switch back to the first day of the period.
+  if(!antoniPilot()&&q('v165Date'))q('v165Date').value=from();
+  ribbon();
+ }
  async function loadPeriod(){if(S.busy)return;const {a,n}=period();S.busy=true;S.counts.clear();q('v165LoadSegments').disabled=true;
   try{for(let i=0;i<n;i++){const day=plus(a,i);notify('Chargement des segments '+(i+1)+'/'+n+' · '+day);await board().setDate(day);await board().loadSegments();S.counts.set(day,board().segments.length);ribbon()}
     await selectDay(a);notify('Segments chargés pour '+n+' journée(s). Cliquer un jour ci-dessous pour afficher ses courses.')}
@@ -88,7 +97,11 @@
   const billets=document.createElement('button');billets.id='v190Billets';billets.type='button';billets.textContent='🎟 Billets CO';toolbar.append(billets);
   const line=document.createElement('div');line.innerHTML='<div id="v190Count"></div><div id="v190Days"></div><div id="v190Status" role="status"></div>';toolbar.insertAdjacentElement('afterend',line);
   const modal=document.createElement('section');modal.id='v190Builder';modal.className='hide';modal.innerHTML='<h3 id="v190BuilderTitle">Construire le planning</h3><p>Le planning du conducteur est enregistré en brouillon. Tu peux retirer une course ou ajouter un segment encore disponible. La prise de service, les HLP et les coupures sont recalculés en estimation après chaque modification.</p><h4>Courses du conducteur</h4><div id="v198Assigned"></div><h4>Segments encore libres</h4><strong id="v190FreeCount"></strong><div id="v190Free"></div><button type="button" id="v190Close">Terminer et revenir au tableau</button>';tool.append(modal);
-  date.addEventListener('change',()=>{S.rangeStart=date.value;if(to()<from())q('v190End').value=from();S.counts.clear();ribbon()});
+  date.addEventListener('change',()=>{
+    if(!antoniPilot()||!S.busy)S.rangeStart=date.value;
+    if(to()<from())q('v190End').value=from();
+    S.counts.clear();ribbon();
+  });
   q('v190End').addEventListener('change',ribbon);
   q('v190Days').addEventListener('click',e=>{const b=e.target.closest('[data-day]');if(b)selectDay(b.dataset.day).catch(handle)});
   q('v190Publications').onclick=()=>toggle('v187Planning');
