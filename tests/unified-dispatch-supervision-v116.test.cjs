@@ -10,11 +10,12 @@ const monitor=read('v183-live-supervision.js');
 const inbox=read('v188-driver-inbox.js');
 for(const f of ['v202-antoni-pilot.js','v165-exploitation-board.js','v187-collaborative-planning.js','v198-planning-ux.js','v183-live-supervision.js','v188-driver-inbox.js'])
  new vm.Script(read(f),{filename:f});
-assert(visual.includes("const isDispatcher=()=>"),'dispatcher role, not hardcoded company');
+assert(visual.includes("const permitted=()=>"),'dispatcher role, not hardcoded company');
 assert(visual.includes('saeiv-shared-ops'),'shared component styles');
 assert(!visual.includes('saeiv-antoni-pilot #'),'no old Antoni-specific theme');
-assert(visual.includes("for(const id of ['v165Date','v190End'])"),'both real date inputs restored');
-assert(visual.includes('picker.showPicker?.()'),'mobile native calendar click');
+assert(visual.includes("const start=q('v165Date'),end=q('v190End')"),'same real date inputs retained and relocated');
+assert(visual.includes("openCalendar(id,b)"),'separate usable calendar control on iPhone and desktop');
+assert(!visual.includes('showPicker?.()'),'avoid duplicate native showPicker invocation on click');
 assert(visual.includes('saeivWorkToggle'),'single board can show/hide toolbox');
 assert(visual.includes('MonSAEIVPlanningUXV198?.choose?.'),'same driver detail as base');
 assert(board.includes("const date=q('v165Date').value"),'date change goes through board');
