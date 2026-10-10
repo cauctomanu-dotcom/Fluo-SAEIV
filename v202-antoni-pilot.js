@@ -3,6 +3,7 @@
 (()=>{
  if(window.MonSAEIVAntoniPilotV202?.installed)return;
  const ANTONI='533814ff-a356-4b65-ba94-c5ca36ce917a';
+ let operatorLines=null, operatorLineLoading=false;
  const q=id=>document.getElementById(id);
  const cloud=()=>window.MonSAEIVCloudV156;
  const board=()=>window.MonSAEIVOperationsBoardV165;
@@ -39,6 +40,31 @@
    'body.saeiv-antoni-pilot #v165Board .v165-status,body.saeiv-antoni-pilot #v165Board #v190Status{font-size:13px!important;font-weight:650!important}',
    'body.saeiv-antoni-pilot #v165Board #v190Builder{background:#fff!important;color:#1e3746!important;border-color:#c1d7e3!important}',
    'body.saeiv-antoni-pilot #v165Board .v165-toolbox h3,body.saeiv-antoni-pilot #v165Board .v165-advice h3{font-size:1.04rem!important;color:#183747!important}',
+   'body.saeiv-antoni-pilot #v201OperatorLabel{background:#e9f3f8!important;color:#1d4961!important;border-color:#bad5e3!important;font-size:14px!important}',
+   '#antoniPilotNav{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0 16px;padding:10px;background:#fff;border:1px solid #d4e2e9;border-radius:15px}',
+   '#antoniPilotNav button{border-radius:10px;border:1px solid #b1c8d6;background:#f4f8fb;color:#194058;min-height:44px;padding:9px 15px;font-size:.93rem;font-weight:800}',
+   '#antoniPilotNav button[aria-current=page]{background:#0c5878;color:white;border-color:#0c5878}',
+   '#antoniPilotNav small{color:#4a6373;margin-left:auto;font-size:.82rem;line-height:1.5}',
+   'body.saeiv-antoni-pilot[data-antoni-view=segments] #v165Board .v165-work,body.saeiv-antoni-pilot[data-antoni-view=drivers] #v165Board .v165-work{grid-template-columns:minmax(0,1fr)!important}',
+   'body.saeiv-antoni-pilot[data-antoni-view=segments] #v165Board .v165-main{display:none!important}',
+   'body.saeiv-antoni-pilot[data-antoni-view=drivers] #v165Board .v165-toolbox{display:none!important}',
+   'body.saeiv-antoni-pilot[data-antoni-view=drivers] #v165Board .v165-advice{display:none!important}',
+   'body.saeiv-antoni-pilot[data-antoni-view=lines] #v165Board .v165-work{display:none!important}',
+   'body.saeiv-antoni-pilot #antoniLinesPanel{padding:20px;background:#fff;color:#15394f;border:1px solid #d3e2ea;border-radius:15px}',
+   'body.saeiv-antoni-pilot #antoniLinesPanel[hidden]{display:none!important}',
+   '#antoniLinesPanel input{width:min(100%,570px);min-height:44px;font-size:.95rem;background:white;color:#12394e;border:1px solid #b4cbda;border-radius:10px;padding:10px}',
+   '#antoniLinesPanel .antoni-line-table{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:12px}',
+   '#antoniLinesPanel .antoni-line-table th{text-align:left;background:#e9f3f7;padding:12px;border-bottom:2px solid #bbd2de;position:sticky;top:0}',
+   '#antoniLinesPanel .antoni-line-table td{padding:11px 12px;border-bottom:1px solid #e1eaef}',
+   '#antoniLinesPanel .antoni-line-table tr:nth-child(2n){background:#f5f9fc}',
+   '#antoniLinesPanel .antoni-line-scroll{overflow:auto;max-height:67vh}',
+   '#antoniLinesPanel .antoni-line-review{color:#8b4a05;font-weight:750}',
+   '#antoniLinesPanel .antoni-line-linked{color:#0a6c4a;font-weight:750}',
+   'body.saeiv-antoni-pilot #v165Board .v165-driver-meta{width:235px!important}',
+   'body.saeiv-antoni-pilot #v165Board .v165-timehead,body.saeiv-antoni-pilot #v165Board .v165-driver-row{grid-template-columns:235px minmax(1440px,1fr)!important}',
+   'body.saeiv-antoni-pilot #v165Board #v165BulkTools{border-radius:11px;padding:12px;background:#eaf4f8;border:1px solid #b6d0db}',
+   'body.saeiv-antoni-pilot #v165Board #v165BulkRemove{background:#b42833;color:white;border:1px solid #901721!important;font-weight:850!important}',
+   'body.saeiv-antoni-pilot #v165Board #v165BulkRemove:disabled{background:#d8e3e8;color:#728793;border-color:#c6d4dc!important}',
    '#antoniPilotHead{background:linear-gradient(115deg,#f5fafc,#e7f3f7);border:1px solid #c9e0e8;padding:17px 20px;border-radius:15px;margin-bottom:13px;color:#16394b}',
    '#antoniPilotHead h2{font-size:1.4rem;letter-spacing:-.025em;margin:0 0 6px;color:#123b51}#antoniPilotHead p{font-size:.86rem;line-height:1.55;margin:0;color:#416173}',
    '.antoni-open-day{display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:6px 10px!important;margin-top:8px!important;background:#0a5978!important;color:#fff!important;border:1px solid #0a5978!important;border-radius:8px!important;font-weight:800!important;min-height:38px!important}',
@@ -88,6 +114,56 @@
   q('antoniPilotModal').hidden=false;
   q('antoniPilotClose').focus();
  }
+ function switchView(view){
+  const valid=['overview','segments','drivers','lines'];
+  if(!valid.includes(view))return;
+  document.body.dataset.antoniView=view;
+  const root=q('v165Board');if(!root)return;
+  root.querySelectorAll('[data-antoni-view]').forEach(el=>el.setAttribute('aria-current',el.dataset.antoniView===view?'page':'false'));
+  const panel=q('antoniLinesPanel');if(panel)panel.hidden=view!=='lines';
+  if(view==='lines')refreshLineTable();
+ }
+ async function loadCompanyLines(){
+  if(operatorLines||operatorLineLoading)return;
+  const c=cloud()?.client,org=cloud()?.profile?.organization_id;
+  if(!c||org!==ANTONI)return;
+  operatorLineLoading=true;
+  try{
+   const {data,error}=await c.from('saeiv_company_lines')
+    .select('department,line_code,gtfs_route_id,active')
+    .eq('organization_id',ANTONI).eq('active',true)
+    .order('department').order('line_code');
+   if(error)throw error;operatorLines=data||[];
+   const tagline=q('antoniLinesStatus');
+   if(tagline)tagline.textContent=operatorLines.length+' références attribuées · '+operatorLines.filter(x=>x.gtfs_route_id).length+' reliées au GTFS · '+operatorLines.filter(x=>!x.gtfs_route_id).length+' à vérifier';
+   refreshLineTable();
+  }catch(e){const node=q('antoniLinesStatus');if(node)node.textContent='Impossible de charger les lignes : '+(e.message||e)}
+  finally{operatorLineLoading=false}
+ }
+ function refreshLineTable(){
+  const host=q('antoniLinesContent');if(!host)return;
+  if(!operatorLines){host.textContent='Chargement des références de la société…';loadCompanyLines();return}
+  const term=String(q('antoniLinesSearch')?.value||'').toUpperCase().replace(/\s+/g,'');
+  const rows=operatorLines.filter(x=>!term||(x.department+' '+x.line_code).toUpperCase().replace(/\s+/g,'').includes(term));
+  host.innerHTML='<div class="antoni-line-scroll"><table class="antoni-line-table"><thead><tr><th>Département</th><th>Ligne actuelle</th><th>Catégorie</th><th>GTFS / horaires</th></tr></thead><tbody>'+
+    rows.map(x=>{
+      const school=!String(x.line_code).startsWith(String(x.department)+'R');
+      const label=String(x.line_code).replace(/^54[RS]|^57R|^57S|^54E/,'');
+      return '<tr><td>'+esc(x.department)+'</td><td><strong>'+esc(label)+'</strong></td><td>'+esc(school?'Scolaire':'Régulière')+'</td><td class="'+(x.gtfs_route_id?'antoni-line-linked':'antoni-line-review')+'">'+esc(x.gtfs_route_id?'Horaires GTFS associés':'Correspondance à vérifier')+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+ }
+ function installWorkspace(root){
+  if(q('antoniPilotNav'))return;
+  const nav=document.createElement('nav');nav.id='antoniPilotNav';nav.setAttribute('aria-label','Espace de travail René Antoni');
+  nav.innerHTML='<button type="button" data-antoni-view="overview">Vue d’ensemble</button><button type="button" data-antoni-view="drivers">Tableau conducteurs</button><button type="button" data-antoni-view="segments">Gestion des segments</button><button type="button" data-antoni-view="lines">Lignes de l’entreprise</button><small>Mode simulation · brouillons non publiés automatiquement</small>';
+  nav.addEventListener('click',e=>{const b=e.target.closest('[data-antoni-view]');if(b)switchView(b.dataset.antoniView)});
+  const head=q('antoniPilotHead');head?.insertAdjacentElement('afterend',nav);
+  const panel=document.createElement('section');panel.id='antoniLinesPanel';panel.hidden=true;
+  panel.innerHTML='<h3>Référentiel des lignes · Transports René Antoni</h3><p id="antoniLinesStatus">Chargement…</p><label for="antoniLinesSearch">Rechercher une ligne ou un code</label><input id="antoniLinesSearch" type="search" placeholder="Ex. 460, AL01, E334, 4120…"><div id="antoniLinesContent" style="margin-top:12px"></div>';
+  root.querySelector('.v165-work')?.insertAdjacentElement('beforebegin',panel);
+  q('antoniLinesSearch')?.addEventListener('input',refreshLineTable);
+  switchView('overview');loadCompanyLines();
+ }
  function sync(){
   installStyle();
   if(!document.body)return;
@@ -100,6 +176,7 @@
     h.innerHTML='<h2>Exploitation · Transports René Antoni</h2><p>Environnement de test isolé · 27 conducteurs de départ · courses chargées selon chaque jour de circulation Fluo. Les TAD sont planifiés d’office et peuvent être retirés du brouillon en l’absence de réservation. Nouveaux numéros Fluo du 54 : 460 (ex-R330), 461 (ex-R340), 465 (ex-R350), 466 (ex-R360), 468 (ex-R370) et 469 (ex-R380). Identifiants GTFS historiques préservés.</p>';
     root.prepend(h);
   }
+  installWorkspace(root);
   root.querySelectorAll('.v165-driver-meta').forEach(meta=>{
     if(meta.querySelector('[data-antoni-open-day]'))return;
     const button=document.createElement('button');button.type='button';button.className='antoni-open-day';
@@ -117,6 +194,6 @@
  },true);
  document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
  const start=()=>{sync();setInterval(sync,1200)};
- window.MonSAEIVAntoniPilotV202={installed:true,version:'1.0.113',sync,openDriverDay:open,closeDriverDay:close};
+ window.MonSAEIVAntoniPilotV202={installed:true,version:'1.0.114',sync,openDriverDay:open,closeDriverDay:close};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
