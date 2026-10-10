@@ -280,18 +280,23 @@
   for(const row of existing){if(row.payload?.segment_id)used.add(String(row.payload.segment_id));if(row.linked?.tripId)used.add(String(row.linked.tripId))}
   const activeLines=lines.filter(x=>x.active&&(!x.start_date||x.start_date<=date)&&(!x.end_date||x.end_date>=date));
   const key=x=>String(x||'').replace(/\s+/g,'').toUpperCase();
-  const lineKey=value=>{
+  const new54={'330':'460','340':'461','350':'465','360':'466','370':'468','380':'469'};
+  const lineKey=(value,dept)=>{
     const raw=key(value);
     const regular=raw.match(/^(?:(?:54|57)R|R)?0*(\d+)$/);
-    if(regular)return 'R'+String(Number(regular[1]));
+    if(regular){
+      let number=String(Number(regular[1]));
+      if(org()==='533814ff-a356-4b65-ba94-c5ca36ce917a'&&String(dept)==='54')number=new54[number]||number;
+      return 'R'+number;
+    }
     const school=raw.match(/^(DZ|MH|CS|ELB|EHP)0*(\d+)$/);
     return school?school[1]+String(Number(school[2])):raw;
   };
   if(!activeLines.length)throw Error('Aucune ligne de la société n’est active à cette date : génération bloquée pour éviter les courses hors périmètre.');
   const allowed=seg=>activeLines.some(l=>String(l.department)===String(seg.dept||seg.linked?.dept||'')
-    &&lineKey(l.line_code)===lineKey(seg.line));
+    &&lineKey(l.line_code,l.department)===lineKey(seg.line,seg.dept||seg.linked?.dept));
   const choseVehicle=seg=>{
-   const l=activeLines.find(l=>String(l.department)===String(seg.dept||seg.linked?.dept||'')&&lineKey(l.line_code)===lineKey(seg.line));
+   const l=activeLines.find(l=>String(l.department)===String(seg.dept||seg.linked?.dept||'')&&lineKey(l.line_code,l.department)===lineKey(seg.line,seg.dept||seg.linked?.dept));
    if(!l)return 'bus';
    const exception=exceptions.find(x=>x.line_id===l.id);if(exception)return exception.vehicle_type;
    const r=rules.filter(x=>x.line_id===l.id);
