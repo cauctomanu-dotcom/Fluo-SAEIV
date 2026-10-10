@@ -1,199 +1,80 @@
 'use strict';
-/* ANTONI PILOT ONLY. No global GTFS, driver cockpit or PILOTE overrides. */
+/* Unified dispatch workspace for every company. One planner and shared UI;
+   organization_id is the only company boundary. */
 (()=>{
  if(window.MonSAEIVAntoniPilotV202?.installed)return;
- const ANTONI='533814ff-a356-4b65-ba94-c5ca36ce917a';
- let operatorLines=null, operatorLineLoading=false;
  const q=id=>document.getElementById(id);
  const cloud=()=>window.MonSAEIVCloudV156;
- const board=()=>window.MonSAEIVOperationsBoardV165;
- const isPilot=()=>String(cloud()?.profile?.organization_id||'')===ANTONI &&
-   ['dispatcher','admin'].includes(String(cloud()?.profile?.role||''));
- const esc=s=>String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
- const mins=s=>{const m=String(s||'').match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null};
- const span=(a,b)=>{let s=mins(a),e=mins(b);if(s===null||e===null)return 0;if(e<s)e+=1440;return e-s};
- const human=n=>Math.floor(n/60)+' h '+String(n%60).padStart(2,'0');
- function installStyle(){
-  if(q('antoniPilotVisuals'))return;
-  const st=document.createElement('style');st.id='antoniPilotVisuals';
-  st.textContent=[
-   'body.saeiv-antoni-pilot #v165Board,body.saeiv-antoni-pilot #v157Dispatch,body.saeiv-antoni-pilot #v187Planning{background:#f4f7fa!important;color:#1d3444!important;border:1px solid #d5e1e8!important;border-radius:19px!important}',
-   'body.saeiv-antoni-pilot #v165Board{font-size:14px!important;line-height:1.5!important;padding:clamp(10px,2vw,23px)!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-toolbar,body.saeiv-antoni-pilot #v165Board .v165-toolbox,body.saeiv-antoni-pilot #v165Board .v165-advice,body.saeiv-antoni-pilot #v165Board .v165-metric,body.saeiv-antoni-pilot #v165Board .v165-alert,body.saeiv-antoni-pilot #v165Board .v165-grid-wrap{background:#fff!important;color:#263e4d!important;border:1px solid #d8e4e9!important;border-radius:13px!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-metric b{color:#20394a!important;font-size:1.22rem!important}body.saeiv-antoni-pilot #v165Board .v165-metric span{color:#536c78!important;font-size:.82rem!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-work{grid-template-columns:minmax(270px,30%) minmax(0,1fr)!important;align-items:start!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-toolbox{position:sticky!important;max-height:76vh!important;top:10px!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-seg{color:#213846!important;background:#f7fbfc!important;border:1px solid #d8e5e9!important;border-radius:12px!important;padding:11px!important;margin:5px 0!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-seg small,body.saeiv-antoni-pilot #v165Board .v165-seg span{font-size:.78rem!important;color:#455f70!important;line-height:1.5!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-seg b{font-size:.93rem!important;color:#163347!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-timehead{background:#e9f0f4!important;color:#19384a!important;position:sticky!important;top:0!important;z-index:8!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-time-label,body.saeiv-antoni-pilot #v165Board .v165-driver-meta{background:#f5f9fc!important;color:#163347!important;border-right:1px solid #dbe5e9!important;position:sticky!important;left:0!important;z-index:4!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-driver-meta{padding:13px 11px!important;min-height:114px!important;overflow:visible!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-driver-meta span,body.saeiv-antoni-pilot #v165Board .v165-driver-meta small{font-size:.78rem!important;line-height:1.4!important;color:#506a79!important}',
-   'body.saeiv-antoni-pilot #v165Board .v198-driver-name{font-size:1rem!important;font-weight:800!important;text-align:left!important;color:#125277!important;min-height:37px!important;white-space:normal!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-driver-row{border-bottom:1px solid #dce6ea!important;min-height:114px!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-lane{background:repeating-linear-gradient(90deg,#fbfdfe 0,#fbfdfe 79px,#e8eff2 80px)!important;min-height:114px!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-block{font-size:.76rem!important;line-height:1.4!important;min-height:40px!important;border-radius:7px!important;overflow:hidden!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-grid-wrap{max-height:76vh!important;overflow:auto!important;overscroll-behavior:contain!important}',
-   'body.saeiv-antoni-pilot #v165Board button,body.saeiv-antoni-pilot #v165Board input,body.saeiv-antoni-pilot #v165Board select{font-size:13px!important;min-height:39px!important}',
-   'body.saeiv-antoni-pilot #v165Board input,body.saeiv-antoni-pilot #v165Board select{color:#203747!important;background:#fff!important;border:1px solid #a8bcc9!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-status,body.saeiv-antoni-pilot #v165Board #v190Status{font-size:13px!important;font-weight:650!important}',
-   'body.saeiv-antoni-pilot #v165Board #v190Builder{background:#fff!important;color:#1e3746!important;border-color:#c1d7e3!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-toolbox h3,body.saeiv-antoni-pilot #v165Board .v165-advice h3{font-size:1.04rem!important;color:#183747!important}',
-   'body.saeiv-antoni-pilot #v201OperatorLabel{background:#e9f3f8!important;color:#1d4961!important;border-color:#bad5e3!important;font-size:14px!important}',
-   '#antoniPilotNav{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0 16px;padding:10px;background:#fff;border:1px solid #d4e2e9;border-radius:15px}',
-   '#antoniPilotNav button{border-radius:10px;border:1px solid #b1c8d6;background:#f4f8fb;color:#194058;min-height:44px;padding:9px 15px;font-size:.93rem;font-weight:800}',
-   '#antoniPilotNav button[aria-current=page]{background:#0c5878;color:white;border-color:#0c5878}',
-   '#antoniPilotNav small{color:#4a6373;margin-left:auto;font-size:.82rem;line-height:1.5}',
-   'body.saeiv-antoni-pilot[data-antoni-view=segments] #v165Board .v165-work,body.saeiv-antoni-pilot[data-antoni-view=drivers] #v165Board .v165-work{grid-template-columns:minmax(0,1fr)!important}',
-   'body.saeiv-antoni-pilot[data-antoni-view=segments] #v165Board .v165-main{display:none!important}',
-   'body.saeiv-antoni-pilot[data-antoni-view=drivers] #v165Board .v165-toolbox{display:none!important}',
-   'body.saeiv-antoni-pilot[data-antoni-view=drivers] #v165Board .v165-advice{display:none!important}',
-   'body.saeiv-antoni-pilot[data-antoni-view=lines] #v165Board .v165-work{display:none!important}',
-   'body.saeiv-antoni-pilot #antoniLinesPanel{padding:20px;background:#fff;color:#15394f;border:1px solid #d3e2ea;border-radius:15px}',
-   'body.saeiv-antoni-pilot #antoniLinesPanel[hidden]{display:none!important}',
-   '#antoniLinesPanel input{width:min(100%,570px);min-height:44px;font-size:.95rem;background:white;color:#12394e;border:1px solid #b4cbda;border-radius:10px;padding:10px}',
-   '#antoniLinesPanel .antoni-line-table{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:12px}',
-   '#antoniLinesPanel .antoni-line-table th{text-align:left;background:#e9f3f7;padding:12px;border-bottom:2px solid #bbd2de;position:sticky;top:0}',
-   '#antoniLinesPanel .antoni-line-table td{padding:11px 12px;border-bottom:1px solid #e1eaef}',
-   '#antoniLinesPanel .antoni-line-table tr:nth-child(2n){background:#f5f9fc}',
-   '#antoniLinesPanel .antoni-line-scroll{overflow:auto;max-height:67vh}',
-   '#antoniLinesPanel .antoni-line-review{color:#8b4a05;font-weight:750}',
-   '#antoniLinesPanel .antoni-line-linked{color:#0a6c4a;font-weight:750}',
-   'body.saeiv-antoni-pilot #v165Board .v165-driver-meta{width:235px!important}',
-   'body.saeiv-antoni-pilot #v165Board .v165-timehead,body.saeiv-antoni-pilot #v165Board .v165-driver-row{grid-template-columns:235px minmax(1440px,1fr)!important}',
-   'body.saeiv-antoni-pilot #v165Board #v165BulkTools{border-radius:11px;padding:12px;background:#eaf4f8;border:1px solid #b6d0db}',
-   'body.saeiv-antoni-pilot #v165Board #v165BulkRemove{background:#b42833;color:white;border:1px solid #901721!important;font-weight:850!important}',
-   'body.saeiv-antoni-pilot #v165Board #v165BulkRemove:disabled{background:#d8e3e8;color:#728793;border-color:#c6d4dc!important}',
-   '#antoniPilotHead{background:linear-gradient(115deg,#f5fafc,#e7f3f7);border:1px solid #c9e0e8;padding:17px 20px;border-radius:15px;margin-bottom:13px;color:#16394b}',
-   '#antoniPilotHead h2{font-size:1.4rem;letter-spacing:-.025em;margin:0 0 6px;color:#123b51}#antoniPilotHead p{font-size:.86rem;line-height:1.55;margin:0;color:#416173}',
-   '.antoni-open-day{display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:6px 10px!important;margin-top:8px!important;background:#0a5978!important;color:#fff!important;border:1px solid #0a5978!important;border-radius:8px!important;font-weight:800!important;min-height:38px!important}',
-   '#antoniPilotModal{position:fixed;inset:0;z-index:2147483590;background:rgba(9,25,36,.64);display:flex;justify-content:center;align-items:center;padding:16px}',
-   '#antoniPilotModal[hidden]{display:none!important}#antoniPilotModal .antoni-panel{background:#fff;color:#17384b;border-radius:18px;max-width:1000px;width:100%;max-height:94dvh;overflow:auto;box-shadow:0 22px 70px #071b2655;border:1px solid #d6e5ee}',
-   '#antoniPilotModal header{position:sticky;top:0;z-index:1;background:#fff;border-bottom:1px solid #dbe6ec;padding:18px 23px;display:flex;justify-content:space-between;align-items:center;gap:12px}#antoniPilotModal h2{font-size:1.36rem;color:#15384a;margin:0}#antoniPilotModal header p{margin:4px 0 0;color:#567181}',
-   '#antoniPilotModal .antoni-body{padding:20px 23px}#antoniPilotModal .antoni-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:17px}#antoniPilotModal .antoni-stat{border:1px solid #d6e5ea;border-radius:11px;background:#f2f7fa;padding:13px;font-weight:800}#antoniPilotModal .antoni-stat small{display:block;font-weight:500;color:#527080;margin-bottom:4px;font-size:.8rem}',
-   '#antoniPilotModal .antoni-item{display:grid;grid-template-columns:130px 120px 1fr;gap:12px;align-items:start;padding:13px 14px;border-bottom:1px solid #e0eaee;font-size:.9rem}#antoniPilotModal .antoni-item:nth-child(2n){background:#f6f9fb}#antoniPilotModal .antoni-item strong{color:#144661}#antoniPilotModal .antoni-item small{display:block;color:#617988;font-size:.78rem}',
-   '#antoniPilotClose{font-size:15px;min-width:45px;min-height:45px;border-radius:10px;background:#eef4f7;color:#183e50;border:1px solid #bfd2dd}',
-   '@media(max-width:900px){body.saeiv-antoni-pilot #v165Board .v165-work{grid-template-columns:1fr!important}body.saeiv-antoni-pilot #v165Board .v165-toolbox{position:static!important;max-height:36vh!important}#antoniPilotModal .antoni-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}',
-   '@media(max-width:650px){#antoniPilotModal{padding:0;align-items:flex-end}#antoniPilotModal .antoni-panel{border-radius:18px 18px 0 0;max-height:96dvh}#antoniPilotModal .antoni-item{grid-template-columns:87px 1fr}#antoniPilotModal .antoni-item .antoni-desc{grid-column:1/-1}body.saeiv-antoni-pilot #v165Board{padding:8px!important}}'
-  ].join('\n');
-  document.head.append(st);
- }
- function installModal(){
-  if(q('antoniPilotModal'))return;
-  const root=document.createElement('div');root.id='antoniPilotModal';root.hidden=true;root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label','Journée du conducteur');
-  root.innerHTML='<section class="antoni-panel"><header><div><h2 id="antoniPilotModalTitle">Journée du conducteur</h2><p id="antoniPilotModalSub"></p></div><button id="antoniPilotClose" type="button" aria-label="Fermer le détail">✕</button></header><div class="antoni-body"><div class="antoni-stats" id="antoniPilotStats"></div><div id="antoniPilotRows"></div></div></section>';
-  document.body.append(root);q('antoniPilotClose').addEventListener('click',close);
-  root.addEventListener('click',e=>{if(e.target===root)close()});
- }
- function close(){if(q('antoniPilotModal'))q('antoniPilotModal').hidden=true}
- function open(driverId){
-  if(!isPilot())return;
-  const b=board();if(!b)return;
-  installModal();
-  const driver=(b.drivers||[]).find(x=>String(x.user_id)===String(driverId));
-  if(!driver)return;
-  const date=b.date;
-  const items=[...(b.items||[]),...(b.draftItems||[])].filter(x=>
-    String(x.driver_user_id)===String(driverId)&&String(x.service_date||date)===String(date)&&x.start_time&&x.end_time)
-    .sort((a,b)=>(mins(a.start_time)??99999)-(mins(b.start_time)??99999));
-  const trips=items.filter(x=>['regular','school','tad'].includes(x.type));
-  const first=items[0],last=items[items.length-1],amplitude=first&&last?span(first.start_time,last.end_time):0;
-  const totalDriving=trips.reduce((t,x)=>t+span(x.start_time,x.end_time),0);
-  const status=(b.officialDriverIds||[]).includes(String(driverId))?'Planning publié':(b.draftDriverIds||[]).includes(String(driverId))?'Brouillon de test':'Aucun brouillon enregistré';
-  q('antoniPilotModalTitle').textContent=driver.display_name||driver.matricule||'Conducteur';
-  q('antoniPilotModalSub').textContent='Matricule '+driver.matricule+' · '+date+' · '+status;
-  const stats=[['Début',first?.start_time?.slice(0,5)||'—'],['Fin',last?.end_time?.slice(0,5)||'—'],['Amplitude',first?human(amplitude):'—'],['Courses',String(trips.length)]];
-  q('antoniPilotStats').innerHTML=stats.map(x=>'<div class="antoni-stat"><small>'+esc(x[0])+'</small>'+esc(x[1])+'</div>').join('');
-  q('antoniPilotRows').innerHTML=items.length?items.map(x=>{
-    const mode=x.linked?.reservationRequired||x.linked?.serviceMode==='tad'?'TAD · sous réserve de réservation':
-      x.type==='school'?'Scolaire':x.type==='hlp'?'Haut-le-pied':x.type==='cut'?'Coupure':x.type==='start'?'Prise de service':x.type==='end'?'Fin de service':'Course régulière';
-    const detail=[x.line,(x.origin||'')+' → '+(x.destination||'')].filter(Boolean).join(' · ');
-    return '<div class="antoni-item"><strong>'+esc(String(x.start_time).slice(0,5))+' – '+esc(String(x.end_time).slice(0,5))+'</strong><span>'+esc(mode)+'</span><div class="antoni-desc">'+esc(detail)+'<small>'+esc(x.notes||x.label||'')+'</small></div></div>';
-  }).join(''):'<p>Aucune activité enregistrée à cette date. Vérifie le journal de génération et les segments de la journée.</p>';
-  q('antoniPilotModal').hidden=false;
-  q('antoniPilotClose').focus();
- }
- function switchView(view){
-  const valid=['overview','segments','drivers','lines'];
-  if(!valid.includes(view))return;
-  document.body.dataset.antoniView=view;
-  const root=q('v165Board');if(!root)return;
-  root.querySelectorAll('[data-antoni-view]').forEach(el=>el.setAttribute('aria-current',el.dataset.antoniView===view?'page':'false'));
-  const panel=q('antoniLinesPanel');if(panel)panel.hidden=view!=='lines';
-  if(view==='lines')refreshLineTable();
- }
- async function loadCompanyLines(){
-  if(operatorLines||operatorLineLoading)return;
-  const c=cloud()?.client,org=cloud()?.profile?.organization_id;
-  if(!c||org!==ANTONI)return;
-  operatorLineLoading=true;
-  try{
-   const {data,error}=await c.from('saeiv_company_lines')
-    .select('department,line_code,gtfs_route_id,active')
-    .eq('organization_id',ANTONI).eq('active',true)
-    .order('department').order('line_code');
-   if(error)throw error;operatorLines=data||[];
-   const tagline=q('antoniLinesStatus');
-   if(tagline)tagline.textContent=operatorLines.length+' références attribuées · '+operatorLines.filter(x=>x.gtfs_route_id).length+' reliées au GTFS · '+operatorLines.filter(x=>!x.gtfs_route_id).length+' à vérifier';
-   refreshLineTable();
-  }catch(e){const node=q('antoniLinesStatus');if(node)node.textContent='Impossible de charger les lignes : '+(e.message||e)}
-  finally{operatorLineLoading=false}
- }
- function refreshLineTable(){
-  const host=q('antoniLinesContent');if(!host)return;
-  if(!operatorLines){host.textContent='Chargement des références de la société…';loadCompanyLines();return}
-  const term=String(q('antoniLinesSearch')?.value||'').toUpperCase().replace(/\s+/g,'');
-  const rows=operatorLines.filter(x=>!term||(x.department+' '+x.line_code).toUpperCase().replace(/\s+/g,'').includes(term));
-  host.innerHTML='<div class="antoni-line-scroll"><table class="antoni-line-table"><thead><tr><th>Département</th><th>Ligne actuelle</th><th>Catégorie</th><th>GTFS / horaires</th></tr></thead><tbody>'+
-    rows.map(x=>{
-      const school=!String(x.line_code).startsWith(String(x.department)+'R');
-      const label=String(x.line_code).replace(/^54[RS]|^57R|^57S|^54E/,'');
-      return '<tr><td>'+esc(x.department)+'</td><td><strong>'+esc(label)+'</strong></td><td>'+esc(school?'Scolaire':'Régulière')+'</td><td class="'+(x.gtfs_route_id?'antoni-line-linked':'antoni-line-review')+'">'+esc(x.gtfs_route_id?'Horaires GTFS associés':'Correspondance à vérifier')+'</td></tr>';
-    }).join('')+'</tbody></table></div>';
- }
- function installWorkspace(root){
-  if(q('antoniPilotNav'))return;
-  const nav=document.createElement('nav');nav.id='antoniPilotNav';nav.setAttribute('aria-label','Espace de travail René Antoni');
-  nav.innerHTML='<button type="button" data-antoni-view="overview">Vue d’ensemble</button><button type="button" data-antoni-view="drivers">Tableau conducteurs</button><button type="button" data-antoni-view="segments">Gestion des segments</button><button type="button" data-antoni-view="lines">Lignes de l’entreprise</button><small>Mode simulation · brouillons non publiés automatiquement</small>';
-  nav.addEventListener('click',e=>{const b=e.target.closest('[data-antoni-view]');if(b)switchView(b.dataset.antoniView)});
-  const head=q('antoniPilotHead');head?.insertAdjacentElement('afterend',nav);
-  const panel=document.createElement('section');panel.id='antoniLinesPanel';panel.hidden=true;
-  panel.innerHTML='<h3>Référentiel des lignes · Transports René Antoni</h3><p id="antoniLinesStatus">Chargement…</p><label for="antoniLinesSearch">Rechercher une ligne ou un code</label><input id="antoniLinesSearch" type="search" placeholder="Ex. 460, AL01, E334, 4120…"><div id="antoniLinesContent" style="margin-top:12px"></div>';
-  root.querySelector('.v165-work')?.insertAdjacentElement('beforebegin',panel);
-  q('antoniLinesSearch')?.addEventListener('input',refreshLineTable);
-  switchView('overview');loadCompanyLines();
+ const isDispatcher=()=>['dispatcher','admin'].includes(String(cloud()?.profile?.role||''));
+ const rules=[
+ 'body.saeiv-shared-ops #v165Board{--sa-bg:#f5f7f9;--sa-card:#fff;--sa-border:#d9e2e8;--sa-ink:#263b4a;--sa-muted:#536c7c;--sa-accent:#356a87;font:400 15px/1.55 system-ui,-apple-system,sans-serif;background:var(--sa-bg);color:var(--sa-ink);border-radius:14px;padding:clamp(10px,1.6vw,20px);max-width:100%}',
+ 'body.saeiv-shared-ops #v165Board .v165-toolbar,body.saeiv-shared-ops #v165Board .v165-toolbox,body.saeiv-shared-ops #v165Board .v165-advice,body.saeiv-shared-ops #v165Board .v165-grid-wrap,body.saeiv-shared-ops #v165Board .v165-metric,body.saeiv-shared-ops #v165Board #v198Controls{background:#fff;color:var(--sa-ink);border:1px solid var(--sa-border);border-radius:12px;box-shadow:none}',
+ 'body.saeiv-shared-ops #v165Board .v165-toolbar{display:flex;align-items:end;gap:10px;position:relative;z-index:12;padding:15px;overflow:visible}',
+ 'body.saeiv-shared-ops #v165Board .v165-toolbar label{font-size:14px;font-weight:700;color:var(--sa-ink);display:flex;flex-direction:column;gap:5px}',
+ 'body.saeiv-shared-ops #v165Board #v165Date,body.saeiv-shared-ops #v165Board #v190End{display:block!important;pointer-events:auto!important;position:relative!important;z-index:13;box-sizing:border-box;appearance:auto;-webkit-appearance:auto;width:170px;max-width:100%;min-height:46px;padding:8px;background:white;color:#243f50;border:1px solid #a8bfcc;border-radius:9px;font:600 16px system-ui;color-scheme:light;cursor:pointer}',
+ 'body.saeiv-shared-ops #v165Board button{font:650 14px/1.35 system-ui;min-height:42px;padding:9px 12px;border-radius:9px;white-space:normal}',
+ 'body.saeiv-shared-ops #v165Board .v165-toolbar button{color:#294e64;background:#edf2f5;border:1px solid #cad9e2}',
+ 'body.saeiv-shared-ops #v165Board #v165Generate{background:#356a87;color:white;border:1px solid #356a87}',
+ 'body.saeiv-shared-ops #v165Board #v165BulkRemove{background:#f8eceb;color:#903b39;border:1px solid #dec5c3}',
+ 'body.saeiv-shared-ops #v165Board .v165-depts label{display:inline-flex;flex-direction:row;gap:7px;background:#f2f6f8;color:#3c5464;border:1px solid var(--sa-border);padding:8px 10px;font-size:13px}',
+ 'body.saeiv-shared-ops #v165Board .v165-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}body.saeiv-shared-ops #v165Board .v165-metric{padding:13px}body.saeiv-shared-ops #v165Board .v165-metric b{font-size:23px;color:#284458}body.saeiv-shared-ops #v165Board .v165-metric span{font-size:13px;color:#536b7b}',
+ 'body.saeiv-shared-ops #v165Board .v165-alert{background:#f0f5f7;color:#446170;border:1px solid #d4e1e8;font-size:13px;font-weight:500}',
+ 'body.saeiv-shared-ops #v165Board .v165-work{display:grid;grid-template-columns:minmax(280px,320px) minmax(0,1fr);gap:12px;align-items:start;min-width:0}',
+ 'body.saeiv-shared-ops #v165Board .v165-toolbox{position:sticky;top:10px;max-height:74vh;overflow:auto;padding:13px}body.saeiv-shared-ops #v165Board .v165-toolbox-head{background:white;color:#274353;border-color:#dce5ea}',
+ 'body.saeiv-shared-ops #v165Board .v165-toolbox h3,body.saeiv-shared-ops #v165Board .v165-advice h3{font-size:17px;color:#263d4c}',
+ 'body.saeiv-shared-ops #v165Board .v165-toolbox input,body.saeiv-shared-ops #v165Board .v165-toolbox select{min-width:0;background:white;color:#294151;border:1px solid #bdd0da;min-height:42px;font-size:14px;border-radius:8px}',
+ 'body.saeiv-shared-ops #v165Board .v165-seg{padding:12px;background:#f8fafb;color:#263d4b;border-color:#d8e3e8;border-radius:9px}body.saeiv-shared-ops #v165Board .v165-seg.assigned{background:#eff6f2;border-color:#c3dbce}body.saeiv-shared-ops #v165Board .v165-seg.selected{outline:2px solid #5b819a}',
+ 'body.saeiv-shared-ops #v165Board .v165-seg b{font-size:15px;color:#263d4b}body.saeiv-shared-ops #v165Board .v165-seg span{font-size:13px;color:#435d6b}body.saeiv-shared-ops #v165Board .v165-seg small{font-size:12px;color:#627787;line-height:1.5}',
+ 'body.saeiv-shared-ops #v165Board .v165-auto-note{background:#f0f4f6;color:#526a78;border-color:#d7e2e8;font-size:13px;line-height:1.5}body.saeiv-shared-ops #v165Board .v165-advice-list{font-size:13px;line-height:1.6;color:#506878}',
+ 'body.saeiv-shared-ops #v165Board .v165-grid-wrap{position:relative;max-height:74vh;overflow:auto}',
+ 'body.saeiv-shared-ops #v165Board .v165-timehead,body.saeiv-shared-ops #v165Board .v165-driver-row{grid-template-columns:210px minmax(1440px,1fr)}',
+ 'body.saeiv-shared-ops #v165Board .v165-timehead{background:#eaf1f5;color:#294558;z-index:7}body.saeiv-shared-ops #v165Board .v165-time-label{position:sticky;left:0;z-index:8;background:#eaf1f5;font-size:13px}body.saeiv-shared-ops #v165Board .v165-hour{font-size:12px;color:#536f7f;border-color:#c7d5de}',
+ 'body.saeiv-shared-ops #v165Board .v165-driver-row{background:#fff;min-height:100px;border-color:#e2e9ed}body.saeiv-shared-ops #v165Board .v165-driver-meta{position:sticky;left:0;z-index:4;background:#fff;padding:10px;min-height:100px;border-color:#dce5ea}',
+ 'body.saeiv-shared-ops #v165Board .v198-driver-name{font-size:15px;font-weight:800;color:#275977;text-align:left;text-decoration:none}body.saeiv-shared-ops #v165Board .v165-driver-meta span,body.saeiv-shared-ops #v165Board .v165-driver-meta small{font-size:12px;color:#566e7c;line-height:1.4}',
+ 'body.saeiv-shared-ops #v165Board .v165-lane{min-height:100px;background:repeating-linear-gradient(90deg,#fff 0,#fff 79px,#edf2f5 80px)}',
+ 'body.saeiv-shared-ops #v165Board .v165-block{height:32px;min-width:12px;font-size:12px;font-weight:700;color:#244255;background:#dcebf2;border:1px solid #a7c1d1;border-radius:6px;padding:7px;white-space:nowrap;overflow:hidden;text-overflow:clip}body.saeiv-shared-ops #v165Board .v165-block:nth-child(even){top:49px}',
+ 'body.saeiv-shared-ops #v165Board .v165-block.hlp{background:#e8edef;color:#334b57;border-color:#aebdc6}body.saeiv-shared-ops #v165Board .v165-block.cut,body.saeiv-shared-ops #v165Board .v165-block.pause{background:#f0ede4;color:#594f38;border-color:#c8c0a8}body.saeiv-shared-ops #v165Board .v165-block.draft{background:#d8e9f2;color:#244356;border-color:#9bbdcc}body.saeiv-shared-ops #v165Board .v165-block.start,body.saeiv-shared-ops #v165Board .v165-block.end{background:#e3efe8;color:#30624e;border-color:#a8cbbc}',
+ 'body.saeiv-shared-ops #v165Board .v194DriverActions{display:flex;flex-wrap:wrap;gap:5px}body.saeiv-shared-ops #v165Board .v194DriverActions button{min-height:34px;font-size:12px;padding:6px 8px;background:#f0f4f6;color:#315269;border:1px solid #d2e0e7}',
+ 'body.saeiv-shared-ops #v165Board #v198Controls{padding:15px}body.saeiv-shared-ops #v165Board #v198Controls small{color:#56707e;font-size:13px}body.saeiv-shared-ops #v165Board #v198DayDetail{background:white;color:#29495d;border-color:#d5e1e8}',
+ 'body.saeiv-shared-ops #v165Board #v198DayActivities .v198-detail-time,body.saeiv-shared-ops #v165Board #v198DayDetail h3{color:#254d65}body.saeiv-shared-ops #v165Board #v198DayActivities .v198-detail-item{font-size:14px;color:#2c4453}body.saeiv-shared-ops #v165Board #v198DayActivities .v198-detail-content small{font-size:12px;color:#5b7382}',
+ '#saeivWorkHeader{margin:0 0 12px;padding:15px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;border:1px solid #d9e3e9;border-radius:12px;background:#fff;color:#294352}#saeivWorkHeader h2{margin:0;font-size:20px;color:#24465a}#saeivWorkHeader p{margin:4px 0 0;font-size:13px;color:#5d7380}',
+ '#saeivWorkToggle{background:#edf2f5;color:#2b526a;border:1px solid #cbdce5;border-radius:9px;min-height:44px;padding:9px 13px;font-size:14px;font-weight:700}',
+ 'body.saeiv-shared-ops.saeiv-hide-toolbox #v165Board .v165-work{grid-template-columns:minmax(0,1fr)}body.saeiv-shared-ops.saeiv-hide-toolbox #v165Board .v165-toolbox{display:none}',
+ '@media(max-width:1080px){body.saeiv-shared-ops #v165Board .v165-work{grid-template-columns:1fr}body.saeiv-shared-ops #v165Board .v165-toolbox{position:static;max-height:46vh}}',
+ '@media(max-width:650px){body.saeiv-shared-ops #v165Board .v165-toolbar{padding:10px;gap:10px}body.saeiv-shared-ops #v165Board .v165-toolbar>label{flex:1 1 42%;min-width:0}body.saeiv-shared-ops #v165Board #v165Date,body.saeiv-shared-ops #v165Board #v190End{width:100%;font-size:16px}body.saeiv-shared-ops #v165Board .v165-toolbar>button{flex:1 1 42%}body.saeiv-shared-ops #v165Board .v165-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}body.saeiv-shared-ops #v165Board .v165-timehead,body.saeiv-shared-ops #v165Board .v165-driver-row{grid-template-columns:170px minmax(1440px,1fr)}body.saeiv-shared-ops #v165Board .v165-driver-meta{width:170px}}'
+ ];
+ function style(){
+  if(q('saeivSharedDispatchStyle'))return;
+  const s=document.createElement('style');s.id='saeivSharedDispatchStyle';s.textContent=rules.join('\n');document.head.append(s);
  }
  function sync(){
-  installStyle();
   if(!document.body)return;
-  const on=isPilot();document.body.classList.toggle('saeiv-antoni-pilot',on);
-  if(!on)return;
-  installModal();
+  const role=isDispatcher();
+  document.body.classList.toggle('saeiv-shared-ops',role);
+  if(!role){document.body.classList.remove('saeiv-hide-toolbox');return}
+  style();
   const root=q('v165Board');if(!root)return;
-  if(!q('antoniPilotHead')){
-    const h=document.createElement('section');h.id='antoniPilotHead';
-    h.innerHTML='<h2>Exploitation · Transports René Antoni</h2><p>Environnement de test isolé · 27 conducteurs de départ · courses chargées selon chaque jour de circulation Fluo. Les TAD sont planifiés d’office et peuvent être retirés du brouillon en l’absence de réservation. Nouveaux numéros Fluo du 54 : 460 (ex-R330), 461 (ex-R340), 465 (ex-R350), 466 (ex-R360), 468 (ex-R370) et 469 (ex-R380). Identifiants GTFS historiques préservés.</p>';
-    root.prepend(h);
+  // Remove obsolete operator-specific structure. No alternate UI or planner.
+  q('antoniPilotVisuals')?.remove();q('antoniPilotNav')?.remove();q('antoniPilotHead')?.remove();q('antoniLinesPanel')?.remove();q('antoniPilotModal')?.remove();
+  document.body.classList.remove('saeiv-antoni-pilot');delete document.body.dataset.antoniView;
+  if(!q('saeivWorkHeader')){
+   const h=document.createElement('section');h.id='saeivWorkHeader';
+   h.innerHTML='<div><h2>Exploitation · Mon SAEIV</h2><p>Interface commune · lignes, conducteurs et services de votre entreprise uniquement.</p></div><button id="saeivWorkToggle" type="button" aria-expanded="true">Masquer les courses</button>';
+   root.prepend(h);
+   q('saeivWorkToggle').addEventListener('click',()=>{
+    const hidden=document.body.classList.toggle('saeiv-hide-toolbox');
+    q('saeivWorkToggle').textContent=hidden?'Afficher les courses':'Masquer les courses';
+    q('saeivWorkToggle').setAttribute('aria-expanded',String(!hidden));
+   });
   }
-  installWorkspace(root);
-  root.querySelectorAll('.v165-driver-meta').forEach(meta=>{
-    if(meta.querySelector('[data-antoni-open-day]'))return;
-    const button=document.createElement('button');button.type='button';button.className='antoni-open-day';
-    button.dataset.antoniOpenDay=meta.closest('.v165-driver-row')?.querySelector('[data-driver-lane]')?.dataset.driverLane||'';
-    button.textContent='Voir la journée';
-    if(button.dataset.antoniOpenDay)meta.append(button);
-  });
+  for(const id of ['v165Date','v190End']){
+   const picker=q(id);if(!picker||picker.dataset.saeivPickerReady)return;
+   picker.dataset.saeivPickerReady='1';
+   picker.addEventListener('click',()=>{try{picker.showPicker?.()}catch{}});
+  }
  }
- document.addEventListener('click',e=>{
-  if(!isPilot())return;
-  const el=e.target.closest?.('[data-antoni-open-day],#v165Grid [data-v198-driver-id]');
-  if(!el)return;
-  e.preventDefault();e.stopImmediatePropagation();
-  open(el.dataset.antoniOpenDay||el.dataset.v198DriverId);
- },true);
- document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
- const start=()=>{sync();setInterval(sync,1200)};
- window.MonSAEIVAntoniPilotV202={installed:true,version:'1.0.115',sync,openDriverDay:open,closeDriverDay:close};
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+ const openDriverDay=id=>window.MonSAEIVPlanningUXV198?.choose?.(String(id));
+ const init=()=>{sync();setInterval(sync,1500)};
+ window.MonSAEIVAntoniPilotV202={installed:true,version:'1.0.116',sync,openDriverDay};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
