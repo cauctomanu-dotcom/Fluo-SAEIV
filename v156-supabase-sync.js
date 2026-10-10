@@ -2,7 +2,7 @@
 /* Mon SAEIV 1.0.56 — comptes Supabase, multi-appareils et synchronisation planning. */
 (()=>{
   if(window.MonSAEIVCloudV156?.installed)return;
-  const VERSION='1.0.115';
+  const VERSION='1.0.116';
   const SUPABASE_URL='https://xpmrnwipnoekiycghwli.supabase.co';
   const SUPABASE_KEY='sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4';
   const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
@@ -185,7 +185,7 @@
     const dest=new URL('./index.html',location.href);
     dest.searchParams.set('role',['dispatcher','admin'].includes(oldRole)?oldRole:'driver');
     dest.searchParams.set('signed_out','1');
-    dest.searchParams.set('v','1.0.115');
+    dest.searchParams.set('v','1.0.116');
     location.replace(dest.href);
   }
   function stripPrivate(item){const out={};for(const [k,v] of Object.entries(item||{})){if(!k.startsWith('_server')&&k!=='_lockedByExploitation')out[k]=v}return out}
