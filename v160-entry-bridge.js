@@ -25,7 +25,7 @@
   // jamais recharger la page pendant que le conducteur choisit réseau/département.
   try{sessionStorage.setItem('mon-saeiv-full-sync-reloaded-v162','1')}catch{}
 
-  const VERSION='1.0.112';
+  const VERSION='1.0.113';
   const ENTRY_MODE_KEY='mon-saeiv-cloud-entry-v156';
   const LOCAL_ACCOUNT_KEY='fluoSaeivAccountV13';
   const PROFILE_CACHE='mon-saeiv-cloud-profile-v156';
@@ -58,7 +58,7 @@
     if(redirecting)return;
     redirecting=true;
     const r=['driver','dispatcher','admin'].includes(role)?role:'driver';
-    location.replace(`./index.html?v=1.0.112&role=${r}`);
+    location.replace(`./index.html?v=1.0.113&role=${r}`);
   }
   function profileRole(){return window.MonSAEIVCloudV156?.profile?.role||cachedProfile()?.role||'driver'}
 
