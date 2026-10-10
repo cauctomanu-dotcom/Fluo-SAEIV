@@ -25,7 +25,8 @@ assert(board.includes('await planner.openDriverDraft(driverId,date)'), 'drafts m
 assert(board.includes('await planner.saveDraft()'), 'persist edited drafts');
 assert(board.includes('saveHidden(date,done)'), 'date-scoped pilot exclusion');
 assert(board.includes('if(!antoniPilot())return'), 'isolate pilot state from global operator');
-assert(view.includes("['overview','segments','drivers','lines']"),'dispatcher workspace sections');
-assert(view.includes('saeiv_company_lines'),'company line directory');
-assert(view.includes('antoniLinesSearch'),'searchable line directory');
+assert(view.includes("const isDispatcher=()=>"),'same operator UI for every company');
+assert(view.includes('saeiv-shared-ops'),'consistent dispatch styling across organizations');
+assert(view.includes("id='saeivWorkHeader'"),'shared dispatcher header');
+assert(view.includes("id='saeivWorkToggle'"),'same collapsible course toolbox for all');
 console.log('ANTONI v1.0.114: 199 operator routes (172 GTFS, 27 pending), locked draft bulk removal and accessible company workspace validated');
