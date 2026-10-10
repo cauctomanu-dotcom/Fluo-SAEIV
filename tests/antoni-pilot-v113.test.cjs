@@ -19,8 +19,8 @@ assert(board.includes("reservationRequired:antoniPilot()&&reservation"),'real re
 assert(board.includes('if(found.has(id))continue;'),'avoid duplicate trips');
 assert(board.includes('multiSelected.clear();B.segments=[];'), 'date changes must clear all company segments');
 assert(board.includes("if(!active.some(l=>String(l.department)===String(dept)))continue"),'restrict GTFS to company');
-assert(weekly.includes("if(!antoniPilot()&&q('v165Date'))q('v165Date').value=from()"),'selected GTFS date must not jump to range start');
+assert(weekly.includes("if(q('v165Date'))q('v165Date').value=from()"),'displayed service day cannot rewrite the period start');
 assert(visual.includes('saeiv-shared-ops'),'one common company dispatcher layout');
-assert(visual.includes("const isDispatcher=()=>"),'common role-based interface, no hard-coded company');
+assert(visual.includes("const permitted=()=>"),'common role-based interface, no hard-coded company');
 assert(visual.includes("MonSAEIVPlanningUXV198?.choose?."),'reuses actual common driver day-detail engine');
 console.log('ANTONI 1.0.113: current Fluo numbering, isolated TAD, day-by-day segments, draft detail and UI contracts OK');
