@@ -13,7 +13,7 @@ assert(voice.includes('utterance.onerror=e=>finish('),'speech errors report an a
 assert(voice.includes("control.textContent='🔊 Écouter la voix'"),'test UI must reset');
 assert(voice.includes("&&!(await unlockAnnouncementAudio())&&!announcementOutput.mediaUnlocked"),'native HTMLMedia unlock must allow cloud on iPhone if WebAudio is unavailable');
 assert(responsive.includes('max-width:1000px'),'Android landscape responsive breakpoint remains');
-assert(responsive.includes('overflow-x:auto!important'),'Android landscape buttons use one scrollable row instead of tiny two-row actions');
+assert(responsive.includes('grid-template-columns:repeat(6,minmax(0,1fr))!important'),'Android landscape primary controls remain fully visible');
 assert(responsive.includes('(orientation:portrait) and (max-width:800px)'),'Android portrait layout exists');
 assert(responsive.includes('#driver .controls,#driver .sim-controls'),'Android portrait controls are real grid');
 assert(responsive.includes('min-height:43px'),'Android portrait touch targets are usable');

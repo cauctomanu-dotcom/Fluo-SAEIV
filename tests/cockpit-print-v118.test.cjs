@@ -5,8 +5,8 @@ const cockpit=read('v199-cockpit-responsive.js'),printer=read('v203-exploitation
 for(const name of ['v199-cockpit-responsive.js','v203-exploitation-print.js'])new vm.Script(read(name),{filename:name});
 assert(cockpit.includes("html.v130-driving,html.v130-driving body{overflow:hidden!important}"),'GPS screen does not page-scroll in driving mode');
 assert(cockpit.includes('grid-template-rows:minmax(0,1fr) 52px!important'),'GPS gets remaining height above short fixed action bar');
-assert(cockpit.includes('display:flex!important;flex-wrap:nowrap!important;align-items:center!important'),'buttons are one row');
-assert(cockpit.includes('overflow-x:auto!important'),'action toolbar scrolls instead of wrapping');
+assert(cockpit.includes('display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important'),'driver controls are a fixed six-item row');
+assert(cockpit.includes('overflow-x:hidden!important;overflow-y:hidden!important'),'never scroll primary navigation controls');
 assert(!cockpit.includes('grid-template-columns:repeat(4,minmax(0,1fr))'),'narrow device no longer has 2 rows');
 assert(!cockpit.includes('grid-template-columns:repeat(8,minmax(0,1fr))'),'replaces tiny 8 buttons');
 assert(cockpit.includes("font-size:clamp(16px,2.2vw,21px)!important"),'next stop has legible text');
@@ -36,5 +36,5 @@ assert(!/\.insert\(|\.upsert\(|\.update\(|\.delete\(/.test(printer),'print modul
 const sandbox={window:{},document:{readyState:'loading',addEventListener(){}},console};
 vm.runInNewContext(printer,sandbox,{timeout:1000});
 assert.equal(sandbox.window.MonSAEIVPrintV203.installed,true);
-assert.equal(sandbox.window.MonSAEIVPrintV203.version,'1.0.118');
-console.log('v1.0.118: mobile map readability, uninterrupted GPS and company-scoped draft/published planning print verified.');
+assert.equal(sandbox.window.MonSAEIVPrintV203.version,'1.0.119');
+console.log('v1.0.119: mobile map readability, uninterrupted GPS and company-scoped draft/published planning print verified.');

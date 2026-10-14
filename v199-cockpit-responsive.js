@@ -26,8 +26,8 @@
        gap:7px!important;padding:4px 6px!important
      }
      #driver>#v31LandscapeBottom button{
-       box-sizing:border-box!important;flex:1 0 102px!important;min-width:88px!important;max-width:none!important;
-       width:auto!important;min-height:42px!important;height:42px!important;padding:7px 9px!important;
+       box-sizing:border-box!important;flex:none!important;min-width:0!important;max-width:100%!important;
+       width:100%!important;min-height:42px!important;height:42px!important;padding:7px 9px!important;
        white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
        font-size:clamp(12px,1.55vw,15px)!important;line-height:1.16!important
      }
@@ -72,9 +72,20 @@
      #driver #v15LandscapeSide{gap:5px!important;padding:5px!important}
    }
    @media (orientation:landscape) and (max-height:650px) and (max-width:1000px){
-     #driver>#v31LandscapeBottom{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;gap:6px!important}
+     #driver>#v31LandscapeBottom{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;overflow:hidden!important;gap:4px!important}
      #driver>#v31LandscapeBottom button{font-size:clamp(12px,1.55vw,15px)!important}
    }
+   #v199ActionsSheet{position:fixed;inset:0;z-index:2147483420;display:grid;place-items:center;
+     padding:12px;background:#102c3eb8;font:400 15px/1.4 system-ui}
+   #v199ActionsSheet[hidden]{display:none!important}
+   #v199ActionsSheet .v199-sheet{width:min(420px,100%);max-height:90dvh;overflow:auto;box-sizing:border-box;
+     background:#fff;color:#244458;padding:17px;border-radius:14px;box-shadow:0 16px 50px #04162577}
+   #v199ActionsSheet h2{font-size:20px;margin:0 0 7px}
+   #v199ActionsSheet p{font-size:14px;margin:0 0 13px}
+   #v199MoreActions{display:grid;gap:9px}
+   #v199ActionsSheet button{width:100%;min-height:47px;padding:10px 13px;font:700 15px system-ui;
+     border-radius:9px;border:1px solid #c5d5df;background:#edf3f6;color:#24455a}
+   #v199MoreClose{margin-top:12px}
    @media (orientation:portrait) and (max-width:800px){
      html,body{overflow-x:hidden!important;width:100%!important;max-width:100%!important}
      .app{width:100%!important;min-width:0!important;max-width:100%!important;
@@ -106,6 +117,31 @@
    }
   `;
   document.head.appendChild(style);
+  function compact(tries=0){
+    const bar=document.getElementById('v31LandscapeBottom');
+    if(!bar){if(tries<16)setTimeout(()=>compact(tries+1),450);return}
+    if(bar.dataset.v199Compact==='yes')return;
+    const finish=bar.querySelector('.v315-finish');
+    const extra=['v315-deviation','v315-incident','v315-recenter'].map(x=>bar.querySelector('.'+x));
+    if(!finish||extra.some(x=>!x)){if(tries<16)setTimeout(()=>compact(tries+1),450);return}
+    const sheet=document.createElement('div');sheet.id='v199ActionsSheet';sheet.hidden=true;
+    sheet.setAttribute('role','dialog');sheet.setAttribute('aria-modal','true');
+    sheet.setAttribute('aria-label','Options du conducteur');
+    sheet.innerHTML='<div class="v199-sheet"><h2>Autres commandes</h2><p>Utiliser uniquement à l’arrêt.</p><div id="v199MoreActions"></div><button type="button" id="v199MoreClose">Fermer</button></div>';
+    document.body.appendChild(sheet);
+    const host=document.getElementById('v199MoreActions');extra.forEach(x=>host.appendChild(x));
+    const more=document.createElement('button');more.id='v199DriverMore';more.type='button';
+    more.textContent='⋯ Options';more.setAttribute('aria-haspopup','dialog');more.setAttribute('aria-expanded','false');
+    bar.insertBefore(more,finish);
+    const close=()=>{sheet.hidden=true;more.setAttribute('aria-expanded','false');more.focus({preventScroll:true})};
+    more.addEventListener('click',()=>{sheet.hidden=false;more.setAttribute('aria-expanded','true');document.getElementById('v199MoreClose').focus()});
+    document.getElementById('v199MoreClose').addEventListener('click',close);
+    sheet.addEventListener('click',e=>{if(e.target===sheet||e.target.closest?.('#v199MoreActions button'))close()});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!sheet.hidden)close()});
+    window.addEventListener('orientationchange',()=>{if(!sheet.hidden)close()});
+    bar.dataset.v199Compact='yes';
+  }
+  compact();
   const syncMap=()=>{
     const driver=document.getElementById('driver');
     if(!driver||driver.classList.contains('hidden'))return;
@@ -117,6 +153,6 @@
   window.addEventListener('orientationchange',syncMap);
   window.addEventListener('resize',syncMap,{passive:true});
  }
- window.MonSAEIVCockpitResponsiveV199={installed:true,version:'1.0.118',install};
+ window.MonSAEIVCockpitResponsiveV199={installed:true,version:'1.0.119',install};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();

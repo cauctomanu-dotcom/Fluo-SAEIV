@@ -1,0 +1,20 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const ui=fs.readFileSync('v199-cockpit-responsive.js','utf8');
+const main=fs.readFileSync('index.html','utf8');
+new vm.Script(ui);
+assert(ui.includes("grid-template-columns:repeat(6,minmax(0,1fr))!important"),'fixed 6-column driver toolbar');
+assert(ui.includes("overflow-x:hidden!important;overflow-y:hidden!important"),'no primary-action scrollbar');
+assert(ui.includes("more.textContent='⋯ Options'"),'options button for less common features');
+for(const cls of ['v315-deviation','v315-incident','v315-recenter'])
+  assert(ui.includes("'"+cls+"'"),'secondary action preserved: '+cls);
+assert(ui.includes("extra.forEach(x=>host.appendChild(x))"),'move original action proxies, not recreate commands');
+assert(ui.includes("bar.insertBefore(more,finish)"),'critical FIN remains visible at the end');
+assert(ui.includes("sheet.setAttribute('aria-modal','true')"),'accessible secondary sheet');
+assert(ui.includes("document.getElementById('v199MoreClose').addEventListener('click',close)"),'working sheet close');
+assert(ui.includes("window.addEventListener('orientationchange'"),'rotation supported');
+assert(ui.includes("state?.nav?.map?.invalidateSize?.()"),'map resizes after rotation');
+const controls=main.match(/if\(bottom\)bottom\.innerHTML='([^']+)'/);
+assert(controls&&['v315-stop','v315-announce','v315-deviation','v315-requests','v315-incident','v315-recenter','v315-finish'].every(c=>controls[1].includes(c)),'all navigation controls preserved');
+assert(controls[1].match(/<button/g).length===8,'8 existing commands / 3 in options + 1 options = 6 visible');
+console.log('v1.0.119: 6 priority actions visible without scroll, original secondary commands safely preserved.');
