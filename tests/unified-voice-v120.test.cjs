@@ -8,7 +8,7 @@ assert(old.includes('if(window.MonSAEIVUnifiedSpeechV204?.installed)return'),'ol
 assert(home.includes('if(window.MonSAEIVUnifiedSpeechV204?.installed){window.MonSAEIVHomeVoiceV200={installed:true,delegated:true};return;}'),'old home preview must delegate to the single new engine');
 const state={running:true,target:1,route:{short:'57R026',headsign:'Réding'},pattern:{stops:[{name:'Réding Gare'},{name:'Lixing-lès-Rouhling'},{name:'Hessling Bourg'}]},audio:{queue:[],current:null,token:0,passengerEnabled:true}};
 const noop=()=>{};
-const context={window:{speechSynthesis:{getVoices:()=>[],cancel:noop}},navigator:{userAgent:'iPhone',platform:'iPhone',maxTouchPoints:1,onLine:true},
+const context={window:{speechSynthesis:{getVoices:()=>[],cancel:noop},addEventListener:noop},navigator:{userAgent:'iPhone',platform:'iPhone',maxTouchPoints:1,onLine:true},
  localStorage:{getItem:()=>null},document:{readyState:'loading',addEventListener:noop,getElementById:()=>null},
  state,console:{error:noop,warn:noop,info:noop},say:noop,pumpSpeech:noop,Promise,setTimeout:noop,clearTimeout:noop,Date,Intl};
 vm.runInNewContext(code,context);
