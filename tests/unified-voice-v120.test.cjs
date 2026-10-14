@@ -5,7 +5,7 @@ const old=fs.readFileSync('v131-speech.js','utf8');
 const home=fs.readFileSync('v200-home-voice-test.js','utf8');
 new vm.Script(code,{filename:'v204-unified-speech.js'});
 assert(old.includes('if(window.MonSAEIVUnifiedSpeechV204?.installed)return'),'old audio engine must not install alongside new one');
-assert(home.includes('if(window.MonSAEIVUnifiedSpeechV204?.installed)return'),'old home preview must be disabled');
+assert(home.includes('if(window.MonSAEIVUnifiedSpeechV204?.installed){window.MonSAEIVHomeVoiceV200={installed:true,delegated:true};return;}'),'old home preview must delegate to the single new engine');
 const state={running:true,target:1,route:{short:'57R026',headsign:'Réding'},pattern:{stops:[{name:'Réding Gare'},{name:'Lixing-lès-Rouhling'},{name:'Hessling Bourg'}]},audio:{queue:[],current:null,token:0,passengerEnabled:true}};
 const noop=()=>{};
 const context={window:{speechSynthesis:{getVoices:()=>[],cancel:noop}},navigator:{userAgent:'iPhone',platform:'iPhone',maxTouchPoints:1,onLine:true},
