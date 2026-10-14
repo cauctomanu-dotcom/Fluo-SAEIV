@@ -1,6 +1,7 @@
 'use strict';
 /* SAEIV 1.0.104: independent, audible home-screen voice diagnostics on iPhone. */
 (()=>{
+ if(window.MonSAEIVUnifiedSpeechV204?.installed){window.MonSAEIVHomeVoiceV200={installed:true,delegated:true};return;}
  if(window.MonSAEIVHomeVoiceV200?.installed)return;
  let sound=null;
  const wav=()=>{

@@ -1,0 +1,34 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const code=fs.readFileSync('v204-unified-speech.js','utf8');
+const old=fs.readFileSync('v131-speech.js','utf8');
+const home=fs.readFileSync('v200-home-voice-test.js','utf8');
+new vm.Script(code,{filename:'v204-unified-speech.js'});
+assert(old.includes('if(window.MonSAEIVUnifiedSpeechV204?.installed)return'),'old audio engine must not install alongside new one');
+assert(home.includes('if(window.MonSAEIVUnifiedSpeechV204?.installed)return'),'old home preview must be disabled');
+const state={running:true,target:1,route:{short:'57R026',headsign:'Réding'},pattern:{stops:[{name:'Réding Gare'},{name:'Lixing-lès-Rouhling'},{name:'Hessling Bourg'}]},audio:{queue:[],current:null,token:0,passengerEnabled:true}};
+const noop=()=>{};
+const context={window:{speechSynthesis:{getVoices:()=>[],cancel:noop}},navigator:{userAgent:'iPhone',platform:'iPhone',maxTouchPoints:1,onLine:true},
+ localStorage:{getItem:()=>null},document:{readyState:'loading',addEventListener:noop,getElementById:()=>null},
+ state,console:{error:noop,warn:noop,info:noop},say:noop,pumpSpeech:noop,Promise,setTimeout:noop,clearTimeout:noop,Date,Intl};
+vm.runInNewContext(code,context);
+const engine=context.window.MonSAEIVUnifiedSpeechV204;
+assert(engine?.installed&&engine.version==='1.0.120','new single engine installed');
+assert.equal(engine.audioEngine,'single-queue-v204');
+assert.equal(engine.safePronunciation('Prochain arrêt, Réding.'),'Prochain arrêt, Rédin.');
+assert.equal(engine.safePronunciation('Prochain arrêt, Lixing-lès-Rouhling.'),'Prochain arrêt, Lixin-lès-Rouhlin.');
+assert.equal(engine.safePronunciation('Arrêt Hessling Bourg.'),'Arrêt Hesslin Bourg.');
+assert.equal(engine.safePronunciation('Parking, camping, shopping, meeting.'),'Parking, camping, shopping, meeting.');
+assert.equal(engine.safePronunciation('Place du Marche.'),'Place du Marché.');
+assert.equal(typeof context.say,'function');assert.equal(typeof context.pumpSpeech,'function');
+assert(code.includes('Authorization:'),'Cloud synthesis remains authenticated');
+assert(code.includes('SpeechSynthesisUtterance'),'Local offline fallback');
+assert(code.includes('unlock()'),'iOS trusted-gesture unlock');
+assert(code.includes("window.MonSAEIVRadio?.duckStart"),'Radio volume lowered while playing');
+assert(code.includes("window.MonSAEIVRadio?.duckEnd"),'Radio volume restored');
+assert(code.includes('cur.item.key'),'Duplicate announcement detection');
+assert(code.includes('stale(item)'),'Stale stop announcements suppressed');
+assert(code.includes("item.priority>running.item.priority"),'Prioritized stop arrivals');
+assert(code.includes('s.speak(u)'),'Local voice preview stays synchronous on tap');
+assert(code.includes('playerReady'),'Persistent iOS output');
+console.log('v1.0.120 unified speech: phonetic -ing city names, normal words, cloud/local priority, single iOS output and engine isolation OK');
