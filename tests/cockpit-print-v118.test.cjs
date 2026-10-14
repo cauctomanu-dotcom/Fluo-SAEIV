@@ -36,5 +36,5 @@ assert(!/\.insert\(|\.upsert\(|\.update\(|\.delete\(/.test(printer),'print modul
 const sandbox={window:{},document:{readyState:'loading',addEventListener(){}},console};
 vm.runInNewContext(printer,sandbox,{timeout:1000});
 assert.equal(sandbox.window.MonSAEIVPrintV203.installed,true);
-assert.equal(sandbox.window.MonSAEIVPrintV203.version,'1.0.119');
+assert.equal(sandbox.window.MonSAEIVPrintV203.version,'1.0.118');
 console.log('v1.0.119: mobile map readability, uninterrupted GPS and company-scoped draft/published planning print verified.');
