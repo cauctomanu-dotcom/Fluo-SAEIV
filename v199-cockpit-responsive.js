@@ -19,10 +19,10 @@
        min-width:0!important;min-height:0!important;height:100%!important;overflow:hidden!important}
      #driver:not(.hidden) .navmap,#driver:not(.hidden) .v16-map3d{height:100%!important;min-height:0!important;width:100%!important}
      #driver>#v31LandscapeBottom{
-       box-sizing:border-box!important;display:flex!important;flex-wrap:nowrap!important;align-items:center!important;
+       box-sizing:border-box!important;display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;align-items:center!important;
        grid-column:1/3!important;grid-row:2!important;
        width:100%!important;min-width:0!important;max-width:100%!important;height:52px!important;
-       overflow-x:auto!important;overflow-y:hidden!important;-webkit-overflow-scrolling:touch!important;
+       overflow-x:hidden!important;overflow-y:hidden!important;
        gap:7px!important;padding:4px 6px!important
      }
      #driver>#v31LandscapeBottom button{
