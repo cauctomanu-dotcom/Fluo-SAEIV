@@ -191,7 +191,7 @@ jobs:
           # New unified engine is loaded BEFORE the legacy speech module.
           # The latter sees the installed flag and never starts a second queue.
           voice='<script src="./v204-unified-speech.js?v=1.0.120"></script>'
-          marker='<script id="v131RuntimeSpeech"'
+          marker='<script src="./v131-speech.js?v=1.0.120"></script>'
           if marker not in t:
               raise SystemExit('v131 entry anchor not found; refuse incomplete speech release')
           t=t.replace(marker,voice+'\n'+marker,1)
