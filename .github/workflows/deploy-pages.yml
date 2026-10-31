@@ -148,6 +148,8 @@ jobs:
           set -euo pipefail
           mv site/index.html site/app.html
           cp login.html site/index.html
+          # Page conducteur de secours : moteur local original, sans passerelle Supabase.
+          cp index.html site/secours.html
           cp login-gateway.js site/login-gateway.js
           cp gateway-full-backup.js site/gateway-full-backup.js
           cp gateway-driver-parking.js site/gateway-driver-parking.js
@@ -196,6 +198,26 @@ jobs:
               raise SystemExit('v131 entry anchor not found; refuse incomplete speech release')
           t=t.replace(marker,voice+'\n'+marker,1)
           app.write_text(t,encoding='utf-8')
+
+          # Publier une entrée conducteur autonome, sans JS Supabase ni serveur d'authentification.
+          # Les données de lignes publiques sont déjà construites dans site/data ci-dessus.
+          import re
+          secours=Path('site/secours.html')
+          html=secours.read_text(encoding='utf-8')
+          html,count=re.subn(r'<script\\b[^>]*\\bsrc=["\\\']\\./v131-speech\\.js\\?v=[^"\\\']+["\\\'][^>]*></script>', '', html, flags=re.I)
+          if count!=1:
+              raise SystemExit('Secours: moteur vocal cloud non identifié; publication refusée')
+          extra=('v128-gps.js','v128-offline.js','v141-static-fluo.js','v185-line-thermometer.js')
+          for name in extra:
+              tag=f'<script src="./{name}?v=1.0.120"></script>'
+              if tag not in html:
+                  html=html.replace('</body>',tag+'\\n</body>',1)
+          html=html.replace('<title>Mon SAEIV · 1.0.120</title>', '<title>Mon SAEIV · Secours GitHub</title>',1)
+          if 'supabase' in html.lower() or 'v156-supabase-sync.js' in html:
+              raise SystemExit('Secours: dépendance Supabase détectée')
+          if 'MonSAEIVAuthV13' not in html or 'v141-static-fluo.js' not in html:
+              raise SystemExit('Secours: authentification locale ou données Fluo absentes')
+          secours.write_text(html,encoding='utf-8')
 
           # Adresse voyageurs distincte de l'application interne.
           public=Path('site/voyageurs')
