@@ -179,7 +179,7 @@
     const summary=groupStats(state.date);
     return '<div class="maquette-intro"><div><span class="kicker">EXPLOITATION · PLANIFICATION</span><h2>Journée globale</h2><p>Toutes les équipes, plusieurs lignes et activités par conducteur, sur une frise de 24 heures.</p></div>'+
       '<div class="btn-row">'+htmlButton('+ Créer une activité','addActivity','accent')+htmlButton('Exporter CSV','csv','muted')+htmlButton('Imprimer','print','muted')+'</div></div>'+
-      '<div class="planner-toolbar"><div class="date-navigator">'+htmlButton('←','prevDate','muted small')+daySelect()+htmlButton('→','nextDate','muted small')+'</div></div>'+
+      '<div class="planner-toolbar">'+daySelect()+'</div>'+
       '<div class="grid cols-3 planner-metrics">'+stat('Conducteurs affectés',summary[0],store.drivers.length+' collaborateurs')+
       stat('Courses voyageurs / scolaires',summary[1],'Courses distinctes des HLP et coupures')+
       stat('Points à contrôler',summary[2],'Contrôles partiels, pas une validation RSE')+'</div>'+
