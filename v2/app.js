@@ -1,306 +1,336 @@
-/* Mon SAEIV 2.0 — prototype pédagogique, sans serveur ni données opérationnelles */
+/* Mon SAEIV 2.0 — planning autonome local, conduite Fluo réelle via /secours.html. */
 'use strict';
-(function () {
-  const STORAGE = 'monsaeiv-v2-demo-v1';
-  const DRIVERS = [
-    {id:'manu', name:'Manu', number:'C-001'},
-    {id:'alex', name:'Alex', number:'C-002'},
-    {id:'samira', name:'Samira', number:'C-003'}
-  ];
-  const VEHICLES = ['Crossway 312','Crossway 417','Territo 204'];
-  const TRIPS = [
-    {line:'026', dest:'Metz', from:'Château-Salins', times:['06:25','06:40','07:05','07:40'],
-     stops:['Château-Salins — Gare routière','Delme — Centre','Solgne — Place','Metz — Gare routière']},
-    {line:'143', dest:'Sarrebourg', from:'Château-Salins', times:['08:10','08:55','09:40','10:35'],
-     stops:['Château-Salins — Gare routière','Dieuze — Centre','Bénestroff','Sarrebourg — Gare routière']},
-    {line:'160', dest:'Château-Salins', from:'Dieuze', times:['12:00','12:35','13:20','14:10'],
-     stops:['Dieuze — Centre','Val-de-Bride','Morhange','Château-Salins — Gare routière']}
-  ];
-  const today = new Date();
-  const iso = d => [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
-  const fromIso = x => {const a=x.split('-').map(Number);return new Date(a[0],a[1]-1,a[2]);};
-  const monday = new Date(today.getFullYear(),today.getMonth(),today.getDate());
-  monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
-  function dateAt(day) {const d = new Date(monday);d.setDate(monday.getDate()+day);return iso(d);}
-  const labels = {course:'Course',hlp:'HLP',pause:'Coupure',service:'Service'};
-  const icons = {dashboard:'◈',route:'◎',tickets:'▤',incidents:'⚑',planning:'▦',week:'▧',fleet:'▣',settings:'⚙'};
-  const menus = {
-    driver:[['dashboard','Vue conducteur'],['route','Parcours & arrêts'],['tickets','Caisse & TAD'],['incidents','Incidents']],
-    ops:[['planning','Planning journalier'],['week','Semainier'],['fleet','Véhicules'],['settings','Paramètres']]
-  };
-  const base = [
-    ['manu','06:25','07:40','course','026 · Château-Salins → Metz','Crossway 312'],
-    ['manu','07:40','08:05','hlp','HLP · Retour dépôt','Crossway 312'],
-    ['manu','08:10','10:35','course','143 · Château-Salins → Sarrebourg','Crossway 312'],
-    ['manu','10:35','12:00','pause','Coupure',''],
-    ['manu','12:00','14:10','course','160 · Dieuze → Château-Salins','Crossway 312'],
-    ['alex','07:05','09:15','course','084 · Château-Salins → Nancy','Crossway 417'],
-    ['alex','09:15','09:35','hlp','HLP · Mise en place','Crossway 417'],
-    ['alex','11:45','14:20','course','166 · Nancy → Château-Salins','Crossway 417'],
-    ['samira','06:50','09:40','course','156 · Morhange → Metz','Territo 204'],
-    ['samira','09:40','10:10','pause','Pause',''],
-    ['samira','10:10','12:25','course','155 · Metz → Morhange','Territo 204']
-  ];
-  function seeded(){
-    const out=[];
-    for(let i=0;i<5;i++){
-      base.forEach((b,j)=>out.push({id:'demo-'+i+'-'+j,date:dateAt(i),driver:b[0],start:b[1],end:b[2],type:b[3],label:b[4],vehicle:b[5]}));
-    }
-    return out;
-  }
-  let data;
+(() => {
+  const KEY='monsaeiv-v2-local-operations-1';
+  const types={course:'Course voyageurs',school:'Scolaire',hlp:'Haut-le-pied',pause:'Coupure',other:'Autre activité'};
+  const navs={driver:[['driver','Conduite Fluo'],['mine','Mon planning']],ops:[['planning','Planning du jour'],['week','Semainier'],['drivers','Conducteurs'],['vehicles','Véhicules'],['backup','Sauvegardes']]};
+  const ico={driver:'🚌',mine:'◷',planning:'▦',week:'▧',drivers:'♙',vehicles:'▣',backup:'⬇'};
+  const $=id=>document.getElementById(id);
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const ymd=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+  const parseDay=s=>{const t=String(s).split('-').map(Number);return new Date(t[0],t[1]-1,t[2]);};
+  const dateText=s=>parseDay(s).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const clock=t=>{const p=t.split(':').map(Number);return p[0]*60+p[1];};
+  const isTime=t=>/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(t);
+  const isDay=d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(parseDay(d).getTime());
+  const fmt=n=>Math.floor(n/60)+' h '+String(n%60).padStart(2,'0');
+  const uid=()=>globalThis.crypto && crypto.randomUUID?crypto.randomUUID():'local-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+  const empty=()=>({version:1,drivers:[],vehicles:[],activities:[],updatedAt:''});
+  let store=empty(),storageError='';
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE)||'null');
-    data = saved && Array.isArray(saved.activities) ? saved : null;
-  } catch(e){ data = null; }
-  if(!data) data={activities:seeded(),incidents:[],tickets:0};
-  const state={role:'driver',view:'dashboard',day:iso(today),trip:0,stop:0,board:0,alight:0,tad:[],weekDriver:'manu'};
-  const content=document.querySelector('#content');
-  const nav=document.querySelector('#navigation');
-  const byId=id=>document.getElementById(id);
-  const html=x=>String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const mins=s=>{const a=s.split(':');return Number(a[0])*60+Number(a[1]);};
-  const duration=a=>Math.max(0,mins(a.end)-mins(a.start));
-  const hourText=n=>Math.floor(n/60)+' h '+String(n%60).padStart(2,'0');
-  const frDate=x=>fromIso(x).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
-  const range=a=>a.start+'–'+a.end;
-  const driverName=id=>(DRIVERS.find(d=>d.id===id)||{}).name || id;
-  function save(){try{localStorage.setItem(STORAGE,JSON.stringify(data));}catch(e){}}
-  function activities(day,driver){
-    return data.activities.filter(a=>a.date===day&&(!driver||a.driver===driver)).sort((a,b)=>mins(a.start)-mins(b.start));
+    const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+    if(saved&&saved.version===1&&Array.isArray(saved.drivers)&&Array.isArray(saved.activities)&&Array.isArray(saved.vehicles))store=saved;
+  }catch(e){storageError='Lecture du stockage impossible, exporter une sauvegarde dès que possible.';}
+  const state={role:'driver',view:'driver',date:ymd(new Date()),driverId:store.drivers[0]?.id||'',weekId:store.drivers[0]?.id||'',filter:'all'};
+  function persist(){
+    try{store.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(store));storageError='';}
+    catch(e){storageError='Enregistrement local impossible : vérifiez l’espace disponible. Exportez immédiatement vos données.';}
   }
-  function stats(list){
-    const ordered=list.slice().sort((a,b)=>mins(a.start)-mins(b.start));
-    if(!ordered.length)return {work:0,span:0,overlaps:[],long:false};
-    const overlaps=[];
-    for(let i=1;i<ordered.length;i++){
-      if(mins(ordered[i].start)<mins(ordered[i-1].end))overlaps.push(ordered[i-1].label+' / '+ordered[i].label);
+  const namedDriver=id=>store.drivers.find(d=>d.id===id)?.name||'Conducteur supprimé';
+  const namedVehicle=id=>store.vehicles.find(v=>v.id===id)?.name||'Sans véhicule';
+  const datetime=(date,time,addDay=false)=>{
+    const d=parseDay(date);const [h,m]=time.split(':').map(Number);d.setHours(h,m,0,0);
+    if(addDay)d.setDate(d.getDate()+1);return d.getTime();
+  };
+  const start=a=>datetime(a.date,a.start);
+  const end=a=>datetime(a.date,a.end,clock(a.end)<=clock(a.start));
+  const minutes=a=>Math.round((end(a)-start(a))/60000);
+  const rowTimes=a=>a.start+' – '+a.end+(end(a)-start(a)>0&&clock(a.end)<=clock(a.start)?' (+1 j)':'');
+  function dayBounds(day){const a=parseDay(day),b=new Date(a);b.setDate(b.getDate()+1);return [a.getTime(),b.getTime()];}
+  function onDay(day,driverId=null){
+    const [from,to]=dayBounds(day);
+    return store.activities.filter(a=>(!driverId||a.driverId===driverId)&&start(a)<to&&end(a)>from)
+      .sort((a,b)=>start(a)-start(b)||a.label.localeCompare(b.label,'fr'));
+  }
+  function forDriver(id){return store.activities.filter(a=>a.driverId===id).sort((a,b)=>start(a)-start(b));}
+  function timeStats(list){
+    if(!list.length)return {work:0,amplitude:0,overlap:[],first:0,last:0};
+    const sorted=[...list].sort((a,b)=>start(a)-start(b)),first=Math.min(...list.map(start)),last=Math.max(...list.map(end));
+    let highEnd=-Infinity,highAct=null;const overlap=[];
+    for(const a of sorted){
+      if(start(a)<highEnd)overlap.push([highAct,a]);
+      if(end(a)>highEnd){highEnd=end(a);highAct=a;}
     }
-    const span=Math.max(...ordered.map(a=>mins(a.end)))-Math.min(...ordered.map(a=>mins(a.start)));
-    return {work:ordered.reduce((s,a)=>s+(a.type==='pause'?0:duration(a)),0),span,overlaps,long:span>13*60};
+    return {work:sorted.reduce((n,a)=>n+(a.type==='pause'?0:minutes(a)),0),amplitude:Math.round((last-first)/60000),overlap,first,last};
   }
-  function warningList(day){
+  function conflictData(day){
     const result=[];
-    DRIVERS.forEach(d=>{
-      const s=stats(activities(day,d.id));
-      s.overlaps.forEach(pair=>result.push('Chevauchement pour '+d.name+' : '+pair));
-      if(s.long)result.push('Amplitude de '+hourText(s.span)+' pour '+d.name+' : contrôle RSE nécessaire selon le régime applicable.');
-    });
+    for(const d of store.drivers){
+      const s=timeStats(onDay(day,d.id));
+      for(const [a,b] of s.overlap)result.push({kind:'overlap',message:'Chevauchement — '+d.name+' : '+a.label+' / '+b.label});
+      if(s.amplitude>14*60)result.push({kind:'duration',message:'Amplitude supérieure à 14 h pour '+d.name+' : '+fmt(s.amplitude)+' (vérification manuelle obligatoire).'});
+    }
+    const acts=onDay(day).filter(a=>a.vehicleId&&a.type!=='pause');
+    const byVehicle=new Map();
+    for(const a of acts){const k=a.vehicleId;if(!byVehicle.has(k))byVehicle.set(k,[]);byVehicle.get(k).push(a);}
+    for(const [vid,items] of byVehicle){
+      items.sort((a,b)=>start(a)-start(b));
+      for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){
+        if(start(items[j])>=end(items[i]))break;
+        if(items[i].driverId!==items[j].driverId)result.push({kind:'vehicle',message:'Même véhicule ('+namedVehicle(vid)+') attribué simultanément à '+namedDriver(items[i].driverId)+' et '+namedDriver(items[j].driverId)});
+      }
+    }
     return result;
   }
-  function panel(title,body,extra){return '<section class="card '+(extra||'')+'"><h2 style="font-size:16px;margin:0 0 15px">'+title+'</h2>'+body+'</section>';}
-  function button(label,act,cls,attr){return '<button type="button" class="btn '+(cls||'')+'" data-action="'+act+'" '+(attr||'')+'>'+label+'</button>';}
-  function renderNav(){
-    byId('roleDriver').classList.toggle('active',state.role==='driver');
-    byId('roleOps').classList.toggle('active',state.role==='ops');
-    byId('roleDriver').setAttribute('aria-pressed',String(state.role==='driver'));
-    byId('roleOps').setAttribute('aria-pressed',String(state.role==='ops'));
-    nav.innerHTML=menus[state.role].map(pair=>'<button class="nav-link '+(state.view===pair[0]?'active':'')+'" data-view="'+pair[0]+'" type="button">'+icons[pair[0]]+' <span>'+pair[1]+'</span></button>').join('');
-    byId('breadcrumb').textContent=state.role==='driver'?'CONDUCTEUR':'EXPLOITATION';
-    byId('datePill').textContent=frDate(state.day);
-    byId('pageTitle').textContent=menus[state.role].find(v=>v[0]===state.view)?.[1]||'Mon SAEIV';
+  function htmlButton(text,act,cls='',attrs=''){return '<button type="button" class="btn '+cls+'" data-action="'+act+'" '+attrs+'>'+text+'</button>';}
+  function htmlCard(title,body,cls=''){return '<section class="card '+cls+'"><h2 style="font-size:17px;margin:0 0 12px">'+title+'</h2>'+body+'</section>';}
+  function info(t){return '<p class="fine-print">'+t+'</p>';}
+  function groupStats(day){const tasks=onDay(day);return [store.drivers.filter(d=>tasks.some(a=>a.driverId===d.id)).length,tasks.filter(a=>['course','school'].includes(a.type)).length,conflictData(day).length];}
+  function selectDrivers(id,emptyOption=false,selectId=state.driverId){
+    const items=store.drivers.map(d=>'<option value="'+esc(d.id)+'" '+(d.id===selectId?'selected':'')+'>'+esc(d.name)+'</option>').join('');
+    return '<select id="'+id+'">'+(emptyOption?'<option value="">Choisir un conducteur</option>':'')+items+'</select>';
   }
+  function daySelect(){return '<div class="field"><label>Date<input type="date" data-input="date" value="'+esc(state.date)+'"></label>'+
+    htmlButton('◀','prevDate','muted small','aria-label="Jour précédent"')+htmlButton('▶','nextDate','muted small','aria-label="Jour suivant"')+'</div>';}
+  function activityChips(a){
+    return '<div class="timeline-entry"><div class="timeline-hour">'+esc(rowTimes(a))+'</div><span class="type-dot '+(a.type==='school'?'course':a.type==='other'?'service':a.type)+'"></span><div class="timeline-item"><strong>'+esc(a.label)+'</strong><small>'+
+      esc(types[a.type]||a.type)+(a.from||a.to?' · '+esc([a.from,a.to].filter(Boolean).join(' → ')):'')+
+      (a.vehicleId?' · '+esc(namedVehicle(a.vehicleId)):'')+(a.note?' · '+esc(a.note):'')+
+      '</small></div></div>';
+  }
+  function driving(){
+    const n=onDay(state.date,state.driverId);
+    return '<div class="hero card"><div><span class="route-pill">FLUO 54 / 57</span><h2>Conduite opérationnelle</h2><p>Utilise le moteur de conduite existant, ses données officielles, le GPS, les annonces et le thermomètre des arrêts.</p></div>'+
+      '<div class="hero-route"><span class="status-tag good">Moteur Fluo existant</span></div></div>'+
+      '<div class="section-head"><h2>Démarrer une course</h2></div>'+
+      '<div class="grid cols-2">'+htmlCard('Ouvrir le SAEIV de secours',
+      '<p>Accède au vrai conducteur, sans connexion Supabase. Tu peux sélectionner ta ligne, ton horaire et démarrer le suivi GPS.</p>'+
+      '<a class="btn accent link-btn" href="../secours.html">🚌 Ouvrir mon SAEIV conducteur</a>'+
+      info('La page de conduite reste autonome pendant le développement de la nouvelle interface.'))+
+      htmlCard('Planning personnel sur cet appareil',
+      (store.drivers.length?'<label class="fine-print">Conducteur local</label>'+selectDrivers('selfDriver',false,state.driverId)+
+      '<p>'+n.length+' activité(s) le '+esc(dateText(state.date))+'.</p>':info('Ajoute d’abord ton profil dans Exploitation → Conducteurs pour consulter tes services.'))+
+      htmlButton('Voir mon planning','gotoMine','muted'))+
+      '</div>'+
+      '<div class="section-head"><h2>Accès rapide</h2></div>'+
+      htmlCard('Fonctions de conduite disponibles dans le SAEIV existant',
+      '<div class="feature-grid"><span>✓ Lignes réelles 54/57</span><span>✓ Courses GTFS</span><span>✓ GPS / arrêt suivant</span><span>✓ Annonces voyageurs</span><span>✓ Mode TAD</span><span>✓ Thermomètre de ligne</span></div>'+
+      info('Les horaires, déviations et données GPS doivent toujours être vérifiés avant utilisation.'))
+    ;
+  }
+  function mine(){
+    const driver=state.driverId;
+    return '<div class="section-head" style="margin-top:0"><div><h2>Mes services</h2><p>Planning stocké uniquement dans ce navigateur, sans connexion à l’entreprise</p></div>'+daySelect()+'</div>'+
+      (!store.drivers.length?htmlCard('Aucun conducteur',info('Crée un profil conducteur dans Exploitation → Conducteurs.')) :
+        '<div class="field" style="margin-bottom:15px"><label>Conducteur '+selectDrivers('selfDriver',false,driver)+'</label></div>'+
+        htmlCard('Service du '+esc(dateText(state.date)),onDay(state.date,driver).length?
+          '<div class="timeline">'+onDay(state.date,driver).map(activityChips).join('')+'</div>':'<div class="empty">Aucun service enregistré ce jour</div>')+
+        info('Cette vue ne vérifie pas une identité : à utiliser uniquement sur un appareil personnel ou de confiance.')
+      );
+  }
+  function planning(){
+    const selected=onDay(state.date),summary=groupStats(state.date);
+    return '<div class="section-head" style="margin-top:0"><div><h2>Journée du '+esc(dateText(state.date))+'</h2><p>Toutes les affectations, courses, HLP et coupures</p></div>'+daySelect()+'</div>'+
+      '<div class="grid cols-3">'+
+      stat('Conducteurs affectés',summary[0],'Profils locaux : '+store.drivers.length)+
+      stat('Courses',summary[1],'Voyageurs + scolaires')+
+      stat('Alertes',summary[2],'Contrôles partiels, sans validation RSE')+'</div>'+
+      '<div class="section-head"><div><h2>Tableau de service</h2><p>Enregistrement automatique sur cet appareil</p></div>'+
+      '<div class="btn-row">'+htmlButton('+ Ajouter une activité','addActivity','accent')+htmlButton('Exporter CSV','csv','muted')+htmlButton('Imprimer','print','muted')+'</div></div>'+
+      (store.drivers.length?'<div class="table-scroll"><table class="planning-table"><thead><tr><th>Conducteur</th><th>Activités (modifiables)</th><th>Temps hors coupure*</th><th>Amplitude*</th><th>État</th></tr></thead><tbody>'+
+        store.drivers.map(d=>{
+          const items=onDay(state.date,d.id),s=timeStats(items);
+          return '<tr><td class="driver-name">'+esc(d.name)+'</td><td>'+
+          (items.length?items.map(a=>'<div class="activity-row"><span class="chip '+esc(a.type)+'">'+esc(rowTimes(a))+' · '+esc(a.label)+(a.vehicleId?' · '+esc(namedVehicle(a.vehicleId)):'')+'</span>'+
+            '<span class="inline-buttons">'+htmlButton('Modifier','edit','muted small','data-id="'+esc(a.id)+'"')+htmlButton('×','delete','danger small','data-id="'+esc(a.id)+'" aria-label="Supprimer cette activité"')+'</span></div>').join(''):'<span class="fine-print">Aucun service</span>')+'</td><td>'+fmt(s.work)+'</td><td>'+fmt(s.amplitude)+'</td><td><span class="status-tag '+(s.overlap.length?'bad':s.amplitude>840?'warn':'muted')+'">'+(s.overlap.length?'Chevauchement':s.amplitude>840?'Vérifier':'À contrôler')+'</span></td></tr>';
+        }).join('')+'</tbody></table></div>':
+        htmlCard('Commencer',info('Pour utiliser ton planning, commence par créer un conducteur puis ajoute ses activités du jour.')+htmlButton('Ajouter un conducteur','gotoDrivers','accent'))) +
+      '<div class="section-head"><h2>Vérifications techniques</h2></div>'+
+      validation(state.date)+info('* Temps d’activités = total des durées saisies moins les coupures ; ne constitue pas un calcul réglementaire de travail effectif. L’amplitude est la période entre le premier début et la dernière fin, avec prise en compte des activités franchissant minuit.')+
+      htmlCard('État des plannings',info('Ces services sont enregistrés localement. Ils ne sont pas publiés aux autres conducteurs. Pour transférer le planning, exporte une sauvegarde JSON dans Sauvegardes.'), 'space-top');
+  }
+  function stat(label,value,sub){return '<article class="card"><span class="eyebrow">'+esc(label)+'</span><strong class="stat-value">'+esc(value)+'</strong><div class="stat-detail">'+esc(sub)+'</div></article>';}
+  function validation(day){
+    const rows=conflictData(day);
+    return '<div class="validation">'+(rows.length?rows.map(r=>'<div class="validation-row">⚠ '+esc(r.message)+'</div>').join(''):
+      '<div class="validation-row ok">Aucun chevauchement évident détecté sur cette journée. Les repos et autres contraintes légales restent à vérifier.</div>')+'</div>';
+  }
+  function week(){
+    const monday=parseDay(state.date);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);
+    const dates=Array.from({length:7},(_,i)=>{const d=new Date(monday);d.setDate(d.getDate()+i);return ymd(d);});
+    return '<div class="section-head" style="margin-top:0"><div><h2>Semainier</h2><p>Semaine du '+esc(dateText(dates[0]))+'</p></div><div class="field">'+daySelect()+
+    (store.drivers.length?'<label>Conducteur '+selectDrivers('weekDriver',false,state.weekId)+'</label>':'')+'</div></div>'+
+    (!store.drivers.length?htmlCard('Aucun conducteur',info('Ajoute un conducteur pour construire un semainier réel.')) :
+      '<div class="grid cols-2">'+dates.map(d=>{
+        const list=onDay(d,state.weekId),s=timeStats(list);
+        return htmlCard(esc(dateText(d))+' · '+fmt(s.amplitude)+' amplitude',list.length?'<div class="timeline">'+list.map(activityChips).join('')+'</div>':'<div class="empty">Aucun service saisi</div>');
+      }).join('')+'</div>')+
+    info('Les activités qui franchissent minuit apparaissent sur les deux dates concernées. Les chevauchements et repos doivent être contrôlés sur l’ensemble des journées.')
+    ;
+  }
+  function drivers(){
+    return '<div class="grid cols-2">'+htmlCard('Ajouter un conducteur',
+    '<form id="newDriverForm" class="inline-form"><label>Nom affiché<input name="name" maxlength="90" autocomplete="off" required placeholder="Nom ou matricule"></label><label>Matricule facultatif<input name="number" maxlength="40" placeholder="Ex. 0042"></label><button class="btn accent" type="submit">Créer le conducteur</button></form>')+
+    htmlCard('Conducteurs locaux',store.drivers.length?'<div class="rows">'+store.drivers.map(d=>'<div class="person-row"><div><strong>'+esc(d.name)+'</strong><small>'+esc(d.number||'Sans matricule')+' · '+forDriver(d.id).length+' activité(s)</small></div><div>'+htmlButton('Renommer','renameDriver','muted small','data-id="'+esc(d.id)+'"')+htmlButton('Supprimer','deleteDriver','danger small','data-id="'+esc(d.id)+'"')+'</div></div>').join('')+'</div>':'<div class="empty">Aucun conducteur. Crée le premier ci-contre.</div>')+'</div>'+
+    info('Aucun compte sécurisé n’est créé : il s’agit de profils de planning locaux. Les vrais comptes et droits seront intégrés avec le serveur.')
+    ;
+  }
+  function vehicles(){
+    return '<div class="grid cols-2">'+htmlCard('Ajouter un véhicule',
+    '<form id="newVehicleForm" class="inline-form"><label>Immatriculation, parc ou identifiant<input name="name" maxlength="90" required placeholder="Ex. Crossway 312"></label><button class="btn accent" type="submit">Ajouter le véhicule</button></form>')+
+    htmlCard('Parc local',store.vehicles.length?'<div class="rows">'+store.vehicles.map(v=>'<div class="person-row"><strong>'+esc(v.name)+'</strong>'+htmlButton('Supprimer','deleteVehicle','danger small','data-id="'+esc(v.id)+'"')+'</div>').join('')+'</div>':'<div class="empty">Aucun véhicule saisi.</div>')+'</div>'+
+    info('L’ajout d’un véhicule permet de signaler une double affectation simultanée, entre deux conducteurs. La disponibilité réelle n’est pas synchronisée.')
+    ;
+  }
+  function backup(){
+    return htmlCard('Sauvegarder ton travail',
+      '<p>Les plannings, conducteurs et véhicules sont enregistrés automatiquement dans le navigateur utilisé. Pour éviter de les perdre lors d’un changement de téléphone, de navigateur ou d’un nettoyage des données, télécharge régulièrement une sauvegarde.</p>'+
+      '<div class="btn-row">'+htmlButton('⬇ Télécharger la sauvegarde JSON','exportBackup','accent')+
+      htmlButton('⬆ Restaurer un fichier JSON','importBackup','muted')+htmlButton('Exporter les services en CSV','csvAll','muted')+'</div>'+
+      '<p class="fine-print">Dernier enregistrement : '+esc(store.updatedAt?new Date(store.updatedAt).toLocaleString('fr-FR'):'Aucun')+'</p>')+
+      '<div class="section-head"><h2>Contenu enregistré</h2></div>'+
+      '<div class="grid cols-3">'+stat('Conducteurs',store.drivers.length,'Profils locaux')+stat('Véhicules',store.vehicles.length,'Parc local')+stat('Activités',store.activities.length,'Toutes dates confondues')+'</div>'+
+      htmlCard('Confidentialité',info('Les données restent sur cet appareil sauf si tu exportes ou partages un fichier. GitHub Pages est un site statique public : n’inscris pas de mots de passe, de données médicales ni de données privées sensibles dans l’outil.'),'space-top');
+  }
+  const pages={driver:driving,mine,planning,week,drivers,vehicles,backup};
   function render(){
-    renderNav();
-    const views={dashboard:driverDashboard,route:driverRoute,tickets:driverTickets,incidents:driverIncidents,
-      planning:opsPlanning,week:opsWeek,fleet:opsFleet,settings:opsSettings};
-    content.innerHTML=views[state.view]();
+    if(!navs[state.role].some(v=>v[0]===state.view))state.view=navs[state.role][0][0];
+    $('roleDriver').classList.toggle('active',state.role==='driver');$('roleOps').classList.toggle('active',state.role==='ops');
+    $('roleDriver').setAttribute('aria-pressed',String(state.role==='driver'));$('roleOps').setAttribute('aria-pressed',String(state.role==='ops'));
+    $('navigation').innerHTML=navs[state.role].map(v=>'<button class="nav-link '+(state.view===v[0]?'active':'')+'" data-view="'+v[0]+'" type="button">'+ico[v[0]]+' <span>'+v[1]+'</span></button>').join('');
+    $('breadcrumb').textContent=state.role==='driver'?'CONDUITE':'EXPLOITATION';
+    $('pageTitle').textContent=navs[state.role].find(v=>v[0]===state.view)?.[1]||'Mon SAEIV';
+    $('datePill').textContent=dateText(state.date);
+    $('statusBanner').textContent=storageError||'Conduite : SAEIV Fluo réel. Exploitation : planning utilisable et sauvegardé sur cet appareil, sans synchronisation ni publication serveur.';
+    $('content').innerHTML=pages[state.view]();
   }
-  function statCard(label,value,detail){return '<article class="card"><span class="eyebrow">'+label+'</span><strong class="stat-value">'+value+'</strong><div class="stat-detail">'+detail+'</div></article>';}
-  function tripSelect(){
-    return '<div class="field"><label>Course de démonstration<select id="tripSelect" data-change="trip">'+
-      TRIPS.map((t,i)=>'<option value="'+i+'" '+(state.trip===i?'selected':'')+'>'+html(t.line+' · '+t.from+' → '+t.dest)+'</option>').join('')+
-      '</select></label></div>';
+  function openActivity(id){
+    if(!store.drivers.length){alert('Ajoute d’abord un conducteur.');state.view='drivers';render();return;}
+    const a=store.activities.find(v=>v.id===id);
+    $('activityTitle').textContent=a?'Modifier une activité':'Ajouter une activité';
+    $('activityForm').reset();$('formError').hidden=true;
+    $('activityId').value=a?.id||'';
+    $('activityDriver').innerHTML=store.drivers.map(d=>'<option value="'+esc(d.id)+'">'+esc(d.name)+'</option>').join('');
+    $('activityVehicle').innerHTML='<option value="">Sans véhicule attribué</option>'+store.vehicles.map(v=>'<option value="'+esc(v.id)+'">'+esc(v.name)+'</option>').join('');
+    $('activityDriver').value=a?.driverId||store.drivers[0].id;
+    $('activityDate').value=a?.date||state.date;
+    $('activityType').value=a?.type||'course';
+    $('activityStart').value=a?.start||'08:00';
+    $('activityEnd').value=a?.end||'09:00';
+    $('activityLabel').value=a?.label||'';
+    $('activityFrom').value=a?.from||'';
+    $('activityTo').value=a?.to||'';
+    $('activityVehicle').value=a?.vehicleId||'';
+    $('activityNote').value=a?.note||'';
+    $('activityDialog').showModal();
   }
-  function routeCard(){
-    const t=TRIPS[state.trip], n=state.stop, done=n>=t.stops.length-1;
-    return '<section class="card"><div class="section-head" style="margin:0 0 12px"><h2>Suivi de parcours</h2><span class="status-tag warn">SIMULATION</span></div>'+
-      tripSelect()+'<div class="fine-print" style="margin-top:18px">ARRÊT ACTUEL</div><div class="stop-current">'+html(t.stops[n])+'</div>'+
-      '<div class="fine-print">PROCHAIN ARRÊT</div><div class="stop-next">'+(done?'Terminus atteint':html(t.stops[n+1]))+'</div>'+
-      '<div class="progress"><span style="width:'+(100*n/(t.stops.length-1))+'%"></span></div>'+
-      '<p class="fine-print">Annonce préparée : '+(done?'« Terminus, '+html(t.stops[n])+'. »':'« Prochain arrêt, '+html(t.stops[n+1])+'. »')+'</p>'+
-      '<div class="btn-row">'+button('← Précédent','prevStop','muted',n===0?'disabled':'')+
-      button(done?'Terminus':'Arrêt suivant →','nextStop','accent',done?'disabled':'')+
-      button('Recaler au départ','resetStop','muted')+'</div>'+
-      '<p class="fine-print">Voix identique Android/iPhone : à connecter au serveur audio ultérieurement.</p></section>';
+  function download(name,data,mime){
+    const blob=new Blob([data],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
   }
-  function scheduleBlock(){
-    const s=activities(state.day,'manu');
-    return '<div class="timeline">'+(s.length?s.map(a=>
-      '<div class="timeline-entry"><div class="timeline-hour">'+range(a)+'</div><span class="type-dot '+a.type+'"></span><div class="timeline-item"><strong>'+html(a.label)+'</strong><small>'+labels[a.type]+' • '+html(a.vehicle||'Sans véhicule')+'</small></div></div>').join(''):'<p class="fine-print">Aucun service pour cette date.</p>')+'</div>';
+  function csv(rows){
+    return '\ufeff'+rows.map(row=>row.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
   }
-  function driverDashboard(){
-    const s=stats(activities(state.day,'manu'));const t=TRIPS[state.trip];
-    return '<div class="hero card"><div><span class="route-pill">LIGNE '+html(t.line)+'</span><h2>Bonjour, Manu 👋</h2><p>Votre espace conducteur • parcours fictifs de démonstration</p></div><div class="hero-route"><small>DESTINATION</small><strong>'+html(t.dest)+'</strong><small>Départ '+t.times[0]+'</small></div></div>'+
-      '<div class="grid cols-3" style="margin-top:16px">'+statCard('Amplitude planifiée',hourText(s.span),'Inclut les coupures et temps intermédiaires')+
-      statCard('Temps d’activités hors coupures',hourText(s.work),'Calcul indicatif de la maquette')+
-      statCard('Voyageurs / à bord',String(state.board-state.alight),'Entrées '+state.board+' • sorties '+state.alight)+'</div>'+
-      '<div class="grid cols-2" style="margin-top:16px">'+routeCard()+panel('Mon service du jour',scheduleBlock())+'</div>';
+  function exportCsv(all=false){
+    const items=all?[...store.activities].sort((a,b)=>start(a)-start(b)):onDay(state.date);
+    const rows=[['Date de début','Conducteur','Matricule','Début','Fin','Type','Ligne / description','Départ','Arrivée','Véhicule','Note']];
+    items.forEach(a=>rows.push([a.date,namedDriver(a.driverId),store.drivers.find(d=>d.id===a.driverId)?.number||'',a.start,a.end,types[a.type],a.label,a.from,a.to,a.vehicleId?namedVehicle(a.vehicleId):'',a.note]));
+    download('MonSAEIV2-services-'+(all?'complets':state.date)+'.csv',csv(rows),'text/csv;charset=utf-8');
   }
-  function driverRoute(){
-    const t=TRIPS[state.trip];
-    return '<div class="grid cols-2">'+routeCard()+panel('Thermomètre de ligne',
-      '<div class="stop-list">'+t.stops.map((stop,i)=>
-      '<div class="stop-item '+(i===state.stop?'active':i<state.stop?'done':'')+'"><span>'+String(i+1).padStart(2,'0')+' <strong>'+html(stop)+'</strong></span><span>'+t.times[i]+' '+(i===state.stop?'●':i<state.stop?'✓':'')+'</span></div>').join('')+'</div>')+'</div>';
+  function backupExport(){download('MonSAEIV2-sauvegarde-'+ymd(new Date())+'.json',JSON.stringify(store,null,2),'application/json');}
+  function safeImport(raw){
+    if(!raw||raw.version!==1||!Array.isArray(raw.activities)||!Array.isArray(raw.drivers)||!Array.isArray(raw.vehicles))throw Error('Format de sauvegarde non reconnu.');
+    if(raw.activities.length>20000||raw.drivers.length>1000||raw.vehicles.length>1000)throw Error('Fichier trop volumineux.');
+    const text=(v,max=120)=>String(v==null?'':v).slice(0,max);
+    const drivers=raw.drivers.map(d=>({id:text(d.id,100),name:text(d.name,90),number:text(d.number,40)}));
+    const vehicles=raw.vehicles.map(v=>({id:text(v.id,100),name:text(v.name,90)}));
+    const ids=new Set(drivers.map(d=>d.id)),vids=new Set(vehicles.map(v=>v.id));
+    const activities=raw.activities.map(a=>{
+      if(!isDay(a.date)||!isTime(a.start)||!isTime(a.end)||!types[a.type]||!ids.has(a.driverId)||a.vehicleId&&!vids.has(a.vehicleId))
+        throw Error('Au moins une activité contient des dates, heures ou affectations invalides.');
+      return {id:text(a.id,100),date:a.date,driverId:a.driverId,type:a.type,start:a.start,end:a.end,label:text(a.label,120),from:text(a.from),to:text(a.to),vehicleId:text(a.vehicleId,100),note:text(a.note,300)};
+    });
+    if(new Set(drivers.map(d=>d.id)).size!==drivers.length||new Set(activities.map(a=>a.id)).size!==activities.length)throw Error('Identifiants dupliqués dans la sauvegarde.');
+    return {version:1,drivers,vehicles,activities,updatedAt:text(raw.updatedAt,60)};
   }
-  function driverTickets(){
-    const a=state.board-state.alight;
-    return '<div class="grid cols-3">'+statCard('Ventes saisies',String(data.tickets),'Simulation locale, aucune émission de titre')+
-       statCard('Montées',String(state.board),'Décompte du véhicule de démonstration')+
-       statCard('À bord',String(a),'Descentes '+state.alight)+'</div>'+
-       '<div class="grid cols-2" style="margin-top:16px">'+panel('Compteur voyageurs',
-       '<div class="counter-wrap"><div class="counter"><span>Montées</span><b>'+state.board+'</b><div class="counter-actions">'+button('−','boardDown','muted')+button('+','boardUp','accent')+'</div></div>'+
-       '<div class="counter"><span>Descentes</span><b>'+state.alight+'</b><div class="counter-actions">'+button('−','alightDown','muted')+button('+','alightUp','accent')+'</div></div></div>')+
-       panel('Billetterie — brouillon',
-       '<p class="fine-print">Pour tester le parcours, une vente fictive peut être enregistrée localement. Aucun paiement ni titre réel n’est généré.</p>'+
-       button('Enregistrer une vente fictive','sellTicket','accent'))+'</div>'+
-       '<div class="section-head"><h2>Transport à la demande (TAD)</h2></div>'+
-       panel('Arrêts demandés',TRIPS[state.trip].stops.map((s,i)=>
-       '<label class="checkbox-line"><input type="checkbox" data-tad="'+i+'" '+(state.tad.includes(i)?'checked':'')+'>'+html(s)+'</label>').join('')+
-       '<p class="fine-print">Simulation des demandes de desserte. Le calcul d’itinéraire sera relié aux données officielles dans une version ultérieure.</p>');
-  }
-  function driverIncidents(){
-    return '<div class="grid cols-2">'+panel('Signaler un incident',
-      '<div class="incident"><label for="incidentText" class="fine-print">Note de service (démonstration)</label>'+
-      '<textarea id="incidentText" maxlength="600" placeholder="Décrivez votre incident..."></textarea>'+
-      button('Enregistrer la note','saveIncident','accent')+'</div><p class="fine-print">Cette note reste sur ce navigateur. Aucune transmission à l’exploitation.</p>')+
-      panel('Notes enregistrées',data.incidents.length?'<div class="timeline">'+data.incidents.slice().reverse().map(x=>
-      '<div class="timeline-entry"><div class="timeline-item"><small>'+html(x.when)+'</small><strong>'+html(x.message)+'</strong></div></div>').join('')+'</div>':'<div class="empty">Aucune note enregistrée</div>')+'</div>';
-  }
-  function dayControls(){
-    return '<div class="field"><label>Journée<input aria-label="Journée" type="date" id="dayInput" data-change="day" value="'+state.day+'"></label>'+
-    button('◀ Jour précédent','previousDay','muted small')+button('Jour suivant ▶','followingDay','muted small')+'</div>';
-  }
-  function dayTable(){
-    const rows=DRIVERS.map(d=>{
-      const list=activities(state.day,d.id),s=stats(list);
-      return '<tr><td class="driver-name">'+d.name+'<div class="fine-print">'+d.number+'</div></td>'+
-       '<td>'+ (list.length?list.map(a=>'<span class="chip '+a.type+'" title="'+html(range(a))+'">'+
-       html(range(a)+' '+a.label)+'</span>').join(''):'<span class="fine-print">Non affecté</span>')+'</td>'+
-       '<td>'+hourText(s.work)+'</td><td>'+hourText(s.span)+'</td>'+
-       '<td>'+(s.overlaps.length?'<span class="status-tag bad">Chevauchement</span>':s.long?'<span class="status-tag warn">À vérifier</span>':'<span class="status-tag good">Sans conflit détecté</span>')+'</td></tr>';
-    }).join('');
-    return '<div class="table-scroll"><table class="planning-table"><thead><tr><th>Conducteur</th><th>Services, courses, HLP et coupures (ordre chronologique)</th><th>Activités *</th><th>Amplitude</th><th>Contrôle</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
-  }
-  function validations(day){
-    const w=warningList(day);
-    return '<div class="validation">'+(w.length?w.map(s=>'<div class="validation-row">⚠ '+html(s)+'</div>').join(''):
-      '<div class="validation-row ok">✓ Aucun chevauchement ou dépassement du seuil indicatif détecté.</div>')+
-      '<p class="fine-print">* Décompte simplifié à but d’interface : ne constitue ni un calcul de paie ni une validation réglementaire. Les repos, RSE, pauses, travail effectif et régimes applicables nécessitent un moteur métier vérifié.</p></div>';
-  }
-  function opsPlanning(){
-    const all=activities(state.day),n=all.filter(a=>a.type==='course').length;
-    return '<div class="section-head" style="margin-top:0"><div><h2>Vue globale • '+html(frDate(state.day))+'</h2><p>Plusieurs activités et lignes par conducteur</p></div>'+dayControls()+'</div>'+
-    '<div class="grid cols-3">'+statCard('Conducteurs affectés',String(new Set(all.map(a=>a.driver)).size),'Sur '+DRIVERS.length+' profils de démonstration')+
-    statCard('Courses voyageurs',String(n),'HLP et coupures distincts')+
-    statCard('Points de vigilance',String(warningList(state.day).length),'Contrôles partiels uniquement')+'</div>'+
-    '<div class="section-head"><div><h2>Tableau des services</h2><p>Édition d’un brouillon enregistré sur cet appareil</p></div>'+
-    '<div class="btn-row">'+button('+ Ajouter une activité','newActivity','accent')+button('Exporter CSV','exportCsv','muted')+button('Imprimer','print','muted')+'</div></div>'+
-    dayTable()+'<div class="section-head"><h2>Vérifications du planning</h2></div>'+validations(state.day)+
-    '<div class="section-head"><h2>Publication</h2></div>'+
-    panel('Brouillon local — non publié','<p class="fine-print">La publication aux conducteurs sera activée après création du serveur, de l’authentification et des contrôles réglementaires.</p>'+
-    '<button type="button" class="btn" disabled>Publier aux conducteurs (non connecté)</button>');
-  }
-  function opsWeek(){
-    const dates=Array.from({length:7},(_,i)=>dateAt(i));
-    return '<div class="section-head" style="margin-top:0"><div><h2>Semainier d’exploitation</h2><p>Semaine du '+html(frDate(dates[0]))+'</p></div>'+
-    '<div class="field"><label>Conducteur<select id="weekDriver" data-change="weekDriver">'+
-    DRIVERS.map(d=>'<option value="'+d.id+'" '+(state.weekDriver===d.id?'selected':'')+'>'+d.name+'</option>').join('')+
-    '</select></label></div></div>'+
-    '<div class="grid cols-2">'+dates.map(day=>{
-      const list=activities(day,state.weekDriver),s=stats(list);
-      return '<section class="card"><div class="section-head" style="margin-top:0"><h2>'+html(frDate(day))+'</h2><span class="status-tag '+(s.overlaps.length?'bad':s.long?'warn':'muted')+'">'+hourText(s.span)+' amplitude</span></div>'+
-      (list.length?'<div class="timeline">'+list.map(a=>
-      '<div class="timeline-entry"><span class="timeline-hour">'+range(a)+'</span><span class="type-dot '+a.type+'"></span><span class="timeline-item"><strong>'+html(a.label)+'</strong><small>'+labels[a.type]+'</small></span></div>').join('')+'</div>':'<div class="empty">Repos / aucune affectation</div>')+
-      '</section>';
-    }).join('')+'</div><p class="fine-print">Vérification du repos entre journées et gestion des services franchissant minuit à développer dans le moteur de planning.</p>';
-  }
-  function opsFleet(){
-    return '<div class="grid cols-3">'+VEHICLES.map((v,i)=>panel(html(v),
-      '<p class="fine-print">Véhicule fictif pour la maquette.</p><span class="status-tag muted">Disponibilité non synchronisée</span>')).join('')+
-      '</div><div class="section-head"><h2>Attribution des véhicules</h2></div>'+
-      panel('Prochaine étape','<p>La gestion des affectations véhicules, indisponibilités, places, équipements, girouettes et conflits sera reliée aux services conducteur lors du raccordement serveur.</p>');
-  }
-  function opsSettings(){
-    return '<div class="grid cols-2">'+
-    panel('Accès et profils','<p>Compte d’exploitation cible : <strong>Anthony</strong>.</p><p class="fine-print">Ce prototype utilise uniquement un changement de rôle de démonstration. Il n’y a pas de vraie connexion, aucun mot de passe ni protection des données.</p>')+
-    panel('Architecture prévue','<div class="timeline"><div class="timeline-entry">GitHub : code et historique</div><div class="timeline-entry">Serveur Ubuntu personnel : API, base et calculs</div><div class="timeline-entry">Audio serveur : voix identiques sur les appareils</div><div class="timeline-entry">GTFS : courses exactes, variantes et tracés</div></div>')+
-    panel('Réglementation et planning','<p class="fine-print">Moteur à construire avec règles configurables selon les textes, conventions, accords et dérogations pertinents. Aucune amplitude maximale universelle ni durée minimale de repos n’est présumée ici.</p>')+
-    panel('Données de démonstration','<p class="fine-print">Les modifications sont enregistrées uniquement dans ce navigateur. Réinitialiser efface le brouillon et les notes locales de la maquette.</p>'+button('Réinitialiser la démonstration','resetDemo','danger'))+'</div>';
-  }
-  function csvCell(s){return '"'+String(s).replace(/"/g,'""')+'"';}
-  function exportCsv(){
-    const rows=[['Date','Conducteur','Début','Fin','Type','Désignation','Véhicule']];
-    activities(state.day).forEach(a=>rows.push([a.date,driverName(a.driver),a.start,a.end,labels[a.type],a.label,a.vehicle]));
-    const csv='\ufeff'+rows.map(a=>a.map(csvCell).join(';')).join('\r\n');
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-    const url=URL.createObjectURL(blob);
-    const link=document.createElement('a');link.href=url;link.download='MonSAEIV2-planning-'+state.day+'.csv';
-    document.body.appendChild(link);link.click();link.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),500);
-  }
-  function newActivity(){
-    byId('driverSelect').innerHTML=DRIVERS.map(d=>'<option value="'+d.id+'">'+d.name+'</option>').join('');
-    byId('activityForm').reset();byId('formError').hidden=true;byId('activityDialog').showModal();
-  }
-  function action(act){
-    if(act==='nextStop')state.stop=Math.min(TRIPS[state.trip].stops.length-1,state.stop+1);
-    if(act==='prevStop')state.stop=Math.max(0,state.stop-1);
-    if(act==='resetStop')state.stop=0;
-    if(act==='boardUp')state.board++;
-    if(act==='boardDown')state.board=Math.max(state.alight,state.board-1);
-    if(act==='alightUp')state.alight=Math.min(state.board,state.alight+1);
-    if(act==='alightDown')state.alight=Math.max(0,state.alight-1);
-    if(act==='sellTicket'){data.tickets++;save();}
-    if(act==='previousDay'){const d=fromIso(state.day);d.setDate(d.getDate()-1);state.day=iso(d);}
-    if(act==='followingDay'){const d=fromIso(state.day);d.setDate(d.getDate()+1);state.day=iso(d);}
-    if(act==='newActivity'){newActivity();return;}
-    if(act==='saveIncident'){
-      const value=byId('incidentText').value.trim();
-      if(!value){alert('Saisissez une description.');return;}
-      data.incidents.push({when:new Date().toLocaleString('fr-FR'),message:value});save();
+  function onAction(kind,id){
+    if(kind==='prevDate'||kind==='nextDate'){
+      const d=parseDay(state.date);d.setDate(d.getDate()+(kind==='prevDate'?-1:1));state.date=ymd(d);
     }
-    if(act==='resetDemo'){
-      if(!confirm('Réinitialiser toutes les données de démonstration locales ?'))return;
-      data={activities:seeded(),incidents:[],tickets:0};save();
+    else if(kind==='gotoMine'){state.role='driver';state.view='mine';}
+    else if(kind==='gotoDrivers'){state.role='ops';state.view='drivers';}
+    else if(kind==='addActivity'||kind==='edit'){openActivity(kind==='edit'?id:null);return;}
+    else if(kind==='delete'){
+      const a=store.activities.find(a=>a.id===id);
+      if(!a||!confirm('Supprimer « '+a.label+' » ('+dateText(a.date)+') ?'))return;
+      store.activities=store.activities.filter(v=>v.id!==id);persist();
     }
-    if(act==='exportCsv'){exportCsv();return;}
-    if(act==='print'){window.print();return;}
+    else if(kind==='deleteDriver'){
+      const d=store.drivers.find(d=>d.id===id);if(!d)return;
+      if(store.activities.some(a=>a.driverId===id)){alert('Supprime ou réattribue d’abord ses activités.');return;}
+      if(!confirm('Supprimer le conducteur '+d.name+' ?'))return;
+      store.drivers=store.drivers.filter(v=>v.id!==id);
+      state.driverId=store.drivers[0]?.id||'';state.weekId=state.driverId;persist();
+    }
+    else if(kind==='renameDriver'){
+      const d=store.drivers.find(d=>d.id===id);if(!d)return;
+      const value=prompt('Nom du conducteur',d.name);if(!value)return;
+      d.name=value.trim().slice(0,90);persist();
+    }
+    else if(kind==='deleteVehicle'){
+      const v=store.vehicles.find(v=>v.id===id);if(!v)return;
+      if(store.activities.some(a=>a.vehicleId===id)){alert('Ce véhicule est affecté à des activités. Retire ces affectations avant la suppression.');return;}
+      if(!confirm('Supprimer le véhicule '+v.name+' ?'))return;
+      store.vehicles=store.vehicles.filter(v=>v.id!==id);persist();
+    }
+    else if(kind==='csv'||kind==='csvAll'){exportCsv(kind==='csvAll');return;}
+    else if(kind==='exportBackup'){backupExport();return;}
+    else if(kind==='importBackup'){$('backupFile').click();return;}
+    else if(kind==='print'){window.print();return;}
     render();
   }
   document.addEventListener('click',e=>{
-    const view=e.target.closest('[data-view]');
-    if(view){state.view=view.dataset.view;render();return;}
-    const target=e.target.closest('[data-action]');
-    if(target && !target.disabled)action(target.dataset.action);
+    const btn=e.target.closest('[data-view]');if(btn){state.view=btn.dataset.view;render();return;}
+    const act=e.target.closest('[data-action]');if(act&&!act.disabled)onAction(act.dataset.action,act.dataset.id);
   });
   document.addEventListener('change',e=>{
-    const el=e.target;
-    if(el.dataset.change==='trip'){state.trip=Number(el.value);state.stop=0;state.tad=[];render();}
-    if(el.dataset.change==='day'){state.day=el.value;render();}
-    if(el.dataset.change==='weekDriver'){state.weekDriver=el.value;render();}
-    if(el.dataset.tad!==undefined){
-      const num=Number(el.dataset.tad);
-      state.tad=el.checked?[...new Set([...state.tad,num])]:state.tad.filter(x=>x!==num);
+    const t=e.target;
+    if(t.dataset.input==='date'&&isDay(t.value)){state.date=t.value;render();}
+    if(t.id==='selfDriver'){state.driverId=t.value;render();}
+    if(t.id==='weekDriver'){state.weekId=t.value;render();}
+  });
+  document.addEventListener('submit',e=>{
+    if(e.target.id==='newDriverForm'){
+      e.preventDefault();
+      const d=new FormData(e.target),name=String(d.get('name')||'').trim(),number=String(d.get('number')||'').trim();
+      if(!name)return;
+      const id=uid();store.drivers.push({id,name:name.slice(0,90),number:number.slice(0,40)});
+      if(!state.driverId)state.driverId=id;if(!state.weekId)state.weekId=id;persist();render();
+    }
+    if(e.target.id==='newVehicleForm'){
+      e.preventDefault();const d=new FormData(e.target),name=String(d.get('name')||'').trim();
+      if(!name)return;store.vehicles.push({id:uid(),name:name.slice(0,90)});persist();render();
     }
   });
-  byId('roleDriver').addEventListener('click',()=>{state.role='driver';state.view='dashboard';render();});
-  byId('roleOps').addEventListener('click',()=>{state.role='ops';state.view='planning';render();});
-  byId('closeDialog').addEventListener('click',()=>byId('activityDialog').close());
-  byId('cancelDialog').addEventListener('click',()=>byId('activityDialog').close());
-  byId('activityForm').addEventListener('submit',e=>{
+  $('activityForm').addEventListener('submit',e=>{
     e.preventDefault();
-    const form=new FormData(e.currentTarget);
-    const start=String(form.get('start')), end=String(form.get('end'));
-    const label=String(form.get('label')||'').trim();
-    if(mins(end)<=mins(start)||!label){
-      const error=byId('formError');error.hidden=false;
-      error.textContent='Cette première maquette accepte uniquement des activités sur une même journée, avec une heure de fin postérieure au début.';
-      return;
+    const d=new FormData(e.target),v=k=>String(d.get(k)||'').trim();
+    if(!isDay(v('date'))||!isTime(v('start'))||!isTime(v('end'))||!types[v('type')]||!store.drivers.some(x=>x.id===v('driverId'))||!v('label')){
+      $('formError').hidden=false;$('formError').textContent='Renseigne un conducteur, une date, des heures et une description valides.';return;
     }
-    data.activities.push({id:'added-'+Date.now(),date:state.day,driver:String(form.get('driver')),
-      type:String(form.get('type')),start,end,label,vehicle:String(form.get('vehicle')||'').trim()});
-    save();byId('activityDialog').close();render();
+    const activity={id:v('id')||uid(),date:v('date'),driverId:v('driverId'),type:v('type'),
+      start:v('start'),end:v('end'),label:v('label').slice(0,120),from:v('from').slice(0,120),
+      to:v('to').slice(0,120),vehicleId:v('vehicleId'),note:v('note').slice(0,300)};
+    const idx=store.activities.findIndex(a=>a.id===activity.id);
+    if(idx>=0)store.activities[idx]=activity;else store.activities.push(activity);
+    persist();$('activityDialog').close();render();
   });
+  $('closeDialog').addEventListener('click',()=>$('activityDialog').close());
+  $('cancelDialog').addEventListener('click',()=>$('activityDialog').close());
+  $('backupFile').addEventListener('change',async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      if(file.size>10_000_000)throw Error('Sauvegarde trop volumineuse.');
+      const next=safeImport(JSON.parse(await file.text()));
+      if(!confirm('Restaurer ce fichier ? Les données actuellement enregistrées sur cet appareil seront remplacées.'))return;
+      store=next;persist();state.driverId=store.drivers[0]?.id||'';state.weekId=state.driverId;render();
+      alert('Sauvegarde restaurée : '+store.activities.length+' activité(s).');
+    }catch(err){alert('Importation refusée : '+err.message);}
+    finally{e.target.value='';}
+  });
+  $('roleDriver').addEventListener('click',()=>{state.role='driver';state.view='driver';render();});
+  $('roleOps').addEventListener('click',()=>{state.role='ops';state.view='planning';render();});
+  if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{}));
   render();
 })();
