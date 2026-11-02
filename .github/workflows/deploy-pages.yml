@@ -44,6 +44,9 @@ jobs:
           # SAEIV 2.0 : espace distinct, sans modification des pages existantes.
           mkdir -p site/v2
           cp v2/index.html v2/styles.css v2/app.js v2/manifest.webmanifest v2/sw.js site/v2/
+          # Prévisualisation indépendante, la version publiée dans /v2/ reste inchangée.
+          mkdir -p site/v2-preview
+          cp v2-preview/index.html v2-preview/styles.css v2-preview/app.js v2-preview/manifest.webmanifest v2-preview/sw.js site/v2-preview/
           [ -f fluo_build.json ] && cp fluo_build.json site/fluo_build.json || true
 
           for f in \
@@ -243,6 +246,11 @@ jobs:
           grep -q 'Ouvrir mon SAEIV conducteur' site/v2/app.js
           node --check site/v2/app.js
           node --check site/v2/sw.js
+          test -f site/v2-preview/index.html
+          node --check site/v2-preview/app.js
+          node --check site/v2-preview/sw.js
+          grep -q "monsaeiv-v2-preview-operations-1" site/v2-preview/app.js
+          grep -q "mon-saeiv-preview-20261102" site/v2-preview/sw.js
           node v2/tests/operations.test.cjs
 
           for f in \
