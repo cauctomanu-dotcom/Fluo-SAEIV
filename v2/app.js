@@ -118,26 +118,76 @@
         info('Cette vue ne vérifie pas une identité : à utiliser uniquement sur un appareil personnel ou de confiance.')
       );
   }
+  function matchingDrivers(){
+    const q=(state.search||'').trim().toLocaleLowerCase('fr');
+    return store.drivers.filter(d=>(!state.depot||d.depot===state.depot)&&
+      (!q||[d.name,d.number,d.depot].join(' ').toLocaleLowerCase('fr').includes(q)));
+  }
+  function filters(){
+    const depots=[...new Set(store.drivers.map(d=>d.depot||'').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));
+    return '<div class="planner-filters"><label>Rechercher un conducteur<input id="driverSearch" type="search" autocomplete="off" placeholder="Nom ou matricule" value="'+esc(state.search||'')+'"></label>'+
+      '<label>Dépôt<select id="depotFilter"><option value="">Tous les dépôts</option>'+depots.map(d=>
+      '<option value="'+esc(d)+'" '+(state.depot===d?'selected':'')+'>'+esc(d)+'</option>').join('')+'</select></label>'+
+      '<div class="planner-mode" aria-label="Type de planning">'+htmlButton('Frise','timelineMode',state.mode==='timeline'?'accent small':'muted small')+
+      htmlButton('Liste','listMode',state.mode==='list'?'accent small':'muted small')+'</div></div>';
+  }
+  function timeLegend(){
+    let parts='';
+    for(let i=0;i<=24;i+=2)parts+='<span style="left:'+(i/24*100)+'%">'+String(i).padStart(2,'0')+' h</span>';
+    return '<div class="clock-ruler">'+parts+'</div>';
+  }
+  function segment(a,day){
+    const [d0,d1]=dayBounds(day),x=Math.max(d0,start(a)),y=Math.min(d1,end(a));
+    const left=(x-d0)/(d1-d0)*100,width=Math.max(.4,(y-x)/(d1-d0)*100);
+    const type=['course','school','hlp','pause','other'].includes(a.type)?a.type:'other';
+    const title=rowTimes(a)+' · '+types[a.type]+' · '+a.label;
+    return '<button type="button" class="planning-segment '+type+'" data-action="edit" data-id="'+esc(a.id)+
+      '" draggable="true" aria-label="Modifier '+esc(title)+'" title="'+esc(title)+'" style="left:'+left.toFixed(3)+'%;width:'+width.toFixed(3)+'%">'+
+      '<span>'+esc(a.label)+'</span></button>';
+  }
+  function plannerTimeline(day){
+    const people=matchingDrivers();
+    if(!people.length)return '<div class="empty">Aucun conducteur ne correspond aux filtres. Ajoute des conducteurs ou change la recherche.</div>';
+    return '<div class="planner-grid"><div class="planner-ruler"><div class="planner-name">CONDUCTEURS</div><div class="planner-hours">'+timeLegend()+'</div><div class="planner-amplitude">AMPLITUDE</div></div>'+
+      people.map(d=>{
+        const items=onDay(day,d.id),st=timeStats(items);
+        return '<div class="planner-line" data-drop-driver="'+esc(d.id)+'" data-drop-date="'+esc(day)+'">'+
+        '<div class="planner-name"><b>'+esc(d.name)+'</b><small>'+esc(d.depot||d.number||'Sans dépôt')+'</small>'+
+        '<button type="button" class="inline-add" data-action="addForDriver" data-driver="'+esc(d.id)+'" aria-label="Ajouter un segment pour '+esc(d.name)+'">＋</button></div>'+
+        '<div class="planner-hours planner-track">'+(items.length?items.map(a=>segment(a,day)).join(''):'<span class="track-empty">Aucune affectation</span>')+'</div>'+
+        '<div class="planner-amplitude"><strong>'+fmt(st.amplitude)+'</strong><small>'+items.length+' segments</small>'+
+        (st.overlap.length?'<em class="rse-danger">Conflit</em>':'')+'</div></div>';
+      }).join('')+'</div>';
+  }
+  function plannerList(day){
+    return '<div class="table-scroll"><table class="planning-table"><thead><tr><th>Conducteur</th><th>Journée détaillée — plusieurs courses possibles</th><th>Activités*</th><th>Amplitude*</th><th>Alertes</th></tr></thead><tbody>'+
+      matchingDrivers().map(d=>{
+        const items=onDay(day,d.id),st=timeStats(items);
+        return '<tr><td class="driver-name">'+esc(d.name)+'<div class="fine-print">'+esc(d.depot||d.number||'')+'</div>'+
+        htmlButton('+ Segment','addForDriver','muted small','data-driver="'+esc(d.id)+'"')+'</td><td>'+
+        (items.length?'<div class="day-segments">'+items.map(a=>
+        '<div class="activity-row"><div><span class="chip '+esc(a.type)+'">'+esc(rowTimes(a))+' · '+esc(a.label)+'</span><small>'+esc(types[a.type]||'')+'</small></div>'+
+        htmlButton('Modifier','edit','muted small','data-id="'+esc(a.id)+'"')+htmlButton('×','delete','danger small','data-id="'+esc(a.id)+'"')).join('')+'</div>':
+        '<span class="fine-print">Repos / non affecté</span>')+'</td><td>'+fmt(st.work)+'</td><td>'+fmt(st.amplitude)+'</td><td>'+
+        (st.overlap.length?'<span class="status-tag bad">Chevauchement</span>':'<span class="status-tag muted">À contrôler</span>')+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
   function planning(){
-    const selected=onDay(state.date),summary=groupStats(state.date);
-    return '<div class="section-head" style="margin-top:0"><div><h2>Journée du '+esc(dateText(state.date))+'</h2><p>Toutes les affectations, courses, HLP et coupures</p></div>'+daySelect()+'</div>'+
-      '<div class="grid cols-3">'+
-      stat('Conducteurs affectés',summary[0],'Profils locaux : '+store.drivers.length)+
-      stat('Courses',summary[1],'Voyageurs + scolaires')+
-      stat('Alertes',summary[2],'Contrôles partiels, sans validation RSE')+'</div>'+
-      '<div class="section-head"><div><h2>Tableau de service</h2><p>Enregistrement automatique sur cet appareil</p></div>'+
-      '<div class="btn-row">'+htmlButton('+ Ajouter une activité','addActivity','accent')+htmlButton('Exporter CSV','csv','muted')+htmlButton('Imprimer','print','muted')+'</div></div>'+
-      (store.drivers.length?'<div class="table-scroll"><table class="planning-table"><thead><tr><th>Conducteur</th><th>Activités (modifiables)</th><th>Temps hors coupure*</th><th>Amplitude*</th><th>État</th></tr></thead><tbody>'+
-        store.drivers.map(d=>{
-          const items=onDay(state.date,d.id),s=timeStats(items);
-          return '<tr><td class="driver-name">'+esc(d.name)+'</td><td>'+
-          (items.length?items.map(a=>'<div class="activity-row"><span class="chip '+esc(a.type)+'">'+esc(rowTimes(a))+' · '+esc(a.label)+(a.vehicleId?' · '+esc(namedVehicle(a.vehicleId)):'')+'</span>'+
-            '<span class="inline-buttons">'+htmlButton('Modifier','edit','muted small','data-id="'+esc(a.id)+'"')+htmlButton('×','delete','danger small','data-id="'+esc(a.id)+'" aria-label="Supprimer cette activité"')+'</span></div>').join(''):'<span class="fine-print">Aucun service</span>')+'</td><td>'+fmt(s.work)+'</td><td>'+fmt(s.amplitude)+'</td><td><span class="status-tag '+(s.overlap.length?'bad':s.amplitude>840?'warn':'muted')+'">'+(s.overlap.length?'Chevauchement':s.amplitude>840?'Vérifier':'À contrôler')+'</span></td></tr>';
-        }).join('')+'</tbody></table></div>':
-        htmlCard('Commencer',info('Pour utiliser ton planning, commence par créer un conducteur puis ajoute ses activités du jour.')+htmlButton('Ajouter un conducteur','gotoDrivers','accent'))) +
-      '<div class="section-head"><h2>Vérifications techniques</h2></div>'+
-      validation(state.date)+info('* Temps d’activités = total des durées saisies moins les coupures ; ne constitue pas un calcul réglementaire de travail effectif. L’amplitude est la période entre le premier début et la dernière fin, avec prise en compte des activités franchissant minuit.')+
-      htmlCard('État des plannings',info('Ces services sont enregistrés localement. Ils ne sont pas publiés aux autres conducteurs. Pour transférer le planning, exporte une sauvegarde JSON dans Sauvegardes.'), 'space-top');
+    const summary=groupStats(state.date);
+    return '<div class="maquette-intro"><div><span class="kicker">EXPLOITATION · PLANIFICATION</span><h2>Journée globale</h2><p>Toutes les équipes, plusieurs lignes et activités par conducteur, sur une frise de 24 heures.</p></div>'+
+      '<div class="btn-row">'+htmlButton('+ Créer une activité','addActivity','accent')+htmlButton('Exporter CSV','csv','muted')+htmlButton('Imprimer','print','muted')+'</div></div>'+
+      '<div class="planner-toolbar"><div class="date-navigator">'+htmlButton('←','prevDate','muted small')+daySelect()+htmlButton('→','nextDate','muted small')+'</div></div>'+
+      '<div class="grid cols-3 planner-metrics">'+stat('Conducteurs affectés',summary[0],store.drivers.length+' collaborateurs')+
+      stat('Courses voyageurs / scolaires',summary[1],'Courses distinctes des HLP et coupures')+
+      stat('Points à contrôler',summary[2],'Contrôles partiels, pas une validation RSE')+'</div>'+
+      filters()+
+      '<section class="planner-surface"><div class="planner-surface-head"><h3>'+esc(dateText(state.date))+'</h3>'+
+      '<div class="planner-key"><span><i class="key-course"></i> Course</span><span><i class="key-school"></i> Scolaire</span><span><i class="key-hlp"></i> HLP</span><span><i class="key-pause"></i> Coupure</span></div></div>'+
+      (store.drivers.length?(state.mode==='list'?plannerList(state.date):plannerTimeline(state.date)):
+      '<div class="empty">Aucun conducteur enregistré. Crée tes collaborateurs pour composer de véritables journées de service.</div>')+'</section>'+
+      '<div class="section-head"><h2>Contrôles et anomalies</h2></div>'+validation(state.date)+
+      info('Amplitude indicative : du début du premier segment à la fin du dernier. 14 h n’est pas un plafond légal automatique : repos, RSE, conventions et dérogations restent à contrôler.')+
+      htmlCard('Travail collaboratif non activé',info('Les brouillons de ce navigateur ne sont pas encore publiés aux conducteurs ; la synchronisation requiert un serveur et un contrôle d’accès.'),'space-top');
   }
   function stat(label,value,sub){return '<article class="card"><span class="eyebrow">'+esc(label)+'</span><strong class="stat-value">'+esc(value)+'</strong><div class="stat-detail">'+esc(sub)+'</div></article>';}
   function validation(day){
@@ -148,15 +198,46 @@
   function week(){
     const monday=parseDay(state.date);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);
     const dates=Array.from({length:7},(_,i)=>{const d=new Date(monday);d.setDate(d.getDate()+i);return ymd(d);});
-    return '<div class="section-head" style="margin-top:0"><div><h2>Semainier</h2><p>Semaine du '+esc(dateText(dates[0]))+'</p></div><div class="field">'+daySelect()+
-    (store.drivers.length?'<label>Conducteur '+selectDrivers('weekDriver',false,state.weekId)+'</label>':'')+'</div></div>'+
-    (!store.drivers.length?htmlCard('Aucun conducteur',info('Ajoute un conducteur pour construire un semainier réel.')) :
-      '<div class="grid cols-2">'+dates.map(d=>{
-        const list=onDay(d,state.weekId),s=timeStats(list);
-        return htmlCard(esc(dateText(d))+' · '+fmt(s.amplitude)+' amplitude',list.length?'<div class="timeline">'+list.map(activityChips).join('')+'</div>':'<div class="empty">Aucun service saisi</div>');
-      }).join('')+'</div>')+
-    info('Les activités qui franchissent minuit apparaissent sur les deux dates concernées. Les chevauchements et repos doivent être contrôlés sur l’ensemble des journées.')
-    ;
+    const people=matchingDrivers();
+    return '<div class="maquette-intro"><div><span class="kicker">EXPLOITATION · PLANIFICATION</span><h2>Semainier équipe</h2><p>Une ligne par conducteur, sept jours et toutes les affectations de la semaine.</p></div>'+
+      '<div class="btn-row">'+htmlButton('← Semaine','prevWeek','muted')+htmlButton('Semaine →','nextWeek','muted')+'</div></div>'+
+      '<div class="section-head" style="margin-top:0"><h2>Du '+esc(dateText(dates[0]))+' au '+esc(dateText(dates[6]))+'</h2></div>'+
+      filters().replace('planner-mode','planner-mode hidden')+
+      (!people.length?'<div class="empty">Aucun conducteur : ajoute tes collaborateurs ou modifie les filtres.</div>':
+        '<div class="weekly-scroll"><div class="weekly-grid"><div class="weekly-head">CONDUCTEUR</div>'+
+        dates.map(d=>'<button class="weekly-head day-head" type="button" data-action="openDay" data-date="'+d+'">'+
+        esc(parseDay(d).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'}))+'</button>').join('')+
+        people.map(d=>'<div class="weekly-driver"><strong>'+esc(d.name)+'</strong><small>'+esc(d.depot||d.number||'')+'</small></div>'+
+          dates.map(day=>{
+            const items=onDay(day,d.id),st=timeStats(items),issues=st.overlap.length;
+            return '<div class="weekly-cell" data-drop-driver="'+esc(d.id)+'" data-drop-date="'+day+'">'+
+            '<button class="weekly-cell-open" type="button" data-action="openDriverDay" data-driver="'+esc(d.id)+'" data-date="'+day+'" aria-label="Voir la journée de '+esc(d.name)+' '+day+'">'+
+            (items.length?'<strong>'+items.length+' segment'+(items.length>1?'s':'')+'</strong><small>'+fmt(st.amplitude)+' amp.</small>':
+             '<span class="weekly-off">Repos / non affecté</span>')+'</button>'+
+            (items.length?items.slice(0,3).map(a=>'<button type="button" class="weekly-chip '+esc(a.type)+'" draggable="true" data-action="edit" data-id="'+esc(a.id)+'" title="'+esc(rowTimes(a)+' · '+a.label)+'">'+esc(a.label)+'</button>').join(''):'')+
+            (issues?'<span class="rse-danger">Chevauchement</span>':'')+
+            '<button class="weekly-add" type="button" data-action="addOnDay" data-driver="'+esc(d.id)+'" data-date="'+day+'">+ activité</button>'+
+            '</div>';
+          }).join('')).join('')+'</div></div>')+
+      info('Clique sur une case pour consulter la journée complète ou ajouter une activité. Le glisser-déposer modifie une affectation locale ; vérifier les conséquences et les règles RSE.');
+  }
+  function driverDay(){
+    const d=store.drivers.find(d=>d.id===state.openDriver)||store.drivers[0],list=d?onDay(state.date,d.id):[],st=timeStats(list);
+    return '<div class="maquette-intro"><div><span class="kicker">EXPLOITATION · JOURNÉE CONDUCTEUR</span><h2>'+
+      esc(d?.name||'Conducteur')+'</h2><p>'+esc(dateText(state.date))+' · plusieurs courses, HLP, coupures et changements de ligne</p></div>'+
+      '<div class="btn-row">'+htmlButton('← Semainier','backWeek','muted')+
+      htmlButton('+ Ajouter un segment','addForDriver','accent','data-driver="'+esc(d?.id||'')+'"')+'</div></div>'+
+      '<div class="grid cols-3 planner-metrics">'+stat('Amplitude',fmt(st.amplitude),'Indicative, à contrôler')+
+      stat('Activités hors coupure',fmt(st.work),'Calcul brut, sans portée réglementaire')+
+      stat('Nombre de segments',list.length,'Services et activités de la journée')+'</div>'+
+      '<div class="planner-surface"><div class="planner-surface-head"><h3>Frise 24 heures</h3></div>'+
+      '<div class="planner-hours planner-track single-track">'+list.map(a=>segment(a,state.date)).join('')+'</div>'+
+      '<div class="service-segments">'+(list.length?list.map(a=>
+      '<div class="service-piece"><span class="type-dot '+esc(a.type)+'"></span><div class="service-time">'+esc(rowTimes(a))+'</div>'+
+      '<div class="service-desc"><strong>'+esc(a.label)+'</strong><small>'+esc(types[a.type])+(a.from?' · '+esc(a.from):'')+(a.to?' → '+esc(a.to):'')+
+      (a.vehicleId?' · '+esc(namedVehicle(a.vehicleId)):'')+'</small></div>'+
+      htmlButton('Modifier','edit','muted small','data-id="'+esc(a.id)+'"')+'</div>').join(''):'<div class="empty">Aucune activité enregistrée.</div>')+'</div></div>'+
+      '<div class="section-head"><h2>Vérifications</h2></div>'+validation(state.date);
   }
   function drivers(){
     return '<div class="grid cols-2">'+htmlCard('Ajouter un conducteur',
