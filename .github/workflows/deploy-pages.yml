@@ -243,6 +243,7 @@ jobs:
           grep -q 'Ouvrir mon SAEIV conducteur' site/v2/app.js
           node --check site/v2/app.js
           node --check site/v2/sw.js
+          node v2/tests/operations.test.cjs
 
           for f in \
             login-gateway.js gateway-full-backup.js gateway-driver-parking.js \
