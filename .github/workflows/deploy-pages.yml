@@ -251,6 +251,7 @@ jobs:
           node --check site/v2-preview/sw.js
           grep -q "monsaeiv-v2-preview-operations-1" site/v2-preview/app.js
           grep -q "mon-saeiv-preview-20261102" site/v2-preview/sw.js
+          node v2-preview/tests/operations.test.cjs
           node v2/tests/operations.test.cjs
 
           for f in \
