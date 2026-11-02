@@ -23,6 +23,7 @@ jobs:
           node --check v2/app.js
           node --check v2/sw.js
           node v2/tests/operations.test.cjs
+          node v2-preview/tests/operations.test.cjs
       - name: Validate module integration and 1.0.120 cache
         run: |
           python - <<'PY'
