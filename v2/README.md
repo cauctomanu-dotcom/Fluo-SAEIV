@@ -2,10 +2,10 @@
 
 **Statut : maquette fonctionnelle locale, non prête pour un service commercial.**
 
-Cette version vit dans le répertoire v2/ de la branche \`saeiv-2-0-prototype\` et ne remplace ni Mon SAEIV 1.x ni la page de secours.
+Cette version vit dans le répertoire v2/ de la branche `saeiv-2-0-prototype` et ne remplace ni Mon SAEIV 1.x ni la page de secours.
 
 ## Lancement
-- Pour une prévisualisation locale, ouvrir \`v2/index.html\` dans un navigateur moderne.
+- Pour une prévisualisation locale, ouvrir `v2/index.html` dans un navigateur moderne.
 - Aucune dépendance à installer : HTML/CSS/JavaScript natifs.
 - Les données de démonstration sont fictives ; les modifications ne sont enregistrées que dans le stockage local de ce navigateur.
 - Le bouton Conducteur / Exploitation change seulement l'interface : **ce n'est pas un mécanisme d'authentification**.
@@ -33,7 +33,7 @@ Cette version vit dans le répertoire v2/ de la branche \`saeiv-2-0-prototype\` 
 ## Architecture cible (à construire et valider)
 - **Frontend PWA** conducteur et exploitation : GitHub sert de dépôt source, une publication peut être assurée par un hébergeur statique HTTPS.
 - **Serveur autonome Ubuntu** : API sécurisée, contrôles d'accès, gestion des sessions, base de données PostgreSQL ou équivalent, sauvegardes automatiques et journaux. Aucune dépendance obligatoire à Supabase.
-- **Données transport** : ingestion et versionnement GTFS officiels 54/57 ; courses exactes \`trip_id\`, arrêt, variante, tracés et exceptions calendaires. Vérifier les conditions de licence et la fraîcheur.
+- **Données transport** : ingestion et versionnement GTFS officiels 54/57 ; courses exactes `trip_id`, arrêt, variante, tracés et exceptions calendaires. Vérifier les conditions de licence et la fraîcheur.
 - **SAEIV conducteur** : synchronisation service, cache hors ligne, GPS/map-matching, régulation, billet collectif et titres, gestion TAD et remontées d'incidents.
 - **Voix unique** : synthèse des annonces **sur le serveur**, cache des fichiers audio, identiques sur Android et iOS, diffusion côté client.
 - **Exploitation** : périodes et segments d'activités, affectations conducteur/véhicule, journées multi-lignes, HLP, pauses, coupures, absences, semainier et planning global.
@@ -41,14 +41,14 @@ Cette version vit dans le répertoire v2/ de la branche \`saeiv-2-0-prototype\` 
 - **Publication** : statuts brouillon → contrôle → validation → publication avec historique, auteurs, dates et diffusions.
 
 ## Prochain incrément
-1. Définir le modèle de données \`Driver\`, \`Vehicle\`, \`Duty\`, \`Activity\`, \`Trip\`, \`Stop\`, \`StopRequest\`, \`Ticket\`, \`Incident\`, \`Publication\`.
+1. Définir le modèle de données `Driver`, `Vehicle`, `Duty`, `Activity`, `Trip`, `Stop`, `StopRequest`, `Ticket`, `Incident`, `Publication`.
 2. Concevoir un vrai planning par segments (y compris minuit) et un moteur de validations testable séparément.
 3. Installer une API de test isolée, **sans modifier la VM radio en production**, et intégrer un véritable mécanisme d'authentification.
 4. Préparer l'import GTFS et la génération d'annonces audio serveur.
 5. Tester l'affichage et les parcours sur PC, Android et iPhone avec des jeux de données fictifs.
 
 ### Règles de sécurité et de déploiement
-- Branche distincte ; pas de changement de \`main\` sans validation.
-- Ne pas remplacer ou casser \`index.html\`, \`secours.html\`, les workflows actuels ou la radio.
+- Branche distincte ; pas de changement de `main` sans validation.
+- Ne pas remplacer ou casser `index.html`, `secours.html`, les workflows actuels ou la radio.
 - N'exposer aucun secret, jeton, mot de passe, coordonnées GPS privées ou fichier de données personnelles dans le dépôt public.
 - Publication et migration serveur uniquement après essais et accord explicite.
