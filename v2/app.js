@@ -3,8 +3,8 @@
 (() => {
   const KEY='monsaeiv-v2-local-operations-1';
   const types={course:'Course voyageurs',school:'Scolaire',hlp:'Haut-le-pied',pause:'Coupure',other:'Autre activité'};
-  const navs={driver:[['driver','Conduite Fluo'],['mine','Mon planning']],ops:[['planning','Planning du jour'],['week','Semainier'],['drivers','Conducteurs'],['vehicles','Véhicules'],['backup','Sauvegardes']]};
-  const ico={driver:'🚌',mine:'◷',planning:'▦',week:'▧',drivers:'♙',vehicles:'▣',backup:'⬇'};
+  const navs={driver:[['home','Accueil'],['driver','Cockpit conducteur'],['mine','Ma feuille de service']],ops:[['home','Tableau de bord'],['planning','Journée globale'],['week','Semainier équipe'],['day','Journée conducteur'],['drivers','Collaborateurs'],['vehicles','Parc véhicules'],['organization','Entreprise & modules'],['backup','Sauvegardes']]};
+  const ico={home:'◈',driver:'🚌',mine:'◷',planning:'▦',week:'▧',day:'◷',drivers:'♙',vehicles:'▣',organization:'⚙',backup:'⬇'};
   const $=id=>document.getElementById(id);
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const ymd=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
@@ -21,7 +21,10 @@
     const saved=JSON.parse(localStorage.getItem(KEY)||'null');
     if(saved&&saved.version===1&&Array.isArray(saved.drivers)&&Array.isArray(saved.activities)&&Array.isArray(saved.vehicles))store=saved;
   }catch(e){storageError='Lecture du stockage impossible, exporter une sauvegarde dès que possible.';}
-  const state={role:'driver',view:'driver',date:ymd(new Date()),driverId:store.drivers[0]?.id||'',weekId:store.drivers[0]?.id||'',filter:'all'};
+  store.settings={name:'Mon entreprise',...store.settings};
+  const state={role:'ops',view:'planning',date:ymd(new Date()),driverId:store.drivers[0]?.id||'',
+    weekId:store.drivers[0]?.id||'',openDriver:store.drivers[0]?.id||'',filter:'all',
+    search:'',depot:'',mode:'timeline',lastWeek:'week'};
   function persist(){
     try{store.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(store));storageError='';}
     catch(e){storageError='Enregistrement local impossible : vérifiez l’espace disponible. Exportez immédiatement vos données.';}
@@ -240,11 +243,20 @@
       '<div class="section-head"><h2>Vérifications</h2></div>'+validation(state.date);
   }
   function drivers(){
-    return '<div class="grid cols-2">'+htmlCard('Ajouter un conducteur',
-    '<form id="newDriverForm" class="inline-form"><label>Nom affiché<input name="name" maxlength="90" autocomplete="off" required placeholder="Nom ou matricule"></label><label>Matricule facultatif<input name="number" maxlength="40" placeholder="Ex. 0042"></label><button class="btn accent" type="submit">Créer le conducteur</button></form>')+
-    htmlCard('Conducteurs locaux',store.drivers.length?'<div class="rows">'+store.drivers.map(d=>'<div class="person-row"><div><strong>'+esc(d.name)+'</strong><small>'+esc(d.number||'Sans matricule')+' · '+forDriver(d.id).length+' activité(s)</small></div><div>'+htmlButton('Renommer','renameDriver','muted small','data-id="'+esc(d.id)+'"')+htmlButton('Supprimer','deleteDriver','danger small','data-id="'+esc(d.id)+'"')+'</div></div>').join('')+'</div>':'<div class="empty">Aucun conducteur. Crée le premier ci-contre.</div>')+'</div>'+
-    info('Aucun compte sécurisé n’est créé : il s’agit de profils de planning locaux. Les vrais comptes et droits seront intégrés avec le serveur.')
-    ;
+    return '<div class="maquette-intro"><div><span class="kicker">ENTREPRISE · COLLABORATEURS</span><h2>Conducteurs & agents</h2><p>Profils, matricules et dépôts pour la construction des services.</p></div></div>'+
+      '<div class="grid cols-2">'+htmlCard('Créer un conducteur',
+      '<form id="newDriverForm" class="inline-form"><label>Nom affiché<input name="name" maxlength="90" autocomplete="off" required placeholder="Nom / prénom"></label>'+
+      '<label>Matricule<input name="number" maxlength="40" placeholder="Ex. 0042"></label>'+
+      '<label>Dépôt<input name="depot" maxlength="80" placeholder="Ex. Château-Salins"></label>'+
+      '<button class="btn accent" type="submit">Ajouter à l’effectif</button></form>')+
+      htmlCard('Collaborateurs enregistrés',store.drivers.length?'<div class="rows">'+store.drivers.map(d=>
+        '<div class="person-row"><div><strong>'+esc(d.name)+'</strong><small>'+esc(d.number||'Sans matricule')+
+        ' · '+esc(d.depot||'Dépôt non renseigné')+' · '+forDriver(d.id).length+' activité(s)</small></div>'+
+        '<div class="btn-row">'+htmlButton('Dépôt','setDepot','muted small','data-id="'+esc(d.id)+'"')+
+        htmlButton('Renommer','renameDriver','muted small','data-id="'+esc(d.id)+'"')+
+        htmlButton('Supprimer','deleteDriver','danger small','data-id="'+esc(d.id)+'"')+'</div></div>').join('')+'</div>':
+      '<div class="empty">Aucun collaborateur enregistré</div>')+'</div>'+
+      info('Les profils restent locaux : un compte partagé et ses droits nécessitent le serveur.');
   }
   function vehicles(){
     return '<div class="grid cols-2">'+htmlCard('Ajouter un véhicule',
@@ -252,6 +264,42 @@
     htmlCard('Parc local',store.vehicles.length?'<div class="rows">'+store.vehicles.map(v=>'<div class="person-row"><strong>'+esc(v.name)+'</strong>'+htmlButton('Supprimer','deleteVehicle','danger small','data-id="'+esc(v.id)+'"')+'</div>').join('')+'</div>':'<div class="empty">Aucun véhicule saisi.</div>')+'</div>'+
     info('L’ajout d’un véhicule permet de signaler une double affectation simultanée, entre deux conducteurs. La disponibilité réelle n’est pas synchronisée.')
     ;
+  }
+  function home(){
+    const g=groupStats(state.date);
+    return '<div class="maquette-intro"><div><span class="kicker">MON SAEIV 2.0 · ESPACE ENTREPRISE</span>'+
+      '<h2>'+esc(store.settings?.name||'Mon entreprise')+'</h2>'+
+      '<p>Conduite • exploitation • collaborateurs • annonces • caisse • réseau</p></div>'+
+      '<div class="btn-row">'+htmlButton('Journée globale','gotoPlanning','accent')+
+      htmlButton('Semainier équipe','gotoWeek','muted')+'</div></div>'+
+      '<div class="grid cols-3 planner-metrics">'+stat('Conducteurs affectés',g[0],dateText(state.date))+
+      stat('Courses prévues',g[1],'Scolaires et lignes régulières')+
+      stat('Alertes planning',g[2],'Vérifications partielles')+'</div>'+
+      '<div class="section-head"><h2>Les espaces de Mon SAEIV</h2></div>'+
+      '<div class="module-grid">'+[
+        ['🚌','Conducteur','Cockpit, arrêts, navigation, GPS, annonces, formation','gotoDriver','live'],
+        ['▦','Exploitation','Journée globale, frises et construction des services','gotoPlanning','live'],
+        ['▧','Planning équipe','Semainier, collaborateurs et changements de ligne','gotoWeek','live'],
+        ['♙','Collaborateurs','Effectifs, matricules et dépôts','gotoDrivers','live'],
+        ['▣','Matériel','Affectations et conflits véhicules','gotoVehicles','live'],
+        ['🔊','Annonces','Voix unique serveur et annonces de sécurité','none','planned'],
+        ['▤','Caisse & titres','Billetterie et Billet CO — billet collectif','none','planned'],
+        ['⇄','Communication','Messages entre l’exploitation et les conducteurs','none','planned'],
+        ['⚙','Administration','Sociétés, comptes, personnalisation et droits','gotoOrganization','partial']
+      ].map(([icon,title,desc,action,status])=>
+        '<div class="module-card"><div class="module-icon">'+icon+'</div><h3>'+title+'</h3><p>'+desc+'</p>'+
+        '<span class="status-tag '+(status==='live'?'good':status==='planned'?'warn':'muted')+'">'+
+        (status==='live'?'Accès local':status==='planned'?'À raccorder':'Partiel')+'</span>'+
+        (action!=='none'?htmlButton('Ouvrir',''+action,'muted small'):'')+'</div>').join('')+'</div>';
+  }
+  function organization(){
+    return '<div class="maquette-intro"><div><span class="kicker">ADMINISTRATION</span><h2>Personnaliser Mon SAEIV</h2>'+
+      '<p>Identité de l’entreprise, dépôts et futurs modules de gestion.</p></div></div>'+
+      '<div class="grid cols-2">'+htmlCard('Nom de l’espace entreprise',
+      '<form class="inline-form" id="organizationForm"><label>Entreprise ou réseau<input name="name" required maxlength="90" value="'+esc(store.settings?.name||'Mon entreprise')+'"></label>'+
+      '<button type="submit" class="btn accent">Enregistrer</button></form>')+
+      htmlCard('État des connexions','<p>Planning : local sur cet appareil.</p><p>Conduite : SAEIV Fluo existant.</p>'+
+      '<p class="fine-print">Voix serveur, comptes et publication multi-conducteurs : non raccordés. Aucun mot de passe réel dans cet espace.</p>')+'</div>';
   }
   function backup(){
     return htmlCard('Sauvegarder ton travail',
@@ -263,7 +311,7 @@
       '<div class="grid cols-3">'+stat('Conducteurs',store.drivers.length,'Profils locaux')+stat('Véhicules',store.vehicles.length,'Parc local')+stat('Activités',store.activities.length,'Toutes dates confondues')+'</div>'+
       htmlCard('Confidentialité',info('Les données restent sur cet appareil sauf si tu exportes ou partages un fichier. GitHub Pages est un site statique public : n’inscris pas de mots de passe, de données médicales ni de données privées sensibles dans l’outil.'),'space-top');
   }
-  const pages={driver:driving,mine,planning,week,drivers,vehicles,backup};
+  const pages={home:home,driver:driving,mine,planning,week,day:driverDay,drivers,vehicles,organization,backup};
   function render(){
     if(!navs[state.role].some(v=>v[0]===state.view))state.view=navs[state.role][0][0];
     $('roleDriver').classList.toggle('active',state.role==='driver');$('roleOps').classList.toggle('active',state.role==='ops');
@@ -314,7 +362,7 @@
     if(!raw||raw.version!==1||!Array.isArray(raw.activities)||!Array.isArray(raw.drivers)||!Array.isArray(raw.vehicles))throw Error('Format de sauvegarde non reconnu.');
     if(raw.activities.length>20000||raw.drivers.length>1000||raw.vehicles.length>1000)throw Error('Fichier trop volumineux.');
     const text=(v,max=120)=>String(v==null?'':v).slice(0,max);
-    const drivers=raw.drivers.map(d=>({id:text(d.id,100),name:text(d.name,90),number:text(d.number,40)}));
+    const drivers=raw.drivers.map(d=>({id:text(d.id,100),name:text(d.name,90),number:text(d.number,40),depot:text(d.depot,80)}));
     const vehicles=raw.vehicles.map(v=>({id:text(v.id,100),name:text(v.name,90)}));
     const ids=new Set(drivers.map(d=>d.id)),vids=new Set(vehicles.map(v=>v.id));
     const activities=raw.activities.map(a=>{
@@ -323,9 +371,35 @@
       return {id:text(a.id,100),date:a.date,driverId:a.driverId,type:a.type,start:a.start,end:a.end,label:text(a.label,120),from:text(a.from),to:text(a.to),vehicleId:text(a.vehicleId,100),note:text(a.note,300)};
     });
     if(new Set(drivers.map(d=>d.id)).size!==drivers.length||new Set(activities.map(a=>a.id)).size!==activities.length)throw Error('Identifiants dupliqués dans la sauvegarde.');
-    return {version:1,drivers,vehicles,activities,updatedAt:text(raw.updatedAt,60)};
+    return {version:1,drivers,vehicles,activities,settings:{name:text(raw.settings?.name||'Mon entreprise',90)},updatedAt:text(raw.updatedAt,60)};
+  }
+  function navigate(view,role){
+    if(role)state.role=role;
+    state.view=view;render();
   }
   function onAction(kind,id){
+    const pending=window.__pendingActionElement||null;
+    if(kind==='timelineMode'||kind==='listMode'){state.mode=kind==='timelineMode'?'timeline':'list';render();return;}
+    if(kind==='prevWeek'||kind==='nextWeek'){
+      const d=parseDay(state.date);d.setDate(d.getDate()+(kind==='prevWeek'?-7:7));state.date=ymd(d);render();return;
+    }
+    if(kind==='openDay'||kind==='openDriverDay'){
+      if(pending?.dataset.date)state.date=pending.dataset.date;
+      if(kind==='openDriverDay'&&pending?.dataset.driver)state.openDriver=pending.dataset.driver;
+      navigate(kind==='openDay'?'planning':'day','ops');return;
+    }
+    if(kind==='backWeek'){navigate('week','ops');return;}
+    if(kind==='gotoPlanning'||kind==='gotoWeek'||kind==='gotoDriver'||kind==='gotoVehicles'||kind==='gotoOrganization'){
+      const target={gotoPlanning:'planning',gotoWeek:'week',gotoDriver:'driver',gotoVehicles:'vehicles',gotoOrganization:'organization'}[kind];
+      navigate(target,target==='driver'?'driver':'ops');return;
+    }
+    if(kind==='addForDriver'||kind==='addOnDay'){
+      if(pending?.dataset.date)state.date=pending.dataset.date;
+      openActivity(null);
+      if(pending?.dataset.driver)$('activityDriver').value=pending.dataset.driver;
+      if(pending?.dataset.date)$('activityDate').value=pending.dataset.date;
+      return;
+    }
     if(kind==='prevDate'||kind==='nextDate'){
       const d=parseDay(state.date);d.setDate(d.getDate()+(kind==='prevDate'?-1:1));state.date=ymd(d);
     }
@@ -342,8 +416,9 @@
       if(store.activities.some(a=>a.driverId===id)){alert('Supprime ou réattribue d’abord ses activités.');return;}
       if(!confirm('Supprimer le conducteur '+d.name+' ?'))return;
       store.drivers=store.drivers.filter(v=>v.id!==id);
-      state.driverId=store.drivers[0]?.id||'';state.weekId=state.driverId;persist();
+      state.driverId=store.drivers[0]?.id||'';state.weekId=state.driverId;state.openDriver=state.driverId;persist();
     }
+    else if(kind==='setDepot'){const d=store.drivers.find(d=>d.id===id);if(!d)return;const v=prompt('Dépôt du conducteur',d.depot||'');if(v===null)return;d.depot=v.trim().slice(0,80);persist();}
     else if(kind==='renameDriver'){
       const d=store.drivers.find(d=>d.id===id);if(!d)return;
       const value=prompt('Nom du conducteur',d.name);if(!value)return;
@@ -363,20 +438,26 @@
   }
   document.addEventListener('click',e=>{
     const btn=e.target.closest('[data-view]');if(btn){state.view=btn.dataset.view;render();return;}
-    const act=e.target.closest('[data-action]');if(act&&!act.disabled)onAction(act.dataset.action,act.dataset.id);
+    const act=e.target.closest('[data-action]');if(act&&!act.disabled){window.__pendingActionElement=act;onAction(act.dataset.action,act.dataset.id);window.__pendingActionElement=null;}
   });
   document.addEventListener('change',e=>{
     const t=e.target;
     if(t.dataset.input==='date'&&isDay(t.value)){state.date=t.value;render();}
     if(t.id==='selfDriver'){state.driverId=t.value;render();}
     if(t.id==='weekDriver'){state.weekId=t.value;render();}
+    if(t.id==='driverSearch'){state.search=t.value;render();}
+    if(t.id==='depotFilter'){state.depot=t.value;render();}
   });
   document.addEventListener('submit',e=>{
+    if(e.target.id==='organizationForm'){
+      e.preventDefault();const val=String(new FormData(e.target).get('name')||'').trim();
+      if(val)store.settings.name=val.slice(0,90);persist();render();
+    }
     if(e.target.id==='newDriverForm'){
       e.preventDefault();
       const d=new FormData(e.target),name=String(d.get('name')||'').trim(),number=String(d.get('number')||'').trim();
       if(!name)return;
-      const id=uid();store.drivers.push({id,name:name.slice(0,90),number:number.slice(0,40)});
+      const id=uid();store.drivers.push({id,name:name.slice(0,90),number:number.slice(0,40),depot:String(d.get('depot')||'').trim().slice(0,80)});
       if(!state.driverId)state.driverId=id;if(!state.weekId)state.weekId=id;persist();render();
     }
     if(e.target.id==='newVehicleForm'){
@@ -409,6 +490,29 @@
       alert('Sauvegarde restaurée : '+store.activities.length+' activité(s).');
     }catch(err){alert('Importation refusée : '+err.message);}
     finally{e.target.value='';}
+  });
+  document.addEventListener('dragstart',e=>{
+    const target=e.target.closest?.('[data-id][draggable="true"]');
+    if(!target)return;
+    const a=store.activities.find(x=>x.id===target.dataset.id);
+    if(!a)return;
+    try{e.dataTransfer.setData('text/plain',a.id);e.dataTransfer.effectAllowed='move';}catch(_){}
+  });
+  document.addEventListener('dragover',e=>{
+    if(e.target.closest?.('[data-drop-driver]')){e.preventDefault();e.dataTransfer.dropEffect='move';}
+  });
+  document.addEventListener('drop',e=>{
+    const target=e.target.closest?.('[data-drop-driver]');
+    if(!target)return;
+    e.preventDefault();const id=e.dataTransfer.getData('text/plain');
+    const a=store.activities.find(x=>x.id===id);
+    if(!a)return;
+    const newDriver=target.dataset.dropDriver,newDate=target.dataset.dropDate;
+    if(!store.drivers.some(d=>d.id===newDriver)||!isDay(newDate))return;
+    if(a.driverId===newDriver&&a.date===newDate)return;
+    const next=store.activities.map(x=>x===a?{...a,driverId:newDriver,date:newDate}:x);
+    if(!confirm('Réaffecter « '+a.label+' » à '+namedDriver(newDriver)+' le '+dateText(newDate)+' ? Les conflits et repos devront être revérifiés.'))return;
+    store.activities=next;persist();render();
   });
   $('roleDriver').addEventListener('click',()=>{state.role='driver';state.view='driver';render();});
   $('roleOps').addEventListener('click',()=>{state.role='ops';state.view='planning';render();});
